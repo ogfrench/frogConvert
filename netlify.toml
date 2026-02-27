@@ -1,10 +1,17 @@
-# netlify.toml
 [build]
   command = "npm run build"
   publish = "dist"
 
-# Redirect all routes to the SPA entry point under /convert
+# Rewrite /convert/* to the actual files in dist/
+# This is needed because Vite generates asset URLs prefixed with /convert/
+# but Netlify serves the dist folder at the root.
 [[redirects]]
-  from = "/*"
-  to = "/convert/index.html"
+  from = "/convert/*"
+  to = "/:splat"
   status = 200
+
+# Redirect root to /convert/
+[[redirects]]
+  from = "/"
+  to = "/convert/"
+  status = 302
