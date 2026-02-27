@@ -314,7 +314,20 @@ bindConvertButton(async function () {
     }
 
     if (inputFileData.length === 0) {
-      hidePopup();
+      // All files were same-format - they've been downloaded individually
+      // Show success modal for consistency
+      const fileNames = inputFiles.map(f => shortenFileName(f.name, 32)).join(", ");
+      const fileLabel = inputFiles.length === 1 ? "file" : `${inputFiles.length} files`;
+      const truncatedInputName = shortenFileName(inputFiles[0].name, 32);
+
+      showPopup(
+        `<h2>All done! 🎉</h2>` +
+        `<p>No conversion needed for <b>${truncatedInputName}</b> (already <b>${outputFormat.format.toUpperCase()}</b>).</p>` +
+        `<p>Your ${fileLabel} were saved!: <b>${fileNames}</b></p>` +
+        `<div class="popup-actions">` +
+        `<button class="popup-primary" onclick="window.hidePopup()">Close</button>` +
+        `</div>`,
+      );
       return;
     }
 
