@@ -1,42 +1,16 @@
-# [Convert to it!](https://convert.to.it/)
+_This project is a fork of Convert to it with the goal was to adapt and improve the UI/UX of the original tool. You can find the original repo here: https://github.com/p2r3/convert_
+_The text below is adapted from the original repo_
+
+# [frogConvert!](https://frogconvert.netlify.app/)
 **Truly universal online file converter.**
 
 Many online file conversion tools are **boring** and **insecure**. They only allow conversion between two formats in the same medium (images to images, videos to videos, etc.), and they require that you _upload your files to some server_.
 
 This is not just terrible for privacy, it's also incredibly lame. What if you _really_ need to convert an AVI video to a PDF document? Try to find an online tool for that, I dare you.
 
-[Convert.to.it](https://convert.to.it/) aims to be a tool that "just works". You're almost _guaranteed_ to get an output - perhaps not always the one you expected, but it'll try its best to not leave you hanging.
+[frogConvert](https://frogconvert.netlify.app/) aims to be a tool that "just works". You're almost _guaranteed_ to get an output - perhaps not always the one you expected, but it'll try its best to not leave you hanging.
 
-For a semi-technical overview of this tool, check out the video: https://youtu.be/btUbcsTbVA8
-
-## Usage
-
-1. Go to [convert.to.it](https://convert.to.it/)
-2. Click the big blue box to add your file (or just drag it on to the window).
-3. An input format should have been automatically selected. If it wasn't, yikes! Try searching for it, or if it's really not there, see the "Issues" section below.
-4. Select an output format from the second list. If you're on desktop, that's the one on the right side. If you're on mobile, it'll be somewhere lower down.
-5. Click **Convert**!
-6. Hopefully, after a bit (or a lot) of thinking, the program will spit out the file you wanted. If not, see the "Issues" section below.
-
-## Issues
-
-Ever since the YouTube video released, we've been getting spammed with issues suggesting the addition of all kinds of niche file formats. To keep things organized, I've decided to specify what counts as a valid issue and what doesn't.
-
-> [!IMPORTANT]
-> **SIMPLY ASKING FOR A FILE FORMAT TO BE ADDED IS NOT A MEANINGFUL ISSUE!**
-
-There are thousands of file formats out there. It can take hours to add support for just one. The math is simple - we can't possibly support every single file. As such, simply listing your favorite file formats is not helpful. We already know that there are formats we don't support, we don't need tickets to tell us that.
-
-When suggesting a file format, you must _at minimum_:
-- Make sure that there isn't already an issue about the same thing, and that we don't already support the format.
-- Explain what you expect the conversion to be like (what medium is it converting to/from). It's important to note here that simply parsing the underlying data is _not sufficient_. Imagine if we only treated SVG images as raw XML data and didn't support converting them to raster images - that would defeat the point.
-- Provide links to existing browser-based solutions if possible, or at the very least a reference for implementing the format, and make sure the license is compatible with GPL-2.0.
-
-If this seems like a lot, please remember - a developer will have to do 100x more work to actually implement the format. Doing a bit of research not only saves them precious time, it also weeds out "unserious" proposals that would only bloat our to-do list.
-
-**If you're submitting a bug report,** you only need to do step 1 - check if the problem isn't already reported by someone else. Bug reports are generally quite important otherwise.
-
-Though please note, "converting X to Y doesn't work" is **not** a bug report.  However, "converting X to Y works but not how I expected" likely **is** a bug report.
+For a semi-technical overview of this tool, check out the video of the original tool: https://youtu.be/btUbcsTbVA8
 
 ## Deployment
 
