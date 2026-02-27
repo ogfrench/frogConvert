@@ -304,7 +304,7 @@ export function renderDropdownOptions(
       .filter((_, idx) => idx % 2 === 0)
       .filter(c => c !== "")
       .join(" ");
-    const displayText = `${formatDescriptor} — ${cleanName} (${format.mime})`;
+    const displayText = `${formatDescriptor} — ${cleanName}`;
 
     if (format.to) {
       if (!seenTo.has(dedupeKey)) {
