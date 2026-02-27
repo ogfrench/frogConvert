@@ -219,7 +219,10 @@ export function openFormatModal() {
   const label = CATEGORY_LABELS[_activeCategory];
   ui.formatModalTitle.textContent = label ? `Select ${label.toLowerCase()} format` : "Select format";
   ui.toSearch.value = "";
-  ui.toSearch.focus();
+  // Don't auto-focus search on mobile to prevent keyboard popup
+  if (!window.matchMedia("(pointer: coarse)").matches) {
+    ui.toSearch.focus();
+  }
   filterFormatOptions("");
 }
 
@@ -477,10 +480,18 @@ export function initUploadZone(
   window.addEventListener("paste", fileSelectHandler);
 }
 
+export function shortenFileName(name: string, maxLength: number = 24): string {
+  if (name.length <= maxLength) return name;
+  const charsToShow = maxLength - 3;
+  const frontChars = Math.ceil(charsToShow / 2);
+  const backChars = Math.floor(charsToShow / 2);
+  return name.substring(0, frontChars) + "..." + name.substring(name.length - backChars);
+}
+
 export function showFileInUploadZone(files: File[]) {
   const displayName = files.length > 1
-    ? `${files[0].name} (+${files.length - 1} more)`
-    : files[0].name;
+    ? `${shortenFileName(files[0].name)} (+${files.length - 1} more)`
+    : shortenFileName(files[0].name);
 
   ui.uploadText.style.display = "none";
   ui.uploadHint.style.display = "none";

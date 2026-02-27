@@ -25,6 +25,7 @@ import {
   setLastConvertedFiles,
   bindConvertButton,
   initResponsiveMenu,
+  shortenFileName,
 } from "./ui.js";
 
 // --- State ---
@@ -347,13 +348,15 @@ bindConvertButton(async function () {
       downloadFile(file.bytes, file.name);
     }
 
-    const fileNames = output.files.map(f => f.name).join(", ");
+    const fileNames = output.files.map(f => shortenFileName(f.name, 32)).join(", ");
     const fileCount = output.files.length;
     const fileLabel = fileCount === 1 ? "file" : `${fileCount} files`;
 
+    const truncatedInputName = shortenFileName(selectedFiles[0].name, 32);
+
     showPopup(
       `<h2>All done! 🎉</h2>` +
-      `<p>Converted <b>${selectedFiles[0].name}</b> to <b>${outputFormat.format.toUpperCase()}</b>.</p>` +
+      `<p>Converted <b>${truncatedInputName}</b> to <b>${outputFormat.format.toUpperCase()}</b>.</p>` +
       `<p>Your freshly converted file is ready! Downloaded ${fileLabel}: <b>${fileNames}</b></p>` +
       `<div class="popup-actions">` +
       `<button class="popup-primary" onclick="window.downloadAgain()">Download again</button>` +
