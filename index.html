@@ -16,12 +16,17 @@
 
   <input id="file-input" type="file">
 
-  <button id="theme-toggle" title="Toggle theme">&#9790;</button>
+  <div id="top-controls">
+    <span id="filter-label">Filter:</span>
+    <button id="mode-toggle" title="Switch to Advanced mode">Core</button>
+    <button id="theme-toggle" title="Toggle theme">&#9790;</button>
+  </div>
 
-  <h1 id="hero-title">frogConvert</h1>
+  <h1 id="hero-title">🐸 frogConvert</h1>
 
   <p id="description">
-    Convert between 50+ file formats, entirely in your browser. No uploads. No servers. Everything runs locally on your device.
+    I can convert 50+ file formats right here in your browser — no uploads, no servers. Your files never leave your
+    device. Just drop a file and I'll handle the rest!
   </p>
 
   <p id="category-label">What type of file do you need?</p>
@@ -44,8 +49,8 @@
     <div class="swap-field" id="from-field">
       <label id="upload-label">Your file</label>
       <div id="upload-zone">
-        <p class="upload-text">Drop your file here</p>
-        <p class="upload-hint">or click to browse</p>
+        <p class="upload-text">Drop a file in here!</p>
+        <p class="upload-hint">or click to browse your files</p>
         <div class="upload-file-info">
           <span class="upload-file-name"></span>
           <div class="upload-file-actions">
@@ -73,7 +78,11 @@
   </div>
 
   <footer id="page-footer">
-    <a id="commit-id" href="https://github.com/ogfrench/frogConvert" target="_blank" rel="noopener">View on GitHub</a>
+    <div class="footer-content">
+      <span class="footer-text">made with ♥ by François - view on <a id="commit-id"
+          href="https://github.com/ogfrench/frogConvert" target="_blank" rel="noopener">GitHub</a></span>
+      <button id="footer-confetti-btn" title="Party time!">🎉</button>
+    </div>
   </footer>
 
   <div id="format-modal-bg"></div>
@@ -89,8 +98,9 @@
   <div id="popup-bg"></div>
   <div id="popup">
     <div class="loader-spinner"></div>
-    <h2>Preparing conversion tools...</h2>
-    <p>Everything runs locally — your files never leave your device</p>
+    <h2>Loading local tools... 🔧</h2>
+    <p>I’m taking some time to load all the necessary tools to run file conversions locally. This way your files
+      never leave your device! </p>
   </div>
 
   <script type="module" src="src/main.ts"></script>

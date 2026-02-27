@@ -14,6 +14,7 @@ export const ui = {
   removeFileBtn: document.querySelector("#remove-file-btn") as HTMLButtonElement,
   convertButton: document.querySelector("#convert-button") as HTMLButtonElement,
   themeToggleButton: document.querySelector("#theme-toggle") as HTMLButtonElement,
+  modeToggleButton: document.querySelector("#mode-toggle") as HTMLButtonElement,
   toSelector: document.querySelector("#to-selector") as HTMLButtonElement,
   toDropdown: document.querySelector("#to-dropdown") as HTMLDivElement,
   toOptions: document.querySelector("#to-options") as HTMLDivElement,
@@ -52,17 +53,37 @@ export const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const CATEGORY_UPLOAD_TEXT: Record<string, { upload: string; uploadLabel: string }> = {
-  "": { upload: "Drop your file here", uploadLabel: "Your file" },
-  image: { upload: "Drop your file here", uploadLabel: "Your file" },
-  audio: { upload: "Drop your file here", uploadLabel: "Your file" },
-  video: { upload: "Drop your file here", uploadLabel: "Your file" },
-  document: { upload: "Drop your file here", uploadLabel: "Your file" },
-  data: { upload: "Drop your file here", uploadLabel: "Your file" },
-  archive: { upload: "Drop your file here", uploadLabel: "Your file" },
-  font: { upload: "Drop your file here", uploadLabel: "Your file" },
-  code: { upload: "Drop your file here", uploadLabel: "Your file" },
-  other: { upload: "Drop your file here", uploadLabel: "Your file" },
+  "": { upload: "Drop your file in here!", uploadLabel: "Your file" },
+  image: { upload: "Drop your file in here!", uploadLabel: "Your file" },
+  audio: { upload: "Drop your file in here!", uploadLabel: "Your file" },
+  video: { upload: "Drop your file in here!", uploadLabel: "Your file" },
+  document: { upload: "Drop your file in here!", uploadLabel: "Your file" },
+  data: { upload: "Drop your file in here!", uploadLabel: "Your file" },
+  archive: { upload: "Drop your file in here!", uploadLabel: "Your file" },
+  font: { upload: "Drop your file in here!", uploadLabel: "Your file" },
+  code: { upload: "Drop your file in here!", uploadLabel: "Your file" },
+  other: { upload: "Drop your file in here!", uploadLabel: "Your file" },
 };
+
+// --- Basic mode format whitelist (common consulting/design formats) ---
+const BASIC_FORMATS = new Set([
+  // Image
+  "png", "jpeg", "webp", "gif", "svg", "tiff", "bmp", "ico",
+  // Audio
+  "mp3", "wav", "ogg", "flac", "aac",
+  // Video
+  "mp4", "webm", "mov", "avi",
+  // Document
+  "pdf", "docx", "xlsx", "pptx", "html", "markdown", "text", "csv",
+  // Data
+  "json", "xml", "yaml",
+  // Archive
+  "zip",
+  // Font
+  "ttf", "otf", "woff", "woff2",
+]);
+
+let _isAdvancedMode = localStorage.getItem("formatMode") === "advanced";
 
 // --- Category helpers ---
 
@@ -106,6 +127,23 @@ export function initTheme() {
     const isDark = document.documentElement.classList.contains("dark");
     applyTheme(!isDark);
     localStorage.setItem("theme", isDark ? "light" : "dark");
+  });
+}
+
+// --- Mode Toggle ---
+
+export function initModeToggle(onModeChanged: () => void) {
+  function applyMode(advanced: boolean) {
+    _isAdvancedMode = advanced;
+    ui.modeToggleButton.textContent = advanced ? "All Formats" : "Core Formats";
+    localStorage.setItem("formatMode", advanced ? "advanced" : "basic");
+  }
+
+  applyMode(_isAdvancedMode);
+
+  ui.modeToggleButton.addEventListener("click", () => {
+    applyMode(!_isAdvancedMode);
+    onModeChanged();
   });
 }
 
@@ -217,9 +255,13 @@ export function setSelectorText(index: number, allOptions: Array<{ format: FileF
   textEl.classList.remove("placeholder");
 }
 
-export function resetSelector() {
+export function resetSelector(activeCategory: string = "") {
   const textEl = ui.toSelector.querySelector(".selector-text") as HTMLSpanElement;
-  textEl.textContent = "Select format...";
+  if (activeCategory && CATEGORY_LABELS[activeCategory]) {
+    textEl.textContent = `Select ${CATEGORY_LABELS[activeCategory]} format...`;
+  } else {
+    textEl.textContent = "Select format...";
+  }
   textEl.classList.add("placeholder");
 }
 
@@ -250,6 +292,10 @@ export function renderDropdownOptions(
 
     const cat = getFormatCategory(format);
     if (activeCategory && cat !== activeCategory) continue;
+
+    if (!_isAdvancedMode && !BASIC_FORMATS.has(format.format.toLowerCase())) {
+      continue;
+    }
 
     const dedupeKey = `${format.mime}::${format.format}`;
     const formatDescriptor = format.format.toUpperCase();
@@ -445,4 +491,43 @@ export function findMatchingFormat(
   }
 
   return matchIndex;
+}
+
+// --- Download & Actions Helpers ---
+
+let lastConvertedFiles: { name: string; bytes: Uint8Array }[] = [];
+
+export function setLastConvertedFiles(files: { name: string; bytes: Uint8Array }[]) {
+  lastConvertedFiles = files;
+}
+
+export function downloadFile(bytes: Uint8Array, name: string) {
+  const blob = new Blob([bytes as BlobPart], { type: "application/octet-stream" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = name;
+  link.click();
+}
+
+export function downloadAllConvertedFiles() {
+  for (const file of lastConvertedFiles) {
+    downloadFile(file.bytes, file.name);
+  }
+}
+
+window.downloadAgain = function () {
+  downloadAllConvertedFiles();
+};
+
+export function bindConvertButton(onClick: () => Promise<void>) {
+  ui.convertButton.onclick = async () => {
+    // Disable button to prevent double-clicks
+    ui.convertButton.classList.add("disabled");
+    try {
+      await onClick();
+    } finally {
+      // Re-enable if we didn't navigate away
+      ui.convertButton.classList.remove("disabled");
+    }
+  };
 }

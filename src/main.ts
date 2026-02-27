@@ -1,6 +1,7 @@
 import type { FileFormat, FileData, FormatHandler, ConvertPathNode } from "./FormatHandler.js";
 import handlers from "./handlers";
 import { TraversionGraph } from "./TraversionGraph.js";
+import { triggerConfetti } from "./confetti.js";
 import {
   ui,
   initTheme,
@@ -18,6 +19,11 @@ import {
   resetUploadZone,
   updateCategoryText,
   findMatchingFormat,
+  initModeToggle,
+  resetSelector,
+  downloadFile,
+  setLastConvertedFiles,
+  bindConvertButton,
 } from "./ui.js";
 
 // --- State ---
@@ -39,12 +45,19 @@ const conversionsFromAnyInput: ConvertPathNode[] = handlers
 
 initTheme();
 
+initModeToggle(() => {
+  renderDropdownOptions(allOptions, activeCategory, selectToFormat);
+});
+
 initFormatModal(allOptions, selectToFormat);
 
 initCategoryTabs((category) => {
   activeCategory = category;
   updateCategoryText(activeCategory, selectedFiles.length > 0);
   renderDropdownOptions(allOptions, activeCategory, selectToFormat);
+  if (selectedToIndex === null) {
+    resetSelector(activeCategory);
+  }
 });
 
 initUploadZone(
@@ -165,7 +178,7 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[]) {
   }
 
   ui.popupBox.innerHTML = `<div class="loader-spinner"></div>
-    <h2>Converting...</h2>
+    <h2>Working on it... 🐸</h2>
     <p>Trying <b>${pathString}</b></p>`;
 
   for (let i = 0; i < path.length - 1; i++) {
@@ -200,7 +213,7 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[]) {
       window.traversionGraph.addDeadEndPath(path.slice(0, i + 2));
 
       ui.popupBox.innerHTML = `<div class="loader-spinner"></div>
-        <h2>Converting...</h2>
+        <h2>Working on it... 🐸</h2>
         <p>Finding an alternative route...</p>`;
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
@@ -228,39 +241,24 @@ window.tryConvertByTraversing = async function (
   return null;
 };
 
-// --- Download helpers ---
-
-let lastConvertedFiles: FileData[] = [];
-
-function downloadFile(bytes: Uint8Array, name: string) {
-  const blob = new Blob([bytes as BlobPart], { type: "application/octet-stream" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = name;
-  link.click();
-}
-
-function downloadAllConvertedFiles() {
-  for (const file of lastConvertedFiles) {
-    downloadFile(file.bytes, file.name);
-  }
-}
-
-window.downloadAgain = function () {
-  downloadAllConvertedFiles();
-};
-
 // --- Convert button ---
 
-ui.convertButton.onclick = async function () {
+bindConvertButton(async function () {
   const inputFiles = selectedFiles;
 
   if (inputFiles.length === 0) {
-    return alert("Please add a file first.");
+    alert("Please add a file first.");
+    return;
   }
 
-  if (selectedFromIndex === null) return alert("Couldn't detect this file's format. Try a different file.");
-  if (selectedToIndex === null) return alert("Please choose an output format.");
+  if (selectedFromIndex === null) {
+    alert("Couldn't detect this file's format. Try a different file.");
+    return;
+  }
+  if (selectedToIndex === null) {
+    alert("Please choose an output format.");
+    return;
+  }
 
   const inputOption = allOptions[selectedFromIndex];
   const outputOption = allOptions[selectedToIndex];
@@ -268,7 +266,8 @@ ui.convertButton.onclick = async function () {
   const inputFormat = inputOption.format;
   const outputFormat = outputOption.format;
 
-  showPopup(`<div class="loader-spinner"></div><h2>Converting...</h2>`);
+  showPopup(`<div class="loader-spinner"></div><h2>Working on it... 🐸</h2>`);
+  const conversionStartTime = performance.now();
 
   try {
     const inputFileData: FileData[] = [];
@@ -294,13 +293,27 @@ ui.convertButton.onclick = async function () {
 
     const output = await window.tryConvertByTraversing(inputFileData, inputOption, outputOption);
 
+    // Ensure the working modal shows for at least 600ms so it doesn't just flash instantly
+    const elapsed = performance.now() - conversionStartTime;
+    if (elapsed < 600) {
+      await new Promise(resolve => setTimeout(resolve, 600 - elapsed));
+    }
+
     if (!output) {
-      hidePopup();
-      alert("No conversion path found between these formats. Try a different combination.");
+      showPopup(
+        `<h2>🎉 Cool — you found a missing feature!</h2>` +
+        `<p>You found a conversion we don't support (yet)!<br>` +
+        `<b>${inputFormat.format.toUpperCase()}</b> → <b>${outputFormat.format.toUpperCase()}</b> isn't available right now.</p>` +
+        `<p class="muted-text">Try a different format combo — I know lots of tricks!</p>` +
+        `<div class="popup-actions">` +
+        `<button class="popup-primary" onclick="window.hidePopup()">Got it!</button>` +
+        `</div>`
+      );
+      triggerConfetti();
       return;
     }
 
-    lastConvertedFiles = output.files;
+    setLastConvertedFiles(output.files);
 
     for (const file of output.files) {
       downloadFile(file.bytes, file.name);
@@ -311,9 +324,9 @@ ui.convertButton.onclick = async function () {
     const fileLabel = fileCount === 1 ? "file" : `${fileCount} files`;
 
     showPopup(
-      `<h2>Done!</h2>` +
+      `<h2>All done! 🎉</h2>` +
       `<p>Converted <b>${selectedFiles[0].name}</b> to <b>${outputFormat.format.toUpperCase()}</b>.</p>` +
-      `<p>Downloaded ${fileLabel}: <b>${fileNames}</b></p>` +
+      `<p>Your freshly converted file is ready! Downloaded ${fileLabel}: <b>${fileNames}</b></p>` +
       `<div class="popup-actions">` +
       `<button class="popup-primary" onclick="window.downloadAgain()">Download again</button>` +
       `<button onclick="window.hidePopup()">Close</button>` +
@@ -324,4 +337,13 @@ ui.convertButton.onclick = async function () {
     alert("Something went wrong during conversion:\n" + e);
     console.error(e);
   }
-};
+});
+
+// --- Footer Confetti ---
+
+const footerConfettiBtn = document.getElementById("footer-confetti-btn");
+if (footerConfettiBtn) {
+  footerConfettiBtn.addEventListener("click", () => {
+    triggerConfetti();
+  });
+}
