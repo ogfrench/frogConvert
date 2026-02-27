@@ -53,14 +53,21 @@
   </div>
 
   <div id="top-controls" class="entrance d1">
-    <span id="filter-label">Filter:</span>
-    <button id="mode-toggle" title="Filter the formats you can select"> Core</button>
-    <button id="theme-toggle" title="Toggle theme">&#9790;</button>
+    <button id="hamburger-btn" title="Toggle menu" aria-label="Toggle menu">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+    <div id="top-controls-menu">
+      <span id="filter-label">Filter:</span>
+      <button id="mode-toggle" title="Filter the formats you can select"> Core Formats</button>
+      <button id="theme-toggle" title="Toggle theme">&#9788;</button>
+    </div>
   </div>
 
   <h1 id="hero-title" class="entrance d2">🐸 frogConvert</h1>
 
-  <p id="category-label" class="entrance d3">What type of file do you need?</p>
+  <p id="category-label" class="entrance d3">What will your file turn into today?</p>
 
   <nav id="category-tabs" class="entrance d4">
     <button class="cat-tab active" data-category="">Any</button>
@@ -71,8 +78,8 @@
     <button class="cat-tab" data-category="data">Data</button>
     <button class="cat-tab" data-category="archive">Archive</button>
     <button class="cat-tab" data-category="font">Font</button>
-    <button class="cat-tab" data-category="code">Code</button>
-    <button class="cat-tab" data-category="other">Other</button>
+    <button class="cat-tab" data-category="code" style="display: none">Code</button>
+    <button class="cat-tab" data-category="other" style="display: none">Other</button>
   </nav>
 
   <div id="swap-card" class="entrance d5">

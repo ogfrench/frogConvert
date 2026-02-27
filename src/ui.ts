@@ -25,6 +25,8 @@ export const ui = {
   categoryTabs: document.querySelector("#category-tabs") as HTMLElement,
   popupBox: document.querySelector("#popup") as HTMLDivElement,
   popupBackground: document.querySelector("#popup-bg") as HTMLDivElement,
+  topControls: document.querySelector("#top-controls") as HTMLDivElement,
+  hamburgerBtn: document.querySelector("#hamburger-btn") as HTMLButtonElement,
 };
 
 // --- Constants ---
@@ -169,6 +171,22 @@ export function initModeToggle(onModeChanged: () => void) {
     }
     applyMode(!_isAdvancedMode);
     onModeChanged();
+    // Close menu on mobile after selection
+    ui.topControls.classList.remove("menu-open");
+  });
+}
+
+export function initResponsiveMenu() {
+  ui.hamburgerBtn.addEventListener("click", () => {
+    ui.topControls.classList.toggle("menu-open");
+  });
+
+  // Close menu when clicking outside
+  document.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement;
+    if (!ui.topControls.contains(target) && ui.topControls.classList.contains("menu-open")) {
+      ui.topControls.classList.remove("menu-open");
+    }
   });
 }
 

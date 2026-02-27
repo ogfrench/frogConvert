@@ -24,6 +24,7 @@ import {
   downloadFile,
   setLastConvertedFiles,
   bindConvertButton,
+  initResponsiveMenu,
 } from "./ui.js";
 
 // --- State ---
@@ -44,6 +45,7 @@ const conversionsFromAnyInput: ConvertPathNode[] = handlers
 // --- Init UI ---
 
 initTheme();
+initResponsiveMenu();
 
 initModeToggle(() => {
   renderDropdownOptions(allOptions, activeCategory, selectToFormat);
