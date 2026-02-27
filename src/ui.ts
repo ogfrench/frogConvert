@@ -53,16 +53,16 @@ export const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const CATEGORY_UPLOAD_TEXT: Record<string, { upload: string; uploadLabel: string }> = {
-  "": { upload: "Drop your file in here!", uploadLabel: "Your file" },
-  image: { upload: "Drop your file in here!", uploadLabel: "Your file" },
-  audio: { upload: "Drop your file in here!", uploadLabel: "Your file" },
-  video: { upload: "Drop your file in here!", uploadLabel: "Your file" },
-  document: { upload: "Drop your file in here!", uploadLabel: "Your file" },
-  data: { upload: "Drop your file in here!", uploadLabel: "Your file" },
-  archive: { upload: "Drop your file in here!", uploadLabel: "Your file" },
-  font: { upload: "Drop your file in here!", uploadLabel: "Your file" },
-  code: { upload: "Drop your file in here!", uploadLabel: "Your file" },
-  other: { upload: "Drop your file in here!", uploadLabel: "Your file" },
+  "": { upload: "Drop a file in here", uploadLabel: "Your file" },
+  image: { upload: "Drop a file in here", uploadLabel: "Your file" },
+  audio: { upload: "Drop a file in here", uploadLabel: "Your file" },
+  video: { upload: "Drop a file in here", uploadLabel: "Your file" },
+  document: { upload: "Drop a file in here", uploadLabel: "Your file" },
+  data: { upload: "Drop a file in here", uploadLabel: "Your file" },
+  archive: { upload: "Drop a file in here", uploadLabel: "Your file" },
+  font: { upload: "Drop a file in here", uploadLabel: "Your file" },
+  code: { upload: "Drop a file in here", uploadLabel: "Your file" },
+  other: { upload: "Drop a file in here", uploadLabel: "Your file" },
 };
 
 // --- Basic mode format whitelist (common consulting/design formats) ---
