@@ -1,4 +1,4 @@
-_This project is a fork of Convert to it with the goal was to adapt and improve the UI/UX of the original tool. You can find the original repo here: https://github.com/p2r3/convert_
+_This project is a fork of "[Convert to it!](https://p2r3.github.io/convert/)" with the goal was to adapt and improve the UI/UX of the original tool. You can find the original repo here: https://github.com/p2r3/convert_
 _The text below is adapted from the original repo_
 
 # [frogConvert!](https://frogconvert.netlify.app/)
