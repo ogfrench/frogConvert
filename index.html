@@ -21,11 +21,10 @@
   <h1 id="hero-title">frogConvert</h1>
 
   <p id="description">
-    A locally-run, universal file converter — forked and adapted for fellow frogs to quickly convert between 50+ file
-    formats, right from your browser. No uploads, no servers, just fast local conversions.
+    Convert between 50+ file formats, entirely in your browser. No uploads. No servers. Everything runs locally on your device.
   </p>
 
-  <p id="category-label">Choose to which file type you want to convert your file: </p>
+  <p id="category-label">What type of file do you need?</p>
 
   <nav id="category-tabs">
     <button class="cat-tab active" data-category="">Any</button>
@@ -43,10 +42,10 @@
   <div id="swap-card">
 
     <div class="swap-field" id="from-field">
-      <label id="upload-label">Upload your file</label>
+      <label id="upload-label">Your file</label>
       <div id="upload-zone">
-        <p class="upload-text">Click to add your file</p>
-        <p class="upload-hint">or drag and drop it here</p>
+        <p class="upload-text">Drop your file here</p>
+        <p class="upload-hint">or click to browse</p>
         <div class="upload-file-info">
           <span class="upload-file-name"></span>
           <div class="upload-file-actions">
@@ -67,10 +66,6 @@
         <span class="selector-text placeholder">Select format...</span>
         <span class="selector-chevron">&#9662;</span>
       </button>
-      <div class="swap-dropdown" id="to-dropdown">
-        <input type="text" class="dropdown-search" placeholder="Search formats...">
-        <div class="dropdown-options" id="to-options"></div>
-      </div>
     </div>
 
     <button id="convert-button" class="disabled">Convert</button>
@@ -78,14 +73,24 @@
   </div>
 
   <footer id="page-footer">
-    <a id="commit-id" href="https://github.com/ogfrench/frogConvert" target="_blank" rel="noopener">Find frogConvert on
-      Github</a>
+    <a id="commit-id" href="https://github.com/ogfrench/frogConvert" target="_blank" rel="noopener">View on GitHub</a>
   </footer>
+
+  <div id="format-modal-bg"></div>
+  <div id="to-dropdown">
+    <div class="format-modal-header">
+      <h2 id="format-modal-title">Select format</h2>
+      <button class="format-modal-close" id="format-modal-close" title="Close">&#10005;</button>
+    </div>
+    <input type="text" class="dropdown-search" placeholder="Search formats...">
+    <div class="dropdown-options" id="to-options"></div>
+  </div>
 
   <div id="popup-bg"></div>
   <div id="popup">
-    <h2>Loading tools...</h2>
-    <p>This might take a couple seconds</p>
+    <div class="loader-spinner"></div>
+    <h2>Preparing conversion tools...</h2>
+    <p>Everything runs locally — your files never leave your device</p>
   </div>
 
   <script type="module" src="src/main.ts"></script>

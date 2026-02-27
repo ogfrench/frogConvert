@@ -28,6 +28,8 @@ const HANDLER_PRIORITY_COST : number = 0.02; // Cost multiplier for handler prio
 const FORMAT_PRIORITY_COST : number = 0.05; // Cost multiplier for format priority. Higher values will make the algorithm prefer formats with higher priority more strongly.
 
 const LOG_FREQUENCY = 1000;
+const YIELD_FREQUENCY = 200; // Yield to event loop every N iterations to keep UI responsive
+const MAX_ITERATIONS = 50000; // Hard cap to prevent runaway searches
 
 export interface Node {
     identifier: string;
@@ -300,6 +302,14 @@ export class TraversionGraph {
         let pathsFound = 0;
         while (queue.size() > 0) {
             iterations++;
+            if (iterations > MAX_ITERATIONS) {
+                console.warn(`Path search aborted after ${MAX_ITERATIONS} iterations. Queue size: ${queue.size()}, Paths found: ${pathsFound}`);
+                break;
+            }
+            // Yield to event loop periodically to keep UI responsive
+            if (iterations % YIELD_FREQUENCY === 0) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
             // Get the node with the lowest cost
             let current = queue.poll()!;
             const indexInVisited = visited.indexOf(current.index);

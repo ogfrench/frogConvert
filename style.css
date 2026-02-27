@@ -4,6 +4,7 @@
 
 /* --- Design Tokens: Light Theme --- */
 :root {
+  /* Colors */
   --background: #ffffff;
   --foreground: #0a0a0a;
   --card: #ffffff;
@@ -21,8 +22,65 @@
   --border: #e4e4e7;
   --input: #e4e4e7;
   --ring: #a1a1aa;
-  --radius: 0.5rem;
   --highlight-color: #0a0a0a;
+
+  /* Radius */
+  --radius: 0.5rem;
+
+  /* Spacing */
+  --space-0: 0;
+  --space-px: 1px;
+  --space-0-5: 0.125rem;
+  --space-1: 0.25rem;
+  --space-1-5: 0.375rem;
+  --space-2: 0.5rem;
+  --space-2-5: 0.625rem;
+  --space-3: 0.75rem;
+  --space-3-5: 0.875rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 1.75rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Typography - Font Families */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono: "SF Mono", "Fira Code", "Fira Mono", "Cascadia Code", monospace;
+
+  /* Typography - Font Sizes */
+  --text-2xs: 0.625rem;
+  --text-xs: 0.6875rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.8125rem;
+  --text-md: 0.875rem;
+  --text-lg: 0.9375rem;
+  --text-xl: 1.125rem;
+  --text-2xl: 1.25rem;
+  --text-3xl: 2rem;
+  --text-4xl: 2.75rem;
+
+  /* Typography - Font Weights */
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  /* Typography - Line Heights */
+  --leading-none: 1;
+  --leading-tight: 1.1;
+  --leading-normal: 1.6;
+  --leading-relaxed: 1.7;
+
+  /* Typography - Letter Spacing */
+  --tracking-tighter: -0.04em;
+  --tracking-tight: -0.02em;
+  --tracking-snug: -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.02em;
+  --tracking-wider: 0.05em;
 
   color-scheme: light;
 }
@@ -61,10 +119,10 @@
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans);
   background-color: var(--background);
   color: var(--foreground);
-  line-height: 1.6;
+  line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.3s ease, color 0.3s ease;
@@ -80,28 +138,28 @@ body {
 /* --- Hero Title --- */
 #hero-title {
   text-align: center;
-  font-size: 2.75rem;
-  font-weight: 700;
-  letter-spacing: -0.04em;
+  font-size: var(--text-4xl);
+  font-weight: var(--font-bold);
+  letter-spacing: var(--tracking-tighter);
   color: var(--foreground);
-  margin: 4rem 0 0;
+  margin: var(--space-16) 0 0;
   padding: 0;
-  line-height: 1.1;
+  line-height: var(--leading-tight);
 }
 
 /* --- Theme Toggle --- */
 #theme-toggle {
   position: fixed;
-  top: 1.25rem;
-  right: 1.25rem;
-  font-size: 1.125rem;
+  top: var(--space-5);
+  right: var(--space-5);
+  font-size: var(--text-xl);
   width: 2.25rem;
   height: 2.25rem;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  line-height: 1;
+  line-height: var(--leading-none);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background-color: var(--secondary);
@@ -118,16 +176,16 @@ body {
 /* --- Footer / Github Link --- */
 #page-footer {
   margin-top: auto;
-  padding: 2rem 1.5rem 1.5rem;
+  padding: var(--space-12) var(--space-6) var(--space-8);
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
 }
 
 #commit-id {
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   color: var(--muted-foreground);
   text-decoration: none;
-  font-weight: 500;
+  font-weight: var(--font-medium);
 }
 
 #commit-id:hover {
@@ -139,21 +197,21 @@ body {
 #description {
   text-align: center;
   max-width: 36rem;
-  margin: 1.5rem auto 0;
-  padding: 0 1.5rem;
-  font-size: 0.875rem;
+  margin: var(--space-4) auto 0;
+  padding: 0 var(--space-6);
+  font-size: var(--text-md);
   color: var(--muted-foreground);
-  line-height: 1.7;
+  line-height: var(--leading-relaxed);
 }
 
 /* --- Category Label --- */
 #category-label {
   text-align: center;
-  margin: 1.75rem 0 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 500;
+  margin: var(--space-10) 0 var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
   color: var(--muted-foreground);
-  letter-spacing: 0.02em;
+  letter-spacing: var(--tracking-wide);
 }
 
 /* --- Category Tabs --- */
@@ -161,17 +219,17 @@ body {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.375rem;
-  padding: 0 1rem;
+  gap: var(--space-1-5);
+  padding: 0 var(--space-4);
   max-width: 50rem;
   margin: 0 auto;
 }
 
 .cat-tab {
   font-family: inherit;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  padding: 0.375rem 0.875rem;
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  padding: var(--space-1-5) var(--space-3-5);
   border: 1px solid var(--border);
   border-radius: 9999px;
   background-color: var(--background);
@@ -197,8 +255,8 @@ body {
   width: 100%;
   max-width: 34rem;
   min-width: 20rem;
-  margin: 2rem auto 0;
-  padding: 1.5rem;
+  margin: var(--space-10) auto 0;
+  padding: var(--space-6);
   background-color: var(--card);
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) * 2.5);
@@ -213,11 +271,11 @@ body {
 
 .swap-field label {
   display: block;
-  font-size: 0.75rem;
-  font-weight: 500;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
   color: var(--muted-foreground);
-  margin-bottom: 0.5rem;
-  padding-left: 0.25rem;
+  margin-bottom: var(--space-2);
+  padding-left: var(--space-1);
 }
 
 /* --- Upload Zone --- */
@@ -227,8 +285,8 @@ body {
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 4rem;
-  padding: 1.5rem 1rem;
+  min-height: var(--space-16);
+  padding: var(--space-6) var(--space-4);
   border: 2px dashed var(--border);
   border-radius: var(--radius);
   background-color: var(--secondary);
@@ -254,14 +312,14 @@ body {
 
 #upload-zone .upload-text {
   margin: 0;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: var(--text-md);
+  font-weight: var(--font-medium);
   color: var(--foreground);
 }
 
 #upload-zone .upload-hint {
-  margin: 0.375rem 0 0;
-  font-size: 0.75rem;
+  margin: var(--space-1-5) 0 0;
+  font-size: var(--text-sm);
   color: var(--muted-foreground);
 }
 
@@ -269,7 +327,7 @@ body {
 .upload-file-info {
   display: none;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   width: 100%;
   max-width: 100%;
 }
@@ -281,8 +339,8 @@ body {
 .upload-file-name {
   flex: 1;
   min-width: 0;
-  font-size: 0.8125rem;
-  font-weight: 600;
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
   color: var(--foreground);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -292,7 +350,7 @@ body {
 
 .upload-file-actions {
   display: flex;
-  gap: 0.25rem;
+  gap: var(--space-1);
   flex-shrink: 0;
 }
 
@@ -300,17 +358,17 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: var(--space-7);
+  height: var(--space-7);
   padding: 0;
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) - 2px);
   background-color: var(--card);
   color: var(--muted-foreground);
-  font-size: 0.8125rem;
+  font-size: var(--text-base);
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-  line-height: 1;
+  line-height: var(--leading-none);
 }
 
 .upload-action-btn:hover {
@@ -323,15 +381,15 @@ body {
 #swap-direction-wrap {
   display: flex;
   justify-content: center;
-  margin: 0.25rem 0;
-  padding-top: .75rem;
+  margin: var(--space-2) 0;
+  padding-top: var(--space-3);
   position: relative;
   z-index: 1;
 }
 
 #swap-direction {
-  width: 2rem;
-  height: 2rem;
+  width: var(--space-8);
+  height: var(--space-8);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -339,7 +397,7 @@ body {
   border-radius: 50%;
   background-color: var(--card);
   color: var(--muted-foreground);
-  font-size: 0.875rem;
+  font-size: var(--text-md);
   pointer-events: none;
   user-select: none;
 }
@@ -350,13 +408,13 @@ body {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 0.75rem 1rem;
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background-color: var(--secondary);
   color: var(--foreground);
   font-family: inherit;
-  font-size: 0.875rem;
+  font-size: var(--text-md);
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease;
   text-align: left;
@@ -378,42 +436,105 @@ body {
 }
 
 .swap-selector .selector-chevron {
-  font-size: 0.625rem;
+  font-size: var(--text-2xs);
   color: var(--muted-foreground);
-  margin-left: 0.5rem;
+  margin-left: var(--space-2);
   flex-shrink: 0;
 }
 
-/* --- Swap Dropdown --- */
-.swap-dropdown {
+/* --- Format Modal (replaces dropdown) --- */
+#format-modal-bg {
   display: none;
-  position: absolute;
-  top: calc(100% + 4px);
+  position: fixed;
   left: 0;
-  right: 0;
-  background-color: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  z-index: 50;
-  overflow: hidden;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 100;
 }
 
-.swap-dropdown.open {
+#format-modal-bg.open {
   display: block;
 }
 
-.dropdown-search {
-  width: 100%;
-  padding: 0.625rem 0.75rem;
-  border: none;
-  border-bottom: 1px solid var(--border);
+#to-dropdown {
+  display: none;
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 28rem;
+  max-width: 90vw;
+  max-height: 80vh;
   background-color: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) * 2.5);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  z-index: 101;
+  overflow: hidden;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+  flex-direction: column;
+}
+
+#to-dropdown.open {
+  display: flex;
+}
+
+.format-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-6) var(--space-6) var(--space-4);
+}
+
+.format-modal-header h2 {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.format-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-8);
+  height: var(--space-8);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--muted-foreground);
+  font-size: var(--text-2xl);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  line-height: var(--leading-none);
+}
+
+.format-modal-close:hover {
+  background-color: var(--accent);
+  color: var(--foreground);
+}
+
+.dropdown-search {
+  width: calc(100% - var(--space-6) * 2);
+  margin: 0 var(--space-6) var(--space-4);
+  padding: var(--space-2-5) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--secondary);
   color: var(--foreground);
   font-family: inherit;
-  font-size: 0.8125rem;
+  font-size: var(--text-base);
   outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.dropdown-search:focus {
+  border-color: var(--ring);
 }
 
 .dropdown-search::placeholder {
@@ -421,31 +542,31 @@ body {
 }
 
 .dropdown-options {
-  max-height: 16rem;
+  flex: 1;
   overflow-y: auto;
-  padding: 0.25rem;
+  padding: var(--space-1) var(--space-2);
 }
 
 .dropdown-group-header {
-  font-size: 0.6875rem;
-  font-weight: 600;
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--tracking-wider);
   color: var(--muted-foreground);
-  padding: 0.5rem 0.625rem 0.25rem;
+  padding: var(--space-2) var(--space-2-5) var(--space-1);
   user-select: none;
 }
 
 .dropdown-option {
   display: block;
   width: 100%;
-  padding: 0.5rem 0.625rem;
+  padding: var(--space-2) var(--space-2-5);
   border: none;
   border-radius: calc(var(--radius) - 2px);
   background: none;
   color: var(--foreground);
-  font-family: "SF Mono", "Fira Code", "Fira Mono", "Cascadia Code", monospace;
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
   text-align: left;
   cursor: pointer;
   word-break: break-word;
@@ -459,24 +580,24 @@ body {
 .dropdown-option.selected {
   background-color: var(--primary);
   color: var(--primary-foreground);
-  font-weight: 600;
+  font-weight: var(--font-semibold);
 }
 
 /* --- Convert Button (inside card) --- */
 #convert-button {
   display: block;
   width: 100%;
-  margin-top: 1rem;
-  padding: 0.75rem;
+  margin-top: var(--space-6);
+  padding: var(--space-3);
   border: none;
   border-radius: var(--radius);
   background-color: var(--primary);
   color: var(--primary-foreground);
   font-family: inherit;
-  font-size: 0.9375rem;
-  font-weight: 600;
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
   cursor: pointer;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-snug);
   transition: opacity 0.2s ease, transform 0.1s ease, background-color 0.3s ease, color 0.3s ease;
 }
 
@@ -516,7 +637,7 @@ body {
   background-color: var(--card);
   color: var(--card-foreground);
   border: 1px solid var(--border);
-  padding: 2.5rem 2rem;
+  padding: var(--space-10) var(--space-8);
   border-radius: calc(var(--radius) * 2.5);
   text-align: center;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
@@ -524,30 +645,45 @@ body {
   transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
+/* --- Loader Spinner --- */
+.loader-spinner {
+  width: var(--space-10);
+  height: var(--space-10);
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto var(--space-5);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 #popup h2 {
-  margin: 0 0 0.75rem;
-  font-size: 1.25rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+  letter-spacing: var(--tracking-tight);
 }
 
 #popup p {
-  margin: 0 0 1.5rem;
-  font-size: 0.875rem;
+  margin: 0 0 var(--space-6);
+  font-size: var(--text-md);
   color: var(--muted-foreground);
-  line-height: 1.6;
+  line-height: var(--leading-normal);
 }
 
 #popup .popup-actions {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--space-3);
   justify-content: center;
 }
 
 #popup button {
-  font-size: 0.875rem;
-  font-weight: 500;
-  padding: 0.5rem 1.5rem;
+  font-size: var(--text-md);
+  font-weight: var(--font-medium);
+  padding: var(--space-2) var(--space-6);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background-color: var(--secondary);
@@ -574,25 +710,25 @@ body {
 /* --- Responsive --- */
 @media only screen and (max-width: 800px) {
   #hero-title {
-    font-size: 2rem;
-    margin-top: 2.5rem;
+    font-size: var(--text-3xl);
+    margin-top: var(--space-10);
   }
 
   #swap-card {
-    margin: 1.5rem 0.75rem 0;
+    margin: var(--space-6) var(--space-3) 0;
     max-width: none;
     min-width: 0;
   }
 
   #category-tabs {
-    padding: 0 0.75rem;
+    padding: 0 var(--space-3);
   }
 
   #description {
-    padding: 0 1rem;
+    padding: 0 var(--space-4);
   }
 
   #page-footer {
-    padding: 1.5rem 1rem 1rem;
+    padding: var(--space-6) var(--space-4) var(--space-4);
   }
 }

@@ -8,6 +8,7 @@ declare global {
     printSupportedFormatCache: () => string;
     showPopup: (html: string) => void;
     hidePopup: () => void;
+    downloadAgain: () => void;
     tryConvertByTraversing: (files: FileData[], from: ConvertPathNode, to: ConvertPathNode) => Promise<{
       files: FileData[];
       path: ConvertPathNode[];
