@@ -1,54 +1,95 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
-  <title>Convert to it!</title>
+  <title>frogConvert</title>
 </head>
+
 <body>
 
   <input id="file-input" type="file">
 
-  <a id="commit-id" href="https://github.com/p2r3/convert"></a>
+  <button id="theme-toggle" title="Toggle theme">&#9790;</button>
 
-  <div id="file-area">
-    <h2>Click to add your file</h2>
-    <p id="drop-hint-text">or drag and drop it here</p>
-  </div>
-  <div id="side-panel">
-    <button id="mode-button">Advanced mode</button>
-  </div>
+  <h1 id="hero-title">frogConvert</h1>
 
-  <div id="format-containers">
+  <p id="description">
+    A locally-run, universal file converter — forked and adapted for fellow frogs to quickly convert between 50+ file
+    formats, right from your browser. No uploads, no servers, just fast local conversions.
+  </p>
 
-    <div id="from-container" class="format-container">
-      <h2>Convert from:</h2>
-      <input type="text" id="search-from" class="search" placeholder="Search">
-      <div id="from-list" class="format-list">
+  <p id="category-label">Choose to which file type you want to convert your file: </p>
 
+  <nav id="category-tabs">
+    <button class="cat-tab active" data-category="">Any</button>
+    <button class="cat-tab" data-category="image">Image</button>
+    <button class="cat-tab" data-category="audio">Audio</button>
+    <button class="cat-tab" data-category="video">Video</button>
+    <button class="cat-tab" data-category="document">Document</button>
+    <button class="cat-tab" data-category="data">Data</button>
+    <button class="cat-tab" data-category="archive">Archive</button>
+    <button class="cat-tab" data-category="font">Font</button>
+    <button class="cat-tab" data-category="code">Code</button>
+    <button class="cat-tab" data-category="other">Other</button>
+  </nav>
+
+  <div id="swap-card">
+
+    <div class="swap-field" id="from-field">
+      <label id="upload-label">Upload your file</label>
+      <div id="upload-zone">
+        <p class="upload-text">Click to add your file</p>
+        <p class="upload-hint">or drag and drop it here</p>
+        <div class="upload-file-info">
+          <span class="upload-file-name"></span>
+          <div class="upload-file-actions">
+            <button class="upload-action-btn" id="replace-file-btn" title="Replace file">&#8635;</button>
+            <button class="upload-action-btn" id="remove-file-btn" title="Remove file">&#10005;</button>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div id="to-container" class="format-container">
-      <h2>Convert to:</h2>
-      <input type="text" id="search-to" class="search" placeholder="Search">
-      <div id="to-list" class="format-list">
+    <div id="swap-direction-wrap">
+      <span id="swap-direction" title="Converting">&#8595;</span>
+    </div>
 
+    <div class="swap-field" id="to-field">
+      <label>Convert to</label>
+      <button class="swap-selector" id="to-selector">
+        <span class="selector-text placeholder">Select format...</span>
+        <span class="selector-chevron">&#9662;</span>
+      </button>
+      <div class="swap-dropdown" id="to-dropdown">
+        <input type="text" class="dropdown-search" placeholder="Search formats...">
+        <div class="dropdown-options" id="to-options"></div>
       </div>
     </div>
 
+    <button id="convert-button" class="disabled">Convert</button>
+
   </div>
 
-  <button id="convert-button" class="disabled">Convert</button>
+  <footer id="page-footer">
+    <a id="commit-id" href="https://github.com/ogfrench/frogConvert" target="_blank" rel="noopener">Find frogConvert on
+      Github</a>
+  </footer>
 
   <div id="popup-bg"></div>
   <div id="popup">
     <h2>Loading tools...</h2>
+    <p>This might take a couple seconds</p>
   </div>
 
   <script type="module" src="src/main.ts"></script>
 
 </body>
+
 </html>
