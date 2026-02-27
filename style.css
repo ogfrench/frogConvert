@@ -928,8 +928,8 @@ body {
 /* --- Responsive --- */
 @media only screen and (max-width: 800px) {
   #hero-title {
-    font-size: var(--text-3xl);
-    margin-top: var(--space-10);
+    font-size: var(--text-2xl);
+    margin-top: var(--space-8);
   }
 
   #swap-card {
@@ -947,6 +947,7 @@ body {
     margin-left: var(--space-3);
     margin-right: var(--space-3);
     padding: 0 var(--space-6);
+    font-size: var(--text-sm);
   }
 
   #page-footer {
