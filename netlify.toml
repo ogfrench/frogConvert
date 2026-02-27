@@ -1,0 +1,10 @@
+# netlify.toml
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Redirect all routes to the SPA entry point under /convert
+[[redirects]]
+  from = "/*"
+  to = "/convert/index.html"
+  status = 200
