@@ -119,7 +119,7 @@ export function initTheme() {
   }
 
   const savedTheme = localStorage.getItem("theme");
-  if (savedTheme === "dark" || (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+  if (savedTheme === "dark" || (!savedTheme && !window.matchMedia("(prefers-color-scheme: light)").matches)) {
     applyTheme(true);
   }
 
@@ -132,16 +132,41 @@ export function initTheme() {
 
 // --- Mode Toggle ---
 
+/** Categories only shown in advanced (All Formats) mode. */
+const ADVANCED_ONLY_CATEGORIES = ["code", "other"];
+
 export function initModeToggle(onModeChanged: () => void) {
   function applyMode(advanced: boolean) {
     _isAdvancedMode = advanced;
     ui.modeToggleButton.textContent = advanced ? "All Formats" : "Core Formats";
     localStorage.setItem("formatMode", advanced ? "advanced" : "basic");
+
+    // Show/hide advanced-only category tabs
+    for (const tab of Array.from(ui.categoryTabs.children) as HTMLElement[]) {
+      const cat = tab.getAttribute("data-category") || "";
+      if (ADVANCED_ONLY_CATEGORIES.includes(cat)) {
+        tab.style.display = advanced ? "" : "none";
+      }
+    }
   }
 
   applyMode(_isAdvancedMode);
 
   ui.modeToggleButton.addEventListener("click", () => {
+    // If an advanced-only tab is active, reset to "Any" before switching to core
+    if (!_isAdvancedMode) {
+      // switching from core to advanced — no reset needed
+    } else {
+      // switching from advanced to core — check if current tab is advanced-only
+      const activeTab = ui.categoryTabs.querySelector(".cat-tab.active") as HTMLElement | null;
+      const activeCat = activeTab?.getAttribute("data-category") || "";
+      if (ADVANCED_ONLY_CATEGORIES.includes(activeCat)) {
+        activeTab?.classList.remove("active");
+        const anyTab = ui.categoryTabs.querySelector('.cat-tab[data-category=""]') as HTMLElement | null;
+        anyTab?.classList.add("active");
+        anyTab?.click();
+      }
+    }
     applyMode(!_isAdvancedMode);
     onModeChanged();
   });

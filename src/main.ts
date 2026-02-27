@@ -1,5 +1,5 @@
 import type { FileFormat, FileData, FormatHandler, ConvertPathNode } from "./FormatHandler.js";
-import handlers from "./handlers";
+import handlers, { loadBackgroundHandlers } from "./handlers";
 import { TraversionGraph } from "./TraversionGraph.js";
 import { triggerConfetti } from "./confetti.js";
 import {
@@ -100,6 +100,7 @@ window.supportedFormatCache = new Map();
 window.traversionGraph = new TraversionGraph();
 
 window.printSupportedFormatCache = () => {
+  localStorage.removeItem("supportedFormatCache");
   const entries = [];
   for (const entry of window.supportedFormatCache) {
     entries.push(entry);
@@ -109,10 +110,8 @@ window.printSupportedFormatCache = () => {
 
 // --- Build option list ---
 
-async function buildOptionList() {
-  allOptions.length = 0;
-
-  for (const handler of handlers) {
+async function processHandlers(subset: FormatHandler[]) {
+  for (const handler of subset) {
     if (!window.supportedFormatCache.has(handler.name)) {
       console.warn(`Cache miss for formats of handler "${handler.name}".`);
       try {
@@ -133,27 +132,54 @@ async function buildOptionList() {
       allOptions.push({ format, handler });
     }
   }
+}
 
+function refreshUI() {
   window.traversionGraph.init(window.supportedFormatCache, handlers);
   renderDropdownOptions(allOptions, activeCategory, selectToFormat);
-  hidePopup();
 }
 
 // --- Init ---
 
 (async () => {
+  // Try localStorage first, then fall back to cache.json
   try {
-    const cacheJSON = await fetch("cache.json").then(r => r.json());
-    window.supportedFormatCache = new Map(cacheJSON);
+    const stored = localStorage.getItem("supportedFormatCache");
+    if (stored) {
+      window.supportedFormatCache = new Map(JSON.parse(stored));
+    } else {
+      throw "No localStorage cache";
+    }
   } catch {
-    console.warn(
-      "Missing supported format precache.\n\n" +
-      "Consider saving the output of printSupportedFormatCache() to cache.json.",
-    );
-  } finally {
-    await buildOptionList();
-    console.log("Built initial format list.");
+    try {
+      const cacheJSON = await fetch("cache.json").then(r => r.json());
+      window.supportedFormatCache = new Map(cacheJSON);
+    } catch {
+      console.warn(
+        "Missing supported format precache.\n\n" +
+        "Consider saving the output of printSupportedFormatCache() to cache.json.",
+      );
+    }
   }
+
+  // Phase 1: core handlers (already in handlers array)
+  await processHandlers(handlers);
+  refreshUI();
+  console.log(`Phase 1: ${handlers.length} core handlers loaded.`);
+
+  // Phase 2: dynamically load remaining handlers in background
+  setTimeout(async () => {
+    const countBefore = handlers.length;
+    await loadBackgroundHandlers();
+    await processHandlers(handlers.slice(countBefore));
+    refreshUI();
+    // Persist cache for next page load
+    try {
+      const entries = [...window.supportedFormatCache.entries()];
+      localStorage.setItem("supportedFormatCache", JSON.stringify(entries));
+    } catch (_) { }
+    console.log(`Phase 2: ${handlers.length - countBefore} background handlers loaded.`);
+  }, 0);
 })();
 
 // --- Conversion logic ---

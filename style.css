@@ -277,7 +277,7 @@ body {
 /* --- Description Blurb --- */
 #description {
   text-align: center;
-  max-width: 40rem;
+  max-width: 34rem;
   margin: var(--space-3) auto 0;
   padding: 0 var(--space-6);
   font-size: var(--text-md);
@@ -790,6 +790,58 @@ body {
   opacity: 0.9;
 }
 
+/* --- Background visuals --- */
+#bg-visuals {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+#bg-visuals span {
+  position: absolute;
+  font-size: 4rem;
+  opacity: 0.15;
+  filter: blur(8px);
+  animation: float 20s ease-in-out infinite;
+}
+
+.dark #bg-visuals span {
+  opacity: 0.12;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-30px) rotate(5deg); }
+}
+
+/* --- Entrance animation --- */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.entrance {
+  opacity: 0;
+  animation: slideUp 0.4s ease-out forwards;
+}
+
+.d1 { animation-delay: 0s; }
+.d2 { animation-delay: 0.05s; }
+.d3 { animation-delay: 0.1s; }
+.d4 { animation-delay: 0.2s; }
+.d5 { animation-delay: 0.3s; }
+.d6 { animation-delay: 0.4s; }
+.d7 { animation-delay: 0.55s; }
+.d8 { animation-delay: 0.7s; }
+
 /* --- Utilities --- */
 .muted-text {
   font-size: var(--text-sm);
@@ -814,7 +866,10 @@ body {
   }
 
   #description {
-    padding: 0 var(--space-4);
+    max-width: none;
+    margin-left: var(--space-3);
+    margin-right: var(--space-3);
+    padding: 0 var(--space-6);
   }
 
   #page-footer {

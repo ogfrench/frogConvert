@@ -1,113 +1,81 @@
 import type { FormatHandler } from "../FormatHandler.ts";
 
+// --- Core handlers (statically imported, included in main bundle) ---
 import canvasToBlobHandler from "./canvasToBlob.ts";
-import meydaHandler from "./meyda.ts";
-import htmlEmbedHandler from "./htmlEmbed.ts";
 import FFmpegHandler from "./FFmpeg.ts";
 import pdftoimgHandler from "./pdftoimg.ts";
 import ImageMagickHandler from "./ImageMagick.ts";
-import curaniHandler from "./curani.ts";
-import bunburrowsHandler from "./bunburrows.ts";
 import svgTraceHandler from "./svgTrace.ts";
-import { renameZipHandler, renameTxtHandler } from "./rename.ts";
 import envelopeHandler from "./envelope.ts";
 import pandocHandler from "./pandoc.ts";
-import svgForeignObjectHandler from "./svgForeignObject.ts";
-import qoiFuHandler from "./qoi-fu.ts";
-import sppdHandler from "./sppd.ts";
-import threejsHandler from "./threejs.ts";
-import sqlite3Handler from "./sqlite.ts";
-import vtfHandler from "./vtf.ts";
-import mcMapHandler from "./mcmap.ts";
 import jszipHandler from "./jszip.ts";
-import alsHandler from "./als.ts";
-import qoaFuHandler from "./qoa-fu.ts";
-import pyTurtleHandler from "./pyTurtle.ts";
 import { fromJsonHandler, toJsonHandler } from "./json.ts";
-import nbtHandler from "./nbt.ts";
-import peToZipHandler from "./petozip.ts";
-import flptojsonHandler from "./flptojson.ts";
-import floHandler from "./flo.ts";
-import cgbiToPngHandler from "./cgbi-to-png.ts";
-import batToExeHandler from "./batToExe.ts";
-import textEncodingHandler from "./textEncoding.ts";
-import sb3ToHtmlHandler from "./sb3tohtml.ts";
-import libopenmptHandler from "./libopenmpt.ts";
-import { midiCodecHandler, midiSynthHandler } from "./midi.ts";
-import lzhHandler from "./lzh.ts";
-import textToGoHandler from "./textToGo.ts";
-import txtToInfiniteCraftHandler from "./txtToInfiniteCraft.ts";
-import wadHandler from "./wad.ts";
-import espeakngHandler from "./espeakng.js"
-import textToShellHandler from "./texttoshell.ts";
-import batchHandler from "./batch.ts";
-import bsorHandler from "./bsor.ts";
-import txtToPyHandler from './textToPy.ts';
 import fontHandler from "./font.ts";
-import icnsHandler from "./icns.ts";
-import mcSchematicHandler from "./mcSchematicHandler.ts";
-import bsonHandler from "./bson.ts";
-import asepriteHandler from "./aseprite.ts";
-import csharpHandler from "./csharp.ts";
-import n64romHandler from "./n64rom.ts";
-import vexflowHandler from "./vexflow.ts";
-import toonHandler from "./toon.ts";
+import textEncodingHandler from "./textEncoding.ts";
 
 const handlers: FormatHandler[] = [];
 try { handlers.push(new svgTraceHandler()) } catch (_) { };
 try { handlers.push(new canvasToBlobHandler()) } catch (_) { };
-try { handlers.push(new meydaHandler()) } catch (_) { };
-try { handlers.push(new htmlEmbedHandler()) } catch (_) { };
 try { handlers.push(new FFmpegHandler()) } catch (_) { };
 try { handlers.push(new pdftoimgHandler()) } catch (_) { };
 try { handlers.push(new ImageMagickHandler()) } catch (_) { };
-try { handlers.push(new curaniHandler()) } catch (_) { };
-try { handlers.push(new bunburrowsHandler()) } catch (_) { };
-try { handlers.push(renameZipHandler) } catch (_) { };
-try { handlers.push(renameTxtHandler) } catch (_) { };
 try { handlers.push(new envelopeHandler()) } catch (_) { };
-try { handlers.push(new svgForeignObjectHandler()) } catch (_) { };
-try { handlers.push(new qoiFuHandler()) } catch (_) { };
-try { handlers.push(new sppdHandler()) } catch (_) { };
-try { handlers.push(new threejsHandler()) } catch (_) { };
-try { handlers.push(new sqlite3Handler()) } catch (_) { };
-try { handlers.push(new vtfHandler()) } catch (_) { };
-try { handlers.push(new mcMapHandler()) } catch (_) { };
+try { handlers.push(new pandocHandler()) } catch (_) { };
 try { handlers.push(new jszipHandler()) } catch (_) { };
-try { handlers.push(new alsHandler()) } catch (_) { };
-try { handlers.push(new qoaFuHandler()) } catch (_) { };
-try { handlers.push(new pyTurtleHandler()) } catch (_) { };
 try { handlers.push(new fromJsonHandler()) } catch (_) { };
 try { handlers.push(new toJsonHandler()) } catch (_) { };
-try { handlers.push(new nbtHandler()) } catch (_) { };
-try { handlers.push(new peToZipHandler()) } catch (_) { };
-try { handlers.push(new flptojsonHandler()) } catch (_) { };
-try { handlers.push(new floHandler()) } catch (_) { };
-try { handlers.push(new cgbiToPngHandler()) } catch (_) { };
-try { handlers.push(new batToExeHandler()) } catch (_) { };
-try { handlers.push(new sb3ToHtmlHandler()) } catch (_) { };
-try { handlers.push(new textEncodingHandler()) } catch (_) { };
-try { handlers.push(new libopenmptHandler()) } catch (_) { };
-try { handlers.push(new midiCodecHandler()) } catch (_) { };
-try { handlers.push(new midiSynthHandler()) } catch (_) { };
-try { handlers.push(new lzhHandler()) } catch (_) { };
-try { handlers.push(new wadHandler()) } catch (_) { };
-try { handlers.push(new pandocHandler()) } catch (_) { };
-try { handlers.push(new textToGoHandler()) } catch (_) { };
-try { handlers.push(new txtToInfiniteCraftHandler()) } catch (_) { };
-try { handlers.push(new espeakngHandler()) } catch (_) { };
-try { handlers.push(new textToShellHandler()) } catch (_) { };
-try { handlers.push(new batchHandler()) } catch (_) { };
-try { handlers.push(new bsorHandler()) } catch (_) { };
-try { handlers.push(new txtToPyHandler()) } catch (_) { };
 try { handlers.push(new fontHandler()) } catch (_) { };
-try { handlers.push(new icnsHandler()) } catch (_) { };
-try { handlers.push(new mcSchematicHandler()) } catch (_) { };
-try { handlers.push(new bsonHandler()) } catch (_) { };
-try { handlers.push(new asepriteHandler()) } catch (_) { };
-try { handlers.push(new csharpHandler()) } catch (_) { };
-try { handlers.push(new n64romHandler()) } catch (_) { };
-try { handlers.push(new vexflowHandler()) } catch (_) { };
-try { handlers.push(new toonHandler()) } catch (_) { };
+try { handlers.push(new textEncodingHandler()) } catch (_) { };
+
+/** Dynamically load all non-core handlers. Appends to the handlers array. */
+export async function loadBackgroundHandlers() {
+  const loaders: Array<() => Promise<void>> = [
+    async () => { const m = await import("./meyda.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./htmlEmbed.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./curani.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./bunburrows.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./rename.ts"); handlers.push(m.renameZipHandler, m.renameTxtHandler); },
+    async () => { const m = await import("./svgForeignObject.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./qoi-fu.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./sppd.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./threejs.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./sqlite.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./vtf.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./mcmap.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./als.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./qoa-fu.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./pyTurtle.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./nbt.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./petozip.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./flptojson.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./flo.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./cgbi-to-png.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./batToExe.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./sb3tohtml.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./libopenmpt.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./midi.ts"); handlers.push(new m.midiCodecHandler(), new m.midiSynthHandler()); },
+    async () => { const m = await import("./lzh.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./wad.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./textToGo.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./txtToInfiniteCraft.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./espeakng.js"); handlers.push(new m.default()); },
+    async () => { const m = await import("./texttoshell.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./batch.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./bsor.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./textToPy.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./icns.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./mcSchematicHandler.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./bson.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./aseprite.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./csharp.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./n64rom.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./vexflow.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./toon.ts"); handlers.push(new m.default()); },
+  ];
+
+  for (const loader of loaders) {
+    try { await loader(); } catch (_) { }
+  }
+}
 
 export default handlers;

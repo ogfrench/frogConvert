@@ -3,6 +3,13 @@
 
 <head>
   <meta charset="UTF-8">
+  <script>
+    // Apply dark mode immediately to prevent white flash
+    var t = localStorage.getItem("theme");
+    if (t === "dark" || (!t && !window.matchMedia("(prefers-color-scheme: light)").matches)) {
+      document.documentElement.classList.add("dark");
+    }
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -34,22 +41,28 @@
 
   <input id="file-input" type="file">
 
-  <div id="top-controls">
+  <div id="bg-visuals">
+    <span style="top:10%;left:5%;font-size:5rem;animation-delay:0s">📄</span>
+    <span style="top:20%;right:10%;font-size:3.5rem;animation-delay:-5s">🔄</span>
+    <span style="top:60%;left:8%;font-size:3rem;animation-delay:-10s">🐸</span>
+    <span style="top:45%;right:5%;font-size:4.5rem;animation-delay:-3s">📁</span>
+    <span style="top:75%;right:15%;font-size:3rem;animation-delay:-8s">✨</span>
+    <span style="top:30%;left:15%;font-size:3.5rem;animation-delay:-13s">➡️</span>
+    <span style="top:80%;left:40%;font-size:4rem;animation-delay:-17s">📄</span>
+    <span style="top:5%;right:30%;font-size:3rem;animation-delay:-7s">🔄</span>
+  </div>
+
+  <div id="top-controls" class="entrance d1">
     <span id="filter-label">Filter:</span>
-    <button id="mode-toggle" title="Switch to Advanced mode">Core</button>
+    <button id="mode-toggle" title="Filter the formats you can select"> Core</button>
     <button id="theme-toggle" title="Toggle theme">&#9790;</button>
   </div>
 
-  <h1 id="hero-title">🐸 frogConvert</h1>
+  <h1 id="hero-title" class="entrance d2">🐸 frogConvert</h1>
 
-  <p id="description">
-    I can convert 50+ file formats right here in your browser — no uploads, no servers. Your files never leave your
-    device. Just drop a file and I'll handle the rest!
-  </p>
+  <p id="category-label" class="entrance d3">What type of file do you need?</p>
 
-  <p id="category-label">What type of file do you need?</p>
-
-  <nav id="category-tabs">
+  <nav id="category-tabs" class="entrance d4">
     <button class="cat-tab active" data-category="">Any</button>
     <button class="cat-tab" data-category="image">Image</button>
     <button class="cat-tab" data-category="audio">Audio</button>
@@ -62,7 +75,7 @@
     <button class="cat-tab" data-category="other">Other</button>
   </nav>
 
-  <div id="swap-card">
+  <div id="swap-card" class="entrance d5">
 
     <div class="swap-field" id="from-field">
       <label id="upload-label">Your file</label>
@@ -95,7 +108,11 @@
 
   </div>
 
-  <footer id="page-footer">
+  <p id="description" class="entrance d6">
+    Securely and privately convert 50+ file formats right in your browser — no uploads, no servers, no funny business.
+  </p>
+
+  <footer id="page-footer" class="entrance d7">
     <div class="footer-content">
       <span class="footer-text">made with ♥ by François - view on <a id="commit-id"
           href="https://github.com/ogfrench/frogConvert" target="_blank" rel="noopener">GitHub</a></span>
@@ -113,13 +130,8 @@
     <div class="dropdown-options" id="to-options"></div>
   </div>
 
-  <div id="popup-bg"></div>
-  <div id="popup">
-    <div class="loader-spinner"></div>
-    <h2>Loading local tools... 🔧</h2>
-    <p>I’m taking some time to load all the necessary tools to run file conversions locally. This way your files
-      never leave your device! </p>
-  </div>
+  <div id="popup-bg" style="display:none"></div>
+  <div id="popup" style="display:none"></div>
 
   <script type="module" src="src/main.ts"></script>
 
