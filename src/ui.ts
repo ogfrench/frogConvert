@@ -15,10 +15,10 @@ export const ui = {
   convertButton: document.querySelector("#convert-button") as HTMLButtonElement,
   themeToggleButton: document.querySelector("#theme-toggle") as HTMLButtonElement,
   modeToggleButton: document.querySelector("#mode-toggle") as HTMLButtonElement,
-  toSelector: document.querySelector("#to-selector") as HTMLButtonElement,
-  toDropdown: document.querySelector("#to-dropdown") as HTMLDivElement,
-  toOptions: document.querySelector("#to-options") as HTMLDivElement,
-  toSearch: document.querySelector("#to-dropdown .dropdown-search") as HTMLInputElement,
+  formatSelector: document.querySelector("#format-selector") as HTMLButtonElement,
+  formatModal: document.querySelector("#format-modal") as HTMLDivElement,
+  formatOptions: document.querySelector("#format-options") as HTMLDivElement,
+  formatSearch: document.querySelector("#format-modal .format-search") as HTMLInputElement,
   formatModalBg: document.querySelector("#format-modal-bg") as HTMLDivElement,
   formatModalClose: document.querySelector("#format-modal-close") as HTMLButtonElement,
   formatModalTitle: document.querySelector("#format-modal-title") as HTMLHeadingElement,
@@ -30,6 +30,13 @@ export const ui = {
 };
 
 // --- Constants ---
+
+const DEFAULT_UPLOAD_TEXT = "Drop your file here";
+const DEFAULT_UPLOAD_LABEL = "Your file";
+
+const PARALLAX_MAX_DIST = 600;
+const PARALLAX_STRENGTH = 15;
+const MOBILE_BREAKPOINT = 800;
 
 export const CATEGORY_MAP: Record<string, string[]> = {
   image: ["image", "vector"],
@@ -54,19 +61,6 @@ export const CATEGORY_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-const CATEGORY_UPLOAD_TEXT: Record<string, { upload: string; uploadLabel: string }> = {
-  "": { upload: "Drop your file in here", uploadLabel: "Your file" },
-  image: { upload: "Drop your file in here", uploadLabel: "Your file" },
-  audio: { upload: "Drop your file in here", uploadLabel: "Your file" },
-  video: { upload: "Drop your file in here", uploadLabel: "Your file" },
-  document: { upload: "Drop your file in here", uploadLabel: "Your file" },
-  data: { upload: "Drop your file in here", uploadLabel: "Your file" },
-  archive: { upload: "Drop your file in here", uploadLabel: "Your file" },
-  font: { upload: "Drop your file in here", uploadLabel: "Your file" },
-  code: { upload: "Drop your file in here", uploadLabel: "Your file" },
-  other: { upload: "Drop your file in here", uploadLabel: "Your file" },
-};
-
 // --- Basic mode format whitelist (common consulting/design formats) ---
 const BASIC_FORMATS = new Set([
   // Image
@@ -86,6 +80,19 @@ const BASIC_FORMATS = new Set([
 ]);
 
 let _isAdvancedMode = localStorage.getItem("formatMode") === "advanced";
+
+// --- Helpers ---
+
+/** Format a FileFormat into a human-readable display string: "FORMAT — Clean Name" */
+function formatDisplayName(format: FileFormat): string {
+  const descriptor = format.format.toUpperCase();
+  const cleanName = format.name
+    .split("(").join(")").split(")")
+    .filter((_, i) => i % 2 === 0)
+    .filter(c => c !== "")
+    .join(" ");
+  return `${descriptor} — ${cleanName}`;
+}
 
 // --- Category helpers ---
 
@@ -156,10 +163,7 @@ export function initModeToggle(onModeChanged: () => void) {
 
   ui.modeToggleButton.addEventListener("click", () => {
     // If an advanced-only tab is active, reset to "Any" before switching to core
-    if (!_isAdvancedMode) {
-      // switching from core to advanced — no reset needed
-    } else {
-      // switching from advanced to core — check if current tab is advanced-only
+    if (_isAdvancedMode) {
       const activeTab = ui.categoryTabs.querySelector(".cat-tab.active") as HTMLElement | null;
       const activeCat = activeTab?.getAttribute("data-category") || "";
       if (ADVANCED_ONLY_CATEGORIES.includes(activeCat)) {
@@ -171,7 +175,6 @@ export function initModeToggle(onModeChanged: () => void) {
     }
     applyMode(!_isAdvancedMode);
     onModeChanged();
-    // Close menu on mobile after selection
     ui.topControls.classList.remove("menu-open");
   });
 }
@@ -209,37 +212,37 @@ let _allOptionsRef: Array<{ format: FileFormat; handler: FormatHandler }> = [];
 let _activeCategory: string = "";
 
 export function closeFormatModal() {
-  ui.toDropdown.classList.remove("open");
+  ui.formatModal.classList.remove("open");
   ui.formatModalBg.classList.remove("open");
 }
 
 export function openFormatModal() {
-  ui.toDropdown.classList.add("open");
+  ui.formatModal.classList.add("open");
   ui.formatModalBg.classList.add("open");
   const label = CATEGORY_LABELS[_activeCategory];
   ui.formatModalTitle.textContent = label ? `Select ${label.toLowerCase()} format` : "Select format";
-  ui.toSearch.value = "";
+  ui.formatSearch.value = "";
   // Don't auto-focus search on mobile to prevent keyboard popup
   if (!window.matchMedia("(pointer: coarse)").matches) {
-    ui.toSearch.focus();
+    ui.formatSearch.focus();
   }
-  filterFormatOptions("");
+  filterFormats("");
 }
 
-export function filterFormatOptions(query: string) {
+export function filterFormats(query: string) {
   const allOptions = _allOptionsRef;
-  const options = ui.toOptions;
+  const options = ui.formatOptions;
   const q = query.toLowerCase();
   let lastHeaderVisible = false;
   let lastHeader: HTMLElement | null = null;
 
   for (const child of Array.from(options.children)) {
     const el = child as HTMLElement;
-    if (el.classList.contains("dropdown-group-header")) {
+    if (el.classList.contains("format-group-header")) {
       el.style.display = "none";
       lastHeader = el;
       lastHeaderVisible = false;
-    } else if (el.classList.contains("dropdown-option")) {
+    } else if (el.classList.contains("format-option")) {
       const text = el.textContent?.toLowerCase() || "";
       const idx = el.getAttribute("data-index");
       let extMatch = false;
@@ -266,49 +269,45 @@ export function initFormatModal(
 ) {
   _allOptionsRef = allOptions;
 
-  ui.toSelector.addEventListener("click", () => {
-    if (ui.toDropdown.classList.contains("open")) {
+  ui.formatSelector.addEventListener("click", () => {
+    if (ui.formatModal.classList.contains("open")) {
       closeFormatModal();
     } else {
       openFormatModal();
     }
   });
 
-  ui.toSearch.addEventListener("input", () => {
-    filterFormatOptions(ui.toSearch.value);
+  ui.formatSearch.addEventListener("input", () => {
+    filterFormats(ui.formatSearch.value);
   });
 
   ui.formatModalBg.addEventListener("click", () => closeFormatModal());
   ui.formatModalClose.addEventListener("click", () => closeFormatModal());
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && ui.toDropdown.classList.contains("open")) {
+    if (e.key === "Escape" && ui.formatModal.classList.contains("open")) {
       closeFormatModal();
     }
   });
 }
 
-export function setSelectorText(index: number, allOptions: Array<{ format: FileFormat; handler: FormatHandler }>) {
+export function setSelectedFormat(index: number, allOptions: Array<{ format: FileFormat; handler: FormatHandler }>) {
   const opt = allOptions[index];
   if (!opt) return;
-  const textEl = ui.toSelector.querySelector(".selector-text") as HTMLSpanElement;
-  const formatDescriptor = opt.format.format.toUpperCase();
-  const cleanName = opt.format.name
-    .split("(").join(")").split(")")
-    .filter((_, i) => i % 2 === 0)
-    .filter(c => c !== "")
-    .join(" ");
-  textEl.textContent = `${formatDescriptor} — ${cleanName}`;
+  const textEl = ui.formatSelector.querySelector(".selector-text") as HTMLSpanElement;
+  textEl.textContent = formatDisplayName(opt.format);
   textEl.classList.remove("placeholder");
+  ui.formatSelector.classList.add("has-value");
 }
 
-export function resetSelector(activeCategory: string = "") {
-  const textEl = ui.toSelector.querySelector(".selector-text") as HTMLSpanElement;
+export function clearFormatSelection(activeCategory: string = "") {
+  const textEl = ui.formatSelector.querySelector(".selector-text") as HTMLSpanElement;
   if (activeCategory && CATEGORY_LABELS[activeCategory]) {
     textEl.textContent = `Select ${CATEGORY_LABELS[activeCategory]} format...`;
   } else {
     textEl.textContent = "Select format...";
   }
   textEl.classList.add("placeholder");
+  ui.formatSelector.classList.remove("has-value");
 }
 
 export function updateConvertButtonState(selectedFromIndex: number | null, selectedToIndex: number | null) {
@@ -319,15 +318,15 @@ export function updateConvertButtonState(selectedFromIndex: number | null, selec
   }
 }
 
-// --- Dropdown rendering ---
+// --- Format list rendering ---
 
-export function renderDropdownOptions(
+export function renderFormatOptions(
   allOptions: Array<{ format: FileFormat; handler: FormatHandler }>,
   activeCategory: string,
   onSelectFormat: (index: number) => void,
 ) {
   _activeCategory = activeCategory;
-  ui.toOptions.innerHTML = "";
+  ui.formatOptions.innerHTML = "";
 
   const toGroups = new Map<string, Array<{ index: number; text: string }>>();
   const seenTo = new Set<string>();
@@ -344,19 +343,12 @@ export function renderDropdownOptions(
     }
 
     const dedupeKey = `${format.mime}::${format.format}`;
-    const formatDescriptor = format.format.toUpperCase();
-    const cleanName = format.name
-      .split("(").join(")").split(")")
-      .filter((_, idx) => idx % 2 === 0)
-      .filter(c => c !== "")
-      .join(" ");
-    const displayText = `${formatDescriptor} — ${cleanName}`;
 
     if (format.to) {
       if (!seenTo.has(dedupeKey)) {
         seenTo.add(dedupeKey);
         if (!toGroups.has(cat)) toGroups.set(cat, []);
-        toGroups.get(cat)!.push({ index: i, text: displayText });
+        toGroups.get(cat)!.push({ index: i, text: formatDisplayName(format) });
       }
     }
   }
@@ -370,18 +362,18 @@ export function renderDropdownOptions(
 
     if (showHeaders) {
       const header = document.createElement("div");
-      header.className = "dropdown-group-header";
+      header.className = "format-group-header";
       header.textContent = CATEGORY_LABELS[cat] || cat;
-      ui.toOptions.appendChild(header);
+      ui.formatOptions.appendChild(header);
     }
 
     for (const item of items) {
       const btn = document.createElement("button");
-      btn.className = "dropdown-option";
+      btn.className = "format-option";
       btn.setAttribute("data-index", item.index.toString());
       btn.textContent = item.text;
       btn.addEventListener("click", () => onSelectFormat(item.index));
-      ui.toOptions.appendChild(btn);
+      ui.formatOptions.appendChild(btn);
     }
   }
 }
@@ -406,10 +398,9 @@ export function initCategoryTabs(
 }
 
 export function updateCategoryText(activeCategory: string, hasFiles: boolean) {
-  const text = CATEGORY_UPLOAD_TEXT[activeCategory] || CATEGORY_UPLOAD_TEXT[""];
   if (!hasFiles) {
-    ui.uploadText.textContent = text.upload;
-    ui.uploadLabel.textContent = text.uploadLabel;
+    ui.uploadText.textContent = DEFAULT_UPLOAD_TEXT;
+    ui.uploadLabel.textContent = DEFAULT_UPLOAD_LABEL;
   }
 }
 
@@ -482,7 +473,8 @@ export function initUploadZone(
 
 export function shortenFileName(name: string, maxLength: number = 24): string {
   if (name.length <= maxLength) return name;
-  const charsToShow = maxLength - 3;
+  const ellipsisLen = 3;
+  const charsToShow = maxLength - ellipsisLen;
   const frontChars = Math.ceil(charsToShow / 2);
   const backChars = Math.floor(charsToShow / 2);
   return name.substring(0, frontChars) + "..." + name.substring(name.length - backChars);
@@ -511,9 +503,7 @@ export function resetUploadZone(activeCategory: string) {
   ui.uploadFileInfo.classList.remove("visible");
   ui.uploadFileName.textContent = "";
   ui.uploadZone.classList.remove("has-file");
-
-  const text = CATEGORY_UPLOAD_TEXT[activeCategory] || CATEGORY_UPLOAD_TEXT[""];
-  ui.uploadLabel.textContent = text.uploadLabel;
+  ui.uploadLabel.textContent = DEFAULT_UPLOAD_LABEL;
 }
 
 // --- Format matching ---
@@ -575,13 +565,149 @@ window.downloadAgain = function () {
 
 export function bindConvertButton(onClick: () => Promise<void>) {
   ui.convertButton.onclick = async () => {
-    // Disable button to prevent double-clicks
     ui.convertButton.classList.add("disabled");
     try {
       await onClick();
     } finally {
-      // Re-enable if we didn't navigate away
       ui.convertButton.classList.remove("disabled");
     }
   };
+}
+
+// --- Segmented Controls (mobile) ---
+
+export function initSegmentedControls() {
+  const modeSegmented = document.querySelector("#mode-segmented") as HTMLDivElement;
+  const themeSegmented = document.querySelector("#theme-segmented") as HTMLDivElement;
+
+  // Sync initial state
+  const isAdvanced = localStorage.getItem("formatMode") === "advanced";
+  syncSegmentedActive(modeSegmented, isAdvanced ? "advanced" : "basic");
+
+  const isDark = document.documentElement.classList.contains("dark");
+  syncSegmentedActive(themeSegmented, isDark ? "dark" : "light");
+
+  bindSegmented(
+    modeSegmented,
+    ui.modeToggleButton,
+    (value) => (value === "advanced") !== (ui.modeToggleButton.textContent?.trim() === "All Formats"),
+    () => { }
+  );
+
+  bindSegmented(
+    themeSegmented,
+    ui.themeToggleButton,
+    (value) => (value === "dark") !== document.documentElement.classList.contains("dark"),
+    () => { }
+  );
+
+  // Keep segmented controls in sync when desktop buttons are clicked
+  new MutationObserver(() => {
+    const adv = ui.modeToggleButton.textContent?.trim() === "All Formats";
+    syncSegmentedActive(modeSegmented, adv ? "advanced" : "basic");
+  }).observe(ui.modeToggleButton, { childList: true, characterData: true, subtree: true });
+
+  new MutationObserver(() => {
+    const dark = document.documentElement.classList.contains("dark");
+    syncSegmentedActive(themeSegmented, dark ? "dark" : "light");
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+}
+
+function bindSegmented(
+  container: HTMLElement,
+  desktopBtn: HTMLElement,
+  isActiveValue: (value: string) => boolean,
+  onSelect: (value: string) => void,
+) {
+  container.addEventListener("click", (e) => {
+    const btn = (e.target as HTMLElement).closest(".segmented-option") as HTMLButtonElement | null;
+    if (!btn || btn.classList.contains("active")) return;
+    const value = btn.getAttribute("data-value");
+    if (!value) return;
+
+    syncSegmentedActive(container, value);
+    if (isActiveValue(value)) {
+      desktopBtn.click();
+    }
+    onSelect(value);
+    syncSegmentedActive(container, value);
+  });
+}
+
+function syncSegmentedActive(container: HTMLElement, activeValue: string) {
+  for (const opt of Array.from(container.children) as HTMLElement[]) {
+    opt.classList.toggle("active", opt.getAttribute("data-value") === activeValue);
+  }
+}
+
+// --- Cursor Glow ---
+
+export function initCursorGlow() {
+  const glow = document.querySelector("#cursor-glow") as HTMLDivElement | null;
+  if (!glow) return;
+
+  // Don't init on touch devices
+  if (window.matchMedia("(pointer: coarse)").matches) return;
+
+  const bgSpans = Array.from(document.querySelectorAll("#bg-visuals span")) as HTMLElement[];
+
+  // Store original positions for parallax
+  const originalPositions = bgSpans.map((span) => {
+    const rect = span.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  });
+
+  let mouseX = -500;
+  let mouseY = -500;
+  let rafId: number | null = null;
+
+  function updateGlow() {
+    glow!.style.left = mouseX + "px";
+    glow!.style.top = mouseY + "px";
+
+    // Parallax on background elements
+    if (window.innerWidth > MOBILE_BREAKPOINT) {
+      bgSpans.forEach((span, i) => {
+        const pos = originalPositions[i];
+        const dx = mouseX - pos.x;
+        const dy = mouseY - pos.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const strength = Math.max(0, 1 - dist / PARALLAX_MAX_DIST) * PARALLAX_STRENGTH;
+        const offsetX = (dx / (dist || 1)) * strength;
+        const offsetY = (dy / (dist || 1)) * strength;
+        span.style.translate = `${offsetX}px ${offsetY}px`;
+      });
+    }
+
+    rafId = null;
+  }
+
+  document.addEventListener("mousemove", (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    if (!rafId) {
+      rafId = requestAnimationFrame(updateGlow);
+    }
+  });
+
+  document.addEventListener("mouseover", (e) => {
+    const target = e.target as HTMLElement;
+
+    // Clear previous states
+    glow.classList.remove("interactive", "interactive-small");
+
+    if (target.closest("button, a, input, select, textarea, label, .clickable, .upload-action-btn, .segmented-option, .cat-tab, #upload-zone, .format-option")) {
+      glow.classList.add("interactive-small");
+    }
+  });
+
+  document.addEventListener("mousedown", () => glow.classList.add("active-click"));
+  document.addEventListener("mouseup", () => glow.classList.remove("active-click"));
+
+  document.addEventListener("mouseleave", () => {
+    glow.style.opacity = "0";
+  });
+  document.addEventListener("mouseenter", () => {
+    glow.style.opacity = "1";
+  });
 }

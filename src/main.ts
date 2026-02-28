@@ -11,20 +11,22 @@ import {
   showPopup,
   hidePopup,
   closeFormatModal,
-  setSelectorText,
+  setSelectedFormat,
   updateConvertButtonState,
-  renderDropdownOptions,
+  renderFormatOptions,
   showFileInUploadZone,
   showDetectedFormat,
   resetUploadZone,
   updateCategoryText,
   findMatchingFormat,
   initModeToggle,
-  resetSelector,
+  clearFormatSelection,
   downloadFile,
   setLastConvertedFiles,
   bindConvertButton,
   initResponsiveMenu,
+  initSegmentedControls,
+  initCursorGlow,
   shortenFileName,
 } from "./ui.js";
 
@@ -47,9 +49,11 @@ const conversionsFromAnyInput: ConvertPathNode[] = handlers
 
 initTheme();
 initResponsiveMenu();
+initSegmentedControls();
+initCursorGlow();
 
 initModeToggle(() => {
-  renderDropdownOptions(allOptions, activeCategory, selectToFormat);
+  renderFormatOptions(allOptions, activeCategory, selectToFormat);
 });
 
 initFormatModal(allOptions, selectToFormat);
@@ -57,9 +61,9 @@ initFormatModal(allOptions, selectToFormat);
 initCategoryTabs((category) => {
   activeCategory = category;
   updateCategoryText(activeCategory, selectedFiles.length > 0);
-  renderDropdownOptions(allOptions, activeCategory, selectToFormat);
+  renderFormatOptions(allOptions, activeCategory, selectToFormat);
   if (selectedToIndex === null) {
-    resetSelector(activeCategory);
+    clearFormatSelection(activeCategory);
   }
 });
 
@@ -87,7 +91,7 @@ initUploadZone(
 
 function selectToFormat(index: number) {
   selectedToIndex = index;
-  setSelectorText(index, allOptions);
+  setSelectedFormat(index, allOptions);
   updateConvertButtonState(selectedFromIndex, selectedToIndex);
   closeFormatModal();
 }
@@ -113,7 +117,7 @@ window.printSupportedFormatCache = () => {
 
 // --- Build option list ---
 
-async function processHandlers(subset: FormatHandler[]) {
+async function loadHandlerFormats(subset: FormatHandler[]) {
   for (const handler of subset) {
     if (!window.supportedFormatCache.has(handler.name)) {
       console.warn(`Cache miss for formats of handler "${handler.name}".`);
@@ -139,7 +143,7 @@ async function processHandlers(subset: FormatHandler[]) {
 
 function refreshUI() {
   window.traversionGraph.init(window.supportedFormatCache, handlers);
-  renderDropdownOptions(allOptions, activeCategory, selectToFormat);
+  renderFormatOptions(allOptions, activeCategory, selectToFormat);
 }
 
 // --- Init ---
@@ -166,7 +170,7 @@ function refreshUI() {
   }
 
   // Phase 1: core handlers (already in handlers array)
-  await processHandlers(handlers);
+  await loadHandlerFormats(handlers);
   refreshUI();
   console.log(`Phase 1: ${handlers.length} core handlers loaded.`);
 
@@ -174,7 +178,7 @@ function refreshUI() {
   setTimeout(async () => {
     const countBefore = handlers.length;
     await loadBackgroundHandlers();
-    await processHandlers(handlers.slice(countBefore));
+    await loadHandlerFormats(handlers.slice(countBefore));
     refreshUI();
     // Persist cache for next page load
     try {
@@ -385,7 +389,7 @@ bindConvertButton(async function () {
 
 // --- Footer Confetti ---
 
-const footerConfettiBtn = document.getElementById("footer-confetti-btn");
+const footerConfettiBtn = document.querySelector("#footer-confetti-btn");
 if (footerConfettiBtn) {
   footerConfettiBtn.addEventListener("click", () => {
     triggerConfetti();
