@@ -1,3 +1,5 @@
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 import type { FileFormat, FileData, FormatHandler, ConvertPathNode } from "./FormatHandler.js";
 import handlers, { loadBackgroundHandlers } from "./handlers";
 import { TraversionGraph } from "./TraversionGraph.js";
@@ -195,7 +197,7 @@ function refreshUI() {
 
 let deadEndAttempts: ConvertPathNode[][];
 
-async function attemptConvertPath(files: FileData[], path: ConvertPathNode[]) {
+async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], batchMsg?: string) {
   const pathString = path.map(c => c.format.format).join(" \u2192 ");
 
   for (const deadEnd of deadEndAttempts) {
@@ -212,9 +214,21 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[]) {
     }
   }
 
-  ui.popupBox.innerHTML = `<div class="loader-spinner"></div>
-    <h2>Converting... 🐸</h2>
-    <p>Converting <b>${pathString}</b></p>`;
+  const messageHTML = batchMsg
+    ? `${batchMsg}<br><span class="muted-text">Path: ${pathString}</span>`
+    : `Converting <b>${pathString}</b>`;
+
+  const existingSpinner = ui.popupBox.querySelector(".loader-spinner");
+  if (existingSpinner) {
+    const p = ui.popupBox.querySelector("p");
+    if (p) p.innerHTML = messageHTML;
+    const h2 = ui.popupBox.querySelector("h2");
+    if (h2) h2.textContent = "Converting... 🐸";
+  } else {
+    ui.popupBox.innerHTML = `<div class="loader-spinner"></div>
+      <h2>Converting... 🐸</h2>
+      <p>${messageHTML}</p>`;
+  }
 
   for (let i = 0; i < path.length - 1; i++) {
     const handler = path[i + 1].handler;
@@ -247,9 +261,19 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[]) {
       deadEndAttempts.push(deadEndPath);
       window.traversionGraph.addDeadEndPath(path.slice(0, i + 2));
 
-      ui.popupBox.innerHTML = `<div class="loader-spinner"></div>
-        <h2>Converting... 🐸</h2>
-        <p>Trying another approach...</p>`;
+      const fallbackMsg = batchMsg
+        ? `${batchMsg}<br><span class="muted-text">Trying another approach...</span>`
+        : `Trying another approach...`;
+
+      const existingSpinner = ui.popupBox.querySelector(".loader-spinner");
+      if (existingSpinner) {
+        const p = ui.popupBox.querySelector("p");
+        if (p) p.innerHTML = fallbackMsg;
+      } else {
+        ui.popupBox.innerHTML = `<div class="loader-spinner"></div>
+          <h2>Converting... 🐸</h2>
+          <p>${fallbackMsg}</p>`;
+      }
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
       return null;
@@ -263,6 +287,7 @@ window.tryConvertByTraversing = async function (
   files: FileData[],
   from: ConvertPathNode,
   to: ConvertPathNode,
+  batchMsg?: string
 ) {
   deadEndAttempts = [];
   window.traversionGraph.clearDeadEndPaths();
@@ -270,7 +295,7 @@ window.tryConvertByTraversing = async function (
     if (path.at(-1)?.handler === to.handler) {
       path[path.length - 1] = to;
     }
-    const attempt = await attemptConvertPath(files, path);
+    const attempt = await attemptConvertPath(files, path, batchMsg);
     if (attempt) return attempt;
   }
   return null;
@@ -352,13 +377,16 @@ bindConvertButton(async function () {
     // For multi-file: convert each file individually with progress
     if (inputFileData.length > 1) {
       const allOutputFiles: { name: string; bytes: Uint8Array }[] = [];
-      for (let i = 0; i < inputFileData.length; i++) {
-        ui.popupBox.innerHTML = `<div class="loader-spinner"></div>
+
+      ui.popupBox.innerHTML = `<div class="loader-spinner"></div>
           <h2>Converting... 🐸</h2>
-          <p>${i} of ${inputFileData.length} files done</p>`;
+          <p>Starting conversion...</p>`;
+
+      for (let i = 0; i < inputFileData.length; i++) {
+        const batchMsg = `${i + 1} out of ${inputFileData.length} files converting`;
 
         const singleFile = [inputFileData[i]];
-        const output = await window.tryConvertByTraversing(singleFile, inputOption, outputOption);
+        const output = await window.tryConvertByTraversing(singleFile, inputOption, outputOption, batchMsg);
 
         if (!output) {
           showPopup(
@@ -377,8 +405,33 @@ bindConvertButton(async function () {
       }
 
       setLastConvertedFiles(allOutputFiles);
-      for (const file of allOutputFiles) {
-        downloadFile(file.bytes, file.name);
+
+      if (allOutputFiles.length > 1) {
+        const existingSpinner = ui.popupBox.querySelector(".loader-spinner");
+        if (existingSpinner) {
+          const p = ui.popupBox.querySelector("p");
+          if (p) p.innerHTML = "Preparing download";
+          const h2 = ui.popupBox.querySelector("h2");
+          if (h2) h2.textContent = "Zipping... 🐸";
+        } else {
+          ui.popupBox.innerHTML = `<div class="loader-spinner"></div>
+            <h2>Zipping... 🐸</h2>
+            <p>Preparing download</p>`;
+        }
+
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+        const zip = new JSZip();
+        for (const file of allOutputFiles) {
+          zip.file(file.name, file.bytes);
+        }
+
+        const blob = await zip.generateAsync({ type: "blob" });
+        saveAs(blob, `converted_files_${Date.now()}.zip`);
+      } else {
+        for (const file of allOutputFiles) {
+          downloadFile(file.bytes, file.name);
+        }
       }
 
       // Ensure the working modal shows for at least 600ms
@@ -390,7 +443,7 @@ bindConvertButton(async function () {
       showPopup(
         `<h2>All done! 🎉</h2>` +
         `<p>Converted ${allOutputFiles.length} files to <b>${outputFormat.format.toUpperCase()}</b>.</p>` +
-        `<p>All files have been downloaded!</p>` +
+        `<p>Your files have been downloaded!</p>` +
         `<div class="popup-actions">` +
         `<button class="popup-primary" onclick="window.downloadAgain()">Download again</button>` +
         `<button onclick="window.hidePopup()">Close</button>` +

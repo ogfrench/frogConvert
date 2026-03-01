@@ -1,4 +1,6 @@
 import type { FileFormat, FormatHandler } from "./FormatHandler.js";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 import normalizeMimeType from "./normalizeMimeType.js";
 
 // --- DOM element references ---
@@ -54,7 +56,7 @@ const PARALLAX_STRENGTH = 15;
 const MOBILE_BREAKPOINT = 800;
 
 // --- File upload safeguards ---
-const MAX_FILES = 1000;
+const MAX_FILES = 100;
 const deviceMemGB = (navigator as any).deviceMemory ?? 4;
 const deviceMemBytes = deviceMemGB * 1024 * 1024 * 1024;
 
@@ -998,9 +1000,18 @@ export function downloadFile(bytes: Uint8Array, name: string) {
   link.click();
 }
 
-export function downloadAllConvertedFiles() {
-  for (const file of lastConvertedFiles) {
-    downloadFile(file.bytes, file.name);
+export async function downloadAllConvertedFiles() {
+  if (lastConvertedFiles.length > 1) {
+    const zip = new JSZip();
+    for (const file of lastConvertedFiles) {
+      zip.file(file.name, file.bytes);
+    }
+    const blob = await zip.generateAsync({ type: "blob" });
+    saveAs(blob, `converted_files_${Date.now()}.zip`);
+  } else {
+    for (const file of lastConvertedFiles) {
+      downloadFile(file.bytes, file.name);
+    }
   }
 }
 

@@ -9,7 +9,7 @@ declare global {
     showPopup: (html: string) => void;
     hidePopup: () => void;
     downloadAgain: () => void;
-    tryConvertByTraversing: (files: FileData[], from: ConvertPathNode, to: ConvertPathNode) => Promise<{
+    tryConvertByTraversing: (files: FileData[], from: ConvertPathNode, to: ConvertPathNode, batchMsg?: string) => Promise<{
       files: FileData[];
       path: ConvertPathNode[];
     } | null>;
