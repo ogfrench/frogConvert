@@ -27,6 +27,7 @@ import {
   initResponsiveMenu,
   initSegmentedControls,
   initCursorGlow,
+  initFilesModal,
   shortenFileName,
 } from "./ui.js";
 
@@ -51,6 +52,7 @@ initTheme();
 initResponsiveMenu();
 initSegmentedControls();
 initCursorGlow();
+initFilesModal();
 
 initModeToggle(() => {
   renderFormatOptions(allOptions, activeCategory, selectToFormat);
@@ -75,7 +77,7 @@ initUploadZone(
     const matchIndex = findMatchingFormat(files, allOptions);
     if (matchIndex >= 0) {
       selectedFromIndex = matchIndex;
-      showDetectedFormat(allOptions[matchIndex].format.format);
+      showDetectedFormat(allOptions[matchIndex].format.format, files.length);
     } else {
       selectedFromIndex = null;
     }
@@ -194,7 +196,7 @@ function refreshUI() {
 let deadEndAttempts: ConvertPathNode[][];
 
 async function attemptConvertPath(files: FileData[], path: ConvertPathNode[]) {
-  const pathString = path.map(c => c.format.format).join(" → ");
+  const pathString = path.map(c => c.format.format).join(" \u2192 ");
 
   for (const deadEnd of deadEndAttempts) {
     let isDeadEnd = true;
@@ -204,15 +206,15 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[]) {
       break;
     }
     if (isDeadEnd) {
-      const deadEndString = deadEnd.slice(-2).map(c => c.format.format).join(" → ");
+      const deadEndString = deadEnd.slice(-2).map(c => c.format.format).join(" \u2192 ");
       console.warn(`Skipping ${pathString} due to dead end near ${deadEndString}.`);
       return null;
     }
   }
 
   ui.popupBox.innerHTML = `<div class="loader-spinner"></div>
-    <h2>Working on it... 🐸</h2>
-    <p>Trying <b>${pathString}</b></p>`;
+    <h2>Converting... 🐸</h2>
+    <p>Converting <b>${pathString}</b></p>`;
 
   for (let i = 0; i < path.length - 1; i++) {
     const handler = path[i + 1].handler;
@@ -239,15 +241,15 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[]) {
       if (files.some(c => !c.bytes.length)) throw "Output is empty.";
     } catch (e) {
       console.log(path.map(c => c.format.format));
-      console.error(handler.name, `${path[i].format.format} → ${path[i + 1].format.format}`, e);
+      console.error(handler.name, `${path[i].format.format} \u2192 ${path[i + 1].format.format}`, e);
 
       const deadEndPath = path.slice(0, i + 2);
       deadEndAttempts.push(deadEndPath);
       window.traversionGraph.addDeadEndPath(path.slice(0, i + 2));
 
       ui.popupBox.innerHTML = `<div class="loader-spinner"></div>
-        <h2>Working on it... 🐸</h2>
-        <p>Finding an alternative route...</p>`;
+        <h2>Converting... 🐸</h2>
+        <p>Trying another approach...</p>`;
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
       return null;
@@ -278,18 +280,19 @@ window.tryConvertByTraversing = async function (
 
 bindConvertButton(async function () {
   const inputFiles = selectedFiles;
+  const fileCount = inputFiles.length;
 
-  if (inputFiles.length === 0) {
-    alert("Please add a file first.");
+  if (fileCount === 0) {
+    alert("Drop a file in to get started!");
     return;
   }
 
   if (selectedFromIndex === null) {
-    alert("Couldn't detect this file's format. Try a different file.");
+    alert("Hmm, couldn't figure out this file's format. Try another?");
     return;
   }
   if (selectedToIndex === null) {
-    alert("Please choose an output format.");
+    alert("Pick a format to convert to first!");
     return;
   }
 
@@ -299,11 +302,13 @@ bindConvertButton(async function () {
   const inputFormat = inputOption.format;
   const outputFormat = outputOption.format;
 
-  showPopup(`<div class="loader-spinner"></div><h2>Working on it... 🐸</h2>`);
+  showPopup(`<div class="loader-spinner"></div><h2>Converting... 🐸</h2>`);
   const conversionStartTime = performance.now();
 
   try {
     const inputFileData: FileData[] = [];
+    let sameFormatCount = 0;
+
     for (const inputFile of inputFiles) {
       const inputBuffer = await inputFile.arrayBuffer();
       const inputBytes = new Uint8Array(inputBuffer);
@@ -312,77 +317,128 @@ bindConvertButton(async function () {
         && inputFormat.format === outputFormat.format
       ) {
         downloadFile(inputBytes, inputFile.name);
+        sameFormatCount++;
         continue;
       }
       inputFileData.push({ name: inputFile.name, bytes: inputBytes });
     }
 
     if (inputFileData.length === 0) {
-      // All files were same-format - they've been downloaded individually
-      // Show success modal for consistency
-      const fileNames = inputFiles.map(f => shortenFileName(f.name, 32)).join(", ");
-      const fileLabel = inputFiles.length === 1 ? "file" : `${inputFiles.length} files`;
-      const truncatedInputName = shortenFileName(inputFiles[0].name, 32);
-
-      showPopup(
-        `<h2>All done! 🎉</h2>` +
-        `<p>No conversion needed for <b>${truncatedInputName}</b> (already <b>${outputFormat.format.toUpperCase()}</b>).</p>` +
-        `<p>Your ${fileLabel} were saved!: <b>${fileNames}</b></p>` +
-        `<div class="popup-actions">` +
-        `<button class="popup-primary" onclick="window.hidePopup()">Close</button>` +
-        `</div>`,
-      );
+      // All files were same-format
+      const fmt = outputFormat.format.toUpperCase();
+      if (fileCount === 1) {
+        const truncName = shortenFileName(inputFiles[0].name, 32);
+        showPopup(
+          `<h2>Already good! 🎉</h2>` +
+          `<p><b>${truncName}</b> is already in <b>${fmt}</b> \u2014 nothing to convert.</p>` +
+          `<div class="popup-actions">` +
+          `<button class="popup-primary" onclick="window.hidePopup()">Close</button>` +
+          `</div>`,
+        );
+      } else {
+        showPopup(
+          `<h2>Already good! 🎉</h2>` +
+          `<p>All ${fileCount} files are already in <b>${fmt}</b> \u2014 nothing to convert.</p>` +
+          `<div class="popup-actions">` +
+          `<button class="popup-primary" onclick="window.hidePopup()">Close</button>` +
+          `</div>`,
+        );
+      }
       return;
     }
 
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-    const output = await window.tryConvertByTraversing(inputFileData, inputOption, outputOption);
+    // For multi-file: convert each file individually with progress
+    if (inputFileData.length > 1) {
+      const allOutputFiles: { name: string; bytes: Uint8Array }[] = [];
+      for (let i = 0; i < inputFileData.length; i++) {
+        ui.popupBox.innerHTML = `<div class="loader-spinner"></div>
+          <h2>Converting... 🐸</h2>
+          <p>${i} of ${inputFileData.length} files done</p>`;
 
-    // Ensure the working modal shows for at least 600ms so it doesn't just flash instantly
-    const elapsed = performance.now() - conversionStartTime;
-    if (elapsed < 600) {
-      await new Promise(resolve => setTimeout(resolve, 600 - elapsed));
-    }
+        const singleFile = [inputFileData[i]];
+        const output = await window.tryConvertByTraversing(singleFile, inputOption, outputOption);
 
-    if (!output) {
+        if (!output) {
+          showPopup(
+            `<h2>Not available yet</h2>` +
+            `<p><b>${inputFormat.format.toUpperCase()}</b> to <b>${outputFormat.format.toUpperCase()}</b> isn't available right now \u2014 but more formats are on the way!</p>` +
+            `<p class="muted-text">Try picking a different format, there's loads to choose from!</p>` +
+            `<div class="popup-actions">` +
+            `<button class="popup-primary" onclick="window.hidePopup()">Got it</button>` +
+            `</div>`
+          );
+          triggerConfetti();
+          return;
+        }
+
+        allOutputFiles.push(...output.files);
+      }
+
+      setLastConvertedFiles(allOutputFiles);
+      for (const file of allOutputFiles) {
+        downloadFile(file.bytes, file.name);
+      }
+
+      // Ensure the working modal shows for at least 600ms
+      const elapsed = performance.now() - conversionStartTime;
+      if (elapsed < 600) {
+        await new Promise(resolve => setTimeout(resolve, 600 - elapsed));
+      }
+
       showPopup(
-        `<h2>🎉 Cool — you found a missing feature!</h2>` +
-        `<p>You found a conversion we don't support (yet)!<br>` +
-        `<b>${inputFormat.format.toUpperCase()}</b> → <b>${outputFormat.format.toUpperCase()}</b> isn't available right now.</p>` +
-        `<p class="muted-text">Try a different format combo — I know lots of tricks!</p>` +
+        `<h2>All done! 🎉</h2>` +
+        `<p>Converted ${allOutputFiles.length} files to <b>${outputFormat.format.toUpperCase()}</b>.</p>` +
+        `<p>All files have been downloaded!</p>` +
         `<div class="popup-actions">` +
-        `<button class="popup-primary" onclick="window.hidePopup()">Got it!</button>` +
-        `</div>`
+        `<button class="popup-primary" onclick="window.downloadAgain()">Download again</button>` +
+        `<button onclick="window.hidePopup()">Close</button>` +
+        `</div>`,
       );
-      triggerConfetti();
-      return;
+    } else {
+      // Single file conversion
+      const output = await window.tryConvertByTraversing(inputFileData, inputOption, outputOption);
+
+      const elapsed = performance.now() - conversionStartTime;
+      if (elapsed < 600) {
+        await new Promise(resolve => setTimeout(resolve, 600 - elapsed));
+      }
+
+      if (!output) {
+        showPopup(
+          `<h2>Not available yet</h2>` +
+          `<p><b>${inputFormat.format.toUpperCase()}</b> to <b>${outputFormat.format.toUpperCase()}</b> isn't available right now \u2014 but more formats are on the way!</p>` +
+          `<p class="muted-text">Try picking a different format, there's loads to choose from!</p>` +
+          `<div class="popup-actions">` +
+          `<button class="popup-primary" onclick="window.hidePopup()">Got it</button>` +
+          `</div>`
+        );
+        triggerConfetti();
+        return;
+      }
+
+      setLastConvertedFiles(output.files);
+
+      for (const file of output.files) {
+        downloadFile(file.bytes, file.name);
+      }
+
+      const truncatedInputName = shortenFileName(selectedFiles[0].name, 32);
+
+      showPopup(
+        `<h2>Done! 🎉</h2>` +
+        `<p>Converted <b>${truncatedInputName}</b> to <b>${outputFormat.format.toUpperCase()}</b>.</p>` +
+        `<p>Your file has been downloaded!</p>` +
+        `<div class="popup-actions">` +
+        `<button class="popup-primary" onclick="window.downloadAgain()">Download again</button>` +
+        `<button onclick="window.hidePopup()">Close</button>` +
+        `</div>`,
+      );
     }
-
-    setLastConvertedFiles(output.files);
-
-    for (const file of output.files) {
-      downloadFile(file.bytes, file.name);
-    }
-
-    const fileNames = output.files.map(f => shortenFileName(f.name, 32)).join(", ");
-    const fileCount = output.files.length;
-    const fileLabel = fileCount === 1 ? "file" : `${fileCount} files`;
-
-    const truncatedInputName = shortenFileName(selectedFiles[0].name, 32);
-
-    showPopup(
-      `<h2>All done! 🎉</h2>` +
-      `<p>Converted <b>${truncatedInputName}</b> to <b>${outputFormat.format.toUpperCase()}</b>.</p>` +
-      `<p>Your freshly converted file is ready! Downloaded ${fileLabel}: <b>${fileNames}</b></p>` +
-      `<div class="popup-actions">` +
-      `<button class="popup-primary" onclick="window.downloadAgain()">Download again</button>` +
-      `<button onclick="window.hidePopup()">Close</button>` +
-      `</div>`,
-    );
   } catch (e) {
     hidePopup();
-    alert("Something went wrong during conversion:\n" + e);
+    alert("Something went wrong:\n" + e);
     console.error(e);
   }
 });

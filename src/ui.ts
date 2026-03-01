@@ -10,6 +10,7 @@ export const ui = {
   uploadFileInfo: document.querySelector(".upload-file-info") as HTMLDivElement,
   uploadFileName: document.querySelector(".upload-file-name") as HTMLSpanElement,
   uploadLabel: document.querySelector("#upload-label") as HTMLLabelElement,
+  expandFilesBtn: document.querySelector("#expand-files-btn") as HTMLButtonElement,
   replaceFileBtn: document.querySelector("#replace-file-btn") as HTMLButtonElement,
   removeFileBtn: document.querySelector("#remove-file-btn") as HTMLButtonElement,
   convertButton: document.querySelector("#convert-button") as HTMLButtonElement,
@@ -27,12 +28,24 @@ export const ui = {
   popupBackground: document.querySelector("#popup-bg") as HTMLDivElement,
   topControls: document.querySelector("#top-controls") as HTMLDivElement,
   hamburgerBtn: document.querySelector("#hamburger-btn") as HTMLButtonElement,
+  // Files modal
+  filesModal: document.querySelector("#files-modal") as HTMLDivElement,
+  filesModalBg: document.querySelector("#files-modal-bg") as HTMLDivElement,
+  filesModalClose: document.querySelector("#files-modal-close") as HTMLButtonElement,
+  filesModalTitle: document.querySelector("#files-modal-title") as HTMLHeadingElement,
+  filesList: document.querySelector("#files-list") as HTMLDivElement,
+  filesPagination: document.querySelector("#files-pagination") as HTMLDivElement,
+  filesDropMore: document.querySelector("#files-drop-more") as HTMLDivElement,
+  filesReplaceAll: document.querySelector("#files-replace-all") as HTMLButtonElement,
+  filesRemoveAll: document.querySelector("#files-remove-all") as HTMLButtonElement,
+  filesModalError: document.querySelector("#files-modal-error") as HTMLParagraphElement,
 };
 
 // --- Constants ---
 
-const DEFAULT_UPLOAD_TEXT = "Drop your file here";
+const DEFAULT_UPLOAD_TEXT = "Drop files here";
 const DEFAULT_UPLOAD_LABEL = "Your file";
+const FILES_PER_PAGE = 20;
 
 const PARALLAX_MAX_DIST = 600;
 const PARALLAX_STRENGTH = 15;
@@ -220,7 +233,7 @@ export function openFormatModal() {
   ui.formatModal.classList.add("open");
   ui.formatModalBg.classList.add("open");
   const label = CATEGORY_LABELS[_activeCategory];
-  ui.formatModalTitle.textContent = label ? `Select ${label.toLowerCase()} format` : "Select format";
+  ui.formatModalTitle.textContent = label ? `Choose ${label.toLowerCase()} format` : "Choose format";
   ui.formatSearch.value = "";
   // Don't auto-focus search on mobile to prevent keyboard popup
   if (!window.matchMedia("(pointer: coarse)").matches) {
@@ -302,9 +315,9 @@ export function setSelectedFormat(index: number, allOptions: Array<{ format: Fil
 export function clearFormatSelection(activeCategory: string = "") {
   const textEl = ui.formatSelector.querySelector(".selector-text") as HTMLSpanElement;
   if (activeCategory && CATEGORY_LABELS[activeCategory]) {
-    textEl.textContent = `Select ${CATEGORY_LABELS[activeCategory]} format...`;
+    textEl.textContent = `Choose ${CATEGORY_LABELS[activeCategory]} format...`;
   } else {
-    textEl.textContent = "Select format...";
+    textEl.textContent = "Choose a format...";
   }
   textEl.classList.add("placeholder");
   ui.formatSelector.classList.remove("has-value");
@@ -406,10 +419,17 @@ export function updateCategoryText(activeCategory: string, hasFiles: boolean) {
 
 // --- Upload zone ---
 
+let _currentFiles: File[] = [];
+let _onFilesChanged: ((files: File[]) => void) | null = null;
+let _onClearFiles: (() => void) | null = null;
+
 export function initUploadZone(
   onFilesSelected: (files: File[]) => void,
   onClearFile: () => void,
 ) {
+  _onFilesChanged = onFilesSelected;
+  _onClearFiles = onClearFile;
+
   ui.uploadZone.addEventListener("click", (e) => {
     const target = e.target as HTMLElement;
     if (target.closest(".upload-file-actions")) return;
@@ -432,12 +452,18 @@ export function initUploadZone(
 
   ui.removeFileBtn.addEventListener("click", (e) => {
     e.stopPropagation();
+    _currentFiles = [];
     onClearFile();
   });
 
   ui.replaceFileBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     ui.fileInput.click();
+  });
+
+  ui.expandFilesBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openFilesModal();
   });
 
   const fileSelectHandler = (event: Event) => {
@@ -459,9 +485,15 @@ export function initUploadZone(
     if (files.length === 0) return;
 
     if (files.some(c => c.type !== files[0].type)) {
-      return alert("All input files must be of the same type.");
+      showFileTypeMismatchPopup(files, (filtered) => {
+        filtered.sort((a, b) => a.name === b.name ? 0 : (a.name < b.name ? -1 : 1));
+        _currentFiles = filtered;
+        onFilesSelected(filtered);
+      });
+      return;
     }
     files.sort((a, b) => a.name === b.name ? 0 : (a.name < b.name ? -1 : 1));
+    _currentFiles = files;
     onFilesSelected(files);
   };
 
@@ -481,6 +513,7 @@ export function shortenFileName(name: string, maxLength: number = 24): string {
 }
 
 export function showFileInUploadZone(files: File[]) {
+  _currentFiles = files;
   const displayName = files.length > 1
     ? `${shortenFileName(files[0].name)} (+${files.length - 1} more)`
     : shortenFileName(files[0].name);
@@ -490,10 +523,21 @@ export function showFileInUploadZone(files: File[]) {
   ui.uploadFileName.textContent = displayName;
   ui.uploadFileInfo.classList.add("visible");
   ui.uploadZone.classList.add("has-file");
+
+  // Update label based on file count
+  if (files.length > 1) {
+    ui.uploadLabel.textContent = `${files.length} files selected`;
+  } else {
+    ui.uploadLabel.textContent = "Your file";
+  }
 }
 
-export function showDetectedFormat(formatName: string) {
-  ui.uploadLabel.textContent = `Detected format: ${formatName.toUpperCase()}`;
+export function showDetectedFormat(formatName: string, fileCount: number = 1) {
+  if (fileCount > 1) {
+    ui.uploadLabel.textContent = `${fileCount} files ready \u2014 converting from ${formatName.toUpperCase()}`;
+  } else {
+    ui.uploadLabel.textContent = `Ready to convert from ${formatName.toUpperCase()}`;
+  }
 }
 
 export function resetUploadZone(activeCategory: string) {
@@ -504,6 +548,267 @@ export function resetUploadZone(activeCategory: string) {
   ui.uploadFileName.textContent = "";
   ui.uploadZone.classList.remove("has-file");
   ui.uploadLabel.textContent = DEFAULT_UPLOAD_LABEL;
+  _currentFiles = [];
+}
+
+// --- Files Management Modal ---
+
+let _filesModalPage = 0;
+
+function openFilesModal() {
+  ui.filesModal.classList.add("open");
+  ui.filesModalBg.classList.add("open");
+  _filesModalPage = 0;
+  renderFilesModalList();
+  hideFilesModalError();
+}
+
+export function closeFilesModal() {
+  ui.filesModal.classList.remove("open");
+  ui.filesModalBg.classList.remove("open");
+}
+
+function hideFilesModalError() {
+  ui.filesModalError.style.display = "none";
+  ui.filesModalError.textContent = "";
+}
+
+function showFilesModalError(msg: string) {
+  ui.filesModalError.textContent = msg;
+  ui.filesModalError.style.display = "block";
+  setTimeout(() => hideFilesModalError(), 4000);
+}
+
+function renderFilesModalList() {
+  const files = _currentFiles;
+  const totalPages = Math.max(1, Math.ceil(files.length / FILES_PER_PAGE));
+  if (_filesModalPage >= totalPages) _filesModalPage = totalPages - 1;
+
+  ui.filesModalTitle.textContent = files.length > 0
+    ? `Your files (${files.length})`
+    : "Your files";
+
+  const start = _filesModalPage * FILES_PER_PAGE;
+  const end = Math.min(start + FILES_PER_PAGE, files.length);
+  ui.filesList.innerHTML = "";
+
+  for (let i = start; i < end; i++) {
+    const file = files[i];
+    const row = document.createElement("div");
+    row.className = "file-row";
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "file-row-name";
+    nameSpan.textContent = shortenFileName(file.name, 36);
+    nameSpan.title = file.name;
+
+    const actions = document.createElement("div");
+    actions.className = "file-row-actions";
+
+    const replaceBtn = document.createElement("button");
+    replaceBtn.className = "file-row-btn";
+    replaceBtn.innerHTML = "&#8635;";
+    replaceBtn.title = "Replace this file";
+    replaceBtn.addEventListener("click", () => replaceFileAtIndex(i));
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "file-row-btn";
+    removeBtn.innerHTML = "&#10005;";
+    removeBtn.title = "Remove this file";
+    removeBtn.addEventListener("click", () => removeFileAtIndex(i));
+
+    actions.appendChild(replaceBtn);
+    actions.appendChild(removeBtn);
+    row.appendChild(nameSpan);
+    row.appendChild(actions);
+    ui.filesList.appendChild(row);
+  }
+
+  // Pagination
+  ui.filesPagination.innerHTML = "";
+  if (totalPages > 1) {
+    const prevBtn = document.createElement("button");
+    prevBtn.className = "pagination-btn";
+    prevBtn.textContent = "\u2039";
+    prevBtn.disabled = _filesModalPage === 0;
+    prevBtn.addEventListener("click", () => {
+      _filesModalPage--;
+      renderFilesModalList();
+    });
+
+    const info = document.createElement("span");
+    info.className = "pagination-info";
+    info.textContent = `Page ${_filesModalPage + 1} of ${totalPages}`;
+
+    const nextBtn = document.createElement("button");
+    nextBtn.className = "pagination-btn";
+    nextBtn.textContent = "\u203A";
+    nextBtn.disabled = _filesModalPage >= totalPages - 1;
+    nextBtn.addEventListener("click", () => {
+      _filesModalPage++;
+      renderFilesModalList();
+    });
+
+    ui.filesPagination.appendChild(prevBtn);
+    ui.filesPagination.appendChild(info);
+    ui.filesPagination.appendChild(nextBtn);
+  }
+}
+
+function removeFileAtIndex(index: number) {
+  _currentFiles.splice(index, 1);
+  if (_currentFiles.length === 0) {
+    closeFilesModal();
+    if (_onClearFiles) _onClearFiles();
+    return;
+  }
+  renderFilesModalList();
+  showFileInUploadZone(_currentFiles);
+  if (_onFilesChanged) _onFilesChanged(_currentFiles);
+}
+
+function replaceFileAtIndex(index: number) {
+  const tempInput = document.createElement("input");
+  tempInput.type = "file";
+  tempInput.addEventListener("change", () => {
+    const newFile = tempInput.files?.[0];
+    if (!newFile) return;
+
+    if (_currentFiles.length > 0 && newFile.type !== _currentFiles[0].type) {
+      showFilesModalError("That file is a different type. All files need to match.");
+      return;
+    }
+
+    _currentFiles[index] = newFile;
+    renderFilesModalList();
+    showFileInUploadZone(_currentFiles);
+    if (_onFilesChanged) _onFilesChanged(_currentFiles);
+  });
+  tempInput.click();
+}
+
+export function initFilesModal() {
+  ui.filesModalClose.addEventListener("click", closeFilesModal);
+  ui.filesModalBg.addEventListener("click", closeFilesModal);
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && ui.filesModal.classList.contains("open")) {
+      closeFilesModal();
+    }
+  });
+
+  ui.filesRemoveAll.addEventListener("click", () => {
+    _currentFiles = [];
+    closeFilesModal();
+    if (_onClearFiles) _onClearFiles();
+  });
+
+  ui.filesReplaceAll.addEventListener("click", () => {
+    closeFilesModal();
+    ui.fileInput.click();
+  });
+
+  // Drop more files zone
+  ui.filesDropMore.addEventListener("click", () => {
+    const tempInput = document.createElement("input");
+    tempInput.type = "file";
+    tempInput.multiple = true;
+    tempInput.addEventListener("change", () => {
+      if (tempInput.files) addMoreFiles(Array.from(tempInput.files));
+    });
+    tempInput.click();
+  });
+
+  ui.filesDropMore.addEventListener("dragenter", (e) => {
+    e.preventDefault();
+    ui.filesDropMore.classList.add("drag-over");
+  });
+  ui.filesDropMore.addEventListener("dragleave", () => {
+    ui.filesDropMore.classList.remove("drag-over");
+  });
+  ui.filesDropMore.addEventListener("dragover", (e) => {
+    e.preventDefault();
+  });
+  ui.filesDropMore.addEventListener("drop", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    ui.filesDropMore.classList.remove("drag-over");
+    if (e.dataTransfer?.files) {
+      addMoreFiles(Array.from(e.dataTransfer.files));
+    }
+  });
+}
+
+function showFileTypeMismatchPopup(files: File[], onProceed: (filtered: File[]) => void) {
+  const typeGroups = new Map<string, File[]>();
+  for (const file of files) {
+    const type = file.type || "unknown";
+    if (!typeGroups.has(type)) typeGroups.set(type, []);
+    typeGroups.get(type)!.push(file);
+  }
+
+  let typeSummary = "";
+  const typeEntries = [...typeGroups.entries()];
+  for (const [, groupFiles] of typeEntries) {
+    const ext = groupFiles[0].name.split(".").pop()?.toUpperCase() || "Unknown";
+    typeSummary += `<li><b>${ext}</b> \u2014 ${groupFiles.length} file${groupFiles.length > 1 ? "s" : ""}</li>`;
+  }
+
+  let actionButtons = "";
+  for (const [type, groupFiles] of typeEntries) {
+    const ext = groupFiles[0].name.split(".").pop()?.toUpperCase() || "Unknown";
+    const count = groupFiles.length;
+    actionButtons += `<button class="popup-secondary" data-type-filter="${type}">Keep only ${ext} (${count} file${count > 1 ? "s" : ""})</button>`;
+  }
+
+  showPopup(
+    `<h2>Multiple file types detected</h2>` +
+    `<p>All files need to be the same type to convert together. You uploaded:</p>` +
+    `<ul class="type-list">${typeSummary}</ul>` +
+    `<div class="popup-actions popup-actions-stacked">` +
+    actionButtons +
+    `<button onclick="window.hidePopup()">Cancel</button>` +
+    `</div>`,
+  );
+
+  // Bind filter buttons
+  requestAnimationFrame(() => {
+    const btns = ui.popupBox.querySelectorAll<HTMLButtonElement>("[data-type-filter]");
+    btns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        const filterType = btn.getAttribute("data-type-filter")!;
+        const filtered = files.filter(f => (f.type || "unknown") === filterType);
+        hidePopup();
+        onProceed(filtered);
+      });
+    });
+  });
+}
+
+function addMoreFiles(newFiles: File[]) {
+  if (newFiles.length === 0) return;
+  hideFilesModalError();
+
+  const expectedType = _currentFiles.length > 0 ? _currentFiles[0].type : newFiles[0].type;
+
+  const matchingFiles = newFiles.filter(f => f.type === expectedType);
+  const mismatchCount = newFiles.length - matchingFiles.length;
+  if (mismatchCount > 0) {
+    if (matchingFiles.length > 0) {
+      showFilesModalError(`${mismatchCount} file${mismatchCount > 1 ? "s" : ""} skipped (different type). Added ${matchingFiles.length} matching file${matchingFiles.length > 1 ? "s" : ""}.`);
+    } else {
+      showFilesModalError("Those files are a different type. All files need to match.");
+      return;
+    }
+  }
+
+  const filesToAdd = mismatchCount > 0 ? matchingFiles : newFiles;
+  _currentFiles = _currentFiles.concat(filesToAdd);
+  _currentFiles.sort((a, b) => a.name === b.name ? 0 : (a.name < b.name ? -1 : 1));
+
+  renderFilesModalList();
+  showFileInUploadZone(_currentFiles);
+  if (_onFilesChanged) _onFilesChanged(_currentFiles);
 }
 
 // --- Format matching ---
@@ -659,18 +964,24 @@ export function initCursorGlow() {
 
   let mouseX = -500;
   let mouseY = -500;
-  let rafId: number | null = null;
+  let cursorX = -500;
+  let cursorY = -500;
+  const LERP_FACTOR = 0.15;
 
   function updateGlow() {
-    glow!.style.left = mouseX + "px";
-    glow!.style.top = mouseY + "px";
+    // Smooth lerp toward mouse position
+    cursorX += (mouseX - cursorX) * LERP_FACTOR;
+    cursorY += (mouseY - cursorY) * LERP_FACTOR;
+
+    glow!.style.left = cursorX + "px";
+    glow!.style.top = cursorY + "px";
 
     // Parallax on background elements
     if (window.innerWidth > MOBILE_BREAKPOINT) {
       bgSpans.forEach((span, i) => {
         const pos = originalPositions[i];
-        const dx = mouseX - pos.x;
-        const dy = mouseY - pos.y;
+        const dx = cursorX - pos.x;
+        const dy = cursorY - pos.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const strength = Math.max(0, 1 - dist / PARALLAX_MAX_DIST) * PARALLAX_STRENGTH;
         const offsetX = (dx / (dist || 1)) * strength;
@@ -679,15 +990,15 @@ export function initCursorGlow() {
       });
     }
 
-    rafId = null;
+    requestAnimationFrame(updateGlow);
   }
+
+  // Start the continuous animation loop
+  requestAnimationFrame(updateGlow);
 
   document.addEventListener("mousemove", (e) => {
     mouseX = e.clientX;
     mouseY = e.clientY;
-    if (!rafId) {
-      rafId = requestAnimationFrame(updateGlow);
-    }
   });
 
   document.addEventListener("mouseover", (e) => {
@@ -696,7 +1007,7 @@ export function initCursorGlow() {
     // Clear previous states
     glow.classList.remove("interactive", "interactive-small");
 
-    if (target.closest("button, a, input, select, textarea, label, .clickable, .upload-action-btn, .segmented-option, .cat-tab, #upload-zone, .format-option")) {
+    if (target.closest("button, a, input, select, textarea, label, .clickable, .upload-action-btn, .segmented-option, .cat-tab, #upload-zone, .format-option, .file-row-btn, .pagination-btn, #files-drop-more")) {
       glow.classList.add("interactive-small");
     }
   });

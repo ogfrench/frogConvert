@@ -15,31 +15,31 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <link rel="shortcut icon" href="/frog-prince.svg" type="image/svg+xml">
-  <title>frogConvert — Securely convert 50+ file formats locally</title>
+  <link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <title>frogConvert — Convert 50+ file formats, privately in your browser</title>
   <meta name="description"
-    content="🐸 frogConvert lets you convert between 50+ file formats entirely in your browser. No uploads, no servers, everything runs locally on your device :)">
+    content="🐸 Convert between 50+ file formats privately in your browser. No uploads, no servers — everything stays on your device.">
 
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://frogconvert.netlify.app/">
-  <meta property="og:title" content="frogConvert — Securely convert 50+ file formats locally">
+  <meta property="og:title" content="frogConvert — Convert 50+ file formats, privately in your browser">
   <meta property="og:description"
-    content="🐸 frogConvert lets you convert between 50+ file formats entirely in your browser. No uploads, no servers, everything runs locally on your device :)">
+    content="🐸 Convert between 50+ file formats privately in your browser. No uploads, no servers — everything stays on your device.">
   <meta property="og:image" content="https://frogconvert.netlify.app/social-preview.png">
 
   <!-- Twitter -->
   <meta property="twitter:card" content="summary_large_image">
   <meta property="twitter:url" content="https://frogconvert.netlify.app/">
-  <meta property="twitter:title" content="frogConvert — Securely convert 50+ file formats locally">
+  <meta property="twitter:title" content="frogConvert — Convert 50+ file formats, privately in your browser">
   <meta property="twitter:description"
-    content="🐸 frogConvert lets you convert between 50+ file formats entirely in your browser. No uploads, no servers, everything runs locally on your device :)">
+    content="🐸 Convert between 50+ file formats privately in your browser. No uploads, no servers — everything stays on your device.">
   <meta property="twitter:image" content="https://frogconvert.netlify.app/social-preview.png">
 </head>
 
 <body>
 
-  <input id="file-input" type="file">
+  <input id="file-input" type="file" multiple>
 
   <div id="cursor-glow"></div>
 
@@ -57,19 +57,7 @@
 
   <header id="top-bar" class="entrance d1">
     <a href="/" id="logo" class="clickable">
-      <div class="logo-icon">
-        <svg viewBox="0 0 512 512" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style="stop-color:var(--brand-green);stop-opacity:1" />
-              <stop offset="100%" style="stop-color:var(--brand-green-dark);stop-opacity:1" />
-            </linearGradient>
-          </defs>
-          <path fill="var(--brand-yellow)" d="M176 22v86c80 32 80 32 160 0V22l-48 48-32-48-32 48z" />
-          <path fill="url(#logoGradient)"
-            d="M335.543 130.31c-4.742.195-9.564 1.488-14.205 4.167-38.934 22.48-89.77 21.953-127.79.002-6.09-3.516-12.284-4.611-18.144-3.893a46.38 46.38 0 0 1 9.438 28.09c0 23.15-17.037 42.83-39.176 45.096-12.775 14.92-21.554 31.806-24.387 49.982 44.73-23.79 90.948-35.572 137.065-35.508 46.15.064 92.197 11.986 136.56 35.62-2.69-18.15-11.217-35.044-23.795-49.92-.585.025-1.17.048-1.76.048-24.18 0-43.447-20.7-43.447-45.318 0-10.64 3.601-20.542 9.641-28.363zm-194.148 3.215l-.002.002c-12.67 0-23.278 10.85-23.278 25.15 0 14.298 10.608 25.147 23.278 25.147 12.67 0 23.277-10.85 23.277-25.148s-10.607-25.15-23.276-25.15zm227.953 0v.002c-12.67 0-23.276 10.85-23.276 25.15 0 14.298 10.607 25.147 23.276 25.147 12.67 0 23.277-10.85 23.277-25.148s-10.608-25.15-23.277-25.15zm68.396 93.375c-9.361-.13-18.96 1.646-28.676 4.237 6.926 19.457 8.569 40.725 2.694 62.656-4.26 15.896.934 37.475 11.7 54.758l4.69 7.53-7.02 5.43c-19.764 15.28-36.439 25.107-46.103 35.264-9.664 10.158-13.888 19.59-10.916 40.875.484 12.745 6.068 17.054 13.668 24.97 19.876-14.55 36.01-23.888 68.344-4.095-6.738-18.804 15.937-29.76 46.719-29.779-36.91-15.88-64.98-25.62-86.438-30.377 67.492-72.188 97.182-127.96 66-159.187-10.985-8.794-22.626-12.114-34.662-12.282zm-364.074.118c-12.65.034-24.768 3.161-34.076 12.166-31.182 31.227-1.492 87 66 159.187-21.456 4.756-49.528 14.497-86.438 30.375 30.782.02 53.457 10.978 46.719 29.781 32.332-19.792 48.469-10.455 68.344 4.094 6.233-8.55 16.31-14.826 17.724-24.969 2.972-21.283-1.25-30.717-10.914-40.875-9.664-10.157-26.34-19.982-46.105-35.263l-7.02-5.428 4.692-7.53c10.73-17.227 15.857-39.232 11.699-54.76-5.782-21.571-4.184-42.44 2.537-61.56-10.425-2.871-22-5.249-33.162-5.218zm184.67 9.539c-46.096-.065-92.3 12.827-137.572 38.845a87.269 87.269 0 0 0 2.494 13.31v.003c5.453 20.354.592 42.93-9.485 62.297 15.89 11.634 30.344 20.524 41.479 32.228 10.36 10.89 16.795 25.133 16.955 43.713-1.096 16.308-9.158 39.273-22.348 59.244 24.59-14.237 42.135-15.333 45.291 3.492 14.097-17.783 25.698-20.386 38.985-8.035-3.745-31.452-11.117-52.887-17.258-65.097-14.896-36.567-42.816-61.484-73.742-83.424l11.359-16.014c38.788 27.517 76.799 62.664 89.125 119.567 9.628.705 19.25.65 28.85-.16 12.362-56.81 50.333-91.919 89.084-119.409l11.361 16.016c-31.19 22.127-59.334 47.28-74.13 84.363-6.046 12.357-13.14 33.493-16.794 64.158 13.29-12.35 24.891-9.747 38.988 8.036 3.153-18.825 20.697-17.73 45.288-3.493-13.51-20.455-21.645-44.058-22.42-60.424.415-18.01 6.809-31.872 16.949-42.533 11.135-11.705 25.586-20.595 41.474-32.23-10.064-19.29-14.99-41.737-9.48-62.303a88.607 88.607 0 0 0 2.51-13.266c-44.85-25.79-90.85-38.818-136.961-38.884z" />
-        </svg>
-      </div>
+      <span class="logo-emoji">🐸</span>
       <span class="logo-text">frogConvert</span>
     </a>
     <div id="top-controls">
@@ -96,7 +84,7 @@
     </div>
   </header>
 
-  <h1 id="hero-title" class="entrance d2">What will your file turn into today?</h1>
+  <h1 id="hero-title" class="entrance d2">What will you convert today?</h1>
 
   <nav id="category-tabs" class="entrance d4">
     <button class="cat-tab active" data-category="">Any</button>
@@ -116,11 +104,12 @@
     <div class="convert-field" id="from-field">
       <label id="upload-label">Your file</label>
       <div id="upload-zone">
-        <p class="upload-text">Drop your file here</p>
-        <p class="upload-hint">or click to browse your files</p>
+        <p class="upload-text">Drop files here</p>
+        <p class="upload-hint">or tap to browse</p>
         <div class="upload-file-info">
           <span class="upload-file-name"></span>
           <div class="upload-file-actions">
+            <button class="upload-action-btn" id="expand-files-btn" title="Manage files">&#9776;</button>
             <button class="upload-action-btn" id="replace-file-btn" title="Replace file">&#8635;</button>
             <button class="upload-action-btn" id="remove-file-btn" title="Remove file">&#10005;</button>
           </div>
@@ -135,7 +124,7 @@
     <div class="convert-field" id="to-field">
       <label>Convert to</label>
       <button class="format-selector" id="format-selector">
-        <span class="selector-text placeholder">Select format...</span>
+        <span class="selector-text placeholder">Choose a format...</span>
         <span class="selector-chevron">&#9662;</span>
       </button>
     </div>
@@ -145,12 +134,12 @@
   </div>
 
   <p id="description" class="entrance d6">
-    Securely and locally convert 50+ file formats right in your browser - no uploads or servers involved.
+    Your files never leave your device. Convert between 50+ formats instantly, right here in your browser.
   </p>
 
   <footer id="page-footer" class="entrance d7">
     <div class="footer-content">
-      <span class="footer-text">designed and adapted with ♥ by François - view on <a id="commit-id"
+      <span class="footer-text">designed with ♥ by François — view on <a id="commit-id"
           href="https://github.com/ogfrench/frogConvert" target="_blank" rel="noopener">GitHub</a></span>
       <button id="footer-confetti-btn" title="Party time!">🎉</button>
     </div>
@@ -159,11 +148,30 @@
   <div id="format-modal-bg"></div>
   <div id="format-modal">
     <div class="format-modal-header">
-      <h2 id="format-modal-title">Select format</h2>
+      <h2 id="format-modal-title">Choose format</h2>
       <button class="format-modal-close" id="format-modal-close" title="Close">&#10005;</button>
     </div>
     <input type="text" class="format-search" placeholder="Search formats...">
     <div class="format-options" id="format-options"></div>
+  </div>
+
+  <div id="files-modal-bg"></div>
+  <div id="files-modal">
+    <div class="files-modal-header">
+      <h2 id="files-modal-title">Your files</h2>
+      <button class="files-modal-close" id="files-modal-close" title="Close">&#10005;</button>
+    </div>
+    <div class="files-modal-top-actions">
+      <button id="files-replace-all">Replace all</button>
+      <button id="files-remove-all">Remove all</button>
+    </div>
+    <div id="files-list"></div>
+    <div id="files-pagination"></div>
+    <div id="files-drop-more">
+      <p>Drop more files here</p>
+      <p class="upload-hint">or tap to browse</p>
+    </div>
+    <p id="files-modal-error" class="files-error" style="display:none"></p>
   </div>
 
   <div id="popup-bg" style="display:none"></div>
