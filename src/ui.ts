@@ -38,7 +38,9 @@ export const ui = {
   filesDropMore: document.querySelector("#files-drop-more") as HTMLDivElement,
   filesReplaceAll: document.querySelector("#files-replace-all") as HTMLButtonElement,
   filesRemoveAll: document.querySelector("#files-remove-all") as HTMLButtonElement,
-  filesModalError: document.querySelector("#files-modal-error") as HTMLParagraphElement,
+  filesModalError: document.querySelector("#files-modal-error") as HTMLDivElement,
+  filesModalErrorText: document.querySelector("#files-modal-error-text") as HTMLSpanElement,
+  filesModalErrorClose: document.querySelector("#files-modal-error-close") as HTMLButtonElement,
 };
 
 // --- Constants ---
@@ -50,6 +52,73 @@ const FILES_PER_PAGE = 20;
 const PARALLAX_MAX_DIST = 600;
 const PARALLAX_STRENGTH = 15;
 const MOBILE_BREAKPOINT = 800;
+
+// --- File upload safeguards ---
+const MAX_FILES = 1000;
+const deviceMemGB = (navigator as any).deviceMemory ?? 4;
+const deviceMemBytes = deviceMemGB * 1024 * 1024 * 1024;
+
+type SizeCheckLevel = "ok" | "soft" | "warning" | "severe" | "critical";
+
+function checkFileSizeLimits(files: File[]): { level: SizeCheckLevel; totalSize: number } {
+  const totalSize = files.reduce((sum, f) => sum + f.size, 0);
+  const ratio = totalSize / deviceMemBytes;
+  if (ratio >= 0.9) return { level: "critical", totalSize };
+  if (ratio >= 0.75) return { level: "severe", totalSize };
+  if (ratio >= 0.5) return { level: "warning", totalSize };
+  if (ratio >= 0.25) return { level: "soft", totalSize };
+  return { level: "ok", totalSize };
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024 * 1024) return `~${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  if (bytes >= 1024 * 1024) return `~${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+  return `~${(bytes / 1024).toFixed(0)} KB`;
+}
+
+function showSizeWarningPopup(
+  level: SizeCheckLevel,
+  totalSize: number,
+  onProceed: () => void,
+): void {
+  const sizeStr = formatBytes(totalSize);
+  const memStr = `${deviceMemGB} GB`;
+
+  const messages: Record<string, string> = {
+    soft: `That's a chunky upload (${sizeStr}). Your browser might need a moment to digest this.`,
+    warning: `Whoa, that's a lot (${sizeStr} of ${memStr} RAM). Things might get sluggish \u2014 proceed with caution!`,
+    severe: `Your browser is sweating (${sizeStr}). Serious risk of a crash here \u2014 save your work first!`,
+    critical: `That's more than your browser can handle (${sizeStr}). Even frogs have limits! Try fewer or smaller files.`,
+  };
+
+  if (level === "critical") {
+    showPopup(
+      `<h2>Too large</h2>` +
+      `<p>${messages[level]}</p>` +
+      `<div class="popup-actions">` +
+      `<button class="popup-primary" onclick="window.hidePopup()">OK</button>` +
+      `</div>`,
+    );
+    return;
+  }
+
+  showPopup(
+    `<h2>Large upload</h2>` +
+    `<p>${messages[level]}</p>` +
+    `<div class="popup-actions">` +
+    `<button class="popup-secondary" onclick="window.hidePopup()">Cancel</button>` +
+    `<button class="popup-primary" id="size-warn-proceed">Proceed anyway</button>` +
+    `</div>`,
+  );
+
+  requestAnimationFrame(() => {
+    const proceedBtn = document.getElementById("size-warn-proceed");
+    proceedBtn?.addEventListener("click", () => {
+      hidePopup();
+      onProceed();
+    });
+  });
+}
 
 export const CATEGORY_MAP: Record<string, string[]> = {
   image: ["image", "vector"],
@@ -163,11 +232,11 @@ export function initModeToggle(onModeChanged: () => void) {
     ui.modeToggleButton.textContent = advanced ? "All Formats" : "Core Formats";
     localStorage.setItem("formatMode", advanced ? "advanced" : "basic");
 
-    // Show/hide advanced-only category tabs
+    // Show/hide advanced-only category tabs with animation
     for (const tab of Array.from(ui.categoryTabs.children) as HTMLElement[]) {
       const cat = tab.getAttribute("data-category") || "";
       if (ADVANCED_ONLY_CATEGORIES.includes(cat)) {
-        tab.style.display = advanced ? "" : "none";
+        tab.classList.toggle("tab-hidden", !advanced);
       }
     }
   }
@@ -484,17 +553,42 @@ export function initUploadZone(
     const files = Array.from(inputFiles);
     if (files.length === 0) return;
 
+    // File count hard cap
+    if (files.length > MAX_FILES) {
+      showPopup(
+        `<h2>Too many files</h2>` +
+        `<p>You selected ${files.length} files, but the limit is ${MAX_FILES}. Please select fewer files.</p>` +
+        `<div class="popup-actions">` +
+        `<button class="popup-primary" onclick="window.hidePopup()">OK</button>` +
+        `</div>`,
+      );
+      return;
+    }
+
+    const proceedWithFiles = (filesToUse: File[]) => {
+      // Size safeguard check
+      const { level } = checkFileSizeLimits(filesToUse);
+      if (level !== "ok") {
+        const totalSize = filesToUse.reduce((sum, f) => sum + f.size, 0);
+        showSizeWarningPopup(level, totalSize, () => {
+          filesToUse.sort((a, b) => a.name === b.name ? 0 : (a.name < b.name ? -1 : 1));
+          _currentFiles = filesToUse;
+          onFilesSelected(filesToUse);
+        });
+        return;
+      }
+      filesToUse.sort((a, b) => a.name === b.name ? 0 : (a.name < b.name ? -1 : 1));
+      _currentFiles = filesToUse;
+      onFilesSelected(filesToUse);
+    };
+
     if (files.some(c => c.type !== files[0].type)) {
       showFileTypeMismatchPopup(files, (filtered) => {
-        filtered.sort((a, b) => a.name === b.name ? 0 : (a.name < b.name ? -1 : 1));
-        _currentFiles = filtered;
-        onFilesSelected(filtered);
+        proceedWithFiles(filtered);
       });
       return;
     }
-    files.sort((a, b) => a.name === b.name ? 0 : (a.name < b.name ? -1 : 1));
-    _currentFiles = files;
-    onFilesSelected(files);
+    proceedWithFiles(files);
   };
 
   ui.fileInput.addEventListener("change", fileSelectHandler);
@@ -554,6 +648,7 @@ export function resetUploadZone(activeCategory: string) {
 // --- Files Management Modal ---
 
 let _filesModalPage = 0;
+let _filesModalResizeHandler: (() => void) | null = null;
 
 function openFilesModal() {
   ui.filesModal.classList.add("open");
@@ -561,22 +656,43 @@ function openFilesModal() {
   _filesModalPage = 0;
   renderFilesModalList();
   hideFilesModalError();
+  // Lock the files list height after first render to prevent jumps on file removal
+  requestAnimationFrame(() => {
+    const listHeight = ui.filesList.getBoundingClientRect().height;
+    if (listHeight > 0) {
+      ui.filesList.style.minHeight = listHeight + "px";
+    }
+  });
+  // Recalculate on resize so modal adapts to new viewport
+  if (_filesModalResizeHandler) window.removeEventListener("resize", _filesModalResizeHandler);
+  _filesModalResizeHandler = () => {
+    ui.filesList.style.minHeight = "";
+    requestAnimationFrame(() => {
+      const h = ui.filesList.getBoundingClientRect().height;
+      if (h > 0) ui.filesList.style.minHeight = h + "px";
+    });
+  };
+  window.addEventListener("resize", _filesModalResizeHandler);
 }
 
 export function closeFilesModal() {
   ui.filesModal.classList.remove("open");
   ui.filesModalBg.classList.remove("open");
+  ui.filesList.style.minHeight = "";
+  if (_filesModalResizeHandler) {
+    window.removeEventListener("resize", _filesModalResizeHandler);
+    _filesModalResizeHandler = null;
+  }
 }
 
 function hideFilesModalError() {
   ui.filesModalError.style.display = "none";
-  ui.filesModalError.textContent = "";
+  ui.filesModalErrorText.textContent = "";
 }
 
 function showFilesModalError(msg: string) {
-  ui.filesModalError.textContent = msg;
-  ui.filesModalError.style.display = "block";
-  setTimeout(() => hideFilesModalError(), 4000);
+  ui.filesModalErrorText.textContent = msg;
+  ui.filesModalError.style.display = "flex";
 }
 
 function renderFilesModalList() {
@@ -690,6 +806,7 @@ function replaceFileAtIndex(index: number) {
 export function initFilesModal() {
   ui.filesModalClose.addEventListener("click", closeFilesModal);
   ui.filesModalBg.addEventListener("click", closeFilesModal);
+  ui.filesModalErrorClose.addEventListener("click", hideFilesModalError);
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && ui.filesModal.classList.contains("open")) {
@@ -789,6 +906,13 @@ function addMoreFiles(newFiles: File[]) {
   if (newFiles.length === 0) return;
   hideFilesModalError();
 
+  // File count hard cap
+  const projectedCount = _currentFiles.length + newFiles.length;
+  if (projectedCount > MAX_FILES) {
+    showFilesModalError(`Too many files (${projectedCount}). The limit is ${MAX_FILES}.`);
+    return;
+  }
+
   const expectedType = _currentFiles.length > 0 ? _currentFiles[0].type : newFiles[0].type;
 
   const matchingFiles = newFiles.filter(f => f.type === expectedType);
@@ -803,7 +927,23 @@ function addMoreFiles(newFiles: File[]) {
   }
 
   const filesToAdd = mismatchCount > 0 ? matchingFiles : newFiles;
-  _currentFiles = _currentFiles.concat(filesToAdd);
+  const combinedFiles = _currentFiles.concat(filesToAdd);
+
+  // Size safeguard check
+  const { level, totalSize } = checkFileSizeLimits(combinedFiles);
+  if (level !== "ok") {
+    closeFilesModal();
+    showSizeWarningPopup(level, totalSize, () => {
+      _currentFiles = combinedFiles;
+      _currentFiles.sort((a, b) => a.name === b.name ? 0 : (a.name < b.name ? -1 : 1));
+      showFileInUploadZone(_currentFiles);
+      if (_onFilesChanged) _onFilesChanged(_currentFiles);
+      openFilesModal();
+    });
+    return;
+  }
+
+  _currentFiles = combinedFiles;
   _currentFiles.sort((a, b) => a.name === b.name ? 0 : (a.name < b.name ? -1 : 1));
 
   renderFilesModalList();
@@ -966,7 +1106,7 @@ export function initCursorGlow() {
   let mouseY = -500;
   let cursorX = -500;
   let cursorY = -500;
-  const LERP_FACTOR = 0.15;
+  const LERP_FACTOR = 0.25;
 
   function updateGlow() {
     // Smooth lerp toward mouse position

@@ -95,8 +95,8 @@
     <button class="cat-tab" data-category="data">Data</button>
     <button class="cat-tab" data-category="archive">Archive</button>
     <button class="cat-tab" data-category="font">Font</button>
-    <button class="cat-tab" data-category="code" style="display: none">Code</button>
-    <button class="cat-tab" data-category="other" style="display: none">Other</button>
+    <button class="cat-tab tab-hidden" data-category="code">Code</button>
+    <button class="cat-tab tab-hidden" data-category="other">Other</button>
   </nav>
 
   <div id="convert-card" class="entrance d5">
@@ -171,7 +171,10 @@
       <p>Drop more files here</p>
       <p class="upload-hint">or tap to browse</p>
     </div>
-    <p id="files-modal-error" class="files-error" style="display:none"></p>
+    <div id="files-modal-error" class="files-error" style="display:none">
+      <span id="files-modal-error-text"></span>
+      <button id="files-modal-error-close" class="files-error-close" title="Dismiss">&times;</button>
+    </div>
   </div>
 
   <div id="popup-bg" style="display:none"></div>
