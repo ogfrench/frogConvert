@@ -12,6 +12,8 @@ Compared to the original `Convert to it!`, frogConvert focuses on frontend impro
 - **Dynamic Capabilities:** Smart detection of device RAM capabilities to prevent the browser tab from freezing or crashing during heavy workloads.
 
 ## What is it?
+> _This section is adapted from the [original README](https://github.com/p2r3/convert#readme)._
+
 Many online file conversion tools are **boring** and **insecure**. They only allow conversion between two formats in the same medium (images to images, videos to videos, etc.), and they require that you _upload your files to some server_.
 
 This is not just terrible for privacy, it's also incredibly lame. What if you _really_ need to convert an AVI video to a PDF document? Try to find an online tool for that, I dare you.
@@ -40,6 +42,7 @@ For a semi-technical overview of the original tool, check out this video: https:
 - **Performance** — frogConvert detects your device's available RAM and adjusts limits to prevent crashes on lower-end hardware.
 
 ## Deployment
+> _The deployment steps below are adapted from the [original README](https://github.com/p2r3/convert#readme), updated for this fork's repository URL._
 
 ### Local development (Bun + Vite)
 
@@ -77,6 +80,7 @@ docker compose -f docker/docker-compose.yml -f docker/docker-compose.override.ym
 The first Docker build is expected to be slow because Chromium and related system packages are installed in the build stage (needed for puppeteer in `scripts/buildCache.js`). Later builds are usually much faster due to Docker layer caching.
 
 ## Contributing
+> _The contributing guidelines below are adapted from the [original README](https://github.com/p2r3/convert#readme). The handler interface and code structure are unchanged from the original project._
 
 The best way to contribute is by adding support for new file formats (duh). Here's how that works:
 
