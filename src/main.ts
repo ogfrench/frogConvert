@@ -138,7 +138,7 @@ window.printSupportedFormatCache = () => {
 async function loadHandlerFormats(subset: FormatHandler[]) {
   for (const handler of subset) {
     if (!window.supportedFormatCache.has(handler.name)) {
-      console.warn(`Cache miss for formats of handler "${handler.name}".`);
+      console.debug(`Cache miss for formats of handler "${handler.name}".`);
       try {
         await handler.init();
       } catch (_) { continue; }
@@ -180,9 +180,9 @@ function refreshUI() {
       const cacheJSON = await fetch("cache.json").then(r => r.json());
       window.supportedFormatCache = new Map(cacheJSON);
     } catch {
-      console.warn(
+      console.info(
         "Missing supported format precache.\n\n" +
-        "Consider saving the output of printSupportedFormatCache() to cache.json.",
+        "First load dynamically indexing supported formats list.",
       );
     }
   }

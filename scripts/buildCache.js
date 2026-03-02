@@ -10,7 +10,7 @@ if (await outputFile.exists()) {
 }
 
 const server = Bun.serve({
-  async fetch (req) {
+  async fetch(req) {
     const path = new URL(req.url).pathname.replace("/convert/", "") || "index.html";
     const file = Bun.file(`${__dirname}/dist/${path}`.replaceAll("..", ""));
     if (!(await file.exists())) return new Response("Not Found", { status: 404 });
@@ -30,7 +30,7 @@ await Promise.all([
   new Promise(resolve => {
     page.on("console", msg => {
       const text = msg.text();
-      if (text === "Built initial format list.") resolve();
+      if (text.startsWith("Phase 2:")) resolve();
     });
   }),
   page.goto("http://localhost:8080/convert/index.html")
