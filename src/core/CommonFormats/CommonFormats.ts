@@ -78,7 +78,7 @@ const CommonFormats = {
         Category.DATA
     ),
     CSV: new FormatDefinition(
-        "Comma Seperated Values",
+        "Comma Separated Values",
         "csv",
         "csv",
         "text/csv",
@@ -103,14 +103,14 @@ const CommonFormats = {
         "markdown",
         "markdown",
         "text/markdown",
-        ["document", "text"]
+        [Category.DOCUMENT, Category.TEXT]
     ),
     BATCH: new FormatDefinition(
         "Windows Batch file",
         "batch",
         "bat",
         "text/windows-batch",
-        ["text"]
+        [Category.TEXT]
     ),
     PYTHON: new FormatDefinition(
         "Python Script",
@@ -124,7 +124,7 @@ const CommonFormats = {
         "sh",
         "sh",
         "application/x-sh",
-        Category.TEXT
+        Category.CODE
     ),
     // audio
     MP3: new FormatDefinition(

@@ -64,4 +64,31 @@ describe("E2E Conversion Flow", () => {
         const modalVisible = await page.$eval("#format-modal", el => el.style.display !== "none");
         expect(modalVisible).toBe(true);
     });
+
+    it("hamburger menu is visible when opened on mobile viewport", async () => {
+        await page.setViewport({ width: 375, height: 667 });
+        await page.goto(url);
+        await page.waitForSelector("#hamburger-btn", { visible: true });
+
+        await page.click("#hamburger-btn");
+
+        // Wait for the menu-open class to be applied and transition to complete
+        await page.waitForFunction(() => {
+            const menu = document.querySelector("#top-controls-menu") as HTMLElement;
+            if (!menu) return false;
+            const styles = window.getComputedStyle(menu);
+            return styles.opacity === "1" && styles.visibility === "visible";
+        }, { timeout: 5000 });
+
+        const menuStyles = await page.$eval("#top-controls-menu", el => {
+            const styles = window.getComputedStyle(el);
+            return { opacity: styles.opacity, visibility: styles.visibility };
+        });
+
+        expect(menuStyles.opacity).toBe("1");
+        expect(menuStyles.visibility).toBe("visible");
+
+        // Reset viewport for subsequent tests
+        await page.setViewport({ width: 800, height: 600 });
+    });
 });

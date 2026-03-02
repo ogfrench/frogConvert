@@ -117,7 +117,6 @@ function bindSegmented(
       desktopBtn.click();
     }
     onSelect(value);
-    syncSegmentedActive(container, value);
   });
 }
 

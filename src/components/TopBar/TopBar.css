@@ -11,8 +11,6 @@
   z-index: 200;
   animation: fadeIn 0.4s ease-out forwards;
   transition: backdrop-filter 0.3s ease, -webkit-backdrop-filter 0.3s ease;
-  -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
-  mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
 }
 
 #top-bar.scrolled {
@@ -32,6 +30,8 @@
   box-shadow: none;
   transition: background-color 0.3s ease, box-shadow 0.3s ease;
   pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
 }
 
 #top-bar.scrolled::before {
@@ -217,64 +217,7 @@
   color: var(--foreground);
 }
 
-/* --- Utilities --- */
-.muted-text {
-  font-size: var(--text-sm);
-  color: var(--muted-foreground);
-}
-
-/* --- Responsive --- */
-
-@media only screen and (max-width: 800px) {
-  #hero-title {
-    font-size: var(--space-7);
-    margin-top: calc(var(--space-16) + var(--space-2));
-    margin-bottom: var(--space-4);
-    width: 100%;
-    max-width: 100vw;
-    text-align: center;
-  }
-
-  #convert-card {
-    margin: var(--space-6) auto 0;
-    width: calc(100% - var(--space-8));
-    max-width: 400px;
-    min-width: 0;
-    box-sizing: border-box;
-  }
-
-  #category-tabs {
-    padding: 0 var(--space-3);
-    width: 100%;
-    max-width: 100vw;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  #description {
-    max-width: none;
-    margin-left: var(--space-3);
-    margin-right: var(--space-3);
-    padding: 0 var(--space-6);
-    font-size: var(--text-sm);
-  }
-
-  #page-footer {
-    padding: var(--space-6) var(--space-4) var(--space-4);
-  }
-
-  .footer-content {
-    flex-direction: column;
-    text-align: center;
-  }
-
-  #category-label {
-    margin: var(--space-3) 0 var(--space-3);
-  }
-}
-
-@media only screen and (max-width: 720px) {
+@media only screen and (max-width: 500px) {
   #hamburger-btn {
     display: flex;
   }

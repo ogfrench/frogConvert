@@ -22,6 +22,10 @@ class FFmpegHandler implements FormatHandler {
   clearStdout () {
     this.#stdout = "";
   }
+  private removeFormat(predicate: (f: FileFormat) => boolean): void {
+    const idx = this.supportedFormats.findIndex(predicate);
+    if (idx !== -1) this.supportedFormats.splice(idx, 1);
+  }
   async getStdout (callback: () => void | Promise<void>) {
     if (!this.#ffmpeg) return "";
     this.clearStdout();
@@ -189,11 +193,11 @@ class FFmpegHandler implements FormatHandler {
     });
 
     // AV1 doesn't seem to be included in WASM FFmpeg
-    this.supportedFormats.splice(this.supportedFormats.findIndex(c => c.mime === "image/avif"), 1);
+    this.removeFormat(c => c.mime === "image/avif");
     // HEVC stalls when attempted
-    this.supportedFormats.splice(this.supportedFormats.findIndex(c => c.internal === "hevc"), 1);
+    this.removeFormat(c => c.internal === "hevc");
     // RTSP stalls when attempted
-    this.supportedFormats.splice(this.supportedFormats.findIndex(c => c.internal === "rtsp"), 1);
+    this.removeFormat(c => c.internal === "rtsp");
 
     // Add .qta (QuickTime Audio) support - uses same mov demuxer
     this.supportedFormats.push({
@@ -290,7 +294,7 @@ class FFmpegHandler implements FormatHandler {
         return this.doConvert(inputFiles, inputFormat, outputFormat, [...oldArgs, "-vf", `pad=ceil(iw/${division})*${division}:ceil(ih/${division})*${division}`]);
       }
       if (stdout.includes("width and height must be a multiple of") && !oldArgs.includes("-vf")) {
-        const division = stdout.split("width and height must be a multiple of ")[1].split(" ")[0].split("")[0];
+        const division = stdout.split("width and height must be a multiple of ")[1].split(" ")[0];
         return this.doConvert(inputFiles, inputFormat, outputFormat, [...oldArgs, "-vf", `pad=ceil(iw/${division})*${division}:ceil(ih/${division})*${division}`]);
       }
       if (stdout.includes("Valid sizes are") && !oldArgs.includes("-s")) {

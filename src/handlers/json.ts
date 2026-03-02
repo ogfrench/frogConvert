@@ -34,7 +34,7 @@ export class toJsonHandler implements FormatHandler {
             const arr = [...x.matchAll(/(?:(?:"(?:[^"]|"")*")|[^,]*)(?:,|$)/g)].map(([x]) => {
               if(x.endsWith(","))
                 x = x.substring(0, x.length-1);
-              if(x.endsWith("\""))
+              if(x.startsWith("\"") && x.endsWith("\""))
                 x = x.substring(1, x.length-1);
               return x;
             });
@@ -142,11 +142,11 @@ export class fromJsonHandler {
         case "application/xml": {
           function xmlEscape(str: string): string {
             return str
+              .replaceAll("&", "&amp;")
               .replaceAll("<", "&lt;")
               .replaceAll(">", "&gt;")
               .replaceAll("\"", "&quot;")
-              .replaceAll("'", "&apos;")
-              .replaceAll("&", "&amp;");
+              .replaceAll("'", "&apos;");
           }
           function write(value: any, tagName: string | null = null) {
             if(tagName != null)

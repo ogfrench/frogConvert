@@ -1,10 +1,9 @@
 import './styles/global.css';
-import type { FileFormat, FileData, FormatHandler, ConvertPathNode } from "./core/FormatHandler/FormatHandler.js";
+import type { FormatHandler } from "./core/FormatHandler/FormatHandler.js";
 import handlers, { loadBackgroundHandlers } from "./handlers";
 import { TraversionGraph } from "./core/TraversionGraph/TraversionGraph.js";
 
 import {
-  ui,
   initTheme,
   initFormatModal,
   initCategoryTabs,
@@ -37,25 +36,6 @@ import {
   allOptionsRef,
 } from "./components/index.ts";
 import { triggerConfetti } from "./effects/Confetti/Confetti.ts";
-
-// --- Helpers ---
-
-/** Wait for the browser to complete a paint cycle (double-rAF ensures a
- *  composite frame is rendered before the returned promise resolves). */
-const waitForPaint = () => new Promise<void>(resolve =>
-  requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-);
-
-// --- State ---
-
-let isConverting = false;
-
-/** Handlers that support conversion from any formats. */
-const conversionsFromAnyInput: ConvertPathNode[] = handlers
-  .filter(h => h.supportAnyInput && h.supportedFormats)
-  .flatMap(h => h.supportedFormats!
-    .filter(f => f.to)
-    .map(f => ({ handler: h, format: f })));
 
 // --- Init UI ---
 

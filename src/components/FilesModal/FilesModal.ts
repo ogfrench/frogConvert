@@ -1,5 +1,3 @@
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
 import "./FilesModal.css";
 import {
   ui, currentFiles, shortenFileName, FILES_PER_PAGE, filesModalPage,

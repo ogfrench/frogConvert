@@ -20,6 +20,25 @@ This is not just terrible for privacy, it's also incredibly lame. What if you _r
 
 For a semi-technical overview of the original tool, check out this video: https://youtu.be/btUbcsTbVA8
 
+## How to Use
+
+### Converting a File
+
+1. **Upload your file** — Drag and drop a file onto the upload zone, or click it to browse. You can upload multiple files at once (up to the device limit).
+2. **Auto-detection** — frogConvert automatically detects your file's format and selects the matching input type. The category tab (Image, Audio, Video, etc.) switches to match.
+3. **Pick an output format** — Click the format selector button to open the format picker. Browse by category tabs, or use the search bar to find a specific format. Click a format to select it.
+4. **Convert** — Hit the **Convert** button. A progress indicator shows how many files have been processed.
+5. **Download** — Once conversion finishes, your converted file downloads automatically.
+
+### Tips
+
+- **Any-to-any** — frogConvert can chain multiple conversion tools together to reach formats that no single tool supports directly. Want to turn a WAV into a PDF? Go for it.
+- **Privacy first** — Everything runs in your browser. No files are ever uploaded to a server.
+- **Theme toggle** — Switch between light and dark mode with the theme button in the top bar.
+- **Mode toggle** — Switch between "Simple" and "All" mode to control how many output formats are shown.
+- **Multiple files** — When you upload more than one file, use the file manager to review, add, remove, or replace individual files.
+- **Performance** — frogConvert detects your device's available RAM and adjusts limits to prevent crashes on lower-end hardware.
+
 ## Deployment
 
 ### Local development (Bun + Vite)

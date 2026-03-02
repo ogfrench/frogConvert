@@ -245,7 +245,7 @@ export function getFormatCategory(format: FileFormat): string {
   if (mime.startsWith("audio/")) return "audio";
   if (mime.startsWith("video/")) return "video";
   if (mime.startsWith("font/")) return "font";
-  if (mime.startsWith("text/x-") || mime === "text/x-python" || mime === "application/x-sh") return "code";
+  if (mime.startsWith("text/x-") || mime === "application/x-sh") return "code";
   if (mime.startsWith("text/")) return "document";
   if (["application/json", "application/xml", "application/yaml"].some(m => mime === m)) return "data";
   if (mime.startsWith("application/zip") || mime.includes("compressed") || mime.includes("archive")) return "archive";
