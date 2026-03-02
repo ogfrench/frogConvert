@@ -35,14 +35,19 @@
      */
     "baseUrl": ".",
     "paths": {
-      "qoi-fu": ["./src/handlers/qoi-fu/transpiled/QOI.js"],
-      "qoa-fu": ["./src/handlers/qoa-fu/transpiled/QOA.js"]
+      "qoi-fu": [
+        "./src/handlers/qoi-fu/transpiled/QOI.js"
+      ],
+      "qoa-fu": [
+        "./src/handlers/qoa-fu/transpiled/QOA.js"
+      ]
     }
   },
   "include": [
     "src"
   ],
   "exclude": [
+    "src/**/*.test.ts",
     "src/handlers/qoi-fu/**/*",
     "src/handlers/qoa-fu/**/*",
     "src/handlers/sppd/**/*",

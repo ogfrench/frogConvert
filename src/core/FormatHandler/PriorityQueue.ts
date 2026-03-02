@@ -189,7 +189,7 @@ class PriorityQueue<T extends object> {
     return {
       next: () => {
         return {
-          done: i == this._size,
+          done: i === this._size,
           value: <T>this._queue[i++]
         };
       }

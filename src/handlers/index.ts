@@ -1,4 +1,4 @@
-import type { FormatHandler } from "../FormatHandler.ts";
+import type { FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
 // --- Core handlers (statically imported, included in main bundle) ---
 import canvasToBlobHandler from "./canvasToBlob.ts";

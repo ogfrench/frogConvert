@@ -1,5 +1,5 @@
-import { ConvertPathNode, type FileFormat, type FormatHandler } from "./FormatHandler.ts";
-import { PriorityQueue } from './PriorityQueue.ts';
+import { ConvertPathNode, type FileFormat, type FormatHandler } from '../FormatHandler/FormatHandler.ts';
+import { PriorityQueue } from '../FormatHandler/PriorityQueue.ts';
 
 interface QueueNode {
     index: number;
@@ -22,10 +22,10 @@ interface CategoryAdaptiveCost {
 
 // Parameters for pathfinding algorithm.
 const DEPTH_COST: number = 1; // Base cost for each conversion step. Higher values will make the algorithm prefer shorter paths more strongly.
-const DEFAULT_CATEGORY_CHANGE_COST : number = 0.6; // Default cost for category changes not specified in CATEGORY_CHANGE_COSTS
-const LOSSY_COST_MULTIPLIER : number = 1.4; // Cost multiplier for lossy conversions. Higher values will make the algorithm prefer lossless conversions more strongly.
-const HANDLER_PRIORITY_COST : number = 0.02; // Cost multiplier for handler priority. Higher values will make the algorithm prefer handlers with higher priority more strongly.
-const FORMAT_PRIORITY_COST : number = 0.05; // Cost multiplier for format priority. Higher values will make the algorithm prefer formats with higher priority more strongly.
+const DEFAULT_CATEGORY_CHANGE_COST: number = 0.6; // Default cost for category changes not specified in CATEGORY_CHANGE_COSTS
+const LOSSY_COST_MULTIPLIER: number = 1.4; // Cost multiplier for lossy conversions. Higher values will make the algorithm prefer lossless conversions more strongly.
+const HANDLER_PRIORITY_COST: number = 0.02; // Cost multiplier for handler priority. Higher values will make the algorithm prefer handlers with higher priority more strongly.
+const FORMAT_PRIORITY_COST: number = 0.05; // Cost multiplier for format priority. Higher values will make the algorithm prefer formats with higher priority more strongly.
 
 const LOG_FREQUENCY = 1000;
 const YIELD_FREQUENCY = 200; // Yield to event loop every N iterations to keep UI responsive
@@ -37,31 +37,33 @@ export interface Node {
 };
 
 export interface Edge {
-    from: {format: FileFormat, index: number};
-    to: {format: FileFormat, index: number};
+    from: { format: FileFormat, index: number };
+    to: { format: FileFormat, index: number };
     handler: string;
     cost: number;
 };
 
 export class TraversionGraph {
     private handlers: FormatHandler[] = [];
+    private handlersByName: Map<string, FormatHandler> = new Map();
+    private handlerPairsCache: Map<string, string> = new Map();
     private nodes: Node[] = [];
     private edges: Edge[] = [];
     private categoryChangeCosts: CategoryChangeCost[] = [
-        {from: "image", to: "video", cost: 0.2}, // Almost lossless
-        {from: "video", to: "image", cost: 0.4}, // Potentially lossy and more complex
-        {from: "image", to: "audio", handler: "ffmpeg", cost: 100}, // FFMpeg can't convert images to audio
-        {from: "audio", to: "image", handler: "ffmpeg", cost: 100}, // FFMpeg can't convert audio to images
-        {from: "text", to: "audio", handler: "ffmpeg", cost: 100}, // FFMpeg can't convert text to audio
-        {from: "audio", to: "text", handler: "ffmpeg", cost: 100}, // FFMpeg can't convert audio to text
-        {from: "image", to: "audio", cost: 1.4}, // Extremely lossy
-        {from: "audio", to: "image", cost: 1}, // Very lossy
-        {from: "video", to: "audio", cost: 1.4}, // Might be lossy
-        {from: "audio", to: "video", cost: 1}, // Might be lossy
-        {from: "text", to: "image", cost: 0.5}, // Depends on the content and method, but can be relatively efficient for simple images
-        {from: "image", to: "text", cost: 0.5}, // Depends on the content and method, but can be relatively efficient for simple images
-        {from: "text", to: "audio", cost: 0.6}, // Somewhat lossy for anything that isn't speakable text
-        {from: "document", to: "text", cost: 1}, // Often very lossy, loses rich formatting
+        { from: "image", to: "video", cost: 0.2 }, // Almost lossless
+        { from: "video", to: "image", cost: 0.4 }, // Potentially lossy and more complex
+        { from: "image", to: "audio", handler: "ffmpeg", cost: 100 }, // FFMpeg can't convert images to audio
+        { from: "audio", to: "image", handler: "ffmpeg", cost: 100 }, // FFMpeg can't convert audio to images
+        { from: "text", to: "audio", handler: "ffmpeg", cost: 100 }, // FFMpeg can't convert text to audio
+        { from: "audio", to: "text", handler: "ffmpeg", cost: 100 }, // FFMpeg can't convert audio to text
+        { from: "image", to: "audio", cost: 1.4 }, // Extremely lossy
+        { from: "audio", to: "image", cost: 1 }, // Very lossy
+        { from: "video", to: "audio", cost: 1.4 }, // Might be lossy
+        { from: "audio", to: "video", cost: 1 }, // Might be lossy
+        { from: "text", to: "image", cost: 0.5 }, // Depends on the content and method, but can be relatively efficient for simple images
+        { from: "image", to: "text", cost: 0.5 }, // Depends on the content and method, but can be relatively efficient for simple images
+        { from: "text", to: "audio", cost: 0.6 }, // Somewhat lossy for anything that isn't speakable text
+        { from: "document", to: "text", cost: 1 }, // Often very lossy, loses rich formatting
     ];
     private categoryAdaptiveCosts: CategoryAdaptiveCost[] = [
         { categories: ["text", "image", "audio"], cost: 15 }, // Text to audio through an image is likely not what the user wants
@@ -71,7 +73,7 @@ export class TraversionGraph {
     // Keeps track of path segments that have failed when attempted during the last run
     private temporaryDeadEnds: ConvertPathNode[][] = [];
 
-    public addCategoryChangeCost(from: string, to: string, cost: number, handler?: string, updateIfExists: boolean = true) : boolean {
+    public addCategoryChangeCost(from: string, to: string, cost: number, handler?: string, updateIfExists: boolean = true): boolean {
         if (this.hasCategoryChangeCost(from, to, handler)) {
             if (updateIfExists) {
                 this.updateCategoryChangeCost(from, to, cost, handler)
@@ -79,10 +81,10 @@ export class TraversionGraph {
             }
             return false;
         }
-        this.categoryChangeCosts.push({from, to, cost, handler: handler?.toLowerCase()});
+        this.categoryChangeCosts.push({ from, to, cost, handler: handler?.toLowerCase() });
         return true;
     }
-    public removeCategoryChangeCost(from: string, to: string, handler?: string) : boolean {
+    public removeCategoryChangeCost(from: string, to: string, handler?: string): boolean {
         const initialLength = this.categoryChangeCosts.length;
         this.categoryChangeCosts = this.categoryChangeCosts.filter(c => !(c.from === from && c.to === to && c.handler === handler?.toLowerCase()));
         return this.categoryChangeCosts.length < initialLength;
@@ -97,7 +99,7 @@ export class TraversionGraph {
     }
 
 
-    public addCategoryAdaptiveCost(categories: string[], cost: number, updateIfExists: boolean = true) : boolean {
+    public addCategoryAdaptiveCost(categories: string[], cost: number, updateIfExists: boolean = true): boolean {
         if (this.hasCategoryAdaptiveCost(categories)) {
             if (updateIfExists) {
                 this.updateCategoryAdaptiveCost(categories, cost);
@@ -105,10 +107,10 @@ export class TraversionGraph {
             }
             return false;
         }
-        this.categoryAdaptiveCosts.push({categories, cost});
+        this.categoryAdaptiveCosts.push({ categories, cost });
         return true;
     }
-    public removeCategoryAdaptiveCost(categories: string[]) : boolean {
+    public removeCategoryAdaptiveCost(categories: string[]): boolean {
         const initialLength = this.categoryAdaptiveCosts.length;
         this.categoryAdaptiveCosts = this.categoryAdaptiveCosts.filter(c => !(c.categories.length === categories.length && c.categories.every((cat, index) => cat === categories[index])));
         return this.categoryAdaptiveCosts.length < initialLength;
@@ -122,10 +124,10 @@ export class TraversionGraph {
         return this.categoryAdaptiveCosts.some(c => c.categories.length === categories.length && c.categories.every((cat, index) => cat === categories[index]));
     }
 
-    public addDeadEndPath (pathFragment: ConvertPathNode[]) {
+    public addDeadEndPath(pathFragment: ConvertPathNode[]) {
         this.temporaryDeadEnds.push(pathFragment);
     }
-    public clearDeadEndPaths () {
+    public clearDeadEndPaths() {
         this.temporaryDeadEnds.length = 0;
     }
 
@@ -138,12 +140,20 @@ export class TraversionGraph {
         this.nodes.length = 0;
         this.edges.length = 0;
 
+        // Pre-compute lookup maps for O(1) access in costFunction
+        this.handlersByName.clear();
+        for (const h of handlers) this.handlersByName.set(h.name, h);
+        this.handlerPairsCache = new Map(
+            this.categoryChangeCosts.filter(c => c.handler)
+                .map(c => [`${c.from}->${c.to}`, c.handler] as [string, string])
+        );
+
         console.log("Initializing traversion graph...");
         const startTime = performance.now();
         let handlerIndex = 0;
         supportedFormatCache.forEach((formats, handler) => {
-            let fromIndices: Array<{format: FileFormat, index: number}> = [];
-            let toIndices: Array<{format: FileFormat, index: number}> = [];
+            let fromIndices: Array<{ format: FileFormat, index: number }> = [];
+            let toIndices: Array<{ format: FileFormat, index: number }> = [];
             formats.forEach(format => {
                 const formatIdentifier = format.mime + `(${format.format})`;
                 let index = this.nodes.findIndex(node => node.identifier === formatIdentifier);
@@ -154,8 +164,8 @@ export class TraversionGraph {
                         edges: []
                     });
                 }
-                if (format.from) fromIndices.push({format, index});
-                if (format.to) toIndices.push({format, index});
+                if (format.from) fromIndices.push({ format, index });
+                if (format.to) toIndices.push({ format, index });
             });
             fromIndices.forEach(from => {
                 toIndices.forEach(to => {
@@ -192,8 +202,6 @@ export class TraversionGraph {
     ) {
         let cost = DEPTH_COST; // Base cost for each conversion step
 
-        const handlerPairs = new Map<string, string>(this.categoryChangeCosts.filter(c => c.handler)
-        .map(c => [`${c.from}->${c.to}`, c.handler] as [string, string]));
         // Calculate category change cost
         const fromCategory = from.format.category || from.format.mime.split("/")[0];
         const toCategory = to.format.category || to.format.mime.split("/")[0];
@@ -216,7 +224,7 @@ export class TraversionGraph {
                     fromCategories.includes(c.from)
                     && toCategories.includes(c.to)
                     && (
-                        (!c.handler && handlerPairs.get(`${c.from}->${c.to}`) !== handler.toLowerCase())
+                        (!c.handler && this.handlerPairsCache.get(`${c.from}->${c.to}`) !== handler.toLowerCase())
                         || c.handler === handler.toLowerCase()
                     )
                 );
@@ -234,7 +242,7 @@ export class TraversionGraph {
         cost += HANDLER_PRIORITY_COST * handlerIndex;
 
         // Add cost based on format priority
-        const handlerObj = this.handlers.find(h => h.name === handler)
+        const handlerObj = this.handlersByName.get(handler);
         cost += FORMAT_PRIORITY_COST * (handlerObj?.supportedFormats?.findIndex(f => f.mime === to.format.mime) ?? 0);
 
         // Add cost multiplier for lossy conversions
@@ -246,17 +254,17 @@ export class TraversionGraph {
     /**
      * Returns a copy of the graph data, including nodes, edges, category change costs, and category adaptive costs. This can be used for debugging, visualization, or analysis purposes. The returned data is a deep copy to prevent external modifications from affecting the internal state of the graph.
      */
-    public getData() : {nodes: Node[], edges: Edge[], categoryChangeCosts: CategoryChangeCost[], categoryAdaptiveCosts: CategoryAdaptiveCost[]} {
+    public getData(): { nodes: Node[], edges: Edge[], categoryChangeCosts: CategoryChangeCost[], categoryAdaptiveCosts: CategoryAdaptiveCost[] } {
         return {
-            nodes: this.nodes.map(node => ({identifier: node.identifier, edges: [...node.edges]})),
+            nodes: this.nodes.map(node => ({ identifier: node.identifier, edges: [...node.edges] })),
             edges: this.edges.map(edge => ({
-                from: {format: {...edge.from.format}, index: edge.from.index},
-                to: {format: {...edge.to.format}, index: edge.to.index},
+                from: { format: { ...edge.from.format }, index: edge.from.index },
+                to: { format: { ...edge.to.format }, index: edge.to.index },
                 handler: edge.handler,
                 cost: edge.cost
             })),
-            categoryChangeCosts: this.categoryChangeCosts.map(c => ({from: c.from, to: c.to, handler: c.handler, cost: c.cost})),
-            categoryAdaptiveCosts: this.categoryAdaptiveCosts.map(c => ({categories: [...c.categories], cost: c.cost}))
+            categoryChangeCosts: this.categoryChangeCosts.map(c => ({ from: c.from, to: c.to, handler: c.handler, cost: c.cost })),
+            categoryAdaptiveCosts: this.categoryAdaptiveCosts.map(c => ({ categories: [...c.categories], cost: c.cost }))
         };
     }
     /**
@@ -283,20 +291,22 @@ export class TraversionGraph {
         this.listeners.forEach(l => l(state, path));
     }
 
-    public async* searchPath(from: ConvertPathNode, to: ConvertPathNode, simpleMode: boolean) : AsyncGenerator<ConvertPathNode[]> {
+    public async* searchPath(from: ConvertPathNode, to: ConvertPathNode, simpleMode: boolean): AsyncGenerator<ConvertPathNode[]> {
         // Dijkstra's algorithm
         // Priority queue of {index, cost, path}
         let queue: PriorityQueue<QueueNode> = new PriorityQueue<QueueNode>(
             1000,
             (a: QueueNode, b: QueueNode) => a.cost - b.cost
         );
-        let visited = new Array<number>();
+        // Map of nodeIndex → position when first visited (replaces linear indexOf lookups)
+        let visited = new Map<number, number>();
+        let visitedCount = 0;
         const fromIdentifier = from.format.mime + `(${from.format.format})`;
         const toIdentifier = to.format.mime + `(${to.format.format})`;
         let fromIndex = this.nodes.findIndex(node => node.identifier === fromIdentifier);
         let toIndex = this.nodes.findIndex(node => node.identifier === toIdentifier);
         if (fromIndex === -1 || toIndex === -1) return []; // If either format is not in the graph, return empty array
-        queue.add({index: fromIndex, cost: 0, path: [from], visitedBorder: visited.length });
+        queue.add({ index: fromIndex, cost: 0, path: [from], visitedBorder: visitedCount });
         console.log(`Starting path search from ${from.format.mime}(${from.handler?.name}) to ${to.format.mime}(${to.handler?.name}) (simple mode: ${simpleMode})`);
         let iterations = 0;
         let pathsFound = 0;
@@ -312,8 +322,8 @@ export class TraversionGraph {
             }
             // Get the node with the lowest cost
             let current = queue.poll()!;
-            const indexInVisited = visited.indexOf(current.index);
-            if (indexInVisited >= 0 && indexInVisited < current.visitedBorder) {
+            const visitedAt = visited.get(current.index);
+            if (visitedAt !== undefined && visitedAt < current.visitedBorder) {
                 this.dispatchEvent("skipped", current.path);
                 continue;
             }
@@ -328,26 +338,32 @@ export class TraversionGraph {
                     pathsFound++;
                 }
                 else {
-                    console.log(`Unvalid path at iteration ${logString}`);
+                    console.log(`Invalid path at iteration ${logString}`);
                     this.dispatchEvent("skipped", current.path);
                 }
                 continue;
             }
-            visited.push(current.index);
+            if (!visited.has(current.index)) {
+                visited.set(current.index, visitedCount);
+            }
+            visitedCount++;
             this.dispatchEvent("searching", current.path);
             this.nodes[current.index].edges.forEach(edgeIndex => {
                 let edge = this.edges[edgeIndex];
-                const indexInVisited = visited.indexOf(edge.to.index);
-                if (indexInVisited >= 0 && indexInVisited < current.visitedBorder) return;
-                const handler = this.handlers.find(h => h.name === edge.handler);
+                const edgeVisitedAt = visited.get(edge.to.index);
+                if (edgeVisitedAt !== undefined && edgeVisitedAt < current.visitedBorder) return;
+                const handler = this.handlersByName.get(edge.handler);
                 if (!handler) return; // If the handler for this edge is not found, skip it
 
-                let path = current.path.concat({handler: handler, format: edge.to.format});
+                let path = current.path.concat({ handler: handler, format: edge.to.format });
+                const nextCost = current.cost + edge.cost + this.calculateAdaptiveCost(path);
+                if (nextCost === Infinity) return; // Completely skip temporary dead ends
+
                 queue.add({
                     index: edge.to.index,
-                    cost: current.cost + edge.cost + this.calculateAdaptiveCost(path),
+                    cost: nextCost,
                     path: path,
-                    visitedBorder: visited.length
+                    visitedBorder: visitedCount
                 });
             });
             if (iterations % LOG_FREQUENCY === 0) {
@@ -357,10 +373,10 @@ export class TraversionGraph {
         console.log(`Path search completed. Total iterations: ${iterations}, Total paths found: ${pathsFound}`);
     }
 
-    private calculateAdaptiveCost(path: ConvertPathNode[]) : number {
+    private calculateAdaptiveCost(path: ConvertPathNode[]): number {
         for (const deadEnd of this.temporaryDeadEnds) {
             let isDeadEnd = true;
-            for (let i = 0; i < deadEnd.length; i ++) {
+            for (let i = 0; i < deadEnd.length; i++) {
                 if (path[i] === deadEnd[i]) continue;
                 isDeadEnd = false;
                 break;

@@ -1,6 +1,6 @@
-import { FormatDefinition } from "../FormatHandler.ts";
-import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
-import CommonFormats from "src/CommonFormats.ts";
+import { FormatDefinition } from "../core/FormatHandler/FormatHandler.ts";
+import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import JSZip from "jszip";
 
 const WADFormat = new FormatDefinition(

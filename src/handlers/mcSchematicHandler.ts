@@ -1,4 +1,4 @@
-import type { FileData, FileFormat, FormatHandler } from "src/FormatHandler";
+import type { FileData, FileFormat, FormatHandler } from '../core/FormatHandler/FormatHandler.ts';
 import * as NBT from "nbtify";
 import { gunzipSync, gzipSync } from "fflate";
 

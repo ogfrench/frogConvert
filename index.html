@@ -3,29 +3,40 @@
 
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <script>
     // Apply dark mode immediately to prevent white flash
     var t = localStorage.getItem("theme");
     if (t === "dark" || (!t && !window.matchMedia("(prefers-color-scheme: light)").matches)) {
       document.documentElement.classList.add("dark");
     }
+
+    // FOUC prevention logic
+    document.documentElement.style.visibility = 'hidden';
+    document.documentElement.style.opacity = '0';
+    document.documentElement.style.transition = 'opacity 0.25s ease';
+
+    window.addEventListener('DOMContentLoaded', () => {
+      document.documentElement.style.visibility = 'visible';
+      document.documentElement.style.opacity = '1';
+    });
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
   <title>frogConvert — Convert 50+ file formats, privately in your browser</title>
   <meta name="description"
-    content="🐸 Convert between 50+ file formats privately in your browser. No uploads, no servers — everything stays on your device.">
+    content="🐸 Convert between 50+ file formats privately in your browser. No uploads, no servers - everything stays on your device.">
 
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://frogconvert.netlify.app/">
   <meta property="og:title" content="frogConvert — Convert 50+ file formats, privately in your browser">
   <meta property="og:description"
-    content="🐸 Convert between 50+ file formats privately in your browser. No uploads, no servers — everything stays on your device.">
+    content="🐸 Convert between 50+ file formats privately in your browser. No uploads, no servers - everything stays on your device.">
   <meta property="og:image" content="https://frogconvert.netlify.app/social-preview.png">
 
   <!-- Twitter -->
@@ -33,152 +44,235 @@
   <meta property="twitter:url" content="https://frogconvert.netlify.app/">
   <meta property="twitter:title" content="frogConvert — Convert 50+ file formats, privately in your browser">
   <meta property="twitter:description"
-    content="🐸 Convert between 50+ file formats privately in your browser. No uploads, no servers — everything stays on your device.">
+    content="🐸 Convert between 50+ file formats privately in your browser. No uploads, no servers - everything stays on your device.">
   <meta property="twitter:image" content="https://frogconvert.netlify.app/social-preview.png">
 </head>
 
 <body>
 
+  <noscript>
+    <style>
+      #noscript-overlay {
+        position: fixed;
+        inset: 0;
+        background-color: #0a0a0a;
+        background-color: var(--background, #0a0a0a);
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 2rem;
+        color: #fafafa;
+        color: var(--foreground, #fafafa);
+        font-family: 'Inter', -apple-system, sans-serif;
+      }
+
+      #noscript-overlay h1 {
+        font-size: 2.25rem;
+        margin-bottom: 0.5rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+
+      #noscript-overlay p {
+        font-size: 1.125rem;
+        color: #a1a1aa;
+        color: var(--muted-foreground, #a1a1aa);
+        max-width: 480px;
+        line-height: 1.6;
+        margin: 0;
+      }
+
+      #noscript-overlay .emoji {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+      }
+
+      /* Hide the main app UI when JS is disabled */
+      #bg-visuals,
+      #top-bar,
+      #hero-title,
+      #category-tabs,
+      #convert-card,
+      #description,
+      #page-footer {
+        display: none !important;
+      }
+    </style>
+    <div id="noscript-overlay" role="main" aria-labelledby="noscript-heading">
+      <div class="emoji" aria-hidden="true">🐸</div>
+      <h1 id="noscript-heading">JavaScript Required</h1>
+      <p>frogConvert does all its heavy lifting locally on your device for maximum privacy. To make this magic happen,
+        please enable JavaScript in your browser settings.</p>
+    </div>
+  </noscript>
+
   <input id="file-input" type="file" multiple>
 
-  <div id="cursor-glow"></div>
-
-  <div id="bg-visuals">
-    <span style="top:12%;left:5%;font-size:2.8rem;animation-delay:0s">🖼️</span>
-    <span style="top:25%;right:15%;font-size:3.5rem;animation-delay:-5s">📝</span>
-    <span style="top:65%;left:10%;font-size:3.5rem;animation-delay:-10s">🎵</span>
-    <span style="top:55%;right:8%;font-size:4rem;animation-delay:-3s">🎥</span>
-    <span style="top:80%;right:20%;font-size:3rem;animation-delay:-8s">🗜️</span>
-    <span style="top:35%;left:18%;font-size:3.5rem;animation-delay:-13s">📊</span>
-    <span style="top:10%;left:40%;font-size:3.5rem;animation-delay:-17s">🔠</span>
-    <span style="top:85%;left:45%;font-size:3.5rem;animation-delay:-20s">💻</span>
-    <span style="top:5%;right:35%;font-size:3rem;animation-delay:-7s">⚡</span>
+  <div id="bg-visuals" aria-hidden="true">
+    <div class="bg-pop" style="top:12%;left:5%;animation-delay:0.125s;"><span
+        style="font-size:2.8rem;animation-delay:0s;">🖼️</span></div>
+    <div class="bg-pop" style="top:25%;right:15%;animation-delay:0.25s;"><span
+        style="font-size:3.5rem;animation-delay:-5s;">📝</span></div>
+    <div class="bg-pop" style="top:65%;left:10%;animation-delay:0.375s;"><span
+        style="font-size:3.5rem;animation-delay:-10s;">🎵</span></div>
+    <div class="bg-pop" style="top:55%;right:8%;animation-delay:0.5s;"><span
+        style="font-size:4rem;animation-delay:-3s;">🎥</span></div>
+    <div class="bg-pop" style="top:80%;right:20%;animation-delay:0.625s;"><span
+        style="font-size:3rem;animation-delay:-8s;">📖</span></div>
+    <div class="bg-pop" style="top:35%;left:18%;animation-delay:0.750s;"><span
+        style="font-size:3.5rem;animation-delay:-13s;">📊</span></div>
+    <div class="bg-pop" style="top:10%;left:40%;animation-delay:0.875s;"><span
+        style="font-size:3.5rem;animation-delay:-17s;">🔠</span></div>
+    <div class="bg-pop" style="top:85%;left:45%;animation-delay:1.8s;"><span
+        style="font-size:3.5rem;animation-delay:-20s;">💻</span></div>
+    <div class="bg-pop" style="top:5%;right:35%;animation-delay:1.125s;"><span
+        style="font-size:3rem;animation-delay:-7s;">⚡</span></div>
   </div>
 
   <header id="top-bar" class="entrance d1">
-    <a href="/" id="logo" class="clickable">
-      <span class="logo-emoji">🐸</span>
+    <a href="/" id="logo" class="clickable" aria-label="frogConvert home">
+      <span class="logo-emoji" aria-hidden="true">🐸</span>
       <span class="logo-text">frogConvert</span>
     </a>
     <div id="top-controls">
-      <button id="hamburger-btn" title="Toggle menu" aria-label="Toggle menu">
-        <span></span>
-        <span></span>
-        <span></span>
+      <button id="hamburger-btn" title="Toggle menu" aria-label="Toggle menu" aria-expanded="false"
+        aria-controls="top-controls-menu">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
       </button>
-      <div id="top-controls-menu">
+      <div id="top-controls-menu" role="menu">
         <span id="filter-label">Filter:</span>
-        <button id="mode-toggle" title="Filter the formats you can select"> Core Formats</button>
-        <button id="theme-toggle" title="Toggle theme">&#9788;</button>
-        <label class="menu-label">Formats</label>
-        <div class="segmented-control" id="mode-segmented">
-          <button class="segmented-option active" data-value="basic">Core</button>
-          <button class="segmented-option" data-value="advanced">All</button>
+        <button id="mode-toggle" title="Filter the formats you can select"
+          aria-label="Toggle format filter: Core Formats"> Core Formats</button>
+        <button id="theme-toggle" title="Toggle theme" aria-label="Toggle colour theme">&#9788;</button>
+        <span class="menu-label" id="label-formats">Formats</span>
+        <div class="segmented-control" id="mode-segmented" role="group" aria-labelledby="label-formats">
+          <button class="segmented-option active" data-value="basic" aria-pressed="true">Core</button>
+          <button class="segmented-option" data-value="advanced" aria-pressed="false">All</button>
         </div>
-        <label class="menu-label">Theme</label>
-        <div class="segmented-control" id="theme-segmented">
-          <button class="segmented-option" data-value="light">&#9788; Light</button>
-          <button class="segmented-option active" data-value="dark">&#9790; Dark</button>
+        <span class="menu-label" id="label-theme">Theme</span>
+        <div class="segmented-control" id="theme-segmented" role="group" aria-labelledby="label-theme">
+          <button class="segmented-option" data-value="light" aria-pressed="false">&#9788; Light</button>
+          <button class="segmented-option active" data-value="dark" aria-pressed="true">&#9790; Dark</button>
         </div>
       </div>
     </div>
   </header>
 
-  <h1 id="hero-title" class="entrance d2">What will you convert today?</h1>
+  <h1 id="hero-title" aria-label="frogConvert - What will you convert today?">
+    <span class="word-entrance" style="animation-delay: 0.1s" aria-hidden="true">What</span>
+    <span class="word-entrance" style="animation-delay: 0.15s" aria-hidden="true">will</span>
+    <span class="word-entrance" style="animation-delay: 0.2s" aria-hidden="true">you</span>
+    <span class="word-entrance" style="animation-delay: 0.25s" aria-hidden="true">convert</span>
+    <span class="word-entrance" style="animation-delay: 0.3s" aria-hidden="true">today?</span>
+  </h1>
 
-  <nav id="category-tabs" class="entrance d4">
-    <button class="cat-tab active" data-category="">Any</button>
-    <button class="cat-tab" data-category="image">Image</button>
-    <button class="cat-tab" data-category="audio">Audio</button>
-    <button class="cat-tab" data-category="video">Video</button>
-    <button class="cat-tab" data-category="document">Document</button>
-    <button class="cat-tab" data-category="data">Data</button>
-    <button class="cat-tab" data-category="archive">Archive</button>
-    <button class="cat-tab" data-category="font">Font</button>
-    <button class="cat-tab tab-hidden" data-category="code">Code</button>
-    <button class="cat-tab tab-hidden" data-category="other">Other</button>
+  <nav id="category-tabs" class="entrance d4" aria-label="File format categories">
+    <button class="cat-tab active" data-category="" aria-pressed="true">Any</button>
+    <button class="cat-tab" data-category="image" aria-pressed="false">Image</button>
+    <button class="cat-tab" data-category="audio" aria-pressed="false">Audio</button>
+    <button class="cat-tab" data-category="video" aria-pressed="false">Video</button>
+    <button class="cat-tab" data-category="document" aria-pressed="false">Document</button>
+    <button class="cat-tab" data-category="data" aria-pressed="false">Data</button>
+    <button class="cat-tab" data-category="archive" aria-pressed="false">Archive</button>
+    <button class="cat-tab" data-category="font" aria-pressed="false">Font</button>
+    <button class="cat-tab tab-hidden" data-category="code" aria-pressed="false">Code</button>
+    <button class="cat-tab tab-hidden" data-category="other" aria-pressed="false">Other</button>
   </nav>
 
-  <div id="convert-card" class="entrance d5">
+  <main id="convert-card" class="entrance d5" aria-label="File converter">
 
     <div class="convert-field" id="from-field">
-      <label id="upload-label">Your file</label>
-      <div id="upload-zone">
-        <p class="upload-text">Drop files here</p>
-        <p class="upload-hint">or tap to browse</p>
-        <div class="upload-file-info">
+      <span id="upload-label" class="field-label">Your file</span>
+      <div id="upload-zone" role="button" tabindex="0" aria-labelledby="upload-label" aria-describedby="upload-hint">
+        <p class="upload-text">Drop your files here</p>
+        <p class="upload-hint" id="upload-hint">or click to browse</p>
+        <div class="upload-file-info" aria-live="polite" aria-atomic="true">
           <span class="upload-file-name"></span>
           <div class="upload-file-actions">
-            <button class="upload-action-btn" id="expand-files-btn" title="Manage files">&#9776;</button>
-            <button class="upload-action-btn" id="replace-file-btn" title="Replace file">&#8635;</button>
-            <button class="upload-action-btn" id="remove-file-btn" title="Remove file">&#10005;</button>
+            <button class="upload-action-btn" id="expand-files-btn" title="Manage files"
+              aria-label="Manage files">&#9776;</button>
+            <button class="upload-action-btn" id="replace-file-btn" title="Replace file"
+              aria-label="Replace file">&#8635;</button>
+            <button class="upload-action-btn" id="remove-file-btn" title="Remove file"
+              aria-label="Remove file">&#10005;</button>
           </div>
         </div>
       </div>
     </div>
 
-    <div id="convert-arrow-wrap">
-      <span id="convert-arrow" title="Converting">&#8595;</span>
+    <div id="convert-arrow-wrap" aria-hidden="true">
+      <span id="convert-arrow">&#8595;</span>
     </div>
 
     <div class="convert-field" id="to-field">
-      <label>Convert to</label>
-      <button class="format-selector" id="format-selector">
+      <span id="format-selector-label" class="convert-to-label">Convert to</span>
+      <button class="format-selector" id="format-selector" aria-labelledby="format-selector-label"
+        aria-haspopup="listbox" aria-expanded="false">
         <span class="selector-text placeholder">Choose a format...</span>
-        <span class="selector-chevron">&#9662;</span>
+        <span class="selector-chevron" aria-hidden="true">&#9662;</span>
       </button>
     </div>
 
-    <button id="convert-button" class="disabled">Convert</button>
+    <button id="convert-button" class="disabled" aria-disabled="true">Convert</button>
 
-  </div>
+  </main>
 
   <p id="description" class="entrance d6">
-    Your files never leave your device. Convert between 50+ formats instantly, right here in your browser.
+    Convert between 50+ formats instantly, right here in your browser. Your files never leave your device.
   </p>
 
   <footer id="page-footer" class="entrance d7">
     <div class="footer-content">
-      <span class="footer-text">designed with ♥ by François — view on <a id="commit-id"
-          href="https://github.com/ogfrench/frogConvert" target="_blank" rel="noopener">GitHub</a></span>
-      <button id="footer-confetti-btn" title="Party time!">🎉</button>
+      <span class="footer-text">designed with ♥ by François - view on <a id="commit-id"
+          href="https://github.com/ogfrench/frogConvert" target="_blank" rel="noopener noreferrer"
+          aria-label="View frogConvert on GitHub (opens in new tab)">GitHub</a></span>
+      <button id="footer-confetti-btn" title="Party time!" aria-label="Launch confetti!">🎉</button>
     </div>
   </footer>
 
-  <div id="format-modal-bg"></div>
-  <div id="format-modal">
+  <div id="format-modal-bg" aria-hidden="true"></div>
+  <div id="format-modal" role="dialog" aria-modal="true" aria-labelledby="format-modal-title" aria-hidden="true">
     <div class="format-modal-header">
       <h2 id="format-modal-title">Choose format</h2>
-      <button class="format-modal-close" id="format-modal-close" title="Close">&#10005;</button>
+      <button class="format-modal-close" id="format-modal-close" title="Close"
+        aria-label="Close format picker">&#10005;</button>
     </div>
-    <input type="text" class="format-search" placeholder="Search formats...">
-    <div class="format-options" id="format-options"></div>
+    <input type="text" id="format-search" name="format-search" class="format-search" placeholder="Search formats..."
+      aria-label="Search output formats">
+    <div class="format-options" id="format-options" role="listbox" aria-labelledby="format-modal-title"></div>
   </div>
 
-  <div id="files-modal-bg"></div>
-  <div id="files-modal">
+  <div id="files-modal-bg" aria-hidden="true"></div>
+  <div id="files-modal" role="dialog" aria-modal="true" aria-labelledby="files-modal-title" aria-hidden="true">
     <div class="files-modal-header">
       <h2 id="files-modal-title">Your files</h2>
-      <button class="files-modal-close" id="files-modal-close" title="Close">&#10005;</button>
+      <button class="files-modal-close" id="files-modal-close" title="Close"
+        aria-label="Close file manager">&#10005;</button>
     </div>
     <div class="files-modal-top-actions">
       <button id="files-replace-all">Replace all</button>
       <button id="files-remove-all">Remove all</button>
     </div>
-    <div id="files-list"></div>
-    <div id="files-pagination"></div>
-    <div id="files-drop-more">
+    <div id="files-list" role="list" aria-label="Queued files"></div>
+    <div id="files-pagination" aria-label="File list pages"></div>
+    <div id="files-drop-more" role="button" tabindex="0" aria-label="Drop more files or click to browse">
       <p>Drop more files here</p>
       <p class="upload-hint">or tap to browse</p>
     </div>
-    <div id="files-modal-error" class="files-error" style="display:none">
+    <div id="files-modal-error" class="files-error" style="display:none" role="alert" aria-live="assertive">
       <span id="files-modal-error-text"></span>
-      <button id="files-modal-error-close" class="files-error-close" title="Dismiss">&times;</button>
+      <button id="files-modal-error-close" class="files-error-close" title="Dismiss"
+        aria-label="Dismiss error">&times;</button>
     </div>
   </div>
 
-  <div id="popup-bg" style="display:none"></div>
-  <div id="popup" style="display:none"></div>
+  <div id="popup-bg" style="display:none" aria-hidden="true"></div>
+  <div id="popup" style="display:none" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <script type="module" src="src/main.ts"></script>
 

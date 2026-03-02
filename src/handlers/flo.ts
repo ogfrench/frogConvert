@@ -1,5 +1,5 @@
-import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
-import normalizeMimeType from "../normalizeMimeType.ts";
+import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import normalizeMimeType from "../core/utils/normalizeMimeType.ts";
 
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 
@@ -340,5 +340,6 @@ class floHandler implements FormatHandler {
 }
 
 export default floHandler;
+
 
 

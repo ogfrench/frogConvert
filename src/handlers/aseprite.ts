@@ -1,6 +1,6 @@
 import pako from "pako";
-import CommonFormats from "src/CommonFormats.ts";
-import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
+import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
+import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
 const ASEPRITE_HEADER_MAGIC = 0xA5E0;
 const ASEPRITE_FRAME_MAGIC = 0xF1FA;

@@ -1,9 +1,8 @@
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
-import type { FileFormat, FileData, FormatHandler, ConvertPathNode } from "./FormatHandler.js";
+import './styles/global.css';
+import type { FileFormat, FileData, FormatHandler, ConvertPathNode } from "./core/FormatHandler/FormatHandler.js";
 import handlers, { loadBackgroundHandlers } from "./handlers";
-import { TraversionGraph } from "./TraversionGraph.js";
-import { triggerConfetti } from "./confetti.js";
+import { TraversionGraph } from "./core/TraversionGraph/TraversionGraph.js";
+
 import {
   ui,
   initTheme,
@@ -23,23 +22,33 @@ import {
   findMatchingFormat,
   initModeToggle,
   clearFormatSelection,
-  downloadFile,
-  setLastConvertedFiles,
-  bindConvertButton,
+  initConvertButton,
   initResponsiveMenu,
   initSegmentedControls,
-  initCursorGlow,
+  initParallax,
   initFilesModal,
-  shortenFileName,
-} from "./ui.js";
+  initCustomCursor,
+  selectCategoryTab,
+  getFormatCategory,
+  currentFiles,
+  activeCategory,
+  selectedFromIndex,
+  selectedToIndex,
+  allOptionsRef,
+} from "./components/index.ts";
+import { triggerConfetti } from "./effects/Confetti/Confetti.ts";
+
+// --- Helpers ---
+
+/** Wait for the browser to complete a paint cycle (double-rAF ensures a
+ *  composite frame is rendered before the returned promise resolves). */
+const waitForPaint = () => new Promise<void>(resolve =>
+  requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+);
 
 // --- State ---
 
-let selectedFiles: File[] = [];
-let activeCategory: string = "";
-let selectedFromIndex: number | null = null;
-let selectedToIndex: number | null = null;
-const allOptions: Array<{ format: FileFormat; handler: FormatHandler }> = [];
+let isConverting = false;
 
 /** Handlers that support conversion from any formats. */
 const conversionsFromAnyInput: ConvertPathNode[] = handlers
@@ -53,50 +62,55 @@ const conversionsFromAnyInput: ConvertPathNode[] = handlers
 initTheme();
 initResponsiveMenu();
 initSegmentedControls();
-initCursorGlow();
+initParallax();
+initCustomCursor();
 initFilesModal();
 
 initModeToggle(() => {
-  renderFormatOptions(allOptions, activeCategory, selectToFormat);
+  renderFormatOptions(allOptionsRef.value, activeCategory.value);
 });
 
-initFormatModal(allOptions, selectToFormat);
+initFormatModal(allOptionsRef.value, selectToFormat);
 
 initCategoryTabs((category) => {
-  activeCategory = category;
-  updateCategoryText(activeCategory, selectedFiles.length > 0);
-  renderFormatOptions(allOptions, activeCategory, selectToFormat);
-  if (selectedToIndex === null) {
-    clearFormatSelection(activeCategory);
+  activeCategory.value = category;
+  updateCategoryText(activeCategory.value, currentFiles.value.length > 0);
+  renderFormatOptions(allOptionsRef.value, activeCategory.value);
+  if (selectedToIndex.value === null) {
+    clearFormatSelection(activeCategory.value);
   }
 });
 
 initUploadZone(
   (files) => {
-    selectedFiles = files;
     showFileInUploadZone(files);
 
-    const matchIndex = findMatchingFormat(files, allOptions);
+    const matchIndex = findMatchingFormat(files, allOptionsRef.value);
     if (matchIndex >= 0) {
-      selectedFromIndex = matchIndex;
-      showDetectedFormat(allOptions[matchIndex].format.format, files.length);
+      selectedFromIndex.value = matchIndex;
+      showDetectedFormat(allOptionsRef.value[matchIndex].format.format, files.length);
+
+      // Dynamically select the tab related to the uploaded file
+      const category = getFormatCategory(allOptionsRef.value[matchIndex].format);
+      if (category && category !== activeCategory.value) {
+        selectCategoryTab(category);
+      }
     } else {
-      selectedFromIndex = null;
+      selectedFromIndex.value = null;
     }
-    updateConvertButtonState(selectedFromIndex, selectedToIndex);
+    updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
   },
   () => {
-    selectedFiles = [];
-    selectedFromIndex = null;
-    resetUploadZone(activeCategory);
-    updateConvertButtonState(selectedFromIndex, selectedToIndex);
+    selectedFromIndex.value = null;
+    resetUploadZone();
+    updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
   },
 );
 
 function selectToFormat(index: number) {
-  selectedToIndex = index;
-  setSelectedFormat(index, allOptions);
-  updateConvertButtonState(selectedFromIndex, selectedToIndex);
+  selectedToIndex.value = index;
+  setSelectedFormat(index, allOptionsRef.value);
+  updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
   closeFormatModal();
 }
 
@@ -140,14 +154,14 @@ async function loadHandlerFormats(subset: FormatHandler[]) {
     }
     for (const format of supportedFormats) {
       if (!format.mime) continue;
-      allOptions.push({ format, handler });
+      allOptionsRef.value.push({ format, handler });
     }
   }
 }
 
 function refreshUI() {
   window.traversionGraph.init(window.supportedFormatCache, handlers);
-  renderFormatOptions(allOptions, activeCategory, selectToFormat);
+  renderFormatOptions(allOptionsRef.value, activeCategory.value);
 }
 
 // --- Init ---
@@ -195,306 +209,8 @@ function refreshUI() {
 
 // --- Conversion logic ---
 
-let deadEndAttempts: ConvertPathNode[][];
+initConvertButton();
 
-async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], batchMsg?: string) {
-  const pathString = path.map(c => c.format.format).join(" \u2192 ");
-
-  for (const deadEnd of deadEndAttempts) {
-    let isDeadEnd = true;
-    for (let i = 0; i < deadEnd.length; i++) {
-      if (path[i] === deadEnd[i]) continue;
-      isDeadEnd = false;
-      break;
-    }
-    if (isDeadEnd) {
-      const deadEndString = deadEnd.slice(-2).map(c => c.format.format).join(" \u2192 ");
-      console.warn(`Skipping ${pathString} due to dead end near ${deadEndString}.`);
-      return null;
-    }
-  }
-
-  const messageHTML = batchMsg
-    ? `${batchMsg}<br><span class="muted-text">Path: ${pathString}</span>`
-    : `Converting <b>${pathString}</b>`;
-
-  const existingSpinner = ui.popupBox.querySelector(".loader-spinner");
-  if (existingSpinner) {
-    const p = ui.popupBox.querySelector("p");
-    if (p) p.innerHTML = messageHTML;
-    const h2 = ui.popupBox.querySelector("h2");
-    if (h2) h2.textContent = "Converting... 🐸";
-  } else {
-    ui.popupBox.innerHTML = `<div class="loader-spinner"></div>
-      <h2>Converting... 🐸</h2>
-      <p>${messageHTML}</p>`;
-  }
-
-  for (let i = 0; i < path.length - 1; i++) {
-    const handler = path[i + 1].handler;
-    try {
-      let supportedFormats = window.supportedFormatCache.get(handler.name);
-      if (!handler.ready) {
-        await handler.init();
-        if (!handler.ready) throw `Handler "${handler.name}" not ready after init.`;
-        if (handler.supportedFormats) {
-          window.supportedFormatCache.set(handler.name, handler.supportedFormats);
-          supportedFormats = handler.supportedFormats;
-        }
-      }
-      if (!supportedFormats) throw `Handler "${handler.name}" doesn't support any formats.`;
-      const inputFormat = supportedFormats.find(c =>
-        c.from
-        && c.mime === path[i].format.mime
-        && c.format === path[i].format.format,
-      )!;
-      files = (await Promise.all([
-        handler.doConvert(files, inputFormat, path[i + 1].format),
-        new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))),
-      ]))[0];
-      if (files.some(c => !c.bytes.length)) throw "Output is empty.";
-    } catch (e) {
-      console.log(path.map(c => c.format.format));
-      console.error(handler.name, `${path[i].format.format} \u2192 ${path[i + 1].format.format}`, e);
-
-      const deadEndPath = path.slice(0, i + 2);
-      deadEndAttempts.push(deadEndPath);
-      window.traversionGraph.addDeadEndPath(path.slice(0, i + 2));
-
-      const fallbackMsg = batchMsg
-        ? `${batchMsg}<br><span class="muted-text">Trying another approach...</span>`
-        : `Trying another approach...`;
-
-      const existingSpinner = ui.popupBox.querySelector(".loader-spinner");
-      if (existingSpinner) {
-        const p = ui.popupBox.querySelector("p");
-        if (p) p.innerHTML = fallbackMsg;
-      } else {
-        ui.popupBox.innerHTML = `<div class="loader-spinner"></div>
-          <h2>Converting... 🐸</h2>
-          <p>${fallbackMsg}</p>`;
-      }
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-
-      return null;
-    }
-  }
-
-  return { files, path };
-}
-
-window.tryConvertByTraversing = async function (
-  files: FileData[],
-  from: ConvertPathNode,
-  to: ConvertPathNode,
-  batchMsg?: string
-) {
-  deadEndAttempts = [];
-  window.traversionGraph.clearDeadEndPaths();
-  for await (const path of window.traversionGraph.searchPath(from, to, true)) {
-    if (path.at(-1)?.handler === to.handler) {
-      path[path.length - 1] = to;
-    }
-    const attempt = await attemptConvertPath(files, path, batchMsg);
-    if (attempt) return attempt;
-  }
-  return null;
-};
-
-// --- Convert button ---
-
-bindConvertButton(async function () {
-  const inputFiles = selectedFiles;
-  const fileCount = inputFiles.length;
-
-  if (fileCount === 0) {
-    alert("Drop a file in to get started!");
-    return;
-  }
-
-  if (selectedFromIndex === null) {
-    alert("Hmm, couldn't figure out this file's format. Try another?");
-    return;
-  }
-  if (selectedToIndex === null) {
-    alert("Pick a format to convert to first!");
-    return;
-  }
-
-  const inputOption = allOptions[selectedFromIndex];
-  const outputOption = allOptions[selectedToIndex];
-
-  const inputFormat = inputOption.format;
-  const outputFormat = outputOption.format;
-
-  showPopup(`<div class="loader-spinner"></div><h2>Converting... 🐸</h2>`);
-  const conversionStartTime = performance.now();
-
-  try {
-    const inputFileData: FileData[] = [];
-    let sameFormatCount = 0;
-
-    for (const inputFile of inputFiles) {
-      const inputBuffer = await inputFile.arrayBuffer();
-      const inputBytes = new Uint8Array(inputBuffer);
-      if (
-        inputFormat.mime === outputFormat.mime
-        && inputFormat.format === outputFormat.format
-      ) {
-        downloadFile(inputBytes, inputFile.name);
-        sameFormatCount++;
-        continue;
-      }
-      inputFileData.push({ name: inputFile.name, bytes: inputBytes });
-    }
-
-    if (inputFileData.length === 0) {
-      // All files were same-format
-      const fmt = outputFormat.format.toUpperCase();
-      if (fileCount === 1) {
-        const truncName = shortenFileName(inputFiles[0].name, 32);
-        showPopup(
-          `<h2>Already good! 🎉</h2>` +
-          `<p><b>${truncName}</b> is already in <b>${fmt}</b> \u2014 nothing to convert.</p>` +
-          `<div class="popup-actions">` +
-          `<button class="popup-primary" onclick="window.hidePopup()">Close</button>` +
-          `</div>`,
-        );
-      } else {
-        showPopup(
-          `<h2>Already good! 🎉</h2>` +
-          `<p>All ${fileCount} files are already in <b>${fmt}</b> \u2014 nothing to convert.</p>` +
-          `<div class="popup-actions">` +
-          `<button class="popup-primary" onclick="window.hidePopup()">Close</button>` +
-          `</div>`,
-        );
-      }
-      return;
-    }
-
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-
-    // For multi-file: convert each file individually with progress
-    if (inputFileData.length > 1) {
-      const allOutputFiles: { name: string; bytes: Uint8Array }[] = [];
-
-      ui.popupBox.innerHTML = `<div class="loader-spinner"></div>
-          <h2>Converting... 🐸</h2>
-          <p>Starting conversion...</p>`;
-
-      for (let i = 0; i < inputFileData.length; i++) {
-        const batchMsg = `${i + 1} out of ${inputFileData.length} files converting`;
-
-        const singleFile = [inputFileData[i]];
-        const output = await window.tryConvertByTraversing(singleFile, inputOption, outputOption, batchMsg);
-
-        if (!output) {
-          showPopup(
-            `<h2>Not available yet</h2>` +
-            `<p><b>${inputFormat.format.toUpperCase()}</b> to <b>${outputFormat.format.toUpperCase()}</b> isn't available right now \u2014 but more formats are on the way!</p>` +
-            `<p class="muted-text">Try picking a different format, there's loads to choose from!</p>` +
-            `<div class="popup-actions">` +
-            `<button class="popup-primary" onclick="window.hidePopup()">Got it</button>` +
-            `</div>`
-          );
-          triggerConfetti();
-          return;
-        }
-
-        allOutputFiles.push(...output.files);
-      }
-
-      setLastConvertedFiles(allOutputFiles);
-
-      if (allOutputFiles.length > 1) {
-        const existingSpinner = ui.popupBox.querySelector(".loader-spinner");
-        if (existingSpinner) {
-          const p = ui.popupBox.querySelector("p");
-          if (p) p.innerHTML = "Preparing download";
-          const h2 = ui.popupBox.querySelector("h2");
-          if (h2) h2.textContent = "Zipping... 🐸";
-        } else {
-          ui.popupBox.innerHTML = `<div class="loader-spinner"></div>
-            <h2>Zipping... 🐸</h2>
-            <p>Preparing download</p>`;
-        }
-
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-
-        const zip = new JSZip();
-        for (const file of allOutputFiles) {
-          zip.file(file.name, file.bytes);
-        }
-
-        const blob = await zip.generateAsync({ type: "blob" });
-        saveAs(blob, `converted_files_${Date.now()}.zip`);
-      } else {
-        for (const file of allOutputFiles) {
-          downloadFile(file.bytes, file.name);
-        }
-      }
-
-      // Ensure the working modal shows for at least 600ms
-      const elapsed = performance.now() - conversionStartTime;
-      if (elapsed < 600) {
-        await new Promise(resolve => setTimeout(resolve, 600 - elapsed));
-      }
-
-      showPopup(
-        `<h2>All done! 🎉</h2>` +
-        `<p>Converted ${allOutputFiles.length} files to <b>${outputFormat.format.toUpperCase()}</b>.</p>` +
-        `<p>Your files have been downloaded!</p>` +
-        `<div class="popup-actions">` +
-        `<button class="popup-primary" onclick="window.downloadAgain()">Download again</button>` +
-        `<button onclick="window.hidePopup()">Close</button>` +
-        `</div>`,
-      );
-    } else {
-      // Single file conversion
-      const output = await window.tryConvertByTraversing(inputFileData, inputOption, outputOption);
-
-      const elapsed = performance.now() - conversionStartTime;
-      if (elapsed < 600) {
-        await new Promise(resolve => setTimeout(resolve, 600 - elapsed));
-      }
-
-      if (!output) {
-        showPopup(
-          `<h2>Not available yet</h2>` +
-          `<p><b>${inputFormat.format.toUpperCase()}</b> to <b>${outputFormat.format.toUpperCase()}</b> isn't available right now \u2014 but more formats are on the way!</p>` +
-          `<p class="muted-text">Try picking a different format, there's loads to choose from!</p>` +
-          `<div class="popup-actions">` +
-          `<button class="popup-primary" onclick="window.hidePopup()">Got it</button>` +
-          `</div>`
-        );
-        triggerConfetti();
-        return;
-      }
-
-      setLastConvertedFiles(output.files);
-
-      for (const file of output.files) {
-        downloadFile(file.bytes, file.name);
-      }
-
-      const truncatedInputName = shortenFileName(selectedFiles[0].name, 32);
-
-      showPopup(
-        `<h2>Done! 🎉</h2>` +
-        `<p>Converted <b>${truncatedInputName}</b> to <b>${outputFormat.format.toUpperCase()}</b>.</p>` +
-        `<p>Your file has been downloaded!</p>` +
-        `<div class="popup-actions">` +
-        `<button class="popup-primary" onclick="window.downloadAgain()">Download again</button>` +
-        `<button onclick="window.hidePopup()">Close</button>` +
-        `</div>`,
-      );
-    }
-  } catch (e) {
-    hidePopup();
-    alert("Something went wrong:\n" + e);
-    console.error(e);
-  }
-});
 
 // --- Footer Confetti ---
 

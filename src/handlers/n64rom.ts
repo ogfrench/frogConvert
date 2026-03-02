@@ -1,6 +1,6 @@
-import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
-import normalizeMimeType from "../normalizeMimeType.ts";
-import CommonFormats from "src/CommonFormats.ts";
+import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import normalizeMimeType from "../core/utils/normalizeMimeType.ts";
+import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 
 const ROM_MAGIC = {
   z64: [0x80, 0x37, 0x12, 0x40],
@@ -273,3 +273,4 @@ class n64romHandler implements FormatHandler {
 }
 
 export default n64romHandler;
+

@@ -1,0 +1,29 @@
+/* --- Theme Toggle --- */
+#theme-toggle {
+  font-size: var(--text-xl);
+  width: var(--control-size);
+  height: var(--control-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: var(--leading-none);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--secondary);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+#theme-toggle:hover {
+  background-color: var(--accent);
+}
+
+/* --- Menu Label (mobile hamburger settings) --- */
+.menu-label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--muted-foreground);
+  display: none;
+}

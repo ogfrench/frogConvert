@@ -1,8 +1,8 @@
 import { Font, Glyph, Path, parse } from "opentype.js";
 import { SVGPathData } from "svg-pathdata";
 import { compress, decompress} from 'woff2-encoder';
-import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
-import CommonFormats from 'src/CommonFormats.ts';
+import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 
 function escapeHtml(str: string) {
   const map = new Map<string, string>();

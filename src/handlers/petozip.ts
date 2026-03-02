@@ -1,12 +1,12 @@
 // file: petozip.ts
 // npm install pe-library jszip buffer
 
-import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
+import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 import * as Pe from "pe-library"; 
 import JSZip from "jszip";
 
 import { Buffer } from "buffer";
-import CommonFormats from "src/CommonFormats.ts";
+import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 if (typeof window !== "undefined") {
   (window as any).Buffer = Buffer;
 }

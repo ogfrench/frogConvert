@@ -1,11 +1,11 @@
-import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
+import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
 import * as THREE from "three";
 import * as CSG from "three-bvh-csg";
 
 import { Demo } from "./sppd/sppd/Demo.ts";
 import { Vector } from "./sppd/sppd/Vector.ts";
-import CommonFormats from "src/CommonFormats.ts";
+import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 
 function toThreeVector (vec: Vector) {
   return new THREE.Vector3(vec.y, vec.z, vec.x);

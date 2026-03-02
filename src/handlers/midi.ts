@@ -1,4 +1,4 @@
-import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
+import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 import { extractEvents, tableToString, stringToTable, buildMidi, parseRtttl, parseGrubTune, tableToRtttl, tableToGrubTune, pngToMidi, midiToPng } from "./midi/midifilelib.js";
 
 const SAMPLE_RATE = 44100;

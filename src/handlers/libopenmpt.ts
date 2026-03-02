@@ -1,4 +1,4 @@
-import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
+import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
 interface LibOpenMPTModule {
   __render(fileData: Uint8Array, sampleRate: number): Int16Array;

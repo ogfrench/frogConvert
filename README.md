@@ -1,23 +1,30 @@
-_This project is a fork of "[Convert to it!](https://p2r3.github.io/convert/)" with the goal to adapt and improve the UI/UX of the original tool. You can find the original repo here: https://github.com/p2r3/convert_
-
-_The following readme is adapted from the original repo._
-
 # [frogConvert!](https://frogconvert.netlify.app/)
 **Truly universal online file converter.**
 
+_This project is a fork of "[Convert to it!](https://p2r3.github.io/convert/)" (original repo [here](https://github.com/p2r3/convert)). **All credit for the core file conversion engine and logic goes to the original developer.** This fork is a reimagining of the UI/UX with quality-of-life improvements._
+
+## 🌟 What's New in frogConvert
+Compared to the original `Convert to it!`, frogConvert focuses on frontend improvements:
+- **Redesigned Modern UI/UX:** A completely fresh, visually appealing look with dedicated modules, light/dark theme toggles, and a refined file format selection interface.
+- **Enhanced Mobile Experience:** Fully responsive layout with a hamburger menu, fixed file name overflowing, and optimized padding and alignments for smaller screens.
+- **Improved Feedback & Animations:** Introduced smooth animations and clear conversion progress indicators (e.g., "x out of y converting").
+- **File Management & Uploads:** Introduced a new file management feature and set limits on maximum file uploads to prevent crashes and improve stability.
+- **Dynamic Capabilities:** Smart detection of device RAM capabilities to prevent the browser tab from freezing or crashing during heavy workloads.
+
+## What is it?
 Many online file conversion tools are **boring** and **insecure**. They only allow conversion between two formats in the same medium (images to images, videos to videos, etc.), and they require that you _upload your files to some server_.
 
 This is not just terrible for privacy, it's also incredibly lame. What if you _really_ need to convert an AVI video to a PDF document? Try to find an online tool for that, I dare you.
 
-[frogConvert](https://frogconvert.netlify.app/) aims to be a tool that "just works". You're almost _guaranteed_ to get an output - perhaps not always the one you expected, but it'll try its best to not leave you hanging.
+[frogConvert](https://frogconvert.netlify.app/) runs entirely in your browser. You're almost _guaranteed_ to get an output - perhaps not always the one you expected, but it'll try its best to not leave you hanging.
 
-For a semi-technical overview of this tool, check out the video of the original tool: https://youtu.be/btUbcsTbVA8
+For a semi-technical overview of the original tool, check out this video: https://youtu.be/btUbcsTbVA8
 
 ## Deployment
 
 ### Local development (Bun + Vite)
 
-1. Clone this repository ***WITH SUBMODULES***. You can use `git clone --recursive https://github.com/p2r3/convert` for that. Omitting submodules will leave you missing a few dependencies.
+1. Clone this repository ***WITH SUBMODULES***. You can use `git clone --recursive https://github.com/ogfrench/frogConvert` for that. Omitting submodules will leave you missing a few dependencies.
 2. Install [Bun](https://bun.sh/).
 3. Run `bun install` to install dependencies.
 4. Run `bunx vite` to start the development server.
@@ -48,7 +55,7 @@ Use the override file to build the image locally:
 docker compose -f docker/docker-compose.yml -f docker/docker-compose.override.yml up --build -d
 ```
 
-The first Docker build is expected to be slow because Chromium and related system packages are installed in the build stage (needed for puppeteer in `buildCache.js`). Later builds are usually much faster due to Docker layer caching.
+The first Docker build is expected to be slow because Chromium and related system packages are installed in the build stage (needed for puppeteer in `scripts/buildCache.js`). Later builds are usually much faster due to Docker layer caching.
 
 ## Contributing
 

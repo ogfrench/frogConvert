@@ -1,5 +1,5 @@
-import CommonFormats, { Category } from "src/CommonFormats.ts";
-import type { FormatHandler, FileData, FileFormat } from "../FormatHandler.ts";
+import CommonFormats, { Category } from '../core/CommonFormats/CommonFormats.ts';
+import type { FormatHandler, FileData, FileFormat } from "../core/FormatHandler/FormatHandler.ts";
 
 function hasPrefix(bytes: Uint8Array, prefix: number[]) {
   if (bytes.length < prefix.length) return false;

@@ -1,6 +1,6 @@
 import pako from "pako";
-import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
-import CommonFormats from "src/CommonFormats.ts";
+import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 
 async function revertCgBIBuffer(input: Uint8Array | ArrayBuffer): Promise<Uint8Array> {
   const buffer = input instanceof Uint8Array ? input : new Uint8Array(input);

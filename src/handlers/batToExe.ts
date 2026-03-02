@@ -1,5 +1,5 @@
-import CommonFormats from "src/CommonFormats.ts";
-import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
+import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
+import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
 import headUrl from "./batToExe/exe65824head.bin?url";
 import footUrl from "./batToExe/exe65824foot.bin?url";
