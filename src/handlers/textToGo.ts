@@ -35,8 +35,6 @@ class textToGoHandler implements FormatHandler {
     }
 
     for (const inputFile of inputFiles) {
-      console.log(inputFiles, inputFormat, outputFormat);
-
       const text = new TextDecoder().decode(inputFile.bytes).replace(/\r?\n/, "\n").replace("`", "` + \"`\" + `");
       let out = "";
 
@@ -48,8 +46,8 @@ class textToGoHandler implements FormatHandler {
       out += `\tfmt.Println(\`${text}\`)\n`
       out += "}\n";
 
-      const name = inputFile.name.split(".")[0]+".go";
-      outputFiles.push({bytes: new TextEncoder().encode(out), name});
+      const name = inputFile.name.split(".")[0] + ".go";
+      outputFiles.push({ bytes: new TextEncoder().encode(out), name });
     }
 
     return outputFiles;

@@ -254,6 +254,23 @@ export function getFormatCategory(format: FileFormat): string {
   return "other";
 }
 
+// --- UI Helpers ---
+export function bindDragAndDropVisuals(element: HTMLElement, activeClass: string = "drag-over") {
+  element.addEventListener("dragenter", (e) => {
+    e.preventDefault();
+    element.classList.add(activeClass);
+  });
+  element.addEventListener("dragleave", () => {
+    element.classList.remove(activeClass);
+  });
+  element.addEventListener("dragover", (e) => {
+    e.preventDefault();
+  });
+  element.addEventListener("drop", () => {
+    element.classList.remove(activeClass);
+  });
+}
+
 /** Sort files alphabetically by name. Shared by UploadZone and FilesModal. */
 export function sortFilesByName(files: File[]): void {
   files.sort((a, b) => a.name.localeCompare(b.name));

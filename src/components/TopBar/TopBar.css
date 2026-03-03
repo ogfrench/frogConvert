@@ -36,7 +36,8 @@
 
 #top-bar.scrolled::before {
   background-color: var(--top-bar-bg);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-sm);
+  /* Using shadow variable */
 }
 
 #logo {
@@ -103,7 +104,7 @@
   height: 2px;
   background-color: var(--foreground);
   border-radius: 2px;
-  transition: all 0.3s ease;
+  transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
 #hamburger-btn:hover {
@@ -256,7 +257,7 @@
     opacity: 0;
     visibility: hidden;
     transform: translateY(-10px);
-    transition: all 0.3s ease;
+    transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
     z-index: 9999;
     min-width: 180px;
     gap: var(--space-3);

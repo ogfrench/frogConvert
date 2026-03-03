@@ -77,7 +77,7 @@ export function initSegmentedControls() {
   bindSegmented(
     modeSegmented,
     ui.modeToggleButton,
-    (value) => (value === "advanced") !== (ui.modeToggleButton.textContent?.trim() === "All Formats"),
+    (value) => (value === "advanced") !== isAdvancedMode.value,
     () => { }
   );
 
@@ -88,10 +88,8 @@ export function initSegmentedControls() {
     () => { }
   );
 
-  // Keep segmented controls in sync when desktop buttons are clicked
   new MutationObserver(() => {
-    const adv = ui.modeToggleButton.textContent?.trim() === "All Formats";
-    syncSegmentedActive(modeSegmented, adv ? "advanced" : "basic");
+    syncSegmentedActive(modeSegmented, isAdvancedMode.value ? "advanced" : "basic");
   }).observe(ui.modeToggleButton, { childList: true, characterData: true, subtree: true });
 
   new MutationObserver(() => {

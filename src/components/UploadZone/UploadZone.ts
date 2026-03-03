@@ -2,7 +2,7 @@ import "./UploadZone.css";
 import {
   ui, currentFiles, MAX_FILES, checkFileSizeLimits, showSizeWarningPopup,
   DEFAULT_UPLOAD_LABEL, shortenFileName,
-  onFilesChanged, onClearFiles, showFileTypeMismatchPopup, sortFilesByName
+  onFilesChanged, onClearFiles, showFileTypeMismatchPopup, sortFilesByName, bindDragAndDropVisuals
 } from "../store/store.ts";
 import { showPopup, hidePopup } from "../Popup/Popup.ts";
 import { openFilesModal } from "../FilesModal/FilesModal.ts";
@@ -22,19 +22,7 @@ export function initUploadZone(
     ui.fileInput.click();
   });
 
-  ui.uploadZone.addEventListener("dragenter", (e) => {
-    e.preventDefault();
-    ui.uploadZone.classList.add("drag-over");
-  });
-  ui.uploadZone.addEventListener("dragleave", () => {
-    ui.uploadZone.classList.remove("drag-over");
-  });
-  ui.uploadZone.addEventListener("dragover", (e) => {
-    e.preventDefault();
-  });
-  ui.uploadZone.addEventListener("drop", () => {
-    ui.uploadZone.classList.remove("drag-over");
-  });
+  bindDragAndDropVisuals(ui.uploadZone);
 
   ui.removeFileBtn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -83,20 +71,20 @@ export function initUploadZone(
     }
 
     const proceedWithFiles = (filesToUse: File[]) => {
+      const applySelection = () => {
+        sortFilesByName(filesToUse);
+        currentFiles.value = filesToUse;
+        onFilesSelected(filesToUse);
+      };
+
       // Size safeguard check
       const { level } = checkFileSizeLimits(filesToUse);
       if (level !== "ok") {
         const totalSize = filesToUse.reduce((sum, f) => sum + f.size, 0);
-        showSizeWarningPopup(level, totalSize, () => {
-          sortFilesByName(filesToUse);
-          currentFiles.value = filesToUse;
-          onFilesSelected(filesToUse);
-        });
+        showSizeWarningPopup(level, totalSize, applySelection);
         return;
       }
-      sortFilesByName(filesToUse);
-      currentFiles.value = filesToUse;
-      onFilesSelected(filesToUse);
+      applySelection();
     };
 
     if (files.some(c => c.type !== files[0].type)) {

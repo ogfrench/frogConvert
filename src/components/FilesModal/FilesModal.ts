@@ -2,7 +2,7 @@ import "./FilesModal.css";
 import {
   ui, currentFiles, shortenFileName, FILES_PER_PAGE, filesModalPage,
   filesModalResizeHandler, onClearFiles, onFilesChanged, MAX_FILES,
-  checkFileSizeLimits, showSizeWarningPopup, showFileTypeMismatchPopup, sortFilesByName
+  checkFileSizeLimits, showSizeWarningPopup, showFileTypeMismatchPopup, sortFilesByName, bindDragAndDropVisuals
 } from "../store/store.ts";
 import { showFileInUploadZone } from "../UploadZone/UploadZone.ts";
 
@@ -150,6 +150,12 @@ function renderFilesModalList() {
   }
 }
 
+function applyFilesUpdate(updateList: boolean = true) {
+  if (updateList) renderFilesModalList();
+  showFileInUploadZone(currentFiles.value);
+  if (onFilesChanged.value) onFilesChanged.value(currentFiles.value);
+}
+
 function removeFileAtIndex(index: number) {
   currentFiles.value.splice(index, 1);
   if (currentFiles.value.length === 0) {
@@ -157,9 +163,7 @@ function removeFileAtIndex(index: number) {
     if (onClearFiles.value) onClearFiles.value();
     return;
   }
-  renderFilesModalList();
-  showFileInUploadZone(currentFiles.value);
-  if (onFilesChanged.value) onFilesChanged.value(currentFiles.value);
+  applyFilesUpdate();
 }
 
 function replaceFileAtIndex(index: number) {
@@ -179,9 +183,7 @@ function replaceFileAtIndex(index: number) {
     }
 
     currentFiles.value[index] = newFile;
-    renderFilesModalList();
-    showFileInUploadZone(currentFiles.value);
-    if (onFilesChanged.value) onFilesChanged.value(currentFiles.value);
+    applyFilesUpdate();
   });
   tempInput.click();
 }
@@ -219,20 +221,10 @@ export function initFilesModal() {
     tempInput.click();
   });
 
-  ui.filesDropMore.addEventListener("dragenter", (e) => {
-    e.preventDefault();
-    ui.filesDropMore.classList.add("drag-over");
-  });
-  ui.filesDropMore.addEventListener("dragleave", () => {
-    ui.filesDropMore.classList.remove("drag-over");
-  });
-  ui.filesDropMore.addEventListener("dragover", (e) => {
-    e.preventDefault();
-  });
+  bindDragAndDropVisuals(ui.filesDropMore);
   ui.filesDropMore.addEventListener("drop", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    ui.filesDropMore.classList.remove("drag-over");
     if (e.dataTransfer?.files) {
       addMoreFiles(Array.from(e.dataTransfer.files));
     }
@@ -277,8 +269,7 @@ function addMoreFiles(newFiles: File[]) {
     showSizeWarningPopup(level, totalSize, () => {
       currentFiles.value = combinedFiles;
       sortFilesByName(currentFiles.value);
-      showFileInUploadZone(currentFiles.value);
-      if (onFilesChanged.value) onFilesChanged.value(currentFiles.value);
+      applyFilesUpdate(false);
       openFilesModal();
     });
     return;
@@ -286,8 +277,5 @@ function addMoreFiles(newFiles: File[]) {
 
   currentFiles.value = combinedFiles;
   sortFilesByName(currentFiles.value);
-
-  renderFilesModalList();
-  showFileInUploadZone(currentFiles.value);
-  if (onFilesChanged.value) onFilesChanged.value(currentFiles.value);
+  applyFilesUpdate();
 }

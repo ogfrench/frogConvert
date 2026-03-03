@@ -45,7 +45,7 @@ const warnings_file = new File(new Uint8Array(), { readonly: false });
 const fileSystem = new Map();
 const fds = [
   new OpenFile(new File(new Uint8Array(), { readonly: true })),
-  ConsoleStdout.lineBuffered((msg) => console.log(`[WASI stdout] ${msg}`)),
+  ConsoleStdout.lineBuffered((msg) => console.debug(`[WASI stdout] ${msg}`)),
   ConsoleStdout.lineBuffered((msg) => console.warn(`[WASI stderr] ${msg}`)),
   new PreopenDirectory("/", fileSystem),
 ];
@@ -98,7 +98,7 @@ export async function query(options) {
   instance.exports.query(opts_ptr, opts_bytes.length);
 
   const err_text = new TextDecoder("utf-8", { fatal: true }).decode(err_file.data);
-  if (err_text) console.log(err_text);
+  if (err_text && options.debug) console.log(err_text);
   const out_text = new TextDecoder("utf-8", { fatal: true }).decode(out_file.data);
   return JSON.parse(out_text);
 }
