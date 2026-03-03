@@ -1,4 +1,6 @@
-# [frogConvert!](https://frogconvert.netlify.app/)
+# [frogConvert!](https://frogconvert.xyz)
+_(Backup domain: [frogconvert.netlify.app](https://frogconvert.netlify.app/))_
+
 **Truly universal online file converter.**
 
 _This project is a fork of "[Convert to it!](https://p2r3.github.io/convert/)" (original repo [here](https://github.com/p2r3/convert)). **All credit for the core file conversion engine and logic goes to the original developer.** This fork is a reimagining of the UI/UX with quality-of-life improvements._
@@ -18,7 +20,7 @@ Many online file conversion tools are **boring** and **insecure**. They only all
 
 This is not just terrible for privacy, it's also incredibly lame. What if you _really_ need to convert an AVI video to a PDF document? Try to find an online tool for that, I dare you.
 
-[frogConvert](https://frogconvert.netlify.app/) runs entirely in your browser. You're almost _guaranteed_ to get an output - perhaps not always the one you expected, but it'll try its best to not leave you hanging.
+[frogConvert](https://frogconvert.xyz) runs entirely in your browser. You're almost _guaranteed_ to get an output - perhaps not always the one you expected, but it'll try its best to not leave you hanging.
 
 For a semi-technical overview of the original tool, check out this video: https://youtu.be/btUbcsTbVA8
 

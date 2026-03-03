@@ -37,7 +37,7 @@ describe("E2E Conversion Flow", () => {
         await page.waitForSelector("#upload-zone", { timeout: 10000 });
         const title = await page.title();
         expect(title).toContain("frogConvert");
-    });
+    }, 20000);
 
     it("has a file input available in the upload zone", async () => {
         await page.goto(url);

@@ -1,5 +1,3 @@
-import * as vexml from '@stringsync/vexml';
-import VexFlow from 'vexflow';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import { buildMidi, addNote } from './midi/midifilelib.js';
@@ -22,6 +20,7 @@ class VexFlowHandler implements FormatHandler {
     // Load VexFlow fonts (required for VexFlow 5)
     if (!VexFlowHandler.fontsLoaded) {
       try {
+        const { default: VexFlow } = await import('vexflow');
         await VexFlow.loadFonts('Bravura', 'Academico');
         VexFlowHandler.fontsLoaded = true;
         console.log('VexFlow fonts loaded successfully');
@@ -310,6 +309,7 @@ class VexFlowHandler implements FormatHandler {
 
         // Handle HTML output
         // Ensure fonts are loaded before rendering
+        const { default: VexFlow } = await import('vexflow');
         if (!VexFlowHandler.fontsLoaded) {
           await VexFlow.loadFonts('Bravura', 'Academico');
           VexFlowHandler.fontsLoaded = true;
@@ -317,6 +317,7 @@ class VexFlowHandler implements FormatHandler {
         VexFlow.setFonts('Bravura', 'Academico');
 
         // Configure vexml with proper width for multi-line rendering
+        const vexml = await import('@stringsync/vexml');
         const config = {
           ...vexml.DEFAULT_CONFIG,
           WIDTH: 800, // Page width - controls line wrapping

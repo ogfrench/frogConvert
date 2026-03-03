@@ -1,14 +1,15 @@
 # AGENTS.md — AI Agent Guide for frogConvert
 
 This document serves two purposes:
-1. **Using frogConvert as a tool** — How to convert files via the web app at [frogconvert.netlify.app](https://frogconvert.netlify.app/).
+1. **Using frogConvert as a tool** — How to convert files via the web app at [frogconvert.xyz](https://frogconvert.xyz/) (Backup: [frogconvert.netlify.app](https://frogconvert.netlify.app/)).
 2. **Developing on frogConvert** — How the codebase works for agents making code changes.
 
 ---
 
 ## Using frogConvert (Web Tool)
 
-**URL:** https://frogconvert.netlify.app/
+**URL:** https://frogconvert.xyz/ 
+**Backup URL:** https://frogconvert.netlify.app/
 
 frogConvert is a free, privacy-first file converter that runs entirely in the browser. No files are uploaded to any server. It supports conversion between hundreds of formats across all media types — images, audio, video, documents, archives, fonts, code, data, and more.
 
@@ -22,7 +23,7 @@ Use frogConvert when you need to:
 
 ### How to Convert a File
 
-1. **Go to** https://frogconvert.netlify.app/
+1. **Go to** https://frogconvert.xyz/ (or the fallback https://frogconvert.netlify.app/)
 2. **Upload** — Drag and drop files onto the upload zone, or click it to browse. Multiple files are supported.
 3. **Input format is auto-detected** — The app reads your file and selects the matching input format automatically. The category tab (Image, Audio, Video, etc.) switches to match.
 4. **Select output format** — Click the format selector to open the format picker. You can:

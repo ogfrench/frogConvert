@@ -1,7 +1,5 @@
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
-import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-
 class sqlite3Handler implements FormatHandler {
 
   public name: string = "sqlite3";
@@ -66,6 +64,7 @@ class sqlite3Handler implements FormatHandler {
   ): Promise<FileData[]> {
     const outputFiles: FileData[] = [];
 
+    const { default: sqlite3InitModule } = await import("@sqlite.org/sqlite-wasm");
     const sqlite3 = await sqlite3InitModule();
 
     if (inputFormat.internal == "sqlite3" && outputFormat.internal == "csv") {

@@ -1,5 +1,3 @@
-import { imageTracer } from 'imagetracer'
-
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 
@@ -29,6 +27,7 @@ class svgTraceHandler implements FormatHandler {
 
     const outputFiles: FileData[] = [];
     const encoder = new TextEncoder();
+    const { imageTracer } = await import('imagetracer');
 
     for (const inputFile of inputFiles) {
       const blob = new Blob([inputFile.bytes as BlobPart], { type: inputFormat.mime });

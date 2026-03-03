@@ -7,16 +7,16 @@ import { Demo } from "./sppd/sppd/Demo.ts";
 import { Vector } from "./sppd/sppd/Vector.ts";
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 
-function toThreeVector (vec: Vector) {
+function toThreeVector(vec: Vector) {
   return new THREE.Vector3(vec.y, vec.z, vec.x);
 }
-function rotateFromSourceAngles (object: THREE.Object3D, angles: Vector) {
+function rotateFromSourceAngles(object: THREE.Object3D, angles: Vector) {
   const { forward, up } = angles.Scale(Math.PI / 180).FromAngles();
   object.up.copy(toThreeVector(up));
   object.lookAt(object.position.clone().add(toThreeVector(forward)));
 }
 
-function createFloorButton () {
+function createFloorButton() {
   const group = new THREE.Group();
 
   const buttonTop = new THREE.Mesh(
@@ -36,7 +36,7 @@ function createFloorButton () {
   return group;
 }
 
-function createPedestalButton () {
+function createPedestalButton() {
   const group = new THREE.Group();
 
   const buttonTop = new THREE.Mesh(
@@ -55,14 +55,14 @@ function createPedestalButton () {
   return group;
 }
 
-function createCube () {
+function createCube() {
   return new CSG.Brush(
     new THREE.BoxGeometry(36, 36, 36),
     new THREE.MeshLambertMaterial({ color: 0x424242 })
   );
 }
 
-function createLaserCube () {
+function createLaserCube() {
   const group = new THREE.Group();
 
   const cubeBrush = new CSG.Brush(
@@ -87,7 +87,7 @@ function createLaserCube () {
   return group;
 }
 
-function createPortal (blue = true) {
+function createPortal(blue = true) {
   const color = blue ? 0x0e8cff : 0xff8602;
 
   const portalGeometry = new THREE.CircleGeometry(32, 16);
@@ -102,7 +102,7 @@ function createPortal (blue = true) {
   return portal;
 }
 
-function createLaserEmitter (centered = false) {
+function createLaserEmitter(centered = false) {
   const group = new THREE.Group();
 
   const emitterBase = new THREE.Mesh(
@@ -126,7 +126,7 @@ function createLaserEmitter (centered = false) {
   return group;
 }
 
-function getModelBuilder (modelName: string) {
+function getModelBuilder(modelName: string) {
   switch (modelName) {
     case "models/props/portal_button_damaged01.mdl": return createFloorButton;
     case "models/props/portal_button_damaged02.mdl": return createFloorButton;
@@ -141,7 +141,7 @@ function getModelBuilder (modelName: string) {
   }
 }
 
-function getJsonReplacer () {
+function getJsonReplacer() {
   const ancestors: object[] = [];
   return function (this: any, _key: string, value: any) {
     if (typeof value === "bigint") {
@@ -196,20 +196,20 @@ class sppdHandler implements FormatHandler {
 
   private renderBounds = { width: 640, height: 360 };
 
-  private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(90, this.renderBounds.width / this.renderBounds.height, 0.1, 4096);
-  private renderer = new THREE.WebGLRenderer();
+  private scene: any;
+  private camera: any;
+  private renderer: any;
 
-  private ambientLight = new THREE.AmbientLight(0xffffff, 1);
-  private pointLight = new THREE.PointLight(0xffffff, 1e5, 4096);
+  private ambientLight: any;
+  private pointLight: any;
 
-  private wallObjects: THREE.Mesh[] = [];
+  private wallObjects: any[] = [];
   private entityObjects = new Array(2048);
   private voxelGridOffset: Vector | null = null;
   private prevBluePortalPos: Vector | null = null;
   private prevOrangePortalPos: Vector | null = null;
 
-  resetSceneEntities () {
+  resetSceneEntities() {
     for (let i = 0; i < 2048; i++) {
       if (this.entityObjects[i]?.renderable) {
         this.scene.remove(this.entityObjects[i].renderable);
@@ -220,7 +220,7 @@ class sppdHandler implements FormatHandler {
       };
     }
   }
-  resetSceneWalls () {
+  resetSceneWalls() {
     for (let i = 0; i < this.wallObjects.length; i++) {
       this.scene.remove(this.wallObjects[i]);
     }
@@ -228,7 +228,7 @@ class sppdHandler implements FormatHandler {
   }
 
 
-  addVoxelPoint (point: Vector, voxels: Map<string, Vector>) {
+  addVoxelPoint(point: Vector, voxels: Map<string, Vector>) {
     const voxelPosition = point
       .Sub(this.voxelGridOffset || new Vector())
       .map(c => Math.floor(c / VOXEL_SIZE));
@@ -237,7 +237,7 @@ class sppdHandler implements FormatHandler {
     voxels.set(voxelKey, voxelPosition);
   }
 
-  addVoxelsAlongRay (start: Vector, end: Vector, voxels: Map<string, Vector>) {
+  addVoxelsAlongRay(start: Vector, end: Vector, voxels: Map<string, Vector>) {
     const gx0 = (start.x - (this.voxelGridOffset?.x || 0)) / VOXEL_SIZE;
     const gy0 = (start.y - (this.voxelGridOffset?.y || 0)) / VOXEL_SIZE;
     const gz0 = (start.z - (this.voxelGridOffset?.z || 0)) / VOXEL_SIZE;
@@ -297,7 +297,7 @@ class sppdHandler implements FormatHandler {
     }
   }
 
-  collectPoints (demo: Demo, voxels: Map<string, Vector>, portalVoxels: Map<string, Vector>) {
+  collectPoints(demo: Demo, voxels: Map<string, Vector>, portalVoxels: Map<string, Vector>) {
     const { entities } = demo.state;
     if (!entities) return;
 
@@ -381,7 +381,7 @@ class sppdHandler implements FormatHandler {
     }
   }
 
-  buildWalls (voxels: Map<string, Vector>, portalVoxels: Map<string, Vector>) {
+  buildWalls(voxels: Map<string, Vector>, portalVoxels: Map<string, Vector>) {
     const directions = [
       new Vector(1, 0, 0),
       new Vector(-1, 0, 0),
@@ -422,7 +422,7 @@ class sppdHandler implements FormatHandler {
   }
 
 
-  async playbackTickHandler (demo: Demo) {
+  async playbackTickHandler(demo: Demo) {
 
     const { entities } = demo.state;
     if (!entities) return;
@@ -432,7 +432,7 @@ class sppdHandler implements FormatHandler {
     rotateFromSourceAngles(this.camera, viewAngles);
     this.pointLight.position.copy(this.camera.position);
 
-    for (let i = 2; i < entities.length; i ++) {
+    for (let i = 2; i < entities.length; i++) {
       const object = this.entityObjects[i];
       const entity = entities[i];
 
@@ -493,7 +493,7 @@ class sppdHandler implements FormatHandler {
 
   }
 
-  async init () {
+  async init() {
 
     this.renderer.setSize(this.renderBounds.width, this.renderBounds.height);
     this.scene.add(this.ambientLight);
@@ -502,7 +502,7 @@ class sppdHandler implements FormatHandler {
     this.ready = true;
   }
 
-  async doConvert (
+  async doConvert(
     inputFiles: FileData[],
     inputFormat: FileFormat,
     outputFormat: FileFormat
@@ -550,15 +550,15 @@ class sppdHandler implements FormatHandler {
             this.renderer.render(this.scene, this.camera);
 
             const bytes: Uint8Array = await new Promise((resolve, reject) => {
-              this.renderer.domElement.toBlob((blob) => {
+              this.renderer.domElement.toBlob((blob: Blob | null) => {
                 if (!blob) return reject("Canvas output failed");
-                blob.arrayBuffer().then(buf => resolve(new Uint8Array(buf)));
+                blob.arrayBuffer().then((buf: ArrayBuffer) => resolve(new Uint8Array(buf)));
               }, outputFormat.mime);
             });
             const name = inputFile.name.split(".")[0] + "_" + frameIndex + "." + outputFormat.extension;
             outputFiles.push({ bytes, name });
 
-            frameIndex ++;
+            frameIndex++;
           },
           onFinish: resolve
         });
