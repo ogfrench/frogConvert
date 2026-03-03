@@ -6,12 +6,12 @@ _(Backup domain: [frogconvert.netlify.app](https://frogconvert.netlify.app/))_
 _This project is a fork of "[Convert to it!](https://p2r3.github.io/convert/)" (original repo [here](https://github.com/p2r3/convert)). **All credit for the core file conversion engine and logic goes to the original developer.** This fork is a reimagining of the UI/UX with quality-of-life improvements._
 
 ## 🌟 What's New in frogConvert
-Compared to the original `Convert to it!`, frogConvert focuses on frontend improvements:
+Compared to the original `Convert to it!`, frogConvert focuses on frontend improvements, performance, and agentic compatibility:
 - **Redesigned Modern UI/UX:** A completely fresh, visually appealing look with dedicated modules, light/dark theme toggles, and a refined file format selection interface.
 - **Enhanced Mobile Experience:** Fully responsive layout with a hamburger menu, fixed file name overflowing, and optimized padding and alignments for smaller screens.
-- **Improved Feedback & Animations:** Introduced smooth animations and clear conversion progress indicators (e.g., "x out of y converting").
 - **File Management & Uploads:** Introduced a new file management feature and set limits on maximum file uploads to prevent crashes and improve stability.
-- **Dynamic Capabilities:** Smart detection of device RAM capabilities to prevent the browser tab from freezing or crashing during heavy workloads.
+- **MCP (Model Context Protocol) Integration:** Built-in MCP server interface allowing AI agents to easily discover formats, analyze conversion paths, and utilize the app's core capabilities.
+- **Robust Engineering Foundation:** Refactored the codebase, resolved initial load cache warnings, and introduced modern testing infrastructure for long-term maintainability.
 
 ## What is it?
 > _This section is adapted from the [original README](https://github.com/p2r3/convert#readme)._

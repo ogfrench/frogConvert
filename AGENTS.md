@@ -1,190 +1,78 @@
 # AGENTS.md — AI Agent Guide for frogConvert
 
-This document serves two purposes:
-1. **Using frogConvert as a tool** — How to convert files via the web app at [frogconvert.xyz](https://frogconvert.xyz/) (Backup: [frogconvert.netlify.app](https://frogconvert.netlify.app/)).
-2. **Developing on frogConvert** — How the codebase works for agents making code changes.
+frogConvert is a universal file converter that includes a built-in Model Context Protocol (MCP) server. This server provides AI agents with direct programmatic access to its core file conversion engine. 
+
+Instead of interacting with the frontend web UI, **agents should always use the MCP server to convert files**, discover formats, and analyze conversion paths.
 
 ---
 
-## Using frogConvert (Web Tool)
+## 🚀 Using frogConvert via MCP
 
-**URL:** https://frogconvert.xyz/ 
-**Backup URL:** https://frogconvert.netlify.app/
+The local MCP server wraps frogConvert's complex graph-based routing engine into three easy-to-use tools over a standard `stdio` interface.
 
-frogConvert is a free, privacy-first file converter that runs entirely in the browser. No files are uploaded to any server. It supports conversion between hundreds of formats across all media types — images, audio, video, documents, archives, fonts, code, data, and more.
+### Starting the Server
+Start the MCP server locally with:
+```bash
+npm run mcp
+```
+*(This executes `npx tsx src/mcp/index.ts`)*
 
-### When to Use frogConvert
+### Exposed MCP Tools
 
-Use frogConvert when you need to:
-- Convert a file between formats (e.g. PNG to SVG, WAV to MP3, DOCX to PDF)
-- Perform cross-media conversions that most tools can't (e.g. AVI to PDF, MIDI to WAV, JSON to YAML)
-- Convert files without uploading them to a third-party server (privacy-sensitive scenarios)
-- Batch convert multiple files at once
+1. **`list_formats`**
+   - **Description**: Returns a JSON mapping of all supported input and output formats available in the Node.js environment.
+   - **Usage**: Use this to see what extensions and MIME types are currently supported.
 
-### How to Convert a File
+2. **`find_conversion_path`**
+   - **Arguments**: `inputMime`, `inputExtension`, `outputMime`, `outputExtension`
+   - **Description**: Uses frogConvert's `TraversionGraph` algorithm to calculate the step-by-step handler chain required to convert from the input to the output.
+   - **Returns**: A visual string representation of the path (e.g. `FFmpeg (audio/wav) -> pandas (document/csv)`). Returns an error if no path exists.
 
-1. **Go to** https://frogconvert.xyz/ (or the fallback https://frogconvert.netlify.app/)
-2. **Upload** — Drag and drop files onto the upload zone, or click it to browse. Multiple files are supported.
-3. **Input format is auto-detected** — The app reads your file and selects the matching input format automatically. The category tab (Image, Audio, Video, etc.) switches to match.
-4. **Select output format** — Click the format selector to open the format picker. You can:
-   - Browse formats by category using the tabs (Image, Audio, Video, Document, etc.)
-   - Search for a specific format by name using the search bar
-   - Toggle between "Simple" mode (common formats) and "All" mode (every supported format)
-5. **Click Convert** — The convert button starts the process. A progress indicator shows completion status.
-6. **Download** — The converted file downloads automatically when finished.
-
-### Key Capabilities
-
-- **Any-to-any conversion** — frogConvert chains multiple conversion tools together via graph-based pathfinding. If no single tool can convert directly between two formats, it finds a multi-step path automatically.
-- **Cross-media** — Convert between entirely different media types. Video to image, audio to document, data to code — it will find a path if one exists.
-- **Batch processing** — Upload and convert multiple files in one go.
-- **Client-side only** — All processing happens in your browser using WebAssembly-powered tools (FFmpeg, ImageMagick, Pandoc, etc.). Nothing leaves your machine.
-- **Format categories** — image, video, audio, text, document, data, vector, archive, spreadsheet, presentation, font, code.
-
-### Limitations
-
-- **Large files** — The app runs in-browser, so available RAM limits file size. It auto-detects device capabilities and warns when limits are exceeded.
-- **Processing speed** — Complex conversions (especially video) are slower than native tools since they run via WebAssembly in the browser.
-- **No API** — frogConvert is a web UI only. There is no REST API or CLI for programmatic access.
+3. **`convert_file`**
+   - **Arguments**: `fileName`, `base64Bytes`, `inputMime`, `inputExtension`, `outputMime`, `outputExtension`
+   - **Description**: The core execution tool. It accepts a Base64 encoded string of the file buffer, automatically routes it through the necessary handler chain, and returns the converted Base64 encoded bytes. 
 
 ---
 
-## Developing on frogConvert (Codebase Guide)
+## 🛠️ Developing on frogConvert
 
-## Project Overview
+If you are tasked with expanding frogConvert's capabilities, here is how the conversion engine operates under the hood.
 
-frogConvert is a browser-based universal file converter. It runs entirely client-side — no server uploads. It chains multiple conversion "handlers" together using a graph-based pathfinding algorithm to convert between any two formats, even across media types (e.g. video to PDF).
+### Architecture
+frogConvert relies on **Handlers** and a **TraversionGraph**:
+- **Handlers** (`src/handlers/*`): Individual modules wrapping underlying conversion libraries (e.g., FFmpeg WASM, ImageMagick WASM, Pandoc). Each handler implements the `FormatHandler` interface (`src/core/FormatHandler/FormatHandler.ts`).
+- **TraversionGraph** (`src/core/TraversionGraph/TraversionGraph.ts`): Uses Dijkstra's algorithm to compute the cheapest conversion path between formats using the edges provided by initialized handlers.
 
-**Stack:** TypeScript, Vite, vanilla DOM (no framework), Vitest for tests, Bun as the package manager.
-
-## Directory Structure
-
-```
-src/
-├── main.ts                          # App entry point, wires UI to conversion logic
-├── global.d.ts                      # Global type declarations
-├── styles/                          # Global CSS
-├── core/
-│   ├── FormatHandler/
-│   │   ├── FormatHandler.ts         # Core interfaces: FormatHandler, FileFormat, FileData
-│   │   └── PriorityQueue.ts         # Priority queue for pathfinding
-│   ├── CommonFormats/
-│   │   └── CommonFormats.ts         # Reusable FormatDefinition constants (PNG, JPEG, JSON, etc.)
-│   ├── TraversionGraph/
-│   │   ├── TraversionGraph.ts       # Graph-based pathfinding for chaining conversions
-│   │   └── TraversionGraph.test.ts
-│   └── utils/
-│       └── normalizeMimeType.ts     # MIME type normalization utility
-├── components/                      # UI components (vanilla TS + CSS modules)
-│   ├── store/store.ts               # Shared UI state, DOM refs, constants
-│   ├── UploadZone/                  # File upload drag-and-drop area
-│   ├── FormatModal/                 # Format picker modal with search
-│   ├── CategoryTabs/                # Category tab navigation
-│   ├── ConversionModal/             # Conversion progress display
-│   ├── FilesModal/                  # Multi-file management modal
-│   ├── TopBar/                      # Top navigation bar
-│   ├── Popup/                       # Generic popup component
-│   └── CustomCursor/                # Custom cursor effect
-├── effects/
-│   └── Confetti/                    # Confetti animation effect
-├── handlers/                        # All conversion handlers (the bulk of the codebase)
-│   ├── index.ts                     # Handler registry — imports and exports all handlers
-│   ├── FFmpeg.ts                    # FFmpeg-based audio/video conversions
-│   ├── ImageMagick.ts               # ImageMagick-based image conversions
-│   ├── pandoc.ts                    # Pandoc-based document conversions
-│   ├── jszip.ts                     # ZIP archive handling
-│   ├── canvasToBlob.ts              # Canvas-based image format conversions
-│   └── ...                          # ~40+ additional specialized handlers
-├── test/                            # Test resources and setup
-vite.config.js                       # Vite config with WASM static copy targets
-tsconfig.json                        # TypeScript config
-package.json                         # Dependencies and scripts
-```
-
-## Key Concepts
-
-### FormatHandler Interface
-
-Every conversion tool implements `FormatHandler` (defined in `src/core/FormatHandler/FormatHandler.ts`):
-
-```ts
-interface FormatHandler {
-  name: string;                    // Tool name (e.g. "FFmpeg")
-  supportedFormats?: FileFormat[]; // Formats this handler can convert to/from
-  supportAnyInput?: boolean;       // Accepts any input type (fallback handler)
-  ready: boolean;                  // Set to true after init()
-  init(): Promise<void>;           // Initialize the handler, populate supportedFormats
-  doConvert(inputFiles, inputFormat, outputFormat, args?): Promise<FileData[]>;
-}
-```
-
-### FileFormat and CommonFormats
-
-`FileFormat` describes a file format with fields: `name`, `format`, `extension`, `mime`, `from`, `to`, `internal`, `category`, `lossless`.
-
-Use `CommonFormats` (`src/core/CommonFormats/CommonFormats.ts`) to avoid boilerplate. It provides predefined `FormatDefinition` objects with a builder pattern:
-
-```ts
-CommonFormats.PNG.builder("png").allowFrom().allowTo().markLossless()
-```
-
-Categories: `image`, `video`, `audio`, `text`, `document`, `data`, `vector`, `archive`, `spreadsheet`, `presentation`, `font`, `code`.
-
-### TraversionGraph
-
-The graph in `src/core/TraversionGraph/TraversionGraph.ts` builds edges from every handler's supported formats and uses Dijkstra's algorithm to find the cheapest conversion path. It considers category changes, lossiness, and handler priority when computing edge costs. This means handlers don't need to support direct conversion between every pair — the system chains them automatically.
-
-### Handler Loading
-
-Handlers are loaded in two phases (see `src/main.ts`):
-1. **Phase 1 (core):** Statically imported handlers loaded synchronously at startup.
-2. **Phase 2 (background):** Dynamically imported handlers loaded asynchronously after the UI is ready.
-
-The registry is in `src/handlers/index.ts`. Core handlers are in the top section; background handlers are in `loadBackgroundHandlers()`.
-
-## Common Tasks
+### The MCP Environment constraints
+The web application of frogConvert chains handlers that might rely on browser APIs (like `Canvas`, `DOM`, `window`). 
+**The MCP server (`src/mcp/index.ts`) runs in Node.js.** Therefore:
+1. The MCP registry (`src/mcp/core/handlers.ts`) **strictly excludes** browser-only handlers.
+2. Only handlers capable of running purely in Node.js or via Node-compatible WASM (like `FFmpegHandler` and `ImageMagickHandler`) are registered.
+3. WASM asset `fetch` calls are polyfilled (`src/mcp/core/polyfills.ts`) to read local files from the repository (`node_modules` or `src/`) instead of relying on a development server URL.
 
 ### Adding a New Handler
+If asked to add support for a new format:
+1. Write a new handler class in `src/handlers/` implementing `FormatHandler`. 
+2. Use the `CommonFormats` utility (`src/core/CommonFormats/CommonFormats.ts`) to declare `supportedFormats`.
+3. If the handler relies **only** on Node-compatible APIs or WASM:
+   - Export and register it in `src/mcp/core/handlers.ts` to make it available to the MCP server.
+4. If the handler requires WASM files, add an interception rule in `src/mcp/core/polyfills.ts` so `fetch()` can read the WASM file from disk.
 
-1. Create `src/handlers/yourhandler.ts` implementing `FormatHandler`.
-2. Name the class `yourhandlerHandler` and set `this.name` to `"yourhandler"`.
-3. In `init()`, populate `this.supportedFormats` using `CommonFormats` builders or raw `FileFormat` objects. Set `this.ready = true`.
-4. Implement `doConvert()` to perform the actual conversion. Set output file names (swap the extension). Clone byte buffers with `new Uint8Array(buffer)` if the handler might mutate them.
-5. Register the handler in `src/handlers/index.ts`:
-   - For core handlers: add a static import and `handlers.push(new yourhandlerHandler())` at the top.
-   - For non-core handlers: add a dynamic import entry in `loadBackgroundHandlers()`.
-6. If the handler needs WASM or other static assets, add a `viteStaticCopy` target in `vite.config.js`.
-
-### Adding a New Format to an Existing Handler
-
-Open the handler file and add a new entry to `this.supportedFormats` in `init()`. Use `CommonFormats` if a definition already exists, or define a raw `FileFormat` object.
-
-### Modifying UI Components
-
-Components live in `src/components/`. Each component is a folder with a `.ts` file and a `.css` file. There is no framework — components use vanilla DOM manipulation. Shared state and DOM references are in `src/components/store/store.ts`.
-
-### Running Tests
-
-```bash
-bun run test        # Run all tests once
-bun run test:watch  # Watch mode
+### File Structure
+```text
+src/
+├── core/
+│   ├── FormatHandler/      # Core interfaces (FormatHandler, FileFormat, FileData)
+│   ├── CommonFormats/      # Constants for defining MIME types and extensions
+│   └── TraversionGraph/    # Pathfinding graph algorithm
+├── handlers/               # The actual conversion logic (FFmpeg, ImageMagick, Pandoc, etc.)
+└── mcp/                    # MCP Server implementation
+    ├── index.ts            # Entry point for `npm run mcp`
+    ├── core/               
+    │   ├── handlers.ts     # The Node.js compatible handler registry
+    │   └── polyfills.ts    # Fetch polyfills for loading WASM locally
+    └── tools/              # Tool execution logic
+        ├── convertFile.ts
+        ├── findConversionPath.ts
+        └── listFormats.ts
 ```
-
-Tests use Vitest with jsdom. Test files are colocated with their source as `*.test.ts`.
-
-### Building
-
-```bash
-bun run build       # Production build (tsc + vite build)
-bun run dev         # Dev server
-```
-
-## Important Conventions
-
-- **Naming:** Handler file is `yourhandler.ts`, class is `yourhandlerHandler`, `name` property is `"yourhandler"`.
-- **MIME normalization:** Always run MIME types through `normalizeMimeType()` from `src/core/utils/normalizeMimeType.ts`.
-- **Media-first thinking:** Treat files as the media they represent, not the data they contain. An SVG is an image, not XML.
-- **Buffer safety:** Handlers must not mutate input byte buffers. Clone with `new Uint8Array()` when needed.
-- **No CDNs:** Install dependencies via npm/bun or add as git submodules. Avoid CDN links.
-- **WASM assets:** Add to `viteStaticCopy` targets in `vite.config.js`, served under `/convert/wasm/`.
-- **Format cache:** The app caches supported formats in localStorage. During development, use `printSupportedFormatCache()` in the browser console to generate a `cache.json` for faster startup.
