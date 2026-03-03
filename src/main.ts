@@ -184,7 +184,7 @@ function refreshUI() {
       localStorage.setItem("supportedFormatCache", JSON.stringify(entries));
     } catch (_) { }
     console.log(`Phase 2: ${handlers.length - countBefore} background handlers loaded.`);
-  }, 0);
+  }, 1000);
 })();
 
 // --- Conversion logic ---

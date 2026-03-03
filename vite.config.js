@@ -4,6 +4,9 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
+  build: {
+    sourcemap: true
+  },
   test: {
     globals: true,
     environment: 'jsdom',

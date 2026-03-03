@@ -3,6 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <script>
     // Apply dark mode immediately to prevent white flash
@@ -21,12 +22,18 @@
       document.documentElement.style.opacity = '1';
     });
   </script>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    as="style">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"
+    media="print" onload="this.media='all'">
+  <noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  </noscript>
 
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <link rel="apple-touch-icon" href="/favicon.ico">
   <title>frogConvert — Convert 50+ file formats, privately in your browser</title>
   <meta name="description"
     content="🐸 Convert between 50+ file formats privately in your browser. No uploads, no servers - everything stays on your device.">
@@ -144,7 +151,7 @@
         <span aria-hidden="true"></span>
         <span aria-hidden="true"></span>
       </button>
-      <div id="top-controls-menu" role="menu">
+      <div id="top-controls-menu">
         <span id="filter-label">Filter:</span>
         <button id="mode-toggle" title="Filter the formats you can select"
           aria-label="Toggle format filter: Core Formats"> Core Formats</button>
@@ -190,8 +197,9 @@
 
     <div class="convert-field" id="from-field">
       <span id="upload-label" class="field-label">Your file</span>
-      <div id="upload-zone" role="button" tabindex="0" aria-labelledby="upload-label" aria-describedby="upload-hint">
-        <p class="upload-text">Drop your files here</p>
+      <div id="upload-zone" role="button" tabindex="0" aria-labelledby="upload-label upload-text"
+        aria-describedby="upload-hint">
+        <p class="upload-text" id="upload-text">Drop your files here</p>
         <p class="upload-hint" id="upload-hint">or click to browse</p>
         <div class="upload-file-info" aria-live="polite" aria-atomic="true">
           <span class="upload-file-name"></span>
@@ -213,9 +221,9 @@
 
     <div class="convert-field" id="to-field">
       <span id="format-selector-label" class="convert-to-label">Convert to</span>
-      <button class="format-selector" id="format-selector" aria-labelledby="format-selector-label"
+      <button class="format-selector" id="format-selector" aria-labelledby="format-selector-label format-selector-text"
         aria-haspopup="listbox" aria-expanded="false">
-        <span class="selector-text placeholder">Choose a format...</span>
+        <span class="selector-text placeholder" id="format-selector-text">Choose a format...</span>
         <span class="selector-chevron" aria-hidden="true">&#9662;</span>
       </button>
     </div>

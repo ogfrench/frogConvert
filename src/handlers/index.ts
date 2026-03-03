@@ -75,6 +75,7 @@ export async function loadBackgroundHandlers() {
 
   for (const loader of loaders) {
     try { await loader(); } catch (_) { }
+    await new Promise(r => setTimeout(r, 0));
   }
 }
 
