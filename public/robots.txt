@@ -1,0 +1,34 @@
+# robots.txt for frogConvert
+# https://frogconvert.xyz
+
+# Allow all standard search-engine crawlers
+User-agent: *
+Allow: /
+
+# Explicitly allow AI / Generative Engine bots
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+# Sitemap location
+Sitemap: https://frogconvert.xyz/sitemap.xml
