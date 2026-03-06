@@ -17,8 +17,36 @@
 }
 
 #popup .popup-actions {
-  margin-top: var(--space-2);
+  margin: var(--space-8) calc(-1 * var(--space-8)) calc(-1 * var(--space-10));
+  padding: var(--space-4) var(--space-6) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: auto;
+  border-top: 1px solid var(--border);
+  background-color: var(--card);
+  border-bottom-left-radius: var(--radius-xl);
+  border-bottom-right-radius: var(--radius-xl);
 }
+
+#popup button.btn-secondary,
+#popup button.btn-primary {
+  width: 100%;
+}
+
+#popup button.popup-danger {
+  background-color: var(--destructive);
+  color: var(--destructive-foreground);
+  border-color: var(--destructive);
+}
+
+#popup button.popup-danger:hover {
+  opacity: var(--opacity-hover);
+}
+
+
+
+
 
 .muted-text {
   opacity: 0.6;

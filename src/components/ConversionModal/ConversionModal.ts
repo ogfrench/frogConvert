@@ -87,7 +87,7 @@ export function showCancelConfirmation(): Promise<void> {
     return new Promise<void>((resolve) => {
         const noBtn = document.createElement("button");
         noBtn.id = "confirm-no-btn";
-        noBtn.className = "popup-secondary";
+        noBtn.className = "btn-secondary";
         noBtn.textContent = "No, continue";
         noBtn.addEventListener("click", () => {
             _isConfirming = false;
@@ -97,7 +97,7 @@ export function showCancelConfirmation(): Promise<void> {
 
         const yesBtn = document.createElement("button");
         yesBtn.id = "confirm-yes-btn";
-        yesBtn.className = "popup-danger";
+        yesBtn.className = "btn-primary popup-danger";
         yesBtn.textContent = "Yes, cancel";
         yesBtn.addEventListener("click", () => {
             _isConfirming = false;
@@ -121,9 +121,9 @@ export function ensureCancelButton() {
 
     if (!actions.querySelector("#cancel-conversion-btn")) {
         const btn = document.createElement("button");
-        btn.className = "popup-secondary";
+        btn.className = "btn-secondary";
         btn.id = "cancel-conversion-btn";
-        btn.textContent = "Cancel";
+        btn.textContent = "Cancel conversion";
         btn.addEventListener("click", () => triggerCancellation());
         actions.appendChild(btn);
     }
