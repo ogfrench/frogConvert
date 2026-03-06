@@ -174,6 +174,11 @@ export interface FormatHandler {
    */
   ready: boolean;
   /**
+   * Whether the handler requires DOM APIs and thus needs to run on the main thread.
+   * If false or undefined, it can be run in a Web Worker to avoid blocking the UI.
+   */
+  requiresMainThread?: boolean;
+  /**
    * Initializes the handler if necessary.
    * Should set {@link ready} to true.
    */

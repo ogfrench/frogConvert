@@ -12,12 +12,13 @@ class svgForeignObjectHandler implements FormatHandler {
   ];
 
   public ready: boolean = true;
+  public requiresMainThread: boolean = true;
 
-  async init () {
+  async init() {
     this.ready = true;
   }
 
-  static async normalizeHTML (html: string) {
+  static async normalizeHTML(html: string) {
     // To get the size of the input document, we need the
     // browser to actually render it.
     // Create a hidden "dummy" element on the DOM.
@@ -68,7 +69,7 @@ class svgForeignObjectHandler implements FormatHandler {
     return { xml, bbox };
   }
 
-  async doConvert (
+  async doConvert(
     inputFiles: FileData[],
     inputFormat: FileFormat,
     outputFormat: FileFormat

@@ -19,14 +19,15 @@ class canvasToBlobHandler implements FormatHandler {
   #ctx?: CanvasRenderingContext2D;
 
   public ready: boolean = false;
+  public requiresMainThread: boolean = true;
 
-  async init () {
+  async init() {
     this.#canvas = document.createElement("canvas");
     this.#ctx = this.#canvas.getContext("2d") || undefined;
     this.ready = true;
   }
 
-  async doConvert (
+  async doConvert(
     inputFiles: FileData[],
     inputFormat: FileFormat,
     outputFormat: FileFormat
@@ -66,7 +67,7 @@ class canvasToBlobHandler implements FormatHandler {
         this.#ctx.strokeStyle = "white";
         this.#ctx.font = font;
 
-        for (let i = 0; i < lines.length; i ++) {
+        for (let i = 0; i < lines.length; i++) {
           const line = lines[i];
           this.#ctx.fillText(line, 0, fontSize * (i + 1));
           this.#ctx.strokeText(line, 0, fontSize * (i + 1));
@@ -95,14 +96,14 @@ class canvasToBlobHandler implements FormatHandler {
       }
 
       let bytes: Uint8Array;
-      if(outputFormat.mime === "text/plain") {
+      if (outputFormat.mime === "text/plain") {
         const pixels = this.#ctx.getImageData(0, 0, this.#canvas.width, this.#canvas.height);
-        bytes = new TextEncoder().encode(imageToText({
+        bytes = new TextEncoder().encode(await imageToText({
           width() { return pixels.width; },
           height() { return pixels.height; },
           getPixel(x: number, y: number) {
-            const index = (y*pixels.width + x)*4;
-            return rgbaToGrayscale(pixels.data[index]/255, pixels.data[index+1]/255, pixels.data[index+2]/255, pixels.data[index+3]/255);
+            const index = (y * pixels.width + x) * 4;
+            return rgbaToGrayscale(pixels.data[index] / 255, pixels.data[index + 1] / 255, pixels.data[index + 2] / 255, pixels.data[index + 3] / 255);
           }
         }));
       }

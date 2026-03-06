@@ -74,14 +74,9 @@
 }
 
 .upload-file-name {
-  flex: 1;
-  min-width: 0;
   font-size: var(--text-base);
   font-weight: var(--font-semibold);
   color: var(--foreground);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   text-align: left;
 }
 
@@ -91,28 +86,6 @@
   flex-shrink: 0;
 }
 
-.upload-action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--space-7);
-  height: var(--space-7);
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background-color: var(--card);
-  color: var(--muted-foreground);
-  font-size: var(--text-base);
-  cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-  line-height: var(--leading-none);
-}
-
-.upload-action-btn:hover {
-  background-color: var(--accent);
-  color: var(--foreground);
-  border-color: var(--ring);
-}
 
 /* --- Convert Direction Indicator (decorative) --- */
 #convert-arrow-wrap {

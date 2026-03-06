@@ -59,6 +59,7 @@ class qoaFuHandler implements FormatHandler {
     }
   ];
   public ready: boolean = false;
+  public requiresMainThread: boolean = true;
 
   #audioContext?: AudioContext;
 
@@ -106,7 +107,7 @@ class qoaFuHandler implements FormatHandler {
     this.ready = true;
   }
 
-  async doConvert (
+  async doConvert(
     inputFiles: FileData[],
     inputFormat: FileFormat,
     outputFormat: FileFormat
@@ -126,32 +127,38 @@ class qoaFuHandler implements FormatHandler {
 
     if (inputIsQOA) { // QOA => WAV
       for (const inputFile of inputFiles) {
-          const decoder = new uint8ArrayQOADecoder(inputFile.bytes);
-          if (!decoder.readHeader()) {
-            throw "Invalid QOA header."
-          }
-          const audioData = new Int16Array(decoder.getTotalSamples()*decoder.getChannels());
-          let pos = 0;
-          while (!decoder.isEnd()) {
-            pos += decoder.readFrame(audioData.subarray(pos, Math.min(
-              (QOABase.MAX_FRAME_SAMPLES*decoder.getChannels())+pos,
-              decoder.getTotalSamples()*decoder.getChannels()
-            )))*decoder.getChannels();
-          }
-
-          const wav = new WaveFile();
-          wav.fromScratch(decoder.getChannels(), decoder.getSampleRate(), "16", audioData);
-
-          const wavBytes = wav.toBuffer();
-          const name = inputFile.name.split(".")[0]+".wav";
-          outputFiles.push({bytes: wavBytes, name});
+        const decoder = new uint8ArrayQOADecoder(inputFile.bytes);
+        if (!decoder.readHeader()) {
+          throw "Invalid QOA header."
         }
+        const audioData = new Int16Array(decoder.getTotalSamples() * decoder.getChannels());
+        let pos = 0;
+        let lastYieldTime = performance.now();
+        while (!decoder.isEnd()) {
+          pos += decoder.readFrame(audioData.subarray(pos, Math.min(
+            (QOABase.MAX_FRAME_SAMPLES * decoder.getChannels()) + pos,
+            decoder.getTotalSamples() * decoder.getChannels()
+          ))) * decoder.getChannels();
+
+          if (performance.now() - lastYieldTime > 15) {
+            await new Promise(r => setTimeout(r, 0));
+            lastYieldTime = performance.now();
+          }
+        }
+
+        const wav = new WaveFile();
+        wav.fromScratch(decoder.getChannels(), decoder.getSampleRate(), "16", audioData);
+
+        const wavBytes = wav.toBuffer();
+        const name = inputFile.name.split(".")[0] + ".wav";
+        outputFiles.push({ bytes: wavBytes, name });
+      }
     } else { // any audio => QOA
       for (const inputFile of inputFiles) {
         const inputBytes = new Uint8Array(inputFile.bytes);
         const audioData = await this.#audioContext?.decodeAudioData(inputBytes.buffer);
 
-        const encoder = new uint8ArrayQOAEncoder((audioData.length*audioData.numberOfChannels*4)/8+4096);
+        const encoder = new uint8ArrayQOAEncoder((audioData.length * audioData.numberOfChannels * 4) / 8 + 4096);
         if (!encoder.writeHeader(audioData.length, audioData.numberOfChannels, audioData.sampleRate)) {
           throw "Failed to write QOA header.";
         }
@@ -162,8 +169,9 @@ class qoaFuHandler implements FormatHandler {
         }
 
         let offset = 0;
+        let lastYieldTime = performance.now();
         while (offset < audioData.length) {
-          const frameSamples = Math.min(QOABase.MAX_FRAME_SAMPLES, audioData.length-offset);
+          const frameSamples = Math.min(QOABase.MAX_FRAME_SAMPLES, audioData.length - offset);
           const frameBuffer = new Int16Array(frameSamples * audioData.numberOfChannels);
 
           let index = 0;
@@ -180,11 +188,16 @@ class qoaFuHandler implements FormatHandler {
           }
 
           offset += frameSamples;
+
+          if (performance.now() - lastYieldTime > 15) {
+            await new Promise(r => setTimeout(r, 0));
+            lastYieldTime = performance.now();
+          }
         }
 
         const qoaBytes = encoder.getData();
-        const name = inputFile.name.split(".")[0]+".qoa";
-        outputFiles.push({bytes: qoaBytes, name});
+        const name = inputFile.name.split(".")[0] + ".qoa";
+        outputFiles.push({ bytes: qoaBytes, name });
       }
     }
 

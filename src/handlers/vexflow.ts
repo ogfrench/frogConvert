@@ -7,6 +7,7 @@ class VexFlowHandler implements FormatHandler {
   public name: string = "VexFlow";
   public supportedFormats?: FileFormat[];
   public ready: boolean = false;
+  public requiresMainThread = true;
   private static fontsLoaded = false;
 
   async init() {

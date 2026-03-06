@@ -351,6 +351,176 @@ html {
   pointer-events: none;
 }
 
+/* --- Primary Button --- */
+.btn-primary {
+  padding: var(--space-3);
+  border: none;
+  border-radius: var(--radius);
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  font-family: inherit;
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  cursor: pointer;
+  letter-spacing: var(--tracking-snug);
+  transition: opacity 0.2s ease, transform 0.1s ease, background-color 0.3s ease, color 0.3s ease;
+}
+
+.btn-primary:hover {
+  opacity: var(--opacity-hover);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+/* --- Secondary Button --- */
+.btn-secondary {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--secondary);
+  color: var(--foreground);
+  font-family: inherit;
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  cursor: pointer;
+  letter-spacing: var(--tracking-snug);
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.btn-secondary:hover {
+  background-color: var(--accent);
+  border-color: var(--ring);
+}
+
+.btn-secondary:active {
+  transform: scale(0.98);
+}
+
+/* --- Modal Overlay --- */
+.modal-overlay {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--overlay-bg);
+  backdrop-filter: var(--blur-overlay);
+  z-index: 300;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.modal-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* --- Modal Container --- */
+.modal-container {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0.95);
+  width: var(--modal-width);
+  max-width: var(--mobile-content-width);
+  max-height: 80vh;
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  z-index: 301;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease,
+              background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.modal-container.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, -50%) scale(1);
+  pointer-events: auto;
+}
+
+/* --- Modal Header --- */
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-6) var(--space-6) var(--space-4);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+/* --- Modal Close Button --- */
+.modal-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-8);
+  height: var(--space-8);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--muted-foreground);
+  font-size: var(--text-2xl);
+  cursor: pointer;
+  line-height: var(--leading-none);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.modal-close-btn:hover {
+  background-color: var(--accent);
+  color: var(--foreground);
+}
+
+/* --- Small Icon Button --- */
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-7);
+  height: var(--space-7);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--card);
+  color: var(--muted-foreground);
+  font-size: var(--text-base);
+  cursor: pointer;
+  line-height: var(--leading-none);
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.icon-btn:hover {
+  background-color: var(--accent);
+  color: var(--foreground);
+  border-color: var(--ring);
+}
+
+/* --- Text Truncation --- */
+.truncate {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* --- Background visuals --- */
 #bg-visuals {
   position: fixed;

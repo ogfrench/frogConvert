@@ -25,6 +25,7 @@ class qoiFuHandler implements FormatHandler {
     }
   ];
   public ready: boolean = false;
+  public requiresMainThread = true;
 
   #canvas?: HTMLCanvasElement;
   #ctx?: CanvasRenderingContext2D;

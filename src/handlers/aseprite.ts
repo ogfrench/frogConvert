@@ -429,6 +429,7 @@ class asepriteHandler implements FormatHandler {
   #canvas?: HTMLCanvasElement;
   #ctx?: CanvasRenderingContext2D;
   public ready: boolean = false;
+  public requiresMainThread = true;
 
   async init() {
     this.#canvas = document.createElement("canvas");

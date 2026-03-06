@@ -6,6 +6,7 @@ import { WaveFile } from "wavefile";
 export class espeakngHandler implements FormatHandler {
   public name: string = "espeakng";
   public ready: boolean = true;
+  public requiresMainThread = true;
   #tts: SimpleTTS | undefined = undefined;
 
   public supportedFormats: FileFormat[] = [

@@ -17,13 +17,13 @@
   background:
     radial-gradient(ellipse 80% 70% at 35% 30%, rgba(255, 255, 255, 0.25) 0%, transparent 60%),
     conic-gradient(from 200deg at 38% 32%,
-      rgba(255, 0, 80, 0.35),
-      rgba(255, 120, 0, 0.30),
-      rgba(255, 220, 0, 0.28),
-      rgba(0, 220, 100, 0.30),
-      rgba(0, 160, 255, 0.32),
-      rgba(120, 0, 255, 0.30),
-      rgba(255, 0, 80, 0.35));
+      rgba(255, 0, 80, 0.18),
+      rgba(255, 120, 0, 0.14),
+      rgba(255, 220, 0, 0.12),
+      rgba(0, 220, 100, 0.14),
+      rgba(0, 160, 255, 0.15),
+      rgba(120, 0, 255, 0.14),
+      rgba(255, 0, 80, 0.18));
   -webkit-mask: radial-gradient(ellipse 65% 55% at 35% 30%, black 0%, transparent 70%);
   mask: radial-gradient(ellipse 65% 55% at 35% 30%, black 0%, transparent 70%);
   filter: blur(4px);
@@ -40,8 +40,8 @@
   inset: 0;
   border-radius: 50%;
   background: var(--top-bar-bg);
-  backdrop-filter: blur(2px) saturate(120%) brightness(1.05);
-  -webkit-backdrop-filter: blur(2px) saturate(120%) brightness(1.05);
+  backdrop-filter: blur(3px) saturate(180%) brightness(1.05);
+  -webkit-backdrop-filter: blur(3px) saturate(180%) brightness(1.05);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
   transform: scale(1);
@@ -52,20 +52,36 @@
   z-index: 1;
 }
 
-/* Light mode glass */
+/* Light mode glass — visible on white: dark edge + hairline ring + top gleam */
 :root #custom-cursor::after {
-  background: var(--top-bar-bg);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
+  background: rgba(255, 255, 255, 0.50);
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.10),
+    0 0 0 0.5px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.90);
 }
 
-/* Dark mode glass */
+/* Dark mode glass — softer presence, less stark */
 .dark #custom-cursor::after {
-  background: var(--top-bar-bg);
-  border-color: var(--border);
-  box-shadow: var(--shadow-sm);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
+
+/* Rainbow glow animation — hue-rotates the conic-gradient colors */
+@keyframes rainbow-spin {
+  from {
+    filter: blur(10px) hue-rotate(0deg);
+  }
+
+  to {
+    filter: blur(10px) hue-rotate(360deg);
+  }
+}
 
 /* Interactive hover: glass shrinks with spring */
 #custom-cursor.interactive::after,
@@ -73,20 +89,37 @@
   transform: scale(0.65);
 }
 
+/* Hover: soft diffuse rainbow aura behind the glass bead (light mode) */
 #custom-cursor.interactive::before,
 #custom-cursor.interactive-small::before {
-  transform: scale(0.65);
-  opacity: 0.7;
+  transform: scale(1.4);
+  opacity: 0.55;
+  -webkit-mask: none;
+  mask: none;
+  filter: blur(7px);
+  animation: rainbow-spin 4s linear infinite;
+  z-index: 0;
 }
 
-/* Active press: squish effect */
+/* Dark mode: pull glow back — colours are vivid enough on dark bg */
+.dark #custom-cursor.interactive::before,
+.dark #custom-cursor.interactive-small::before {
+  opacity: 0.30;
+}
+
+/* Active press: squish + bright rainbow flash */
 #custom-cursor.active-click::after {
   transform: scale(0.50, 0.42);
 }
 
 #custom-cursor.active-click::before {
   transform: scale(0.50, 0.42);
-  opacity: 0.5;
+  opacity: 0.70;
+  -webkit-mask: none;
+  mask: none;
+  filter: blur(5px) brightness(1.2);
+  animation: rainbow-spin 0.8s linear infinite;
+  z-index: 0;
 }
 
 @media (pointer: coarse) {

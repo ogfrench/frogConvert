@@ -56,9 +56,9 @@ initCategoryTabs((category) => {
   activeCategory.value = category;
   updateCategoryText(activeCategory.value, currentFiles.value.length > 0);
   renderFormatOptions(allOptionsRef.value, activeCategory.value);
-  if (selectedToIndex.value === null) {
-    clearFormatSelection(activeCategory.value);
-  }
+  selectedToIndex.value = null;
+  clearFormatSelection(activeCategory.value);
+  updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
 });
 
 initUploadZone(

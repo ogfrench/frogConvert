@@ -1,46 +1,112 @@
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 import { showPopup, hidePopup } from "../Popup/Popup.ts";
-// --- DOM element references ---
-export const ui = {
-  topBar: document.querySelector("#top-bar") as HTMLDivElement,
-  fileInput: document.querySelector("#file-input") as HTMLInputElement,
-  uploadZone: document.querySelector("#upload-zone") as HTMLDivElement,
-  uploadText: document.querySelector("#upload-zone .upload-text") as HTMLParagraphElement,
-  uploadHint: document.querySelector("#upload-zone .upload-hint") as HTMLParagraphElement,
-  uploadFileInfo: document.querySelector(".upload-file-info") as HTMLDivElement,
-  uploadFileName: document.querySelector(".upload-file-name") as HTMLSpanElement,
-  uploadLabel: document.querySelector("#upload-label") as HTMLLabelElement,
-  expandFilesBtn: document.querySelector("#expand-files-btn") as HTMLButtonElement,
-  replaceFileBtn: document.querySelector("#replace-file-btn") as HTMLButtonElement,
-  removeFileBtn: document.querySelector("#remove-file-btn") as HTMLButtonElement,
-  convertButton: document.querySelector("#convert-button") as HTMLButtonElement,
-  themeToggleButton: document.querySelector("#theme-toggle") as HTMLButtonElement,
-  modeToggleButton: document.querySelector("#mode-toggle") as HTMLButtonElement,
-  formatSelector: document.querySelector("#format-selector") as HTMLButtonElement,
-  formatModal: document.querySelector("#format-modal") as HTMLDivElement,
-  formatOptions: document.querySelector("#format-options") as HTMLDivElement,
-  formatSearch: document.querySelector("#format-modal .format-search") as HTMLInputElement,
-  formatModalBg: document.querySelector("#format-modal-bg") as HTMLDivElement,
-  formatModalClose: document.querySelector("#format-modal-close") as HTMLButtonElement,
-  formatModalTitle: document.querySelector("#format-modal-title") as HTMLHeadingElement,
-  categoryTabs: document.querySelector("#category-tabs") as HTMLElement,
-  popupBox: document.querySelector("#popup") as HTMLDivElement,
-  popupBackground: document.querySelector("#popup-bg") as HTMLDivElement,
-  topControls: document.querySelector("#top-controls") as HTMLDivElement,
-  hamburgerBtn: document.querySelector("#hamburger-btn") as HTMLButtonElement,
-  // Files modal
-  filesModal: document.querySelector("#files-modal") as HTMLDivElement,
-  filesModalBg: document.querySelector("#files-modal-bg") as HTMLDivElement,
-  filesModalClose: document.querySelector("#files-modal-close") as HTMLButtonElement,
-  filesModalTitle: document.querySelector("#files-modal-title") as HTMLHeadingElement,
-  filesList: document.querySelector("#files-list") as HTMLDivElement,
-  filesPagination: document.querySelector("#files-pagination") as HTMLDivElement,
-  filesDropMore: document.querySelector("#files-drop-more") as HTMLDivElement,
-  filesReplaceAll: document.querySelector("#files-replace-all") as HTMLButtonElement,
-  filesRemoveAll: document.querySelector("#files-remove-all") as HTMLButtonElement,
-  filesModalError: document.querySelector("#files-modal-error") as HTMLDivElement,
-  filesModalErrorText: document.querySelector("#files-modal-error-text") as HTMLSpanElement,
-  filesModalErrorClose: document.querySelector("#files-modal-error-close") as HTMLButtonElement,
+// --- DOM element references (lazy-initialized to allow testing) ---
+const uiInternal: Record<string, any> = {};
+
+const SELECTORS: Record<string, string> = {
+  topBar: "#top-bar",
+  fileInput: "#file-input",
+  uploadZone: "#upload-zone",
+  uploadText: "#upload-zone .upload-text",
+  uploadHint: "#upload-zone .upload-hint",
+  uploadFileInfo: ".upload-file-info",
+  uploadFileName: ".upload-file-name",
+  uploadLabel: "#upload-label",
+  expandFilesBtn: "#expand-files-btn",
+  replaceFileBtn: "#replace-file-btn",
+  removeFileBtn: "#remove-file-btn",
+  convertButton: "#convert-button",
+  themeToggleButton: "#theme-toggle",
+  modeToggleButton: "#mode-toggle",
+  formatSelector: "#format-selector",
+  formatModal: "#format-modal",
+  formatOptions: "#format-options",
+  formatSearch: "#format-modal .format-search",
+  formatModalBg: "#format-modal-bg",
+  formatModalClose: "#format-modal-close",
+  formatModalTitle: "#format-modal-title",
+  categoryTabs: "#category-tabs",
+  popupBox: "#popup",
+  popupBackground: "#popup-bg",
+  topControls: "#top-controls",
+  hamburgerBtn: "#hamburger-btn",
+  filesModal: "#files-modal",
+  filesModalBg: "#files-modal-bg",
+  filesModalClose: "#files-modal-close",
+  filesModalTitle: "#files-modal-title",
+  filesList: "#files-list",
+  filesPagination: "#files-pagination",
+  filesDropMore: "#files-drop-more",
+  filesReplaceAll: "#files-replace-all",
+  filesRemoveAll: "#files-remove-all",
+  filesModalError: "#files-modal-error",
+  filesModalErrorText: "#files-modal-error-text",
+  filesModalErrorClose: "#files-modal-error-close",
+};
+
+export const ui = new Proxy({} as any, {
+  get(_, prop: string) {
+    if (uiInternal[prop]) return uiInternal[prop];
+
+    const selector = SELECTORS[prop];
+    if (selector) {
+      if (typeof document === "undefined") {
+        console.warn(`Attempted to access ui.${prop} in a non-browser environment.`);
+        return null;
+      }
+      uiInternal[prop] = document.querySelector(selector);
+      return uiInternal[prop];
+    }
+
+    // Safety check for developer errors
+    if (typeof prop === "string" && !["then", "toJSON", "constructor"].includes(prop)) {
+      console.error(`UI element "${prop}" not found in SELECTORS map.`);
+    }
+    return undefined;
+  },
+  set(_, prop: string, value: any) {
+    uiInternal[prop] = value;
+    return true;
+  },
+}) as {
+  topBar: HTMLDivElement;
+  fileInput: HTMLInputElement;
+  uploadZone: HTMLDivElement;
+  uploadText: HTMLParagraphElement;
+  uploadHint: HTMLParagraphElement;
+  uploadFileInfo: HTMLDivElement;
+  uploadFileName: HTMLSpanElement;
+  uploadLabel: HTMLLabelElement;
+  expandFilesBtn: HTMLButtonElement;
+  replaceFileBtn: HTMLButtonElement;
+  removeFileBtn: HTMLButtonElement;
+  convertButton: HTMLButtonElement;
+  themeToggleButton: HTMLButtonElement;
+  modeToggleButton: HTMLButtonElement;
+  formatSelector: HTMLButtonElement;
+  formatModal: HTMLDivElement;
+  formatOptions: HTMLDivElement;
+  formatSearch: HTMLInputElement;
+  formatModalBg: HTMLDivElement;
+  formatModalClose: HTMLButtonElement;
+  formatModalTitle: HTMLHeadingElement;
+  categoryTabs: HTMLElement;
+  popupBox: HTMLDivElement;
+  popupBackground: HTMLDivElement;
+  topControls: HTMLDivElement;
+  hamburgerBtn: HTMLButtonElement;
+  filesModal: HTMLDivElement;
+  filesModalBg: HTMLDivElement;
+  filesModalClose: HTMLButtonElement;
+  filesModalTitle: HTMLHeadingElement;
+  filesList: HTMLDivElement;
+  filesPagination: HTMLDivElement;
+  filesDropMore: HTMLDivElement;
+  filesReplaceAll: HTMLButtonElement;
+  filesRemoveAll: HTMLButtonElement;
+  filesModalError: HTMLDivElement;
+  filesModalErrorText: HTMLSpanElement;
+  filesModalErrorClose: HTMLButtonElement;
 };
 
 // --- Constants ---
@@ -86,19 +152,21 @@ export function formatBytes(bytes: number): string {
 export function showSizeWarningPopup(
   level: SizeCheckLevel,
   totalSize: number,
+  fileCount: number,
   onProceed: () => void,
 ): void {
   const sizeStr = formatBytes(totalSize);
-
-  const message = `That's a lot of data (${sizeStr}). Browsers often struggle with files this large and might crash. Proceed with caution!`;
-
+  const title = fileCount > 1 ? "Large files detected" : "Large file detected";
+  const body = fileCount > 1
+    ? `These files are ${sizeStr} total. Browsers can struggle with large files and may slow down or crash.`
+    : `This file is ${sizeStr}. Browsers can struggle with large files and may slow down or crash.`;
 
   showPopup(
-    `<h2>Large files detected</h2>` +
-    `<p>${message}</p>` +
+    `<h2>${title}</h2>` +
+    `<p>${body}</p>` +
     `<div class="popup-actions">` +
-    `<button class="popup-secondary" onclick="window.hidePopup()">Cancel</button>` +
-    `<button class="popup-primary" id="size-warn-proceed">Ignore limit and continue</button>` +
+    `<button class="popup-secondary" onclick="window.hidePopup()">‹ Go back</button>` +
+    `<button class="popup-primary" id="size-warn-proceed">Convert anyway</button>` +
     `</div>`,
   );
 
@@ -128,27 +196,20 @@ export function showFileTypeMismatchPopup(files: File[], onProceed: (filtered: F
     typeGroups.get(type)!.push(file);
   }
 
-  let typeSummary = "";
   const typeEntries = [...typeGroups.entries()];
-  for (const [, groupFiles] of typeEntries) {
-    const ext = groupFiles[0].name.split(".").pop()?.toUpperCase() || "Unknown";
-    typeSummary += `<li><b>${ext}</b> \u2014 ${groupFiles.length} file${groupFiles.length > 1 ? "s" : ""}</li>`;
-  }
-
   let actionButtons = "";
   for (const [type, groupFiles] of typeEntries) {
     const ext = groupFiles[0].name.split(".").pop()?.toUpperCase() || "Unknown";
     const count = groupFiles.length;
-    actionButtons += `<button class="popup-secondary" data-type-filter="${type}">Keep only ${ext} (${count} file${count > 1 ? "s" : ""})</button>`;
+    actionButtons += `<button class="type-filter-row" data-type-filter="${type}"><span>Keep only ${ext} (${count} file${count > 1 ? "s" : ""})</span><span class="type-filter-arrow">›</span></button>`;
   }
 
   showPopup(
     `<h2>Multiple file types detected</h2>` +
-    `<p>All files need to be the same type to convert together. You dropped:</p>` +
-    `<ul class="type-list">${typeSummary}</ul>` +
+    `<p>Select which files to keep:</p>` +
     `<div class="popup-actions popup-actions-stacked">` +
     actionButtons +
-    `<button onclick="window.hidePopup()">Cancel</button>` +
+    `<button class="popup-secondary" onclick="window.hidePopup()">‹ Go back</button>` +
     `</div>`,
   );
 
@@ -207,7 +268,15 @@ export const BASIC_FORMATS = new Set([
   "ttf", "otf", "woff", "woff2",
 ]);
 
-export const isAdvancedMode = { value: localStorage.getItem("formatMode") === "advanced" };
+const safeGetLocalStorage = (key: string) => {
+  try {
+    return typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;
+  } catch {
+    return null;
+  }
+};
+
+export const isAdvancedMode = { value: safeGetLocalStorage("formatMode") === "advanced" };
 
 // Lightweight reactive state: plain { value: T } wrappers shared across components.
 export const currentFiles: { value: File[] } = { value: [] };
@@ -279,10 +348,14 @@ export function sortFilesByName(files: File[]): void {
 // --- Theme ---
 
 export function initTheme() {
+  if (typeof window === "undefined" || typeof localStorage === "undefined") return;
+
   function applyTheme(dark: boolean) {
     document.documentElement.classList.add("theme-transition");
     document.documentElement.classList.toggle("dark", dark);
-    ui.themeToggleButton.innerHTML = dark ? "&#9788;" : "&#9790;";
+    if (ui.themeToggleButton) {
+      ui.themeToggleButton.innerHTML = dark ? "&#9788;" : "&#9790;";
+    }
     setTimeout(() => {
       document.documentElement.classList.remove("theme-transition");
     }, 300);
@@ -293,7 +366,7 @@ export function initTheme() {
     applyTheme(true);
   }
 
-  ui.themeToggleButton.addEventListener("click", () => {
+  ui.themeToggleButton?.addEventListener("click", () => {
     const isDark = document.documentElement.classList.contains("dark");
     applyTheme(!isDark);
     localStorage.setItem("theme", isDark ? "light" : "dark");

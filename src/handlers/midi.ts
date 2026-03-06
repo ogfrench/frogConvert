@@ -79,6 +79,7 @@ export class midiCodecHandler implements FormatHandler {
   public name = "miditextcodec";
   public supportedFormats: FileFormat[] = [];
   public ready = false;
+  public requiresMainThread = true;
 
   async init(): Promise<void> {
     this.supportedFormats.push(
@@ -196,6 +197,7 @@ export class midiSynthHandler implements FormatHandler {
   public name = "midi";
   public supportedFormats: FileFormat[] = [];
   public ready = false;
+  public requiresMainThread = true;
 
   #sfontBin?: ArrayBuffer;
   #JSSynth?: any;

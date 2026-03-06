@@ -143,6 +143,7 @@ class floHandler implements FormatHandler {
   public name: string = "floHandler";
   public supportedFormats: FileFormat[] = [];
   public ready: boolean = false;
+  public requiresMainThread = true;
   #worker?: Worker;
   #workerReady?: Promise<void>;
   #rpcId: number = 1;

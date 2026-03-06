@@ -25,9 +25,13 @@ function friendlyMimeLabel(mime: string): string {
 
 // --- Files Management Modal ---
 
+let _filesModalOpener: Element | null = null;
+
 export function openFilesModal() {
+  _filesModalOpener = document.activeElement;
   ui.filesModal.classList.add("open");
   ui.filesModalBg.classList.add("open");
+  ui.filesModal.removeAttribute("aria-hidden");
   filesModalPage.value = 0;
   renderFilesModalList();
   hideFilesModalError();
@@ -54,8 +58,11 @@ export function openFilesModal() {
 }
 
 export function closeFilesModal() {
+  (_filesModalOpener as HTMLElement | null)?.focus();
+  _filesModalOpener = null;
   ui.filesModal.classList.remove("open");
   ui.filesModalBg.classList.remove("open");
+  ui.filesModal.setAttribute("aria-hidden", "true");
   ui.filesModal.style.minHeight = "";
   ui.filesList.style.height = "";
   if (filesModalResizeHandler.value) {
@@ -80,7 +87,7 @@ function renderFilesModalList() {
   if (filesModalPage.value >= totalPages) filesModalPage.value = totalPages - 1;
 
   ui.filesModalTitle.textContent = files.length > 0
-    ? `Your files (${files.length})`
+    ? (files.length === 1 ? `Your file (1)` : `Your files (${files.length})`)
     : "Your files";
 
   const start = filesModalPage.value * FILES_PER_PAGE;
@@ -93,7 +100,7 @@ function renderFilesModalList() {
     row.className = "file-row";
 
     const nameSpan = document.createElement("span");
-    nameSpan.className = "file-row-name";
+    nameSpan.className = "file-row-name truncate";
     nameSpan.textContent = shortenFileName(file.name, 36);
     nameSpan.title = file.name;
 
@@ -101,13 +108,13 @@ function renderFilesModalList() {
     actions.className = "file-row-actions";
 
     const replaceBtn = document.createElement("button");
-    replaceBtn.className = "file-row-btn";
+    replaceBtn.className = "file-row-btn icon-btn";
     replaceBtn.innerHTML = "&#8635;";
     replaceBtn.title = "Replace this file";
     replaceBtn.addEventListener("click", () => replaceFileAtIndex(i));
 
     const removeBtn = document.createElement("button");
-    removeBtn.className = "file-row-btn";
+    removeBtn.className = "file-row-btn icon-btn";
     removeBtn.innerHTML = "&#10005;";
     removeBtn.title = "Remove this file";
     removeBtn.addEventListener("click", () => removeFileAtIndex(i));
@@ -229,6 +236,18 @@ export function initFilesModal() {
       addMoreFiles(Array.from(e.dataTransfer.files));
     }
   });
+
+  // Footer with Go back button
+  if (!ui.filesModal.querySelector(".files-modal-footer")) {
+    const footer = document.createElement("div");
+    footer.className = "files-modal-footer";
+    const backBtn = document.createElement("button");
+    backBtn.className = "files-modal-back btn-secondary";
+    backBtn.textContent = "Go back to convert";
+    backBtn.addEventListener("click", closeFilesModal);
+    footer.appendChild(backBtn);
+    ui.filesModal.appendChild(footer);
+  }
 }
 
 
@@ -250,11 +269,18 @@ function addMoreFiles(newFiles: File[]) {
   if (mismatchCount > 0) {
     const expectedLabel = friendlyMimeLabel(expectedType);
     if (matchingFiles.length > 0) {
-      showFilesModalError(`${mismatchCount} file${mismatchCount > 1 ? "s were" : " was"} skipped - they weren’t ${expectedLabel}s. Added ${matchingFiles.length} matching file${matchingFiles.length > 1 ? "s" : ""}.`);
+      showFilesModalError(`${mismatchCount} file${mismatchCount > 1 ? "s were" : " was"} skipped - ${mismatchCount > 1 ? `they weren’t ${expectedLabel}s` : `it wasn’t a ${expectedLabel}`}. Added ${matchingFiles.length} matching file${matchingFiles.length > 1 ? "s" : ""}.`);
     } else {
-      const isPlural = currentFiles.value.length > 1;
-      const currentFilesText = isPlural ? `Your current files are ${expectedLabel}s` : `Your current file is a ${expectedLabel}`;
-      showFilesModalError(`None of those files matched. ${currentFilesText} - please add more files of the same type.`);
+      const isPluralCurrent = currentFiles.value.length > 1;
+      const currentFilesText = isPluralCurrent
+        ? `Your current files are ${expectedLabel}s`
+        : `Your current file is a ${expectedLabel}`;
+
+      const addedText = newFiles.length > 1
+        ? "None of those files matched"
+        : "That file didn't match";
+
+      showFilesModalError(`${addedText}. ${currentFilesText} - please add more files of the same type.`);
       return;
     }
   }
@@ -266,7 +292,7 @@ function addMoreFiles(newFiles: File[]) {
   const { level, totalSize } = checkFileSizeLimits(combinedFiles);
   if (level !== "ok") {
     closeFilesModal();
-    showSizeWarningPopup(level, totalSize, () => {
+    showSizeWarningPopup(level, totalSize, combinedFiles.length, () => {
       currentFiles.value = combinedFiles;
       sortFilesByName(currentFiles.value);
       applyFilesUpdate(false);

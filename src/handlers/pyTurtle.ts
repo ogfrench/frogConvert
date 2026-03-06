@@ -31,6 +31,7 @@ class pyTurtleHandler implements FormatHandler {
   public name: string = "pyturtle";
   public supportedFormats?: FileFormat[];
   public ready: boolean = false;
+  public requiresMainThread = true;
 
   async init () {
     this.supportedFormats = [

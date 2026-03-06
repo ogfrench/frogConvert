@@ -820,6 +820,7 @@ class vtfHandler implements FormatHandler {
   #ctx?: CanvasRenderingContext2D;
 
   public ready: boolean = false;
+  public requiresMainThread = true;
 
   async init () {
     this.#canvas = document.createElement("canvas");

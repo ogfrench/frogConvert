@@ -1,12 +1,5 @@
 import { ConvertPathNode, type FileFormat, type FormatHandler } from '../FormatHandler/FormatHandler.ts';
-import { PriorityQueue } from '../FormatHandler/PriorityQueue.ts';
 
-interface QueueNode {
-    index: number;
-    cost: number;
-    path: ConvertPathNode[];
-    visitedBorder: number;
-};
 interface CategoryChangeCost {
     from: string;
     to: string;
@@ -27,9 +20,6 @@ const LOSSY_COST_MULTIPLIER: number = 1.4; // Cost multiplier for lossy conversi
 const HANDLER_PRIORITY_COST: number = 0.02; // Cost multiplier for handler priority. Higher values will make the algorithm prefer handlers with higher priority more strongly.
 const FORMAT_PRIORITY_COST: number = 0.05; // Cost multiplier for format priority. Higher values will make the algorithm prefer formats with higher priority more strongly.
 
-const LOG_FREQUENCY = 1000;
-const YIELD_FREQUENCY = 200; // Yield to event loop every N iterations to keep UI responsive
-const MAX_ITERATIONS = 50000; // Hard cap to prevent runaway searches
 
 export interface Node {
     identifier: string;
@@ -44,7 +34,6 @@ export interface Edge {
 };
 
 export class TraversionGraph {
-    private handlers: FormatHandler[] = [];
     private handlersByName: Map<string, FormatHandler> = new Map();
     private handlerPairsCache: Map<string, string> = new Map();
     private nodes: Node[] = [];
@@ -72,6 +61,8 @@ export class TraversionGraph {
     ];
     // Keeps track of path segments that have failed when attempted during the last run
     private temporaryDeadEnds: ConvertPathNode[][] = [];
+    private worker: Worker | null = null;
+
 
     public addCategoryChangeCost(from: string, to: string, cost: number, handler?: string, updateIfExists: boolean = true): boolean {
         if (this.hasCategoryChangeCost(from, to, handler)) {
@@ -136,7 +127,6 @@ export class TraversionGraph {
      * @param strictCategories If true, the algorithm will apply category change costs more strictly, even when formats share categories. This can lead to more accurate pathfinding at the cost of potentially longer paths and increased search time. If false, category change costs will only be applied when formats do not share any categories, allowing for more flexible pathfinding that may yield shorter paths but with less nuanced cost calculations.
      */
     public init(supportedFormatCache: Map<string, FileFormat[]>, handlers: FormatHandler[], strictCategories: boolean = false) {
-        this.handlers = handlers;
         this.nodes.length = 0;
         this.edges.length = 0;
 
@@ -189,6 +179,17 @@ export class TraversionGraph {
         });
         const endTime = performance.now();
         console.log(`Traversion graph initialized in ${(endTime - startTime).toFixed(2)} ms with ${this.nodes.length} nodes and ${this.edges.length} edges.`);
+
+        // Initialize Web Worker
+        if (!this.worker) {
+            this.worker = new Worker(new URL('../../workers/route-search.worker.ts', import.meta.url), { type: 'module' });
+        }
+        this.worker.postMessage({
+            type: 'init',
+            nodes: this.nodes,
+            edges: this.edges,
+            categoryAdaptiveCosts: this.categoryAdaptiveCosts
+        });
     }
     /**
      * Cost function for calculating the cost of converting from one format to another using a specific handler.
@@ -287,124 +288,110 @@ export class TraversionGraph {
         this.listeners.push(listener);
     }
 
+    public removePathEventListener(listener: (state: string, path: ConvertPathNode[]) => void) {
+        const index = this.listeners.indexOf(listener);
+        if (index !== -1) this.listeners.splice(index, 1);
+    }
+
     private dispatchEvent(state: string, path: ConvertPathNode[]) {
         this.listeners.forEach(l => l(state, path));
     }
 
     public async* searchPath(from: ConvertPathNode, to: ConvertPathNode, simpleMode: boolean): AsyncGenerator<ConvertPathNode[]> {
-        // Dijkstra's algorithm
-        // Priority queue of {index, cost, path}
-        let queue: PriorityQueue<QueueNode> = new PriorityQueue<QueueNode>(
-            1000,
-            (a: QueueNode, b: QueueNode) => a.cost - b.cost
-        );
-        // Map of nodeIndex → position when first visited (replaces linear indexOf lookups)
-        let visited = new Map<number, number>();
-        let visitedCount = 0;
+        if (!this.worker) {
+            console.error("Worker not initialized!");
+            return;
+        }
+
         const fromIdentifier = from.format.mime + `(${from.format.format})`;
         const toIdentifier = to.format.mime + `(${to.format.format})`;
+
         let fromIndex = this.nodes.findIndex(node => node.identifier === fromIdentifier);
         let toIndex = this.nodes.findIndex(node => node.identifier === toIdentifier);
-        if (fromIndex === -1 || toIndex === -1) return []; // If either format is not in the graph, return empty array
-        queue.add({ index: fromIndex, cost: 0, path: [from], visitedBorder: visitedCount });
-        console.log(`Starting path search from ${from.format.mime}(${from.handler?.name}) to ${to.format.mime}(${to.handler?.name}) (simple mode: ${simpleMode})`);
-        let iterations = 0;
-        let pathsFound = 0;
-        while (queue.size() > 0) {
-            iterations++;
-            if (iterations > MAX_ITERATIONS) {
-                console.warn(`Path search aborted after ${MAX_ITERATIONS} iterations. Queue size: ${queue.size()}, Paths found: ${pathsFound}`);
-                break;
-            }
-            // Yield to event loop periodically to keep UI responsive
-            if (iterations % YIELD_FREQUENCY === 0) {
-                await new Promise(resolve => setTimeout(resolve, 0));
-            }
-            // Get the node with the lowest cost
-            let current = queue.poll()!;
-            const visitedAt = visited.get(current.index);
-            if (visitedAt !== undefined && visitedAt < current.visitedBorder) {
-                this.dispatchEvent("skipped", current.path);
-                continue;
-            }
-            if (current.index === toIndex) {
-                // Return the path of handlers and formats to get from the input format to the output format
-                const logString = `${iterations} with cost ${current.cost.toFixed(3)}: ${current.path.map(p => p.handler.name + "(" + p.format.mime + ")").join(" → ")}`;
-                const foundPathLast = current.path.at(-1);
-                if (simpleMode || !to.handler || to.handler.name === foundPathLast?.handler.name) {
-                    console.log(`Found path at iteration ${logString}`);
-                    this.dispatchEvent("found", current.path);
-                    yield current.path;
-                    pathsFound++;
-                }
-                else {
-                    console.log(`Invalid path at iteration ${logString}`);
-                    this.dispatchEvent("skipped", current.path);
-                }
-                continue;
-            }
-            if (!visited.has(current.index)) {
-                visited.set(current.index, visitedCount);
-            }
-            visitedCount++;
-            this.dispatchEvent("searching", current.path);
-            this.nodes[current.index].edges.forEach(edgeIndex => {
-                let edge = this.edges[edgeIndex];
-                const edgeVisitedAt = visited.get(edge.to.index);
-                if (edgeVisitedAt !== undefined && edgeVisitedAt < current.visitedBorder) return;
-                const handler = this.handlersByName.get(edge.handler);
-                if (!handler) return; // If the handler for this edge is not found, skip it
 
-                let path = current.path.concat({ handler: handler, format: edge.to.format });
-                const nextCost = current.cost + edge.cost + this.calculateAdaptiveCost(path);
-                if (nextCost === Infinity) return; // Completely skip temporary dead ends
+        if (fromIndex === -1 || toIndex === -1) return;
 
-                queue.add({
-                    index: edge.to.index,
-                    cost: nextCost,
-                    path: path,
-                    visitedBorder: visitedCount
-                });
-            });
-            if (iterations % LOG_FREQUENCY === 0) {
-                console.log(`Still searching... Iterations: ${iterations}, Paths found: ${pathsFound}, Queue length: ${queue.size()}`);
-            }
-        }
-        console.log(`Path search completed. Total iterations: ${iterations}, Total paths found: ${pathsFound}`);
-    }
+        // Convert path to serializable format
+        const initialPath = [{ handlerName: from.handler.name, format: from.format }];
+        const initialDeadEnds = this.temporaryDeadEnds.map(d =>
+            d.map(n => ({ handlerName: n.handler.name, format: n.format }))
+        );
 
-    private calculateAdaptiveCost(path: ConvertPathNode[]): number {
-        for (const deadEnd of this.temporaryDeadEnds) {
-            let isDeadEnd = true;
-            for (let i = 0; i < deadEnd.length; i++) {
-                if (path[i] === deadEnd[i]) continue;
-                isDeadEnd = false;
-                break;
-            }
-            if (isDeadEnd) return Infinity;
-        }
-        let cost = 0;
-        const categoriesInPath = path.map(p => p.format.category || p.format.mime.split("/")[0]);
-        this.categoryAdaptiveCosts.forEach(c => {
-            let pathPtr = categoriesInPath.length - 1, categoryPtr = c.categories.length - 1;
-            while (true) {
-                if (categoriesInPath[pathPtr] === c.categories[categoryPtr]) {
-                    categoryPtr--;
-                    pathPtr--;
+        let workerMessageQueue: any[] = [];
+        let workerMessageResolver: ((msg: any) => void) | null = null;
 
-                    if (categoryPtr < 0) {
-                        cost += c.cost;
-                        break;
-                    }
-                    if (pathPtr < 0) break;
-                }
-                else if (categoryPtr + 1 < c.categories.length && categoriesInPath[pathPtr] === c.categories[categoryPtr + 1]) {
-                    pathPtr--;
-                    if (pathPtr < 0) break;
-                }
-                else break;
+        const messageListener = (e: MessageEvent) => {
+            if (workerMessageResolver) {
+                workerMessageResolver(e.data);
+                workerMessageResolver = null;
+            } else {
+                workerMessageQueue.push(e.data);
             }
+        };
+        this.worker.addEventListener('message', messageListener);
+
+        this.worker.postMessage({
+            type: 'start',
+            fromIdentifier,
+            toIdentifier,
+            isSimpleMode: simpleMode,
+            targetHandlerName: to.handler?.name,
+            initialDeadEnds,
+            initialPath
         });
-        return cost;
+
+        const deserializePath = (serializablePath: any[]): ConvertPathNode[] => {
+            return serializablePath.map(p => {
+                const handler = this.handlersByName.get(p.handlerName)!;
+                return { handler, format: p.format };
+            });
+        };
+
+        try {
+            let processedMessages = 0;
+            while (true) {
+                let message;
+                if (workerMessageQueue.length > 0) {
+                    message = workerMessageQueue.shift();
+                    // Yield occasionally to ensure UI responsiveness when flushing large backlog
+                    if (++processedMessages % 100 === 0) {
+                        await new Promise(r => setTimeout(r, 0));
+                    }
+                } else {
+                    // Let the browser paint before actively awaiting the next message
+                    // Without this macro-task yield, microtask (Promise) queues might starve the render thread
+                    // if the worker resolves extremely quickly in bursts.
+                    // Note: In Vitest (Node.js), setTimeout can break the mock worker's synchronous flow, so we skip it if we detect a mock worker.
+                    if (!(this.worker as any).__isMockWorker) {
+                        await new Promise(r => setTimeout(r, 0));
+                    }
+                    message = await new Promise<any>((resolve) => {
+                        workerMessageResolver = resolve;
+                    });
+                }
+
+                if (message.type === 'done') {
+                    break;
+                } else if (message.type === 'found') {
+                    const path = deserializePath(message.path);
+                    this.dispatchEvent("found", path);
+
+                    yield path; // Yield to caller
+
+                    // Caller requested the next path, resume worker with latest dead ends
+                    const currentDeadEnds = this.temporaryDeadEnds.map(d =>
+                        d.map(n => ({ handlerName: n.handler.name, format: n.format }))
+                    );
+                    this.worker!.postMessage({ type: 'resume', deadEnds: currentDeadEnds });
+                } else if (message.type === 'searching') {
+                    this.dispatchEvent("searching", deserializePath(message.path));
+                } else if (message.type === 'skipped') {
+                    this.dispatchEvent("skipped", deserializePath(message.path));
+                }
+            }
+        } finally {
+            this.worker.removeEventListener('message', messageListener);
+            this.worker.postMessage({ type: 'stop' });
+        }
     }
 }

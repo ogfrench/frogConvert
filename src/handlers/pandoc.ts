@@ -160,7 +160,7 @@ class pandocHandler implements FormatHandler {
     warnings: any;
   }>;
 
-  async init () {
+  async init() {
     const { query, convert } = await import("./pandoc/pandoc.js");
     this.query = query;
     this.convert = convert;
@@ -222,7 +222,7 @@ class pandocHandler implements FormatHandler {
     this.ready = true;
   }
 
-  async doConvert (
+  async doConvert(
     inputFiles: FileData[],
     inputFormat: FileFormat,
     outputFormat: FileFormat

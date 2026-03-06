@@ -193,6 +193,7 @@ class sppdHandler implements FormatHandler {
   ];
 
   public ready: boolean = false;
+  public requiresMainThread: boolean = true;
 
   private renderBounds = { width: 640, height: 360 };
 
@@ -381,7 +382,7 @@ class sppdHandler implements FormatHandler {
     }
   }
 
-  buildWalls(voxels: Map<string, Vector>, portalVoxels: Map<string, Vector>) {
+  async buildWalls(voxels: Map<string, Vector>, portalVoxels: Map<string, Vector>) {
     const directions = [
       new Vector(1, 0, 0),
       new Vector(-1, 0, 0),
@@ -395,7 +396,14 @@ class sppdHandler implements FormatHandler {
       voxels.delete(key);
     }
 
+    let lastYieldTime = performance.now();
     for (const [_key, position] of voxels) {
+
+      if (performance.now() - lastYieldTime > 15) {
+        await new Promise(r => setTimeout(r, 0));
+        lastYieldTime = performance.now();
+      }
+
       for (let i = 0; i < directions.length; i++) {
         const neighbor = position.Add(directions[i]);
         const neighborKey = `${neighbor.x};${neighbor.y};${neighbor.z}`;
@@ -540,7 +548,7 @@ class sppdHandler implements FormatHandler {
         continue;
       }
 
-      this.buildWalls(voxels, portalVoxels);
+      await this.buildWalls(voxels, portalVoxels);
       this.resetSceneEntities();
 
       await new Promise(resolve => {

@@ -6,6 +6,7 @@ class svgTraceHandler implements FormatHandler {
   public name: string = "svgTrace";
   public supportedFormats?: FileFormat[];
   public ready: boolean = false;
+  public requiresMainThread: boolean = true;
 
   async init() {
     this.supportedFormats = [

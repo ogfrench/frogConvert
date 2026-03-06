@@ -82,6 +82,7 @@ class libopenmptHandler implements FormatHandler {
   public name: string = "libopenmpt";
   public supportedFormats: FileFormat[] = [];
   public ready: boolean = false;
+  public requiresMainThread = true;
 
   #module?: LibOpenMPTModule;
 

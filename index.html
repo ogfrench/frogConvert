@@ -245,13 +245,13 @@
         <p class="upload-text" id="upload-text">Drop your files here</p>
         <p class="upload-hint" id="upload-hint">or click to browse</p>
         <div class="upload-file-info" aria-live="polite" aria-atomic="true">
-          <span class="upload-file-name"></span>
+          <span class="upload-file-name truncate"></span>
           <div class="upload-file-actions">
-            <button class="upload-action-btn" id="expand-files-btn" title="Manage files"
+            <button class="upload-action-btn icon-btn" id="expand-files-btn" title="Manage files"
               aria-label="Manage files">&#9776;</button>
-            <button class="upload-action-btn" id="replace-file-btn" title="Replace file"
+            <button class="upload-action-btn icon-btn" id="replace-file-btn" title="Replace file"
               aria-label="Replace file">&#8635;</button>
-            <button class="upload-action-btn" id="remove-file-btn" title="Remove file"
+            <button class="upload-action-btn icon-btn" id="remove-file-btn" title="Remove file"
               aria-label="Remove file">&#10005;</button>
           </div>
         </div>
@@ -266,12 +266,12 @@
       <span id="format-selector-label" class="convert-to-label">Convert to</span>
       <button class="format-selector" id="format-selector" aria-labelledby="format-selector-label format-selector-text"
         aria-haspopup="listbox" aria-expanded="false">
-        <span class="selector-text placeholder" id="format-selector-text">Choose a format...</span>
+        <span class="selector-text placeholder truncate" id="format-selector-text">Choose a format...</span>
         <span class="selector-chevron" aria-hidden="true">&#9662;</span>
       </button>
     </div>
 
-    <button id="convert-button" class="disabled" aria-disabled="true">Convert</button>
+    <button id="convert-button" class="btn-primary disabled" aria-disabled="true">Convert</button>
 
   </main>
 
@@ -288,11 +288,11 @@
     </div>
   </footer>
 
-  <div id="format-modal-bg" aria-hidden="true"></div>
-  <div id="format-modal" role="dialog" aria-modal="true" aria-labelledby="format-modal-title" aria-hidden="true">
-    <div class="format-modal-header">
+  <div id="format-modal-bg" class="modal-overlay" aria-hidden="true"></div>
+  <div id="format-modal" class="modal-container" role="dialog" aria-modal="true" aria-labelledby="format-modal-title" aria-hidden="true">
+    <div class="format-modal-header modal-header">
       <h2 id="format-modal-title">Choose format</h2>
-      <button class="format-modal-close" id="format-modal-close" title="Close"
+      <button class="format-modal-close modal-close-btn" id="format-modal-close" title="Close"
         aria-label="Close format picker">&#10005;</button>
     </div>
     <input type="text" id="format-search" name="format-search" class="format-search" placeholder="Search formats..."
@@ -300,11 +300,11 @@
     <div class="format-options" id="format-options" role="listbox" aria-labelledby="format-modal-title"></div>
   </div>
 
-  <div id="files-modal-bg" aria-hidden="true"></div>
-  <div id="files-modal" role="dialog" aria-modal="true" aria-labelledby="files-modal-title" aria-hidden="true">
-    <div class="files-modal-header">
+  <div id="files-modal-bg" class="modal-overlay" aria-hidden="true"></div>
+  <div id="files-modal" class="modal-container" role="dialog" aria-modal="true" aria-labelledby="files-modal-title" aria-hidden="true">
+    <div class="files-modal-header modal-header">
       <h2 id="files-modal-title">Your files</h2>
-      <button class="files-modal-close" id="files-modal-close" title="Close"
+      <button class="files-modal-close modal-close-btn" id="files-modal-close" title="Close"
         aria-label="Close file manager">&#10005;</button>
     </div>
     <div class="files-modal-top-actions">

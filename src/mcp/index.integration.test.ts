@@ -6,11 +6,11 @@ describe('MCP Server Integration', () => {
     let client: Client;
 
     beforeAll(async () => {
-        const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+        const proc = (globalThis as any).process;
         const transport = new StdioClientTransport({
-            command,
+            command: proc?.platform === 'win32' ? "npx.cmd" : "npx",
             args: ["tsx", "src/mcp/index.ts"],
-            env: process.env
+            env: { ...proc?.env }
         });
 
         client = new Client(

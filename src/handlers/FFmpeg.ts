@@ -1,11 +1,116 @@
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
-import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { FFmpeg as FFmpegWASM } from "@ffmpeg/ffmpeg";
 import type { LogEvent } from "@ffmpeg/ffmpeg";
 
 import mime from "mime";
 import normalizeMimeType from "../core/utils/normalizeMimeType.ts";
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
+
+class NativeFFmpegAdapter {
+  #logCallback: (log: { message: string }) => void = () => { };
+  #tempDir: string = "";
+
+  async load() {
+    const fsName = "fs/promises";
+    const pathName = "path";
+    const osName = "os";
+    const cpName = "child_process";
+
+    const fs = await import(/* @vite-ignore */ fsName);
+    const path = await import(/* @vite-ignore */ pathName);
+    const os = await import(/* @vite-ignore */ osName);
+    const { spawn } = await import(/* @vite-ignore */ cpName);
+
+    this.#tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "ffmpeg-node-"));
+    // check if ffmpeg is available
+    await new Promise((resolve, reject) => {
+      const p = spawn("ffmpeg", ["-version"]);
+      p.on("close", (code: number) => code === 0 ? resolve(true) : reject("ffmpeg native binary not found in system PATH. Install ffmpeg on the host machine."));
+      p.on("error", reject);
+    });
+  }
+
+  on(event: string, cb: any) {
+    if (event === "log") this.#logCallback = cb;
+  }
+
+  off(event: string, cb: any) {
+    if (event === "log") this.#logCallback = () => { };
+  }
+
+  async exec(args: string[], timeout: number = -1): Promise<void> {
+    const cpName = "child_process";
+    const { spawn } = await import(/* @vite-ignore */ cpName);
+    return new Promise((resolve, reject) => {
+      const p = spawn("ffmpeg", args, { cwd: this.#tempDir });
+
+      p.stdout.on("data", (data: any) => {
+        const msg = data.toString();
+        msg.split('\n').forEach((line: string) => {
+          if (line) this.#logCallback({ message: line });
+        });
+      });
+      p.stderr.on("data", (data: any) => {
+        const msg = data.toString();
+        msg.split('\n').forEach((line: string) => {
+          if (line) this.#logCallback({ message: line });
+        });
+      });
+
+      let to: any;
+      if (timeout > 0) {
+        to = setTimeout(() => {
+          p.kill();
+          reject("timeout");
+        }, timeout);
+      }
+
+      p.on("close", () => {
+        if (to) clearTimeout(to);
+        resolve();
+      });
+      p.on("error", (err: any) => {
+        if (to) clearTimeout(to);
+        reject(err);
+      });
+    });
+  }
+
+  async writeFile(name: string, data: Uint8Array) {
+    const fsName = "fs/promises";
+    const pathName = "path";
+    const fs = await import(/* @vite-ignore */ fsName);
+    const path = await import(/* @vite-ignore */ pathName);
+    await fs.writeFile(path.join(this.#tempDir, name), data);
+  }
+
+  async readFile(name: string): Promise<Uint8Array> {
+    const fsName = "fs/promises";
+    const pathName = "path";
+    const fs = await import(/* @vite-ignore */ fsName);
+    const path = await import(/* @vite-ignore */ pathName);
+    const data = await fs.readFile(path.join(this.#tempDir, name));
+    return new Uint8Array(data);
+  }
+
+  async deleteFile(name: string) {
+    const fsName = "fs/promises";
+    const pathName = "path";
+    const fs = await import(/* @vite-ignore */ fsName);
+    const path = await import(/* @vite-ignore */ pathName);
+    await fs.rm(path.join(this.#tempDir, name), { force: true }).catch(() => { });
+  }
+
+  terminate() {
+    if (this.#tempDir) {
+      const fsName = "fs/promises";
+      import(/* @vite-ignore */ fsName).then(fs =>
+        fs.rm(this.#tempDir, { recursive: true, force: true }).catch(() => { })
+      );
+    }
+  }
+}
 
 class FFmpegHandler implements FormatHandler {
 
@@ -13,20 +118,20 @@ class FFmpegHandler implements FormatHandler {
   public supportedFormats: FileFormat[] = [];
   public ready: boolean = false;
 
-  #ffmpeg?: FFmpeg;
+  #ffmpeg?: any; // NativeFFmpegAdapter | FFmpegWASM
 
   #stdout: string = "";
-  handleStdout (log: LogEvent) {
+  handleStdout(log: LogEvent | { message: string }) {
     this.#stdout += log.message + "\n";
   }
-  clearStdout () {
+  clearStdout() {
     this.#stdout = "";
   }
   private removeFormat(predicate: (f: FileFormat) => boolean): void {
     const idx = this.supportedFormats.findIndex(predicate);
     if (idx !== -1) this.supportedFormats.splice(idx, 1);
   }
-  async getStdout (callback: () => void | Promise<void>) {
+  async getStdout(callback: () => void | Promise<void>) {
     if (!this.#ffmpeg) return "";
     this.clearStdout();
     this.#ffmpeg.on("log", this.handleStdout.bind(this));
@@ -35,17 +140,24 @@ class FFmpegHandler implements FormatHandler {
     return this.#stdout;
   }
 
-  async loadFFmpeg () {
+  async loadFFmpeg() {
     if (!this.#ffmpeg) return;
-    return await this.#ffmpeg.load({
-      coreURL: "/convert/wasm/ffmpeg-core.js"
-    });
+
+    if (this.#ffmpeg instanceof FFmpegWASM) {
+      const isNodeOrBun = typeof process !== 'undefined' && process.versions && (process.versions.node || process.versions.bun);
+      const coreURL = isNodeOrBun
+        ? new URL('../../node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js', import.meta.url).href
+        : "/convert/wasm/ffmpeg-core.js";
+      await this.#ffmpeg.load({ coreURL });
+    } else {
+      await this.#ffmpeg.load();
+    }
   }
-  terminateFFmpeg () {
+  terminateFFmpeg() {
     if (!this.#ffmpeg) return;
     this.#ffmpeg.terminate();
   }
-  async reloadFFmpeg () {
+  async reloadFFmpeg() {
     if (!this.#ffmpeg) return;
     this.terminateFFmpeg();
     await this.loadFFmpeg();
@@ -60,7 +172,7 @@ class FFmpegHandler implements FormatHandler {
    * @param timeout Max execution time in milliseconds. `-1` for no timeout (default).
    * @param attempts Amount of times to attempt execution. Default is 1.
    */
-  async execSafe (args: string[], timeout: number = -1, attempts: number = 1): Promise<void> {
+  async execSafe(args: string[], timeout: number = -1, attempts: number = 1): Promise<void> {
     if (!this.#ffmpeg) throw "Handler not initialized.";
     try {
       if (timeout === -1) {
@@ -85,10 +197,23 @@ class FFmpegHandler implements FormatHandler {
     }
   }
 
-  async init () {
+  async init() {
+    const isNodeOrBun = typeof process !== 'undefined' && process.versions && (process.versions.node || process.versions.bun);
 
-    this.#ffmpeg = new FFmpeg();
-    await this.loadFFmpeg();
+    if (isNodeOrBun) {
+      const native = new NativeFFmpegAdapter();
+      try {
+        await native.load();
+        this.#ffmpeg = native;
+      } catch {
+        // Native ffmpeg binary not found in PATH; fall back to @ffmpeg/ffmpeg WASM
+        this.#ffmpeg = new FFmpegWASM();
+        await this.loadFFmpeg();
+      }
+    } else {
+      this.#ffmpeg = new FFmpegWASM();
+      await this.loadFFmpeg();
+    }
 
     const getMuxerDetails = async (muxer: string) => {
 
@@ -238,7 +363,7 @@ class FFmpegHandler implements FormatHandler {
     this.ready = true;
   }
 
-  async doConvert (
+  async doConvert(
     inputFiles: FileData[],
     inputFormat: FileFormat,
     outputFormat: FileFormat,
@@ -281,7 +406,7 @@ class FFmpegHandler implements FormatHandler {
       await this.#ffmpeg!.exec(command);
     });
 
-    for (let i = 0; i < fileIndex; i ++) {
+    for (let i = 0; i < fileIndex; i++) {
       const entryName = `file_${i}.${inputFormat.extension}`;
       await this.#ffmpeg.deleteFile(entryName);
     }
@@ -343,4 +468,3 @@ class FFmpegHandler implements FormatHandler {
 }
 
 export default FFmpegHandler;
-

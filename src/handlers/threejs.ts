@@ -42,6 +42,7 @@ class threejsHandler implements FormatHandler {
     CommonFormats.WEBP.supported("webp", false, true)
   ];
   public ready: boolean = false;
+  public requiresMainThread = true;
 
   private scene: any;
   private camera: any;

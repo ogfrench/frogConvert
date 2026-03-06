@@ -56,6 +56,7 @@ class n64romHandler implements FormatHandler {
       .markLossless()
   ];
   public ready: boolean = false;
+  public requiresMainThread = true;
 
   #canvas?: HTMLCanvasElement;
   #ctx?: CanvasRenderingContext2D;

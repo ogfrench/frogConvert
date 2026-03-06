@@ -1,6 +1,6 @@
 # AGENTS.md — AI Agent Guide for frogConvert
 
-frogConvert is a universal file converter that includes a built-in Model Context Protocol (MCP) server. This server provides AI agents with direct programmatic access to its core file conversion engine. 
+frogConvert is a universal file converter built as a fork of [Convert to it!](https://github.com/p2r3/convert). It includes a built-in Model Context Protocol (MCP) server — an addition exclusive to this fork — that provides AI agents with direct programmatic access to its core file conversion engine.
 
 Instead of interacting with the frontend web UI, **agents should always use the MCP server to convert files**, discover formats, and analyze conversion paths.
 
@@ -13,9 +13,9 @@ The local MCP server wraps frogConvert's complex graph-based routing engine into
 ### Starting the Server
 Start the MCP server locally with:
 ```bash
-npm run mcp
+bun run mcp
 ```
-*(This executes `npx tsx src/mcp/index.ts`)*
+*(This executes `bun src/mcp/index.ts`)*
 
 ### Exposed MCP Tools
 
@@ -52,11 +52,14 @@ The web application of frogConvert chains handlers that might rely on browser AP
 
 ### Adding a New Handler
 If asked to add support for a new format:
-1. Write a new handler class in `src/handlers/` implementing `FormatHandler`. 
+1. Write a new handler class in `src/handlers/` implementing `FormatHandler`.
 2. Use the `CommonFormats` utility (`src/core/CommonFormats/CommonFormats.ts`) to declare `supportedFormats`.
-3. If the handler relies **only** on Node-compatible APIs or WASM:
+3. Set `requiresMainThread`:
+   - If the handler uses only pure computation or Node-compatible WASM (no `Canvas`, `document`, `AudioContext`, `WebGL`): leave it unset or `false`. The engine will run it in a Web Worker.
+   - If the handler requires browser-only DOM APIs: set `public requiresMainThread = true`. The engine will keep it on the main thread.
+4. If the handler relies **only** on Node-compatible APIs or WASM:
    - Export and register it in `src/mcp/core/handlers.ts` to make it available to the MCP server.
-4. If the handler requires WASM files, add an interception rule in `src/mcp/core/polyfills.ts` so `fetch()` can read the WASM file from disk.
+5. If the handler requires WASM files, add an interception rule in `src/mcp/core/polyfills.ts` so `fetch()` can read the WASM file from disk.
 
 ### File Structure
 ```text
@@ -66,9 +69,12 @@ src/
 │   ├── CommonFormats/      # Constants for defining MIME types and extensions
 │   └── TraversionGraph/    # Pathfinding graph algorithm
 ├── handlers/               # The actual conversion logic (FFmpeg, ImageMagick, Pandoc, etc.)
+├── workers/                # Web Workers for offloading heavy compute off the main thread
+│   ├── conversion.worker.ts    # Executes handler conversions in a background thread
+│   └── route-search.worker.ts  # Runs Dijkstra pathfinding in a background thread
 └── mcp/                    # MCP Server implementation
-    ├── index.ts            # Entry point for `npm run mcp`
-    ├── core/               
+    ├── index.ts            # Entry point for `bun run mcp`
+    ├── core/
     │   ├── handlers.ts     # The Node.js compatible handler registry
     │   └── polyfills.ts    # Fetch polyfills for loading WASM locally
     └── tools/              # Tool execution logic

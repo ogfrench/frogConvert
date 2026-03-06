@@ -3,6 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import puppeteer, { Browser, Page } from "puppeteer";
 import { createServer, ViteDevServer } from "vite";
 import path from "path";
+import fs from "fs";
 
 describe("E2E Conversion Flow", () => {
     let server: ViteDevServer;
@@ -47,23 +48,67 @@ describe("E2E Conversion Flow", () => {
         expect(fileUploadTrigger).not.toBeNull();
     });
 
-    it("can upload a mock file and updates UI", async () => {
+    it("can upload a mock file, run conversion off main thread, and update UI", async () => {
         await page.goto(url);
         await page.waitForSelector("#file-input");
 
-        const fileInput = await page.$("#file-input");
+        const dummyPath = path.join(__dirname, "dummy.png");
+        const b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+        fs.writeFileSync(dummyPath, Buffer.from(b64, 'base64'));
 
-        // Let's create a quick dummy file to upload using puppeteer's uploadFile
-        // but we need a physical file.
-        // Instead, we can dispatch an event if we don't have a real file, 
-        // or just ensure we don't throw when clicking format selector.
+        try {
+            const fileInput = await page.$("input#file-input") as puppeteer.ElementHandle<HTMLInputElement>;
+            if (fileInput) {
+                await fileInput.uploadFile(dummyPath);
+            }
 
-        // For a true E2E, we can just check if format selector opens the modal.
-        await page.click("#format-selector");
-        await page.waitForSelector("#format-modal", { visible: true });
-        const modalVisible = await page.$eval("#format-modal", el => el.style.display !== "none");
-        expect(modalVisible).toBe(true);
-    });
+            // Wait for format selector to be active
+            await page.waitForSelector("#format-selector", { visible: true });
+            await page.click("#format-selector");
+
+            // Choose HTML format
+            await page.waitForSelector("#format-modal", { visible: true });
+
+            // No need to search, just wait a bit for rendering
+            await new Promise(r => setTimeout(r, 300));
+
+            // Click the first visible format option
+            const formatOptions = await page.$$('.format-option[data-index]');
+            let clicked = false;
+            for (const opt of formatOptions) {
+                const isVisible = await page.evaluate(el => el.style.display !== "none", opt);
+                if (isVisible) {
+                    await opt.click();
+                    clicked = true;
+                    break;
+                }
+            }
+            expect(clicked).toBe(true);
+
+            // Wait for modal to close
+            await page.waitForFunction(() => {
+                const modal = document.querySelector("#format-modal") as HTMLElement;
+                return !modal || !modal.classList.contains("open");
+            });
+
+            // Click convert (use evaluate to bypass pointer-events or overlap issues)
+            await page.$eval("#convert-button", el => (el as HTMLButtonElement).click());
+
+            // Wait for conversion to finish (the modal goes away and we should see a download button OR popup closes)
+            await page.waitForFunction(() => {
+                const popup = document.querySelector("#popup-box") as HTMLElement;
+                return !popup || popup.style.display === "none";
+            }, { timeout: 30000 }); // Wait up to 30s for conversion
+
+            // There should be a download all button now or the files-list is populated
+            const fileList = await page.$("#files-list");
+            const childrenLength = await page.evaluate(el => el?.children.length, fileList);
+            expect(childrenLength).toBe(0); // Files are cleared after successful conversion
+
+        } finally {
+            if (fs.existsSync(dummyPath)) fs.unlinkSync(dummyPath);
+        }
+    }, 45000);
 
     it("hamburger menu is visible when opened on mobile viewport", async () => {
         await page.setViewport({ width: 375, height: 667 });

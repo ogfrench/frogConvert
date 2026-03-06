@@ -5,6 +5,8 @@
  * DOM-bound functions (openFilesModal, renderFilesModalList, etc.) are not
  * directly testable without a browser DOM.  These tests cover the logic strings
  * and the friendlyMimeLabel helper.
+ *
+ * @vitest-environment jsdom
  */
 
 import { describe, it, expect } from "vitest";
@@ -79,9 +81,9 @@ describe("addMoreFiles error copy", () => {
         const mismatchCount = 1;
         const matchingCount = 3;
         const expectedLabel = friendlyMimeLabel("image/png");
-        const msg = `${mismatchCount} file${mismatchCount > 1 ? "s were" : " was"} skipped \u2014 they weren't ${expectedLabel}s. Added ${matchingCount} matching file${matchingCount > 1 ? "s" : ""}.`;
+        const msg = `${mismatchCount} file${mismatchCount > 1 ? "s were" : " was"} skipped - ${mismatchCount > 1 ? `they weren't ${expectedLabel}s` : `it wasn't a ${expectedLabel}`}. Added ${matchingCount} matching file${matchingCount > 1 ? "s" : ""}.`;
         expect(msg).toContain("1 file was skipped");
-        expect(msg).toContain("PNG image");
+        expect(msg).toContain("it wasn't a PNG image");
         expect(msg).toContain("Added 3 matching files");
     });
 
@@ -89,17 +91,48 @@ describe("addMoreFiles error copy", () => {
         const mismatchCount = 2;
         const matchingCount = 1;
         const expectedLabel = friendlyMimeLabel("audio/mpeg");
-        const msg = `${mismatchCount} file${mismatchCount > 1 ? "s were" : " was"} skipped \u2014 they weren't ${expectedLabel}s. Added ${matchingCount} matching file${matchingCount > 1 ? "s" : ""}.`;
+        const msg = `${mismatchCount} file${mismatchCount > 1 ? "s were" : " was"} skipped - ${mismatchCount > 1 ? `they weren't ${expectedLabel}s` : `it wasn't a ${expectedLabel}`}. Added ${matchingCount} matching file${matchingCount > 1 ? "s" : ""}.`;
         expect(msg).toContain("2 files were skipped");
-        expect(msg).toContain("MPEG audio file");
+        expect(msg).toContain("they weren't MPEG audio files");
         expect(msg).toContain("Added 1 matching file.");
     });
 
-    it("renders full mismatch error with expected type label", () => {
+    it("renders full mismatch error with expected type label (singular)", () => {
         const expectedLabel = friendlyMimeLabel("image/jpeg");
-        const msg = `None of those files matched. Your current files are ${expectedLabel}s \u2014 please add more files of the same type.`;
+        const currentFilesCount = 1;
+        const newFilesCount = 1;
+
+        const isPluralCurrent = currentFilesCount > 1;
+        const currentFilesText = isPluralCurrent
+            ? `Your current files are ${expectedLabel}s`
+            : `Your current file is a ${expectedLabel}`;
+
+        const addedText = newFilesCount > 1
+            ? "None of those files matched"
+            : "That file didn't match";
+
+        const msg = `${addedText}. ${currentFilesText} - please add more files of the same type.`;
+        expect(msg).toContain("That file didn't match");
         expect(msg).toContain("JPEG image");
-        expect(msg).toContain("please add more files");
+    });
+
+    it("renders full mismatch error with expected type label (plural)", () => {
+        const expectedLabel = friendlyMimeLabel("image/jpeg");
+        const currentFilesCount = 2;
+        const newFilesCount = 2;
+
+        const isPluralCurrent = currentFilesCount > 1;
+        const currentFilesText = isPluralCurrent
+            ? `Your current files are ${expectedLabel}s`
+            : `Your current file is a ${expectedLabel}`;
+
+        const addedText = newFilesCount > 1
+            ? "None of those files matched"
+            : "That file didn't match";
+
+        const msg = `${addedText}. ${currentFilesText} - please add more files of the same type.`;
+        expect(msg).toContain("None of those files matched");
+        expect(msg).toContain("JPEG images");
     });
 });
 
@@ -133,8 +166,13 @@ describe("files modal title", () => {
     });
 
     it("shows count in parentheses when files present", () => {
-        expect(modalTitle(1)).toBe("Your files (1)");
-        expect(modalTitle(42)).toBe("Your files (42)");
+        const fileCount = 1;
+        const title1 = fileCount > 0 ? (fileCount === 1 ? `Your file (1)` : `Your files (${fileCount})`) : "Your files";
+        expect(title1).toBe("Your file (1)");
+
+        const fileCount2 = 42;
+        const title2 = fileCount2 > 0 ? (fileCount2 === 1 ? `Your file (1)` : `Your files (${fileCount2})`) : "Your files";
+        expect(title2).toBe("Your files (42)");
     });
 });
 

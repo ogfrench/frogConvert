@@ -14,12 +14,13 @@ class meydaHandler implements FormatHandler {
     CommonFormats.WEBP.supported("image", true, true),
   ];
   public ready: boolean = false;
+  public requiresMainThread: boolean = true;
 
   #audioContext?: AudioContext;
   #canvas?: HTMLCanvasElement;
   #ctx?: CanvasRenderingContext2D;
 
-  async init () {
+  async init() {
 
     const dummy = document.createElement("audio");
     this.supportedFormats.push(
@@ -27,7 +28,7 @@ class meydaHandler implements FormatHandler {
         .allowFrom(dummy.canPlayType("audio/wav") !== "")
         .allowTo()
     );
-    
+
     if (dummy.canPlayType("audio/mpeg")) this.supportedFormats.push(
       // lossless=false, lossy reconstruction 
       CommonFormats.MP3.supported("audio", true, false)
@@ -52,8 +53,8 @@ class meydaHandler implements FormatHandler {
     this.ready = true;
 
   }
-  
-  async doConvert (
+
+  async doConvert(
     inputFiles: FileData[],
     inputFormat: FileFormat,
     outputFormat: FileFormat
@@ -110,9 +111,9 @@ class meydaHandler implements FormatHandler {
         // Precompute sine and cosine waves for each frequency
         const sineWaves = new Float32Array(imageHeight * bufferSize);
         const cosineWaves = new Float32Array(imageHeight * bufferSize);
-        for (let y = 0; y < imageHeight; y ++) {
+        for (let y = 0; y < imageHeight; y++) {
           const frequency = (y / imageHeight) * (sampleRate / 2);
-          for (let s = 0; s < bufferSize; s ++) {
+          for (let s = 0; s < bufferSize; s++) {
             const timeInSeconds = s / sampleRate;
             const angle = 2 * Math.PI * frequency * timeInSeconds;
             sineWaves[y * bufferSize + s] = Math.sin(angle);
@@ -120,10 +121,11 @@ class meydaHandler implements FormatHandler {
           }
         }
 
-        for (let x = 0; x < imageWidth; x ++) {
+        let lastYieldTime = performance.now();
+        for (let x = 0; x < imageWidth; x++) {
           const frameData = new Float32Array(bufferSize);
 
-          for (let y = 0; y < imageHeight; y ++) {
+          for (let y = 0; y < imageHeight; y++) {
             const pixelIndex = (x + (imageHeight - y - 1) * imageWidth) * 4;
 
             // Extract amplitude from R and G channels
@@ -132,7 +134,7 @@ class meydaHandler implements FormatHandler {
             // Extract phase from B channel
             const phase = (pixelBuffer[pixelIndex + 2] / 255) * (2 * Math.PI) - Math.PI;
 
-            for (let s = 0; s < bufferSize; s ++) {
+            for (let s = 0; s < bufferSize; s++) {
               frameData[s] += amplitude * (
                 cosineWaves[y * bufferSize + s] * Math.cos(phase)
                 - sineWaves[y * bufferSize + s] * Math.sin(phase)
@@ -142,18 +144,24 @@ class meydaHandler implements FormatHandler {
 
           // overlap-add
           const outputOffset = x * hopSize;
-          for (let s = 0; s < bufferSize; s ++) {
+          for (let s = 0; s < bufferSize; s++) {
             audioData[outputOffset + s] += frameData[s];
+          }
+
+          // Unblock main thread within 16.6ms boundaries to allow 60 FPS CSS cursor animations
+          if (performance.now() - lastYieldTime > 15) {
+            await new Promise(r => setTimeout(r, 0));
+            lastYieldTime = performance.now();
           }
         }
 
         // Normalize output
         let max = 0;
-        for (let i = 0; i < imageWidth * bufferSize; i ++) {
+        for (let i = 0; i < imageWidth * bufferSize; i++) {
           const magnitude = Math.abs(audioData[i]);
           if (magnitude > max) max = magnitude;
         }
-        for (let i = 0; i < audioData.length; i ++) {
+        for (let i = 0; i < audioData.length; i++) {
           audioData[i] /= max;
         }
 
@@ -182,7 +190,8 @@ class meydaHandler implements FormatHandler {
 
         const frameBuffer = new Float32Array(bufferSize);
 
-        for (let i = 0; i < imageWidth; i ++) {
+        let lastYieldTime = performance.now();
+        for (let i = 0; i < imageWidth; i++) {
 
           const start = i * hopSize;
           frameBuffer.fill(0);
@@ -195,7 +204,7 @@ class meydaHandler implements FormatHandler {
           const imaginary = spectrum.imag as Float32Array;
 
           const pixels = new Uint8ClampedArray(imageHeight * 4);
-          for (let j = 0; j < imageHeight; j ++) {
+          for (let j = 0; j < imageHeight; j++) {
             // Calculate amplitude, amplitude is halved when only half of the FFT is used, so double it
             const magnitude = Math.sqrt(real[j] * real[j] + imaginary[j] * imaginary[j]) / bufferSize * 2;
             const phase = Math.atan2(imaginary[j], real[j]);
@@ -212,6 +221,11 @@ class meydaHandler implements FormatHandler {
           const imageData = new ImageData(pixels as ImageDataArray, 1, imageHeight);
           this.#ctx.putImageData(imageData, i, 0);
 
+          // Unblock main thread within 16.6ms boundaries to allow 60 FPS CSS cursor animations
+          if (performance.now() - lastYieldTime > 15) {
+            await new Promise(r => setTimeout(r, 0));
+            lastYieldTime = performance.now();
+          }
         }
 
         const bytes: Uint8Array = await new Promise((resolve, reject) => {

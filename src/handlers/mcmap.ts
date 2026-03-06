@@ -79,6 +79,7 @@ class mcMapHandler implements FormatHandler {
     public name: string = "mcMap";
     public supportedFormats?: FileFormat[];
     public ready: boolean = false;
+    public requiresMainThread = true;
 
     #canvas?: HTMLCanvasElement;
     #ctx?: CanvasRenderingContext2D;

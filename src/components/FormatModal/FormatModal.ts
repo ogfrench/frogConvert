@@ -4,16 +4,21 @@ import { ui, CATEGORY_LABELS, formatDisplayName, isAdvancedMode, BASIC_FORMATS, 
 
 // --- Format modal ---
 
-
+let _formatModalOpener: Element | null = null;
 
 export function closeFormatModal() {
+  (_formatModalOpener as HTMLElement | null)?.focus();
+  _formatModalOpener = null;
   ui.formatModal.classList.remove("open");
   ui.formatModalBg.classList.remove("open");
+  ui.formatModal.setAttribute("aria-hidden", "true");
 }
 
 export function openFormatModal() {
+  _formatModalOpener = document.activeElement;
   ui.formatModal.classList.add("open");
   ui.formatModalBg.classList.add("open");
+  ui.formatModal.removeAttribute("aria-hidden");
   const label = CATEGORY_LABELS[activeCategory.value];
   ui.formatModalTitle.textContent = label ? `Choose ${label.toLowerCase()} format` : "Choose format";
   ui.formatSearch.value = "";
@@ -117,9 +122,9 @@ export function clearFormatSelection(activeCategory: string = "") {
 
 export function updateConvertButtonState(selectedFromIndex: number | null, selectedToIndex: number | null) {
   if (selectedFromIndex !== null && selectedToIndex !== null) {
-    ui.convertButton.className = "";
+    ui.convertButton.classList.remove("disabled");
   } else {
-    ui.convertButton.className = "disabled";
+    ui.convertButton.classList.add("disabled");
   }
 }
 

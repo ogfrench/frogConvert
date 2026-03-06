@@ -1,4 +1,4 @@
-function normalizeMimeType (mime: string) {
+function normalizeMimeType(mime: string) {
   switch (mime) {
     case "audio/x-wav": return "audio/wav";
     case "audio/vnd.wave": return "audio/wav";

@@ -12,11 +12,11 @@ import {
     shortenFileName,
     escapeHTML,
     showPopup,
-    hidePopup,
     isCancelled,
     resetCancellation,
     showConversionInProgress,
-    isCancellationConfirming
+    setWorkerCancelCallback,
+    completeCancellation
 } from "../index.ts";
 
 // --- Helpers ---
@@ -98,56 +98,118 @@ window.downloadAgain = function () {
     downloadAllConvertedFiles();
 };
 
+// --- Worker Manager ---
+let conversionWorker: Worker | null = null;
+let workerMsgId = 0;
+
+function getConversionWorker(): Worker {
+    if (!conversionWorker) {
+        conversionWorker = new Worker(new URL("../../workers/conversion.worker.ts", import.meta.url), { type: "module" });
+    }
+    return conversionWorker;
+}
+
+async function runInWorker(handlerName: string, inputFiles: FileData[], inputFormat: FileFormat, outputFormat: FileFormat, args?: string[]): Promise<FileData[]> {
+    const worker = getConversionWorker();
+    const id = ++workerMsgId;
+    return new Promise((resolve, reject) => {
+        if (isCancelled) { reject(new Error("Cancelled")); return; }
+
+        const onMessage = (ev: MessageEvent) => {
+            const msg = ev.data;
+            if (msg.id === id) {
+                setWorkerCancelCallback(null);
+                worker.removeEventListener("message", onMessage);
+                if (msg.type === "success") {
+                    resolve(msg.outputFiles);
+                } else {
+                    reject(msg.error);
+                }
+            }
+        };
+        worker.addEventListener("message", onMessage);
+        setWorkerCancelCallback(() => {
+            worker.removeEventListener("message", onMessage);
+            reject(new Error("Cancelled"));
+        });
+        const transferables = inputFiles.map(f => f.bytes.buffer).filter(b => b.byteLength > 0);
+        worker.postMessage({ id, handlerName, inputFiles, inputFormat, outputFormat, args }, transferables);
+    });
+}
+
 // --- Conversion logic helpers ---
 
 async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], batchMsg?: string) {
     const pathString = path.map(c => c.format.format).join(" \u2192 ");
 
     const messageHTML = batchMsg
-        ? `${batchMsg}<br><span class="muted-text">Finding the best path...</span>`
-        : `Converting your file to <b>${path.at(-1)!.format.format.toUpperCase()}</b>...`;
+        ? `${batchMsg}<br><span class="muted-text">Converting using the following steps: ${pathString}</span>`
+        : `Converting your file to <b>${path.at(-1)!.format.format.toUpperCase()}</b>...<br><br><div style="font-size: 0.9em; padding: 6px; background: rgba(0,0,0,0.05); border-radius: 6px;">Converting using the following steps:<br><b>${pathString}</b></div>`;
 
-    showConversionInProgress(messageHTML);
+    // stabilization delay: only show the detailed path if it doesn't fail immediately
+    let uiTimeout: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+        showConversionInProgress(messageHTML);
+        uiTimeout = null;
+    }, 150);
 
-    for (let i = 0; i < path.length - 1; i++) {
-        if (isCancelled) return null;
-        const handler = path[i + 1].handler;
-        try {
-            let supportedFormats = window.supportedFormatCache.get(handler.name);
-            if (!handler.ready) {
-                await handler.init();
-                if (!handler.ready) throw `Handler "${handler.name}" not ready after init.`;
-                if (handler.supportedFormats) {
-                    window.supportedFormatCache.set(handler.name, handler.supportedFormats);
-                    supportedFormats = handler.supportedFormats;
+    try {
+        for (let i = 0; i < path.length - 1; i++) {
+            if (isCancelled) return null;
+            const handler = path[i + 1].handler;
+            try {
+                let supportedFormats = window.supportedFormatCache.get(handler.name);
+                if (!handler.ready) {
+                    await handler.init();
+                    if (!handler.ready) throw `Handler "${handler.name}" not ready after init.`;
+                    if (handler.supportedFormats) {
+                        window.supportedFormatCache.set(handler.name, handler.supportedFormats);
+                        supportedFormats = handler.supportedFormats;
+                    }
                 }
+                if (!supportedFormats) throw `Handler "${handler.name}" doesn't support any formats.`;
+                const inputFormat = supportedFormats.find(c =>
+                    c.from
+                    && c.mime === path[i].format.mime
+                    && c.format === path[i].format.format,
+                )!;
+
+                let outputFiles: FileData[];
+                if (handler.requiresMainThread) {
+                    outputFiles = await handler.doConvert(files, inputFormat, path[i + 1].format);
+                } else {
+                    outputFiles = await runInWorker(handler.name, files, inputFormat, path[i + 1].format);
+                }
+
+                files = (await Promise.all([
+                    Promise.resolve(outputFiles),
+                    waitForPaint(),
+                ]))[0];
+                if (files.some(c => !c.bytes.length)) throw "Output is empty.";
+            } catch (e) {
+                if (isCancelled) return null;
+                console.log(path.map(c => c.format.format));
+                console.error(handler.name, `${path[i].format.format} \u2192 ${path[i + 1].format.format}`, e);
+
+                const deadEndPath = path.slice(0, i + 2);
+                window.traversionGraph.addDeadEndPath(deadEndPath);
+
+                const fallbackMsg = batchMsg
+                    ? `${batchMsg}<br><span class="muted-text">Finding best conversion route...</span>`
+                    : `Finding best conversion route...`;
+
+                if (uiTimeout) {
+                    clearTimeout(uiTimeout);
+                    uiTimeout = null;
+                }
+                showConversionInProgress(fallbackMsg);
+                await waitForPaint();
+
+                return null;
             }
-            if (!supportedFormats) throw `Handler "${handler.name}" doesn't support any formats.`;
-            const inputFormat = supportedFormats.find(c =>
-                c.from
-                && c.mime === path[i].format.mime
-                && c.format === path[i].format.format,
-            )!;
-            files = (await Promise.all([
-                handler.doConvert(files, inputFormat, path[i + 1].format),
-                waitForPaint(),
-            ]))[0];
-            if (files.some(c => !c.bytes.length)) throw "Output is empty.";
-        } catch (e) {
-            console.log(path.map(c => c.format.format));
-            console.error(handler.name, `${path[i].format.format} \u2192 ${path[i + 1].format.format}`, e);
-
-            const deadEndPath = path.slice(0, i + 2);
-            window.traversionGraph.addDeadEndPath(deadEndPath);
-
-            const fallbackMsg = batchMsg
-                ? `${batchMsg}<br><span class="muted-text">Trying a different approach...</span>`
-                : `Trying a different approach...`;
-
-            showConversionInProgress(fallbackMsg);
-            await waitForPaint();
-
-            return null;
+        }
+    } finally {
+        if (uiTimeout) {
+            clearTimeout(uiTimeout);
         }
     }
 
@@ -161,15 +223,33 @@ window.tryConvertByTraversing = async function (
     batchMsg?: string
 ) {
     window.traversionGraph.clearDeadEndPaths();
-    for await (const path of window.traversionGraph.searchPath(from, to, true)) {
-        if (isCancelled) break;
-        if (path.at(-1)?.handler === to.handler) {
-            path[path.length - 1] = to;
+
+    // Add searching listener to update UI
+    const searchListener = (state: string, _path: ConvertPathNode[]) => {
+        if (state === "searching" && !batchMsg) {
+            showConversionInProgress(`Finding best conversion route...`);
         }
-        const attempt = await attemptConvertPath(files, path, batchMsg);
-        if (attempt) return attempt;
+    };
+    window.traversionGraph.addPathEventListener(searchListener);
+
+    try {
+        // Yield to the browser so the "Getting started..." or finding route UI can paint
+        // before we start doing heavy handler initializations or search loops
+        await waitForPaint();
+
+        for await (const path of window.traversionGraph.searchPath(from, to, true)) {
+            if (isCancelled) break;
+            if (path.at(-1)?.handler === to.handler) {
+                path[path.length - 1] = to;
+            }
+            const attempt = await attemptConvertPath(files, path, batchMsg);
+            if (attempt) return attempt;
+            if (isCancelled) break;
+        }
+        return null;
+    } finally {
+        window.traversionGraph.removePathEventListener(searchListener);
     }
-    return null;
 };
 
 function showConversionNotFoundPopup(fromFormat: string, toFormat: string) {
@@ -201,13 +281,13 @@ export function initConvertButton() {
         const fileCount = inputFiles.length;
 
         if (fileCount === 0) {
-            alert("Drop a file first to get started.");
+            alert("Drop files first to get started.");
             isConverting = false;
             return;
         }
 
         if (selectedFromIndex.value === null) {
-            alert("Hmm, couldn't figure out this file's format. Try another?");
+            alert(`Hmm, couldn't figure out ${fileCount > 1 ? "these files'" : "this file's"} format. Try another?`);
             isConverting = false;
             return;
         }
@@ -250,11 +330,21 @@ export function initConvertButton() {
                     downloadFile(allOutputFiles[0].bytes, allOutputFiles[0].name);
                     showPopup(
                         `<h2>Nothing to do!</h2>` +
-                        `<p><b>${escapeHTML(truncName)}</b> is already a <b>${escapeHTML(fmt)}</b> file - no conversion needed.</p>` +
+                        `<p><b>${escapeHTML(truncName)}</b> is already a <b>${escapeHTML(fmt)}</b> file, so nothing to convert. Downloading the original for you.</p>` +
                         `<div class="popup-actions">` +
                         `<button class="popup-primary" onclick="window.hidePopup()">Got it</button>` +
                         `</div>`,
                     );
+                    return;
+                } else {
+                    showPopup(
+                        `<h2>Nothing to do!</h2>` +
+                        `<p>These <b>${fileCount} files</b> are already in <b>${escapeHTML(fmt)}</b> format, so nothing to convert. Downloading the originals for you.</p>` +
+                        `<div class="popup-actions">` +
+                        `<button class="popup-primary" onclick="window.hidePopup()">Got it</button>` +
+                        `</div>`,
+                    );
+                    await downloadAsZip(allOutputFiles, "original-files.zip");
                     return;
                 }
             }
@@ -274,7 +364,7 @@ export function initConvertButton() {
                     const output = await window.tryConvertByTraversing(singleFile, inputOption, outputOption, batchMsg);
 
                     if (!output) {
-                        if (isCancelled || isCancellationConfirming()) break;
+                        if (isCancelled) break;
                         showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
                         return;
                     }
@@ -305,14 +395,14 @@ export function initConvertButton() {
 
                 await ensureMinDuration(conversionStartTime);
 
-                if (isCancelled || isCancellationConfirming()) {
+                if (isCancelled) {
                     resetCancellation();
                     return;
                 }
 
                 showPopup(
                     `<h2>All done! 🎉</h2>` +
-                    `<p>${allOutputFiles.length} file${allOutputFiles.length > 1 ? "s" : ""} converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and downloading now.</p>` +
+                    `<p>${allOutputFiles.length} file${allOutputFiles.length > 1 ? "s" : ""} converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b>${allOutputFiles.length > 1 ? " and zipped up for you," : ","} downloading now.</p>` +
                     `<div class="popup-actions">` +
                     `<button class="popup-primary" onclick="window.downloadAgain()">Download again</button>` +
                     `<button onclick="window.hidePopup()">Done</button>` +
@@ -321,13 +411,14 @@ export function initConvertButton() {
             } else {
                 const output = await window.tryConvertByTraversing(inputFileData, inputOption, outputOption);
 
+                if (isCancelled) {
+                    resetCancellation();
+                    return;
+                }
+
                 await ensureMinDuration(conversionStartTime);
 
                 if (!output) {
-                    if (isCancelled || isCancellationConfirming()) {
-                        resetCancellation();
-                        return;
-                    }
                     showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
                     return;
                 }
@@ -339,16 +430,18 @@ export function initConvertButton() {
                     downloadFile(file.bytes, file.name);
                 }
 
-                if (isCancelled || isCancellationConfirming()) {
+                if (isCancelled) {
                     resetCancellation();
                     return;
                 }
 
-                const truncatedInputName = shortenFileName(currentFiles.value[0].name, 32);
+                const resultText = fileCount > 1
+                    ? `${fileCount} files have been converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and are downloading now.`
+                    : `<b>${escapeHTML(shortenFileName(inputFiles[0].name, 32))}</b> has been converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and is downloading now.`;
 
                 showPopup(
                     `<h2>All done! 🎉</h2>` +
-                    `<p><b>${escapeHTML(truncatedInputName)}</b> has been converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and is downloading now.</p>` +
+                    `<p>${resultText}</p>` +
                     `<div class="popup-actions">` +
                     `<button class="popup-primary" onclick="window.downloadAgain()">Download again</button>` +
                     `<button onclick="window.hidePopup()">Done</button>` +
@@ -362,10 +455,11 @@ export function initConvertButton() {
                 `<h2>Something went wrong</h2>` +
                 `<p>${escapeHTML(String(e))}</p>` +
                 `<div class="popup-actions">` +
-                `<button class="popup-primary" onclick="window.hidePopup()">OK</button>` +
+                `<button class="popup-primary" onclick="window.hidePopup()">Got it</button>` +
                 `</div>`,
             );
         } finally {
+            await completeCancellation();
             resetCancellation();
             isConverting = false;
         }

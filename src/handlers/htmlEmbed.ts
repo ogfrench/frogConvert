@@ -57,7 +57,7 @@ class htmlEmbedHandler implements FormatHandler {
         const base64 = htmlEmbedHandler.bytesToBase64(inputFile.bytes);
 
         if (inputFormat.mime.startsWith("image/")) {
-          html += `<image src="data:${inputFormat.mime};base64,${base64}"><br>`;
+          html += `<img src="data:${inputFormat.mime};base64,${base64}"><br>`;
         } else if (inputFormat.mime.startsWith("audio/")) {
           html += `<audio controls>
             <source src="data:${inputFormat.mime};base64,${base64}" type="${inputFormat.mime}"></source>

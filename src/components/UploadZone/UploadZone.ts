@@ -78,10 +78,9 @@ export function initUploadZone(
       };
 
       // Size safeguard check
-      const { level } = checkFileSizeLimits(filesToUse);
+      const { level, totalSize } = checkFileSizeLimits(filesToUse);
       if (level !== "ok") {
-        const totalSize = filesToUse.reduce((sum, f) => sum + f.size, 0);
-        showSizeWarningPopup(level, totalSize, applySelection);
+        showSizeWarningPopup(level, totalSize, filesToUse.length, applySelection);
         return;
       }
       applySelection();

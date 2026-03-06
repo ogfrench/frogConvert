@@ -18,25 +18,6 @@
   display: block;
   width: 100%;
   margin-top: var(--space-6);
-  padding: var(--space-3);
-  border: none;
-  border-radius: var(--radius);
-  background-color: var(--primary);
-  color: var(--primary-foreground);
-  font-family: inherit;
-  font-size: var(--text-lg);
-  font-weight: var(--font-semibold);
-  cursor: pointer;
-  letter-spacing: var(--tracking-snug);
-  transition: opacity 0.2s ease, transform 0.1s ease, background-color 0.3s ease, color 0.3s ease;
-}
-
-#convert-button:hover {
-  opacity: var(--opacity-hover);
-}
-
-#convert-button:active {
-  transform: scale(0.98);
 }
 
 @media only screen and (max-width: 800px) {
@@ -78,13 +59,6 @@
 #format-modal .format-selector.has-value {
   background-color: var(--border);
   /* slightly darker in modal contexts or in general when filled if needed */
-}
-
-.format-selector .selector-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
 }
 
 .format-selector .selector-text.placeholder {

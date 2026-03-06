@@ -1,89 +1,4 @@
 /* --- Files Management Modal --- */
-#files-modal-bg {
-  position: fixed;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  background-color: var(--overlay-bg);
-  backdrop-filter: var(--blur-overlay);
-  z-index: 300;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.2s ease, visibility 0.2s ease;
-}
-
-#files-modal-bg.open {
-  opacity: 1;
-  visibility: visible;
-}
-
-#files-modal {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%) scale(0.95);
-  width: var(--modal-width);
-  max-width: var(--mobile-content-width);
-  max-height: 80vh;
-  background-color: var(--card);
-  color: var(--card-foreground);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
-  z-index: 301;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease, background-color 0.3s ease, border-color 0.3s ease;
-}
-
-#files-modal.open {
-  opacity: 1;
-  visibility: visible;
-  transform: translate(-50%, -50%) scale(1);
-  pointer-events: auto;
-}
-
-.files-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-6) var(--space-6) var(--space-4);
-}
-
-.files-modal-header h2 {
-  margin: 0;
-  font-size: var(--text-2xl);
-  font-weight: var(--font-semibold);
-  letter-spacing: var(--tracking-tight);
-}
-
-.files-modal-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--space-8);
-  height: var(--space-8);
-  padding: 0;
-  border: none;
-  border-radius: var(--radius);
-  background: none;
-  color: var(--muted-foreground);
-  font-size: var(--text-2xl);
-  cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
-  line-height: var(--leading-none);
-}
-
-.files-modal-close:hover {
-  background-color: var(--accent);
-  color: var(--foreground);
-}
-
 .files-modal-top-actions {
   display: flex;
   justify-content: flex-end;
@@ -136,42 +51,14 @@
 }
 
 .file-row-name {
-  flex: 1;
-  min-width: 0;
   font-size: var(--text-base);
   color: var(--foreground);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .file-row-actions {
   display: flex;
   gap: var(--space-1);
   flex-shrink: 0;
-}
-
-.file-row-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--space-7);
-  height: var(--space-7);
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background-color: var(--card);
-  color: var(--muted-foreground);
-  font-size: var(--text-base);
-  cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-  line-height: var(--leading-none);
-}
-
-.file-row-btn:hover {
-  background-color: var(--accent);
-  color: var(--foreground);
-  border-color: var(--ring);
 }
 
 #files-pagination {
@@ -248,15 +135,15 @@
 }
 
 .files-error {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
   margin: 0 var(--space-4) var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--destructive);
-  color: var(--destructive-foreground);
-  border: 1px solid var(--destructive);
-  opacity: 0.9;
+  padding: var(--space-3) var(--space-8) var(--space-3) var(--space-4);
+  background-color: color-mix(in srgb, var(--destructive), transparent 92%);
+  color: var(--destructive);
+  border: 1px solid color-mix(in srgb, var(--destructive), transparent 80%);
   border-radius: var(--radius);
   animation: files-error-slide-in 0.2s ease both;
 }
@@ -277,6 +164,9 @@
 }
 
 .files-error-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -291,11 +181,21 @@
   cursor: pointer;
   opacity: 0.7;
   transition: opacity 0.15s ease, background-color 0.15s ease;
-  margin-top: 1px;
 }
 
 .files-error-close:hover {
   opacity: 1;
-  background-color: var(--destructive);
-  color: var(--destructive-foreground);
+  background-color: color-mix(in srgb, var(--destructive), transparent 85%);
+  color: var(--destructive);
+}
+
+.files-modal-footer {
+  padding: var(--space-4) var(--space-6) var(--space-6);
+  border-top: 1px solid var(--border);
+  background-color: var(--card);
+}
+
+.files-modal-back {
+  display: block;
+  width: 100%;
 }

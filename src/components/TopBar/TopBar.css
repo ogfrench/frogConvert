@@ -14,8 +14,8 @@
 }
 
 #top-bar.scrolled {
-  backdrop-filter: blur(10px) saturate(120%);
-  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  backdrop-filter: blur(12px) saturate(180%) brightness(1.02);
+  -webkit-backdrop-filter: blur(12px) saturate(180%) brightness(1.02);
 }
 
 #top-bar::before {
@@ -34,10 +34,22 @@
   mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
 }
 
+/* Light mode: more opaque + dark bottom separator so it reads against a white page */
 #top-bar.scrolled::before {
-  background-color: var(--top-bar-bg);
-  box-shadow: var(--shadow-sm);
-  /* Using shadow variable */
+  background-color: rgba(255, 255, 255, 0.75);
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.08),
+    0 4px 16px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.90);
+}
+
+/* Dark mode: pull back — white ghost on dark is too stark */
+.dark #top-bar.scrolled::before {
+  background-color: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06),
+    0 4px 16px rgba(0, 0, 0, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
 #logo {
@@ -48,7 +60,7 @@
   color: var(--foreground);
   font-weight: var(--font-bold);
   font-size: var(--text-xl);
-  transition: opacity 0.2s ease;
+  transition: opacity 0.15s ease;
 }
 
 #logo:hover {
@@ -205,7 +217,7 @@
   background: none;
   color: var(--muted-foreground);
   cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
   white-space: nowrap;
 }
 

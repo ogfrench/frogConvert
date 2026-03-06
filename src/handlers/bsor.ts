@@ -21,6 +21,7 @@ class bsorHandler implements FormatHandler {
   ];
 
   public ready: boolean = true;
+  public requiresMainThread = true;
 
   async init() {
     this.ready = true;

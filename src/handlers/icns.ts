@@ -127,6 +127,7 @@ class icnsHandler implements FormatHandler {
 
   public name: string = "icns";
   public ready: boolean = false;
+  public requiresMainThread = true;
   public supportedFormats: FileFormat[] = [
     CommonFormats.PNG.supported("png", true, true, true),
     ICNS_FORMAT.builder("icns")

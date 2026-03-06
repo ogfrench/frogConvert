@@ -1,6 +1,8 @@
 /**
  * Unit tests for pure utility functions in store.ts.
  * Run with: bun test src/components/store/store.test.ts
+ *
+ * @vitest-environment jsdom
  */
 
 import { describe, it, expect } from "vitest";

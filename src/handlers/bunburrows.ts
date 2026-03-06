@@ -13,6 +13,7 @@ class bunburrowsHandler implements FormatHandler {
     public name: string = "bunburrows";
     public supportedFormats?: FileFormat[];
     public ready: boolean = false;
+    public requiresMainThread = true;
 
     #canvas?: HTMLCanvasElement;
     #ctx?: CanvasRenderingContext2D;

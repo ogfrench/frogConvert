@@ -25,14 +25,8 @@ export const loadMcpHandlers = async (): Promise<FormatHandler[]> => {
     // Initialize them
     for (const h of handlers) {
         if (h.init) {
-            // console.error(`[MCP] Initializing handler: ${h.name}`);
             await h.init().catch(err => {
-                const isFFmpegNodeError = h.name === 'FFmpeg' && err?.message?.includes('nodejs');
-                if (isFFmpegNodeError) {
-                    console.warn(`[MCP] Skipping handler ${h.name}: Not supported in Node.js`);
-                } else {
-                    console.error(`[MCP] Failed to init handler ${h.name}:`, err);
-                }
+                console.error(`[MCP] Failed to init handler ${h.name}:`, err);
             });
         }
     }
