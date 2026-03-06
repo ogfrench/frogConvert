@@ -1,7 +1,7 @@
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
-import { QOIDecoder, QOIEncoder } from "qoi-fu";
+import { QOIDecoder, QOIEncoder } from "./qoi-fu/transpiled/QOI.js";
 
 class qoiFuHandler implements FormatHandler {
 
@@ -30,7 +30,7 @@ class qoiFuHandler implements FormatHandler {
   #canvas?: HTMLCanvasElement;
   #ctx?: CanvasRenderingContext2D;
 
-  async init () {
+  async init() {
     this.#canvas = document.createElement("canvas");
     const ctx = this.#canvas.getContext("2d");
     if (!ctx) throw "Failed to create 2D rendering context.";
@@ -38,7 +38,7 @@ class qoiFuHandler implements FormatHandler {
     this.ready = true;
   }
 
-  static rgbaToArgb (rgba: Uint8ClampedArray): Int32Array {
+  static rgbaToArgb(rgba: Uint8ClampedArray): Int32Array {
     const length = rgba.length / 4;
     const argb = new Int32Array(length);
 
@@ -54,7 +54,7 @@ class qoiFuHandler implements FormatHandler {
 
     return argb;
   }
-  static argbToRgba (argb: Int32Array): Uint8ClampedArray {
+  static argbToRgba(argb: Int32Array): Uint8ClampedArray {
     const rgba = new Uint8ClampedArray(argb.length * 4);
 
     for (let i = 0; i < argb.length; i++) {
@@ -70,7 +70,7 @@ class qoiFuHandler implements FormatHandler {
     return rgba;
   }
 
-  async doConvert (
+  async doConvert(
     inputFiles: FileData[],
     inputFormat: FileFormat,
     outputFormat: FileFormat

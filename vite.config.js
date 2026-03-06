@@ -8,6 +8,9 @@ export default defineConfig({
     sourcemap: true,
     target: "esnext",
   },
+  worker: {
+    format: "es",
+  },
   test: {
     globals: true,
     environment: 'jsdom',
