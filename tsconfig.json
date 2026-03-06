@@ -36,10 +36,10 @@
     "baseUrl": ".",
     "paths": {
       "qoi-fu": [
-        "./src/handlers/qoi-fu/transpiled/QOI.js"
+        "./src/handlers/qoi-fu-lib/QOI.ts"
       ],
       "qoa-fu": [
-        "./src/handlers/qoa-fu/transpiled/QOA.js"
+        "./src/handlers/qoa-fu-lib/QOA.ts"
       ]
     }
   },
@@ -50,6 +50,8 @@
     "src/**/*.test.ts",
     "src/handlers/qoi-fu/**/*",
     "src/handlers/qoa-fu/**/*",
+    "src/handlers/qoi-fu-lib/**/*",
+    "src/handlers/qoa-fu-lib/**/*",
     "src/handlers/sppd/**/*",
     "src/handlers/espeakng.js/**/*",
     "src/handlers/image-to-txt/src/app.ts",
