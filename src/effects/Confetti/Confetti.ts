@@ -51,10 +51,11 @@ export function triggerConfetti() {
         });
     }
 
-    const startTime = performance.now();
+    let startTime: number | null = null;
     const animationDurationMs = 2500;
 
     function animate(now: number) {
+        if (startTime === null) startTime = now;
         const elapsed = now - startTime;
         const progress = Math.min(elapsed / animationDurationMs, 1);
 

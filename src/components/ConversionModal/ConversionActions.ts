@@ -438,14 +438,18 @@ export function initConvertButton() {
                 if (isCancelled) return;
 
                 showPopup(
-                    `<h2>All done! 🎉</h2>` +
+                    `<h2>Files converted! 🎉</h2>` +
                     `<p>${allOutputFiles.length} file${allOutputFiles.length > 1 ? "s" : ""} converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b>${allOutputFiles.length > 1 ? " and zipped up for you," : ","} downloading now.</p>` +
                     `<div class="popup-actions">` +
                     `<button class="popup-primary" onclick="window.downloadAgain()">Download again</button>` +
                     `<button onclick="window.hidePopup()">Done</button>` +
                     `</div>`,
                 );
-                triggerConfetti();
+                // Delay confetti slightly to let the modal paint first
+                setTimeout(() => {
+                    const isPopupShowing = ui.popupBox.classList.contains("popup-visible");
+                    if (isPopupShowing) triggerConfetti();
+                }, 300);
             } else {
                 const output = await window.tryConvertByTraversing(inputFileData, inputOption, outputOption);
 
@@ -474,14 +478,18 @@ export function initConvertButton() {
                     : `<b>${escapeHTML(shortenFileName(inputFiles[0].name, 32))}</b> has been converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and is downloading now.`;
 
                 showPopup(
-                    `<h2>All done! 🎉</h2>` +
+                    `<h2>File converted! 🎉</h2>` +
                     `<p>${resultText}</p>` +
                     `<div class="popup-actions">` +
                     `<button class="popup-primary" onclick="window.downloadAgain()">Download again</button>` +
                     `<button onclick="window.hidePopup()">Done</button>` +
                     `</div>`,
                 );
-                triggerConfetti();
+                // Delay confetti slightly to let the modal paint first
+                setTimeout(() => {
+                    const isPopupShowing = ui.popupBox.classList.contains("popup-visible");
+                    if (isPopupShowing) triggerConfetti();
+                }, 300);
             }
         } catch (e) {
             if (isCancelled) return;
