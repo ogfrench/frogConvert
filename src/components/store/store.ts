@@ -287,6 +287,7 @@ export const allOptionsRef: { value: Array<{ format: FileFormat; handler: Format
 export const activeCategory = { value: "" };
 export const selectedFromIndex: { value: number | null } = { value: null };
 export const selectedToIndex: { value: number | null } = { value: null };
+export const isLoadingPhase2: { value: boolean } = { value: false };
 
 // --- Helpers ---
 

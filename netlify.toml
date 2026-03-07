@@ -1,5 +1,5 @@
 [build]
-  command = "npm run build"
+  command = "bun run build"
   publish = "dist"
 
 # Rewrite /convert/* to the actual files in dist/

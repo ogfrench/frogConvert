@@ -1,6 +1,6 @@
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 import "./FormatModal.css";
-import { ui, CATEGORY_LABELS, formatDisplayName, isAdvancedMode, BASIC_FORMATS, getFormatCategory, activeCategory, allOptionsRef } from "../store/store.ts";
+import { ui, CATEGORY_LABELS, formatDisplayName, isAdvancedMode, BASIC_FORMATS, getFormatCategory, activeCategory, allOptionsRef, isLoadingPhase2 } from "../store/store.ts";
 
 // --- Format modal ---
 
@@ -193,5 +193,12 @@ export function renderFormatOptions(
       btn.textContent = item.text;
       ui.formatOptions.appendChild(btn);
     }
+  }
+
+  if (isLoadingPhase2.value) {
+    const chip = document.createElement("div");
+    chip.className = "format-loading-more";
+    chip.innerHTML = `<span class="format-loading-dot"></span>Loading more formats\u2026`;
+    ui.formatOptions.appendChild(chip);
   }
 }

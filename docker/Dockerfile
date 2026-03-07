@@ -10,7 +10,7 @@ ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 COPY .npmrc ./
-COPY package.json ./
+COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
 COPY . .

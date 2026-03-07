@@ -37,6 +37,7 @@ import {
   selectedFromIndex,
   selectedToIndex,
   allOptionsRef,
+  isLoadingPhase2,
   ui,
 } from "./components/index.ts";
 import { triggerConfetti } from "./effects/Confetti/Confetti.ts";
@@ -119,27 +120,54 @@ window.printSupportedFormatCache = () => {
 
 // --- Build option list ---
 
-async function loadHandlerFormats(subset: FormatHandler[]) {
+/** Synchronously populate allOptionsRef from already-loaded cache — no handler.init() calls. */
+function populateFromCache(subset: FormatHandler[]) {
   for (const handler of subset) {
-    if (!window.supportedFormatCache.has(handler.name)) {
-      console.debug(`Cache miss for formats of handler "${handler.name}".`);
-      try {
-        await handler.init();
-      } catch (_) { continue; }
-      if (handler.supportedFormats) {
-        window.supportedFormatCache.set(handler.name, handler.supportedFormats);
-        console.info(`Updated supported format cache for "${handler.name}".`);
-      }
-    }
     const supportedFormats = window.supportedFormatCache.get(handler.name);
-    if (!supportedFormats) {
-      console.warn(`Handler "${handler.name}" doesn't support any formats.`);
-      continue;
-    }
+    if (!supportedFormats) continue;
     for (const format of supportedFormats) {
       if (!format.mime) continue;
       allOptionsRef.value.push({ format, handler });
     }
+  }
+}
+
+/** Init only handlers not yet in cache, then add their formats to allOptionsRef. */
+async function initCacheMissHandlers(subset: FormatHandler[]) {
+  for (const handler of subset) {
+    if (window.supportedFormatCache.has(handler.name)) continue;
+    console.debug(`Cache miss for formats of handler "${handler.name}".`);
+    try {
+      await handler.init();
+    } catch (_) { continue; }
+    if (handler.supportedFormats) {
+      window.supportedFormatCache.set(handler.name, handler.supportedFormats);
+      console.info(`Updated supported format cache for "${handler.name}".`);
+      for (const format of handler.supportedFormats) {
+        if (!format.mime) continue;
+        allOptionsRef.value.push({ format, handler });
+      }
+    }
+  }
+}
+
+/** Show or complete/hide the top-of-page thin loading bar (cold start only). */
+function showLoadingBar(show: boolean) {
+  const id = "loading-bar";
+  if (show) {
+    if (document.getElementById(id)) return;
+    const bar = document.createElement("div");
+    bar.id = id;
+    document.body.prepend(bar);
+    requestAnimationFrame(() => { bar.style.width = "85%"; });
+  } else {
+    const bar = document.getElementById(id) as HTMLElement | null;
+    if (!bar) return;
+    bar.classList.add("complete");
+    bar.addEventListener("transitionend", (e) => {
+      if ((e as TransitionEvent).propertyName === "opacity") bar.remove();
+    }, { once: true });
+    setTimeout(() => bar.remove(), 800);
   }
 }
 
@@ -154,11 +182,13 @@ function refreshUI() {
 // --- Init ---
 
 (async () => {
-  // Try localStorage first, then fall back to cache.json
+  // Load cache: localStorage → cache.json → nothing (cold start)
+  let isColdStart = true;
   try {
     const stored = localStorage.getItem("supportedFormatCache");
     if (stored) {
       window.supportedFormatCache = new Map(JSON.parse(stored));
+      isColdStart = false;
     } else {
       throw "No localStorage cache";
     }
@@ -166,6 +196,7 @@ function refreshUI() {
     try {
       const cacheJSON = await fetch("cache.json", { signal: AbortSignal.timeout(5000) }).then(r => r.json());
       window.supportedFormatCache = new Map(cacheJSON);
+      isColdStart = false;
     } catch {
       console.info(
         "Missing supported format precache.\n\n" +
@@ -174,35 +205,53 @@ function refreshUI() {
     }
   }
 
-  try {
-    // Phase 1: core handlers (already in handlers array)
-    await loadHandlerFormats(handlers);
+  if (!isColdStart) {
+    // Warm load: populate format list from cache instantly, no handler.init() needed
+    populateFromCache(handlers);
     refreshUI();
+  } else {
+    // Cold start: show thin top bar while handlers initialize
+    showLoadingBar(true);
+  }
+
+  try {
+    // Phase 1: init only handlers not yet in cache (cache-miss path)
+    const sizeBefore = allOptionsRef.value.length;
+    await initCacheMissHandlers(handlers);
+    if (allOptionsRef.value.length > sizeBefore) {
+      refreshUI();
+    }
+    showLoadingBar(false);
     console.log(`Phase 1: ${handlers.length} core handlers loaded.`);
   } catch (e) {
     console.error("Phase 1 init failed:", e);
+    showLoadingBar(false);
   }
 
-  // Phase 2: dynamically load remaining handlers in background
-  setTimeout(async () => {
-    const countBefore = handlers.length;
+  // Phase 2: load background handlers immediately after Phase 1 (no artificial delay)
+  const countBefore = handlers.length;
+  try {
+    isLoadingPhase2.value = true;
     await loadBackgroundHandlers();
-    await loadHandlerFormats(handlers.slice(countBefore));
-    // Defer graph rebuild if a conversion is currently in progress to avoid sending a new
-    // 'init' message to the route-search worker mid-pathfinding. The graph will be rebuilt
-    // immediately after the conversion's finally block runs.
-    if (!getIsConverting()) {
-      refreshUI();
-    } else {
-      setOnConversionEnd(refreshUI);
-    }
-    // Persist cache for next page load
-    try {
-      const entries = [...window.supportedFormatCache.entries()];
-      localStorage.setItem("supportedFormatCache", JSON.stringify(entries));
-    } catch (_) { }
-    console.log(`Phase 2: ${handlers.length - countBefore} background handlers loaded.`);
-  }, 1000);
+    populateFromCache(handlers.slice(countBefore));
+    await initCacheMissHandlers(handlers.slice(countBefore));
+  } finally {
+    isLoadingPhase2.value = false;
+  }
+  // Defer graph rebuild if a conversion is currently in progress to avoid sending a new
+  // 'init' message to the route-search worker mid-pathfinding. The graph will be rebuilt
+  // immediately after the conversion's finally block runs.
+  if (!getIsConverting()) {
+    refreshUI();
+  } else {
+    setOnConversionEnd(refreshUI);
+  }
+  // Persist cache for next page load
+  try {
+    const entries = [...window.supportedFormatCache.entries()];
+    localStorage.setItem("supportedFormatCache", JSON.stringify(entries));
+  } catch (_) { }
+  console.log(`Phase 2: ${handlers.length - countBefore} background handlers loaded.`);
 })();
 
 // --- Conversion logic ---

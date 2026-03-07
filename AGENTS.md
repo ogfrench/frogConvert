@@ -26,7 +26,7 @@ bun run mcp
 2. **`find_conversion_path`**
    - **Arguments**: `inputMime`, `inputExtension`, `outputMime`, `outputExtension`
    - **Description**: Uses frogConvert's `TraversionGraph` algorithm to calculate the step-by-step handler chain required to convert from the input to the output.
-   - **Returns**: A visual string representation of the path (e.g. `FFmpeg (audio/wav) -> pandas (document/csv)`). Returns an error if no path exists.
+   - **Returns**: A visual string representation of the path (e.g. `FFmpeg (audio/wav) -> pandoc (document/csv)`). Returns an error if no path exists.
 
 3. **`convert_file`**
    - **Arguments**: `fileName`, `base64Bytes`, `inputMime`, `inputExtension`, `outputMime`, `outputExtension`

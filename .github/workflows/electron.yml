@@ -45,12 +45,9 @@ jobs:
       - name: Generate cache (for testing)
         if: matrix.platform == 'linux'
         run: bun run cache:build
-      - name: Test traversion graph
+      - name: Run tests
         if: matrix.platform == 'linux'
-        run: bun test test/TraversionGraph.test.ts
-      - name: Test common conversion routes
-        if: matrix.platform == 'linux'
-        run: bun test test/commonFormats.test.ts
+        run: bun run test
 
       - name: Build Distribution for ${{ matrix.platform }}
         run: bun run desktop:dist:${{ matrix.platform }}

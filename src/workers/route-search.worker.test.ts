@@ -171,4 +171,115 @@ describe('route-search worker — createWorkerHandler', () => {
         expect(messages.filter(m => m.type === 'done').length).toBe(1);
     });
 
+    it("'isSimpleMode: false' skips paths whose last handler doesn't match targetHandlerName", () => {
+        const { send, messages } = createSyncWorker();
+
+        // Only one path exists via 'hWrong', but targetHandlerName is 'hTarget'
+        const nodes: Node[] = [
+            { identifier: 'hWrong:image/png:png',  edges: [0] },
+            { identifier: 'hWrong:audio/mpeg:mp3', edges: [] },
+        ];
+        const edges: Edge[] = [
+            { from: { format: fmtPng, index: 0 }, to: { format: fmtMp3, index: 1 }, handler: 'hWrong', cost: 1 },
+        ];
+
+        send({ type: 'init', nodes, edges, categoryAdaptiveCosts: [] });
+        send({
+            type: 'start',
+            fromIdentifier: 'hWrong:image/png:png',
+            toIdentifier: 'hWrong:audio/mpeg:mp3',
+            isSimpleMode: false,
+            targetHandlerName: 'hTarget',
+            initialDeadEnds: [],
+            initialPath: [{ handlerName: 'hWrong', format: fmtPng }],
+        });
+
+        // The only path ends with 'hWrong', not 'hTarget' — skipped, done immediately
+        expect(messages.filter(m => m.type === 'found').length).toBe(0);
+        expect(messages.filter(m => m.type === 'done').length).toBe(1);
+    });
+
+    it("'isSimpleMode: false' posts found when last handler matches targetHandlerName", () => {
+        const { send, messages } = createSyncWorker();
+
+        const nodes: Node[] = [
+            { identifier: 'hA:image/png:png',  edges: [0] },
+            { identifier: 'hB:audio/mpeg:mp3', edges: [] },
+        ];
+        const edges: Edge[] = [
+            { from: { format: fmtPng, index: 0 }, to: { format: fmtMp3, index: 1 }, handler: 'hA', cost: 1 },
+        ];
+
+        send({ type: 'init', nodes, edges, categoryAdaptiveCosts: [] });
+        send({
+            type: 'start',
+            fromIdentifier: 'hA:image/png:png',
+            toIdentifier: 'hB:audio/mpeg:mp3',
+            isSimpleMode: false,
+            targetHandlerName: 'hA',
+            initialDeadEnds: [],
+            initialPath: [{ handlerName: 'hA', format: fmtPng }],
+        });
+
+        expect(messages.filter(m => m.type === 'found').length).toBe(1);
+        expect(messages[0].path.at(-1)?.handlerName).toBe('hA');
+
+        send({ type: 'resume', deadEnds: [] });
+        expect(messages.filter(m => m.type === 'done').length).toBe(1);
+    });
+
+    it("categoryAdaptiveCosts penalises matching category sequences and finds cheaper path first", () => {
+        const { send, messages } = createSyncWorker();
+
+        // Initial node uses a neutral category so the direct edge (cost 5) isn't penalised,
+        // but the two-step path image→audio (cost 1+1) is penalised heavily.
+        const fmtNeutral = { ...fmtPng, category: 'other' };
+        const fmtImg = { mime: 'image/jpeg', format: 'jpeg', extension: 'jpeg', name: 'JPEG', internal: 'jpeg', from: true, to: true, lossless: false, category: 'image' };
+        const fmtAud = { mime: 'audio/mpeg', format: 'mp3',  extension: 'mp3',  name: 'MP3',  internal: 'mp3',  from: true, to: true, lossless: false, category: 'audio' };
+
+        // Graph: start --[edge0,cost1]--> mid(image) --[edge1,cost1]--> end(audio)
+        //              \---[edge2,cost5]------------------------------> end(audio)
+        const nodes: Node[] = [
+            { identifier: 'start:image/png:png',  edges: [0, 2] },
+            { identifier: 'mid:image/jpeg:jpeg',  edges: [1]    },
+            { identifier: 'end:audio/mpeg:mp3',   edges: []     },
+        ];
+        const edges: Edge[] = [
+            { from: { format: fmtNeutral, index: 0 }, to: { format: fmtImg, index: 1 }, handler: 'hImg',    cost: 1 },
+            { from: { format: fmtImg,     index: 1 }, to: { format: fmtAud, index: 2 }, handler: 'hImgAud', cost: 1 },
+            { from: { format: fmtNeutral, index: 0 }, to: { format: fmtAud, index: 2 }, handler: 'hDirect', cost: 5 },
+        ];
+
+        // Penalty of 100 when path ends with image→audio. Without penalty, the
+        // 2-step path (cost 2) beats the direct path (cost 5). With the penalty the
+        // 2-step path costs 102, so the direct path is found first.
+        const categoryAdaptiveCosts = [{ categories: ['image', 'audio'], cost: 100 }];
+
+        send({ type: 'init', nodes, edges, categoryAdaptiveCosts });
+        send({
+            type: 'start',
+            fromIdentifier: 'start:image/png:png',
+            toIdentifier: 'end:audio/mpeg:mp3',
+            isSimpleMode: true,
+            targetHandlerName: undefined,
+            initialDeadEnds: [],
+            initialPath: [{ handlerName: 'hStart', format: fmtNeutral }],
+        });
+
+        // Direct path found first (cost 5 < penalised cost 102)
+        const found = messages.filter(m => m.type === 'found');
+        expect(found.length).toBe(1);
+        expect(found[0].path.at(-1)?.handlerName).toBe('hDirect');
+
+        // Resume: the penalised path is found next
+        send({ type: 'resume', deadEnds: [] });
+        const found2 = messages.filter(m => m.type === 'found');
+        expect(found2.length).toBe(2);
+        expect(found2[1].path.at(-1)?.handlerName).toBe('hImgAud');
+
+        // Resume again to drain queue
+        send({ type: 'resume', deadEnds: [] });
+        expect(messages.filter(m => m.type === 'done').length).toBe(1);
+    });
+
 });

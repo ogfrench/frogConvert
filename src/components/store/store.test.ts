@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { escapeHTML, shortenFileName, formatBytes, getFormatCategory, checkFileSizeLimits, formatDisplayName, DEFAULT_UPLOAD_TEXT, DEFAULT_UPLOAD_LABEL } from "./store.ts";
+import { escapeHTML, shortenFileName, formatBytes, getFormatCategory, checkFileSizeLimits, formatDisplayName, sortFilesByName, DEFAULT_UPLOAD_TEXT, DEFAULT_UPLOAD_LABEL } from "./store.ts";
 import type { FileFormat } from "../../core/FormatHandler/FormatHandler.ts";
 
 // ---------------------------------------------------------------------------
@@ -300,5 +300,46 @@ describe("shortenFileName edge cases", () => {
         const result = shortenFileName("abcde", 4);
         expect(result.length).toBe(4);
         expect(result).toContain("...");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// sortFilesByName
+// ---------------------------------------------------------------------------
+
+describe("sortFilesByName", () => {
+    function makeFile(name: string): File {
+        return { name } as File;
+    }
+
+    it("sorts files alphabetically by name", () => {
+        const files = [makeFile("zebra.txt"), makeFile("apple.txt"), makeFile("mango.txt")];
+        sortFilesByName(files);
+        expect(files.map(f => f.name)).toEqual(["apple.txt", "mango.txt", "zebra.txt"]);
+    });
+
+    it("is a no-op for an already-sorted array", () => {
+        const files = [makeFile("a.txt"), makeFile("b.txt"), makeFile("c.txt")];
+        sortFilesByName(files);
+        expect(files.map(f => f.name)).toEqual(["a.txt", "b.txt", "c.txt"]);
+    });
+
+    it("sorts case-insensitively via localeCompare", () => {
+        const files = [makeFile("Beta.png"), makeFile("alpha.png"), makeFile("GAMMA.png")];
+        sortFilesByName(files);
+        // localeCompare is locale-dependent but 'alpha' < 'Beta' < 'GAMMA' in default locale
+        expect(files[0].name.toLowerCase()).toBe("alpha.png");
+    });
+
+    it("handles a single file without error", () => {
+        const files = [makeFile("only.txt")];
+        sortFilesByName(files);
+        expect(files.map(f => f.name)).toEqual(["only.txt"]);
+    });
+
+    it("handles an empty array without error", () => {
+        const files: File[] = [];
+        sortFilesByName(files);
+        expect(files).toHaveLength(0);
     });
 });

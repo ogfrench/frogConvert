@@ -39,22 +39,16 @@
   mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
 }
 
-/* Light mode: more opaque + dark bottom separator so it reads against a white page */
+/* Light mode: more opaque white tint */
 #top-bar.scrolled::before {
-  background-color: rgba(255, 255, 255, 0.75);
-  box-shadow:
-    0 1px 0 rgba(0, 0, 0, 0.08),
-    0 4px 16px rgba(0, 0, 0, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.90);
+  background-color: rgba(255, 255, 255, 0.65);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 }
 
-/* Dark mode: pull back — white ghost on dark is too stark */
+/* Dark mode: slight black tint to soften the blur */
 .dark #top-bar.scrolled::before {
-  background-color: rgba(255, 255, 255, 0.06);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.06),
-    0 4px 16px rgba(0, 0, 0, 0.10),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  background-color: rgba(0, 0, 0, 0.30);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
 }
 
 #logo {
