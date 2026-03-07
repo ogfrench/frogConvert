@@ -118,7 +118,7 @@ function getConversionWorker(): Worker {
             // Worker crashed — reject the in-flight promise with a real error, then discard the dead worker
             const cb = workerErrorCallback;
             workerErrorCallback = null;
-            workerCancelCallback = null;
+            setWorkerCancelCallback(null);
             conversionWorker = null;
             cb?.(err);
         };
@@ -135,7 +135,7 @@ async function runInWorker(handlerName: string, inputFiles: FileData[], inputFor
         const cleanup = () => {
             clearTimeout(timeoutId);
             worker.removeEventListener("message", onMessage);
-            workerCancelCallback = null;
+            setWorkerCancelCallback(null);
             workerErrorCallback = null;
         };
 
