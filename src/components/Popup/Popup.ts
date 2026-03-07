@@ -5,7 +5,13 @@ import { ui } from "../store/store.ts";
 
 const HIDE_MS = 160;
 
+let _hideTimer: ReturnType<typeof setTimeout> | null = null;
+
 export function showPopup(html: string) {
+  if (_hideTimer !== null) {
+    clearTimeout(_hideTimer);
+    _hideTimer = null;
+  }
   ui.popupBox.classList.remove("closing", "popup-visible");
   ui.popupBackground.classList.remove("closing", "popup-visible");
   ui.popupBox.innerHTML = html;
@@ -21,7 +27,8 @@ export function hidePopup() {
   ui.popupBackground.classList.remove("popup-visible");
   ui.popupBox.classList.add("closing");
   ui.popupBackground.classList.add("closing");
-  setTimeout(() => {
+  _hideTimer = setTimeout(() => {
+    _hideTimer = null;
     ui.popupBox.style.display = "none";
     ui.popupBackground.style.display = "none";
     ui.popupBox.classList.remove("closing");

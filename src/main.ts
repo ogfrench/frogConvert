@@ -14,6 +14,7 @@ import {
   setSelectedFormat,
   updateConvertButtonState,
   renderFormatOptions,
+  filterFormats,
   showFileInUploadZone,
   showDetectedFormat,
   resetUploadZone,
@@ -22,6 +23,8 @@ import {
   initModeToggle,
   clearFormatSelection,
   initConvertButton,
+  getIsConverting,
+  setOnConversionEnd,
   initResponsiveMenu,
   initSegmentedControls,
   initParallax,
@@ -34,6 +37,7 @@ import {
   selectedFromIndex,
   selectedToIndex,
   allOptionsRef,
+  ui,
 } from "./components/index.ts";
 import { triggerConfetti } from "./effects/Confetti/Confetti.ts";
 
@@ -54,7 +58,7 @@ initFormatModal(allOptionsRef.value, selectToFormat);
 
 initCategoryTabs((category) => {
   activeCategory.value = category;
-  updateCategoryText(activeCategory.value, currentFiles.value.length > 0);
+  updateCategoryText(currentFiles.value.length > 0);
   renderFormatOptions(allOptionsRef.value, activeCategory.value);
   selectedToIndex.value = null;
   clearFormatSelection(activeCategory.value);
@@ -142,6 +146,9 @@ async function loadHandlerFormats(subset: FormatHandler[]) {
 function refreshUI() {
   window.traversionGraph.init(window.supportedFormatCache, handlers);
   renderFormatOptions(allOptionsRef.value, activeCategory.value);
+  if (ui.formatModal.classList.contains("open")) {
+    filterFormats(ui.formatSearch.value);
+  }
 }
 
 // --- Init ---
@@ -157,7 +164,7 @@ function refreshUI() {
     }
   } catch {
     try {
-      const cacheJSON = await fetch("cache.json").then(r => r.json());
+      const cacheJSON = await fetch("cache.json", { signal: AbortSignal.timeout(5000) }).then(r => r.json());
       window.supportedFormatCache = new Map(cacheJSON);
     } catch {
       console.info(
@@ -167,17 +174,28 @@ function refreshUI() {
     }
   }
 
-  // Phase 1: core handlers (already in handlers array)
-  await loadHandlerFormats(handlers);
-  refreshUI();
-  console.log(`Phase 1: ${handlers.length} core handlers loaded.`);
+  try {
+    // Phase 1: core handlers (already in handlers array)
+    await loadHandlerFormats(handlers);
+    refreshUI();
+    console.log(`Phase 1: ${handlers.length} core handlers loaded.`);
+  } catch (e) {
+    console.error("Phase 1 init failed:", e);
+  }
 
   // Phase 2: dynamically load remaining handlers in background
   setTimeout(async () => {
     const countBefore = handlers.length;
     await loadBackgroundHandlers();
     await loadHandlerFormats(handlers.slice(countBefore));
-    refreshUI();
+    // Defer graph rebuild if a conversion is currently in progress to avoid sending a new
+    // 'init' message to the route-search worker mid-pathfinding. The graph will be rebuilt
+    // immediately after the conversion's finally block runs.
+    if (!getIsConverting()) {
+      refreshUI();
+    } else {
+      setOnConversionEnd(refreshUI);
+    }
     // Persist cache for next page load
     try {
       const entries = [...window.supportedFormatCache.entries()];

@@ -5,8 +5,10 @@ import { ui, CATEGORY_LABELS, formatDisplayName, isAdvancedMode, BASIC_FORMATS, 
 // --- Format modal ---
 
 let _formatModalOpener: Element | null = null;
+let _searchTimeout: ReturnType<typeof setTimeout> | undefined;
 
 export function closeFormatModal() {
+  clearTimeout(_searchTimeout);
   (_formatModalOpener as HTMLElement | null)?.focus();
   _formatModalOpener = null;
   ui.formatModal.classList.remove("open");
@@ -26,6 +28,7 @@ export function openFormatModal() {
   if (!window.matchMedia("(pointer: coarse)").matches) {
     ui.formatSearch.focus();
   }
+  renderFormatOptions(allOptionsRef.value, activeCategory.value);
   filterFormats("");
 }
 
@@ -77,10 +80,9 @@ export function initFormatModal(
     }
   });
 
-  let searchTimeout: ReturnType<typeof setTimeout>;
   ui.formatSearch.addEventListener("input", () => {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => filterFormats(ui.formatSearch.value), 80);
+    clearTimeout(_searchTimeout);
+    _searchTimeout = setTimeout(() => filterFormats(ui.formatSearch.value), 80);
   });
 
   ui.formatOptions.addEventListener("click", (e) => {
@@ -136,6 +138,14 @@ export function renderFormatOptions(
 ) {
   activeCategory.value = category;
   ui.formatOptions.innerHTML = "";
+
+  if (allOptions.length === 0) {
+    const msg = document.createElement("div");
+    msg.className = "format-loading";
+    msg.innerHTML = `<div class="loader-spinner"></div><p>Loading formats…</p><p class="format-loading-hint">This may take a moment on first load</p>`;
+    ui.formatOptions.appendChild(msg);
+    return;
+  }
 
   const toGroups = new Map<string, Array<{ index: number; text: string }>>();
   const seenTo = new Set<string>();

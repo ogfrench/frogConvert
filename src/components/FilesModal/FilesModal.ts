@@ -292,7 +292,7 @@ function addMoreFiles(newFiles: File[]) {
   const { level, totalSize } = checkFileSizeLimits(combinedFiles);
   if (level !== "ok") {
     closeFilesModal();
-    showSizeWarningPopup(level, totalSize, combinedFiles.length, () => {
+    showSizeWarningPopup(totalSize, combinedFiles.length, () => {
       currentFiles.value = combinedFiles;
       sortFilesByName(currentFiles.value);
       applyFilesUpdate(false);

@@ -26,6 +26,13 @@ const waitForPaint = () => new Promise<void>(resolve =>
 );
 
 let isConverting = false;
+export const getIsConverting = () => isConverting;
+
+/** Called once after a conversion completes, then cleared. Used to defer work that is unsafe to run mid-conversion. */
+let onConversionEnd: (() => void) | null = null;
+export function setOnConversionEnd(fn: (() => void) | null) {
+    onConversionEnd = fn;
+}
 
 // --- Format matching ---
 
@@ -101,10 +108,20 @@ window.downloadAgain = function () {
 // --- Worker Manager ---
 let conversionWorker: Worker | null = null;
 let workerMsgId = 0;
+const WORKER_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+let workerErrorCallback: ((e: ErrorEvent) => void) | null = null;
 
 function getConversionWorker(): Worker {
     if (!conversionWorker) {
         conversionWorker = new Worker(new URL("../../workers/conversion.worker.ts", import.meta.url), { type: "module" });
+        conversionWorker.onerror = (err) => {
+            // Worker crashed — reject the in-flight promise with a real error, then discard the dead worker
+            const cb = workerErrorCallback;
+            workerErrorCallback = null;
+            workerCancelCallback = null;
+            conversionWorker = null;
+            cb?.(err);
+        };
     }
     return conversionWorker;
 }
@@ -115,11 +132,17 @@ async function runInWorker(handlerName: string, inputFiles: FileData[], inputFor
     return new Promise((resolve, reject) => {
         if (isCancelled) { reject(new Error("Cancelled")); return; }
 
+        const cleanup = () => {
+            clearTimeout(timeoutId);
+            worker.removeEventListener("message", onMessage);
+            workerCancelCallback = null;
+            workerErrorCallback = null;
+        };
+
         const onMessage = (ev: MessageEvent) => {
             const msg = ev.data;
             if (msg.id === id) {
-                setWorkerCancelCallback(null);
-                worker.removeEventListener("message", onMessage);
+                cleanup();
                 if (msg.type === "success") {
                     resolve(msg.outputFiles);
                 } else {
@@ -127,11 +150,21 @@ async function runInWorker(handlerName: string, inputFiles: FileData[], inputFor
                 }
             }
         };
+
+        const timeoutId = setTimeout(() => {
+            cleanup();
+            reject(new Error(`Conversion timed out after ${WORKER_TIMEOUT_MS / 60000} minutes.`));
+        }, WORKER_TIMEOUT_MS);
+
         worker.addEventListener("message", onMessage);
         setWorkerCancelCallback(() => {
-            worker.removeEventListener("message", onMessage);
+            cleanup();
             reject(new Error("Cancelled"));
         });
+        workerErrorCallback = (err: ErrorEvent) => {
+            cleanup();
+            reject(new Error(`Conversion worker crashed: ${err.message}`));
+        };
         const transferables = inputFiles.map(f => f.bytes.buffer).filter(b => b.byteLength > 0);
         worker.postMessage({ id, handlerName, inputFiles, inputFormat, outputFormat, args }, transferables);
     });
@@ -171,7 +204,8 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
                     c.from
                     && c.mime === path[i].format.mime
                     && c.format === path[i].format.format,
-                )!;
+                );
+                if (!inputFormat) throw `Handler "${handler.name}" doesn't support input format "${path[i].format.format}" (${path[i].format.mime}).`;
 
                 let outputFiles: FileData[];
                 if (handler.requiresMainThread) {
@@ -261,7 +295,6 @@ function showConversionNotFoundPopup(fromFormat: string, toFormat: string) {
         `<button class="popup-primary" onclick="window.hidePopup()">Got it</button>` +
         `</div>`,
     );
-    triggerConfetti();
 }
 
 async function ensureMinDuration(startTime: number, minMs: number = 600) {
@@ -277,40 +310,50 @@ export function initConvertButton() {
     ui.convertButton.onclick = async () => {
         if (isConverting) return;
         isConverting = true;
-        const inputFiles = currentFiles.value;
-        const fileCount = inputFiles.length;
-
-        if (fileCount === 0) {
-            alert("Drop files first to get started.");
-            isConverting = false;
-            return;
-        }
-
-        if (selectedFromIndex.value === null) {
-            alert(`Hmm, couldn't figure out ${fileCount > 1 ? "these files'" : "this file's"} format. Try another?`);
-            isConverting = false;
-            return;
-        }
-        if (selectedToIndex.value === null) {
-            alert("Pick a format to convert to first!");
-            isConverting = false;
-            return;
-        }
-
-        const inputOption = allOptionsRef.value[selectedFromIndex.value];
-        const outputOption = allOptionsRef.value[selectedToIndex.value];
-
-        const inputFormat = inputOption.format;
-        const outputFormat = outputOption.format;
-
-        const conversionStartTime = performance.now();
-        resetCancellation();
 
         try {
+            const inputFiles = currentFiles.value;
+            const fileCount = inputFiles.length;
+
+            if (fileCount === 0) {
+                alert("Drop files first to get started.");
+                return;
+            }
+
+            if (selectedFromIndex.value === null) {
+                alert(`Hmm, couldn't figure out ${fileCount > 1 ? "these files'" : "this file's"} format. Try another?`);
+                return;
+            }
+            if (selectedToIndex.value === null) {
+                alert("Pick a format to convert to first!");
+                return;
+            }
+
+            if (window.traversionGraph.nodeCount === 0) {
+                showPopup(
+                    `<h2>Still loading...</h2>` +
+                    `<p>Formats are still loading. Try again in a moment.</p>` +
+                    `<div class="popup-actions">` +
+                    `<button class="popup-primary" onclick="window.hidePopup()">Got it</button>` +
+                    `</div>`,
+                );
+                return;
+            }
+
+            const inputOption = allOptionsRef.value[selectedFromIndex.value];
+            const outputOption = allOptionsRef.value[selectedToIndex.value];
+
+            const inputFormat = inputOption.format;
+            const outputFormat = outputOption.format;
+
+            const conversionStartTime = performance.now();
+            resetCancellation();
+
             const inputFileData: FileData[] = [];
             const allOutputFiles: { name: string; bytes: Uint8Array }[] = [];
 
             for (const inputFile of inputFiles) {
+                if (isCancelled) return;
                 const inputBuffer = await inputFile.arrayBuffer();
                 const inputBytes = new Uint8Array(inputBuffer);
                 if (
@@ -372,10 +415,7 @@ export function initConvertButton() {
                     allOutputFiles.push(...output.files);
                 }
 
-                if (isCancelled) {
-                    resetCancellation();
-                    return;
-                }
+                if (isCancelled) return;
 
                 setLastConvertedFiles(allOutputFiles);
 
@@ -395,10 +435,7 @@ export function initConvertButton() {
 
                 await ensureMinDuration(conversionStartTime);
 
-                if (isCancelled) {
-                    resetCancellation();
-                    return;
-                }
+                if (isCancelled) return;
 
                 showPopup(
                     `<h2>All done! 🎉</h2>` +
@@ -408,15 +445,15 @@ export function initConvertButton() {
                     `<button onclick="window.hidePopup()">Done</button>` +
                     `</div>`,
                 );
+                triggerConfetti();
             } else {
                 const output = await window.tryConvertByTraversing(inputFileData, inputOption, outputOption);
 
-                if (isCancelled) {
-                    resetCancellation();
-                    return;
-                }
+                if (isCancelled) return;
 
                 await ensureMinDuration(conversionStartTime);
+
+                if (isCancelled) return;
 
                 if (!output) {
                     showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
@@ -430,10 +467,7 @@ export function initConvertButton() {
                     downloadFile(file.bytes, file.name);
                 }
 
-                if (isCancelled) {
-                    resetCancellation();
-                    return;
-                }
+                if (isCancelled) return;
 
                 const resultText = fileCount > 1
                     ? `${fileCount} files have been converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and are downloading now.`
@@ -447,6 +481,7 @@ export function initConvertButton() {
                     `<button onclick="window.hidePopup()">Done</button>` +
                     `</div>`,
                 );
+                triggerConfetti();
             }
         } catch (e) {
             if (isCancelled) return;
@@ -462,6 +497,11 @@ export function initConvertButton() {
             await completeCancellation();
             resetCancellation();
             isConverting = false;
+            if (onConversionEnd) {
+                const fn = onConversionEnd;
+                onConversionEnd = null;
+                fn();
+            }
         }
     };
 }

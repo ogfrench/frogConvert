@@ -82,60 +82,30 @@ export class FormatDefinition implements IFormatDefinition {
   builder(ref: string) {
     const def = this;
 
-    const builder = {
-      // FileFormat fields
-      name: def.name,
-      format: def.format,
-      extension: def.extension,
-      mime: def.mime,
-      category: def.category,
-      internal: ref,
-      from: false,
-      to: false,
-      lossless: false,
+    class FormatBuilder {
+      name: string = def.name;
+      format: string = def.format;
+      extension: string = def.extension;
+      mime: string = def.mime;
+      category: string[] | string | undefined = def.category;
+      internal: string = ref;
+      from: boolean = false;
+      to: boolean = false;
+      lossless: boolean = false;
 
-      allowFrom(value: boolean = true) {
-        this.from = value;
-        return this;
-      },
-      allowTo(value: boolean = true) {
-        this.to = value;
-        return this;
-      },
-      markLossless(value: boolean = true) {
-        this.lossless = value;
-        return this;
-      },
-      named(name: string) {
-        this.name = name;
-        return this;
-      },
-      withFormat(format: string) {
-        this.format = format;
-        return this;
-      },
-      withExt(ext: string) {
-        this.extension = ext;
-        return this;
-      },
-      withMime(mimetype: string) {
-        this.mime = mimetype;
-        return this;
-      },
-      /**
-       * Replaces format category
-       */
-      withCategory(category: string[] | string | undefined) {
-        this.category = category
-        return this
-      },
-      override(values: Partial<IFormatDefinition>) {
-        Object.assign(this, values);
-        return this;
-      },
-    };
+      allowFrom(value: boolean = true) { this.from = value; return this; }
+      allowTo(value: boolean = true) { this.to = value; return this; }
+      markLossless(value: boolean = true) { this.lossless = value; return this; }
+      named(name: string) { this.name = name; return this; }
+      withFormat(format: string) { this.format = format; return this; }
+      withExt(ext: string) { this.extension = ext; return this; }
+      withMime(mimetype: string) { this.mime = mimetype; return this; }
+      /** Replaces format category */
+      withCategory(category: string[] | string | undefined) { this.category = category; return this; }
+      override(values: Partial<IFormatDefinition>) { Object.assign(this, values); return this; }
+    }
 
-    return builder as FileFormat & typeof builder;
+    return new FormatBuilder() as FileFormat & FormatBuilder;
   }
 }
 

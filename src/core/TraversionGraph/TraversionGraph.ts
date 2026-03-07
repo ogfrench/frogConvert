@@ -35,7 +35,8 @@ export interface Edge {
 
 export class TraversionGraph {
     private handlersByName: Map<string, FormatHandler> = new Map();
-    private handlerPairsCache: Map<string, string> = new Map();
+    // Maps "from->to" category pair to the set of handler names that have a handler-specific cost for it.
+    private handlerPairsCache: Map<string, Set<string>> = new Map();
     private nodes: Node[] = [];
     private edges: Edge[] = [];
     private categoryChangeCosts: CategoryChangeCost[] = [
@@ -115,6 +116,10 @@ export class TraversionGraph {
         return this.categoryAdaptiveCosts.some(c => c.categories.length === categories.length && c.categories.every((cat, index) => cat === categories[index]));
     }
 
+    public get nodeCount(): number {
+        return this.nodes.length;
+    }
+
     public addDeadEndPath(pathFragment: ConvertPathNode[]) {
         this.temporaryDeadEnds.push(pathFragment);
     }
@@ -133,15 +138,24 @@ export class TraversionGraph {
         // Pre-compute lookup maps for O(1) access in costFunction
         this.handlersByName.clear();
         for (const h of handlers) this.handlersByName.set(h.name, h);
-        this.handlerPairsCache = new Map(
-            this.categoryChangeCosts.filter(c => c.handler)
-                .map(c => [`${c.from}->${c.to}`, c.handler] as [string, string])
-        );
+        this.handlerPairsCache = new Map();
+        for (const c of this.categoryChangeCosts) {
+            if (!c.handler) continue;
+            const key = `${c.from}->${c.to}`;
+            const existing = this.handlerPairsCache.get(key);
+            if (existing) existing.add(c.handler.toLowerCase());
+            else this.handlerPairsCache.set(key, new Set([c.handler.toLowerCase()]));
+        }
 
         console.log("Initializing traversion graph...");
         const startTime = performance.now();
         let handlerIndex = 0;
         supportedFormatCache.forEach((formats, handler) => {
+            // Skip handlers that are in the cache but not registered in this graph instance.
+            // This prevents phantom edges when a warm cache (e.g. from localStorage) includes
+            // Phase 2 handlers that haven't been dynamically loaded yet during Phase 1.
+            if (!this.handlersByName.has(handler)) return;
+
             let fromIndices: Array<{ format: FileFormat, index: number }> = [];
             let toIndices: Array<{ format: FileFormat, index: number }> = [];
             formats.forEach(format => {
@@ -210,22 +224,24 @@ export class TraversionGraph {
             const fromCategories = Array.isArray(fromCategory) ? fromCategory : [fromCategory];
             const toCategories = Array.isArray(toCategory) ? toCategory : [toCategory];
             if (strictCategories) {
-                cost += this.categoryChangeCosts.reduce((totalCost, c) => {
-                    // If the category change defined in CATEGORY_CHANGE_COSTS matches the categories of the formats, add the specified cost. Otherwise, if the categories are the same, add no cost. If the categories differ but no specific cost is defined for that change, add a default cost.
-                    if (fromCategories.includes(c.from)
-                        && toCategories.includes(c.to)
-                        && (!c.handler || c.handler === handler.toLowerCase())
-                    )
-                        return totalCost + c.cost;
-                    return totalCost + DEFAULT_CATEGORY_CHANGE_COST;
-                }, 0);
+                // Apply category change cost: use the matching entry's cost, or the default if none match.
+                const matchingCosts = this.categoryChangeCosts.filter(c =>
+                    fromCategories.includes(c.from)
+                    && toCategories.includes(c.to)
+                    && (!c.handler || c.handler === handler.toLowerCase())
+                );
+                if (matchingCosts.length === 0) {
+                    cost += DEFAULT_CATEGORY_CHANGE_COST;
+                } else {
+                    cost += matchingCosts.reduce((sum, c) => sum + c.cost, 0);
+                }
             }
             else if (!fromCategories.some(c => toCategories.includes(c))) {
                 let costs = this.categoryChangeCosts.filter(c =>
                     fromCategories.includes(c.from)
                     && toCategories.includes(c.to)
                     && (
-                        (!c.handler && this.handlerPairsCache.get(`${c.from}->${c.to}`) !== handler.toLowerCase())
+                        (!c.handler && !this.handlerPairsCache.get(`${c.from}->${c.to}`)?.has(handler.toLowerCase()))
                         || c.handler === handler.toLowerCase()
                     )
                 );

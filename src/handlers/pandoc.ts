@@ -175,7 +175,8 @@ class pandocHandler implements FormatHandler {
     outputFormats.forEach(format => allFormats.add(format));
 
     this.supportedFormats = [];
-    for (let format of allFormats) {
+    for (const internal of allFormats) {
+      let format = internal;
       // PDF doesn't seem to work, at least with this configuration
       if (format === "pdf") continue;
       // RevealJS seems to hang forever?
@@ -205,13 +206,18 @@ class pandocHandler implements FormatHandler {
       this.supportedFormats.push({
         name, format, extension,
         mime: mimeType,
-        from: inputFormats.includes(format),
-        to: outputFormats.includes(format),
+        from: inputFormats.includes(internal),
+        to: outputFormats.includes(internal),
         internal: format,
         category: categories.length === 1 ? categories[0] : categories,
         lossless: !isOfficeDocument
       });
     }
+
+    // Move JSON and XML to end (almost always never what the user wants)
+    const deferred = this.supportedFormats.filter(f => f.internal === "json" || f.internal === "xml");
+    this.supportedFormats = this.supportedFormats.filter(f => f.internal !== "json" && f.internal !== "xml");
+    this.supportedFormats.push(...deferred);
 
     // Move HTML up, it's the only format that can embed resources
     const htmlIndex = this.supportedFormats.findIndex(c => c.internal === "html");

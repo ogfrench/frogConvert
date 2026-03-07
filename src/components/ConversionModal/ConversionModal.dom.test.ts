@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { showConversionInProgress, showCancelConfirmation, ensureCancelButton, resetCancellation, isCancellationConfirming, setWorkerCancelCallback, triggerCancellation, completeCancellation } from "./ConversionModal.ts";
+import { showConversionInProgress, ensureCancelButton, resetCancellation, setWorkerCancelCallback, triggerCancellation, completeCancellation } from "./ConversionModal.ts";
 import { ui } from "../store/store.ts";
 
 describe("ConversionModal DOM bindings", () => {
@@ -57,28 +57,10 @@ describe("ConversionModal DOM bindings", () => {
 
     it("ensureCancelButton creates actions div and the button", () => {
         ensureCancelButton();
-        const actions = ui.popupBox.querySelector(".popup-actions");
+        const actions = ui.popupBox.querySelector(".popup-actions-footer");
         expect(actions).not.toBeNull();
         const cancelBtn = ui.popupBox.querySelector("#cancel-conversion-btn");
         expect(cancelBtn).not.toBeNull();
-    });
-
-    it("showCancelConfirmation replaces content and waits for resolution", async () => {
-        showConversionInProgress("Step 1...");
-        const promise = showCancelConfirmation();
-
-        expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Cancel conversion?");
-        expect(ui.popupBox.querySelector("#confirm-no-btn")).not.toBeNull();
-        expect(ui.popupBox.querySelector("#confirm-yes-btn")).not.toBeNull();
-        expect(isCancellationConfirming()).toBe(true);
-
-        const noBtn = document.getElementById("confirm-no-btn") as HTMLButtonElement;
-        noBtn.click();
-        await promise;
-
-        // Modal content reverts to conversion progress
-        expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Converting... 🐸");
-        expect(ui.popupBox.querySelector("#cancel-conversion-btn")).not.toBeNull();
     });
 
     describe("triggerCancellation", () => {
@@ -115,6 +97,16 @@ describe("ConversionModal DOM bindings", () => {
             // Should not throw and should not hide the popup
             ui.popupBox.style.display = "block";
             await completeCancellation();
+            // hidePopup was never called, so display remains block
+            expect(ui.popupBox.style.display).toBe("block");
+        });
+
+        it("is a no-op after resetCancellation()", async () => {
+            showConversionInProgress("Working...");
+            triggerCancellation();
+            resetCancellation(); // clears cancelStartTime
+            ui.popupBox.style.display = "block";
+            await completeCancellation(); // must be a true no-op now
             expect(ui.popupBox.style.display).toBe("block");
         });
 

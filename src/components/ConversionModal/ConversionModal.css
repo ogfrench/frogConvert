@@ -1,26 +1,11 @@
 /* --- Conversion Modal Specific Styles --- */
 
-.loader-spinner {
-  width: var(--space-10);
-  height: var(--space-10);
-  border: 3px solid var(--border);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin: 0 auto var(--space-5);
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-#popup .popup-actions {
+#popup .popup-actions-footer {
   margin: var(--space-8) calc(-1 * var(--space-8)) calc(-1 * var(--space-10));
   padding: var(--space-4) var(--space-6) var(--space-6);
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
   gap: var(--space-3);
   width: auto;
   border-top: 1px solid var(--border);
@@ -29,8 +14,7 @@
   border-bottom-right-radius: var(--radius-xl);
 }
 
-#popup button.btn-secondary,
-#popup button.btn-primary {
+#popup .popup-actions-footer button {
   width: 100%;
 }
 
@@ -43,10 +27,6 @@
 #popup button.popup-danger:hover {
   opacity: var(--opacity-hover);
 }
-
-
-
-
 
 .muted-text {
   opacity: 0.6;

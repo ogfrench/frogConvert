@@ -47,9 +47,8 @@ class htmlEmbedHandler implements FormatHandler {
         const text = decoder.decode(inputFile.bytes)
           .replaceAll("&", "&amp;")
           .replaceAll("<", "&lt;")
-          .replaceAll(">", "&gt;")
-          .replaceAll("\n", "<br>");
-        html += `<p>${text}</p>`;
+          .replaceAll(">", "&gt;");
+        html += `<pre>${text}</pre>`;
       }
     } else {
       for (const inputFile of inputFiles) {

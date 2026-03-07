@@ -1,14 +1,12 @@
 import "./ConversionModal.css";
-import { ui, escapeHTML } from "../store/store.ts";
+import { ui } from "../store/store.ts";
 import { showPopup, hidePopup } from "../Popup/Popup.ts";
 
 export let isCancelled = false;
-let _isConfirming = false;
-let _lastProgressMessage = "";
 
 export function resetCancellation() {
     isCancelled = false;
-    _isConfirming = false;
+    cancelStartTime = null;
 }
 
 export function setCancelled(val: boolean) {
@@ -35,12 +33,7 @@ export async function completeCancellation() {
     hidePopup();
 }
 
-export function isCancellationConfirming(): boolean {
-    return _isConfirming;
-}
-
 export function showConversionInProgress(messageHTML: string) {
-    _lastProgressMessage = messageHTML;
     // If cancellation is in progress, don't overwrite the popup
     if (cancelStartTime !== null) {
         return;
@@ -60,7 +53,8 @@ export function showConversionInProgress(messageHTML: string) {
         const html = `
       <div class="loader-spinner"></div>
       <h2>Converting... 🐸</h2>
-      <p>${messageHTML}</p>`;
+      <p>${messageHTML}</p>
+      <p class="muted-text">Large files may take a while</p>`;
         showPopup(html);
     }
     ensureCancelButton();
@@ -74,48 +68,14 @@ export function triggerCancellation() {
     showPopup(`
         <div class="loader-spinner"></div>
         <h2>Cancelling... 🐸</h2>
-        <p class="muted-text">Stopping conversion...</p>`);
-}
-
-export function showCancelConfirmation(): Promise<void> {
-    _isConfirming = true;
-    ui.popupBox.innerHTML = `<h2>Cancel conversion?</h2>`;
-
-    const actions = document.createElement("div");
-    actions.className = "popup-actions";
-
-    return new Promise<void>((resolve) => {
-        const noBtn = document.createElement("button");
-        noBtn.id = "confirm-no-btn";
-        noBtn.className = "btn-secondary";
-        noBtn.textContent = "No, continue";
-        noBtn.addEventListener("click", () => {
-            _isConfirming = false;
-            showConversionInProgress(_lastProgressMessage);
-            resolve();
-        });
-
-        const yesBtn = document.createElement("button");
-        yesBtn.id = "confirm-yes-btn";
-        yesBtn.className = "btn-primary popup-danger";
-        yesBtn.textContent = "Yes, cancel";
-        yesBtn.addEventListener("click", () => {
-            _isConfirming = false;
-            triggerCancellation();
-            resolve();
-        });
-
-        actions.appendChild(noBtn);
-        actions.appendChild(yesBtn);
-        ui.popupBox.appendChild(actions);
-    });
+        <p class="muted-text">Stopping conversion. This may take a moment</p>`);
 }
 
 export function ensureCancelButton() {
-    let actions = ui.popupBox.querySelector(".popup-actions");
+    let actions = ui.popupBox.querySelector(".popup-actions-footer");
     if (!actions) {
         actions = document.createElement("div");
-        actions.className = "popup-actions";
+        actions.className = "popup-actions-footer";
         ui.popupBox.appendChild(actions);
     }
 

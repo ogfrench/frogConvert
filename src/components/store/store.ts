@@ -21,7 +21,7 @@ const SELECTORS: Record<string, string> = {
   formatSelector: "#format-selector",
   formatModal: "#format-modal",
   formatOptions: "#format-options",
-  formatSearch: "#format-modal .format-search",
+  formatSearch: "#format-search",
   formatModalBg: "#format-modal-bg",
   formatModalClose: "#format-modal-close",
   formatModalTitle: "#format-modal-title",
@@ -150,7 +150,6 @@ export function formatBytes(bytes: number): string {
 }
 
 export function showSizeWarningPopup(
-  level: SizeCheckLevel,
   totalSize: number,
   fileCount: number,
   onProceed: () => void,

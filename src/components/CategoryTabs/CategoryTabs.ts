@@ -35,7 +35,7 @@ export function selectCategoryTab(category: string) {
   }
 }
 
-export function updateCategoryText(activeCategory: string, hasFiles: boolean) {
+export function updateCategoryText(hasFiles: boolean) {
   if (!hasFiles) {
     ui.uploadText.textContent = DEFAULT_UPLOAD_TEXT;
     ui.uploadLabel.textContent = DEFAULT_UPLOAD_LABEL;

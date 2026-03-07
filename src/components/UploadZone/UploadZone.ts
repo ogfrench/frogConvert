@@ -9,6 +9,8 @@ import { openFilesModal } from "../FilesModal/FilesModal.ts";
 
 // --- Drop zone ---
 
+const preventDragover = (e: Event) => e.preventDefault();
+
 export function initUploadZone(
   onFilesSelected: (files: File[]) => void,
   onClearFile: () => void,
@@ -80,7 +82,7 @@ export function initUploadZone(
       // Size safeguard check
       const { level, totalSize } = checkFileSizeLimits(filesToUse);
       if (level !== "ok") {
-        showSizeWarningPopup(level, totalSize, filesToUse.length, applySelection);
+        showSizeWarningPopup(totalSize, filesToUse.length, applySelection);
         return;
       }
       applySelection();
@@ -97,7 +99,7 @@ export function initUploadZone(
 
   ui.fileInput.addEventListener("change", fileSelectHandler);
   window.addEventListener("drop", fileSelectHandler);
-  window.addEventListener("dragover", (e) => e.preventDefault());
+  window.addEventListener("dragover", preventDragover);
   window.addEventListener("paste", fileSelectHandler);
 }
 

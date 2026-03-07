@@ -158,16 +158,3 @@
   font-weight: var(--font-normal);
   margin-left: var(--space-4);
 }
-
-#popup button.popup-cancel {
-  background: transparent;
-  border-color: transparent;
-  color: var(--muted-foreground);
-  font-weight: var(--font-normal);
-  margin-top: var(--space-2);
-}
-
-#popup button.popup-cancel:hover {
-  background: transparent;
-  color: var(--foreground);
-}
