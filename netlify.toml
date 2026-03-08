@@ -1,5 +1,5 @@
 [build]
-  command = "bun run build && (bun run cache:build || echo 'Warning: cache build failed, deploying without cache.json')"
+  command = "bun run build && (bun x puppeteer browsers install chrome && bun run cache:build || echo 'Warning: cache build failed, deploying without cache.json')"
   publish = "dist"
 
 # Rewrite /convert/* to the actual files in dist/
