@@ -706,7 +706,7 @@ html {
   }
 
   to {
-    width: 100%;
+    width: 100vw;
   }
 }
 
@@ -724,7 +724,7 @@ html {
 
 #loading-bar.complete {
   background: linear-gradient(to right, #ff0048, #ff7700, #ffd000, #00dd55, #0099ff, #cc00ff);
-  animation: loading-bar-finish 1.1s ease-out forwards !important;
+  animation: loading-bar-finish 1.5s ease-out forwards !important;
 }
 
 @keyframes loading-bar-finish {
@@ -734,12 +734,12 @@ html {
   }
 
   35% {
-    width: 100%;
+    width: 100vw;
     clip-path: inset(0 0 0 0);
   }
 
   100% {
-    width: 100%;
+    width: 100vw;
     clip-path: inset(0 0 0 100%);
   }
 }
