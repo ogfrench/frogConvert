@@ -663,13 +663,19 @@ html {
   border: 3px solid var(--border);
   border-top-color: var(--primary);
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  animation: spin-complex 2.4s cubic-bezier(0.45, 0.15, 0.55, 0.85) infinite;
   margin: 0 auto var(--space-5);
 }
 
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes spin-complex {
+  to {
+    transform: rotate(1080deg);
   }
 }
 
