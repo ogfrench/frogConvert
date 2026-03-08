@@ -51,6 +51,14 @@ initParallax();
 initCustomCursor();
 initFilesModal();
 
+// Set device-appropriate browse hint ("or click to browse" vs "or tap to browse")
+const browseHint = window.matchMedia("(pointer: coarse)").matches
+    ? "or tap to browse"
+    : "or click to browse";
+for (const el of document.querySelectorAll<HTMLElement>(".upload-hint")) {
+    el.textContent = browseHint;
+}
+
 initModeToggle(() => {
   renderFormatOptions(allOptionsRef.value, activeCategory.value);
 });
@@ -159,15 +167,17 @@ function showLoadingBar(show: boolean) {
     const bar = document.createElement("div");
     bar.id = id;
     document.body.prepend(bar);
-    requestAnimationFrame(() => { bar.style.width = "85%"; });
   } else {
     const bar = document.getElementById(id) as HTMLElement | null;
     if (!bar) return;
-    bar.classList.add("complete");
-    bar.addEventListener("transitionend", (e) => {
-      if ((e as TransitionEvent).propertyName === "opacity") bar.remove();
-    }, { once: true });
-    setTimeout(() => bar.remove(), 800);
+    const currentWidth = getComputedStyle(bar).width;   // capture live animated position
+    bar.style.setProperty("--bar-start", currentWidth); // feed into @keyframes loading-bar-finish 0%
+    bar.style.width = currentWidth;                     // freeze: prevents flash to CSS width:0 on cancel
+    bar.style.animation = "none";                       // cancel grow+breathe
+    void bar.offsetHeight;                               // force reflow to commit inline values
+    bar.classList.add("complete");                      // !important in .complete overrides inline animation:none
+    bar.addEventListener("animationend", () => bar.remove(), { once: true });
+    setTimeout(() => bar.remove(), 1500);               // fallback cleanup
   }
 }
 
@@ -232,6 +242,10 @@ function refreshUI() {
   const countBefore = handlers.length;
   try {
     isLoadingPhase2.value = true;
+    if (ui.formatModal.classList.contains("open")) {
+      renderFormatOptions(allOptionsRef.value, activeCategory.value);
+      if (ui.formatSearch.value) filterFormats(ui.formatSearch.value);
+    }
     await loadBackgroundHandlers();
     populateFromCache(handlers.slice(countBefore));
     await initCacheMissHandlers(handlers.slice(countBefore));

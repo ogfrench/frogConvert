@@ -679,13 +679,30 @@ html {
   background-color: var(--primary);
   z-index: 9999;
   pointer-events: none;
-  transition: width 3s ease-out;
+  animation:
+    loading-bar-grow 2s ease-in-out forwards,
+    loading-bar-breathe 4s ease-in-out 2s infinite;
+}
+
+@keyframes loading-bar-grow {
+  from { width: 0; }
+  to { width: 75%; }
+}
+
+@keyframes loading-bar-breathe {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
 #loading-bar.complete {
-  width: 100% !important;
-  transition: width 0.1s ease-out, opacity 0.3s ease-out 0.15s;
-  opacity: 0;
+  background: linear-gradient(to right, #ff0048, #ff7700, #ffd000, #00dd55, #0099ff, #cc00ff);
+  animation: loading-bar-finish 1.1s ease-out forwards !important;
+}
+
+@keyframes loading-bar-finish {
+  0%   { width: var(--bar-start); clip-path: inset(0 0 0 0); }
+  35%  { width: 100%;             clip-path: inset(0 0 0 0); }
+  100% { width: 100%;             clip-path: inset(0 0 0 100%); }
 }
 
 /* --- Responsive --- */

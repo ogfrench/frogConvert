@@ -12,6 +12,7 @@ import {
     shortenFileName,
     escapeHTML,
     showPopup,
+    hidePopup,
     isCancelled,
     resetCancellation,
     showConversionInProgress,
@@ -27,6 +28,60 @@ const waitForPaint = () => new Promise<void>(resolve =>
 
 let isConverting = false;
 export const getIsConverting = () => isConverting;
+
+let _enginesLoadingPollId: ReturnType<typeof setInterval> | null = null;
+
+function _showEnginesLoadingPopup() {
+    if (_enginesLoadingPollId !== null) {
+        clearInterval(_enginesLoadingPollId);
+        _enginesLoadingPollId = null;
+    }
+    showPopup(
+        `<div class="loader-spinner"></div>` +
+        `<h2>Engines loading...</h2>` +
+        `<p>Conversion engines are still starting up. Hang tight!</p>` +
+        `<div class="popup-actions">` +
+        `<button class="popup-secondary" onclick="window.hidePopup()">Dismiss</button>` +
+        `</div>`,
+    );
+    _enginesLoadingPollId = setInterval(() => {
+        if (window.traversionGraph.nodeCount > 0) {
+            clearInterval(_enginesLoadingPollId!);
+            _enginesLoadingPollId = null;
+            _updatePopupToEnginesReady();
+        }
+    }, 200);
+}
+
+function _updatePopupToEnginesReady() {
+    // Guard 1: popup was dismissed before engines loaded — don't update a hidden popup
+    if (!ui.popupBox.classList.contains("popup-visible")) return;
+    // Guard 2: another popup replaced our content (no spinner means different popup is showing)
+    const spinner = ui.popupBox.querySelector<HTMLElement>(".loader-spinner");
+    if (!spinner) return;
+
+    const h2      = ui.popupBox.querySelector("h2");
+    const p       = ui.popupBox.querySelector("p");
+    const actions = ui.popupBox.querySelector(".popup-actions");
+
+    const icon = document.createElement("div");
+    icon.className = "engines-ready-icon";
+    spinner.replaceWith(icon);
+
+    if (h2) h2.textContent = "Engines ready!";
+    if (p)  p.textContent  = "All conversion engines loaded. Ready to convert!";
+    if (actions) {
+        actions.innerHTML = "";
+        const btn = document.createElement("button");
+        btn.className = "popup-primary";
+        btn.textContent = "Convert now";
+        btn.addEventListener("click", () => {
+            hidePopup();
+            ui.convertButton.click();
+        });
+        actions.appendChild(btn);
+    }
+}
 
 /** Called once after a conversion completes, then cleared. Used to defer work that is unsafe to run mid-conversion. */
 let onConversionEnd: (() => void) | null = null;
@@ -176,8 +231,8 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
     const pathString = path.map(c => c.format.format).join(" \u2192 ");
 
     const messageHTML = batchMsg
-        ? `${batchMsg}<br><span class="muted-text">Converting using the following steps: ${pathString}</span>`
-        : `Converting your file to <b>${path.at(-1)!.format.format.toUpperCase()}</b>...<br><br><div style="font-size: 0.9em; padding: 6px; background: rgba(0,0,0,0.05); border-radius: 6px;">Converting using the following steps:<br><b>${pathString}</b></div>`;
+        ? `${batchMsg}<br><span class="muted-text">${pathString}</span>`
+        : `<span class="conversion-path">${pathString}</span>`;
 
     // stabilization delay: only show the detailed path if it doesn't fail immediately
     let uiTimeout: ReturnType<typeof setTimeout> | null = setTimeout(() => {
@@ -330,13 +385,7 @@ export function initConvertButton() {
             }
 
             if (window.traversionGraph.nodeCount === 0) {
-                showPopup(
-                    `<h2>Still loading...</h2>` +
-                    `<p>Formats are still loading. Try again in a moment.</p>` +
-                    `<div class="popup-actions">` +
-                    `<button class="popup-primary" onclick="window.hidePopup()">Got it</button>` +
-                    `</div>`,
-                );
+                _showEnginesLoadingPopup();
                 return;
             }
 

@@ -51,9 +51,9 @@ export function showConversionInProgress(messageHTML: string) {
         ui.popupBackground.style.display = "block";
     } else {
         const html = `
-      <div class="loader-spinner"></div>
       <h2>Converting... 🐸</h2>
       <p>${messageHTML}</p>
+      <div class="loader-spinner"></div>
       <p class="muted-text">Large files may take a while</p>`;
         showPopup(html);
     }
@@ -66,8 +66,8 @@ export function triggerCancellation() {
     workerCancelCallback = null;
     cancelStartTime = performance.now();
     showPopup(`
-        <div class="loader-spinner"></div>
         <h2>Cancelling... 🐸</h2>
+        <div class="loader-spinner"></div>
         <p class="muted-text">Stopping conversion. This may take a moment</p>`);
 }
 

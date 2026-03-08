@@ -152,6 +152,24 @@
   background-color: var(--accent);
 }
 
+.engines-ready-icon {
+  width: var(--space-10);
+  height: var(--space-10);
+  border-radius: 50%;
+  border: 3px solid var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto var(--space-5);
+  font-size: 1.25rem;
+  color: var(--primary);
+  font-weight: var(--font-semibold);
+}
+
+.engines-ready-icon::after {
+  content: "✓";
+}
+
 .type-filter-arrow {
   color: var(--muted-foreground);
   font-size: 1.2em;

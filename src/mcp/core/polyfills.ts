@@ -47,7 +47,6 @@ if (typeof globalThis.document === 'undefined') {
 // SDK StdioServerTransport requires stdout to be strictly reserved for JSON-RPC messages.
 // Any plain string logged to stdout will crash the client connection.
 if (typeof process !== 'undefined') {
-    const originalLog = console.log;
     console.log = (...args) => console.error(...args);
 }
 
