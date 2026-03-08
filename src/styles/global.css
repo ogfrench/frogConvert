@@ -137,14 +137,19 @@
 }
 
 /* --- Theme Transition Logic --- */
+/* Omit ::before/::after — cuts style-recalc in half with no visual regression */
 .theme-transition,
-.theme-transition *,
-.theme-transition *::before,
-.theme-transition *::after {
+.theme-transition * {
   transition-property: background-color, color, border-color, fill, stroke, box-shadow !important;
   transition-duration: 300ms !important;
   transition-timing-function: ease !important;
   transition-delay: 0s !important;
+}
+
+#bg-visuals span {
+  will-change: transform, translate;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 /* --- Base --- */
@@ -685,8 +690,8 @@ html {
   z-index: 9999;
   pointer-events: none;
   animation:
-    loading-bar-grow 15s linear forwards,
-    loading-bar-breathe 4s ease-in-out infinite;
+    loading-bar-grow 20s linear forwards,
+    loading-bar-breathe 1.5s ease-in-out infinite;
 }
 
 @keyframes loading-bar-grow {
@@ -695,7 +700,7 @@ html {
   }
 
   to {
-    width: 75%;
+    width: 100%;
   }
 }
 

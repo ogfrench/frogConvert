@@ -1,145 +1,9 @@
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
-
-import * as THREE from "three";
-import * as CSG from "three-bvh-csg";
+import type * as THREE_NS from "three";
 
 import { Demo } from "./sppd/sppd/Demo.ts";
 import { Vector } from "./sppd/sppd/Vector.ts";
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
-
-function toThreeVector(vec: Vector) {
-  return new THREE.Vector3(vec.y, vec.z, vec.x);
-}
-function rotateFromSourceAngles(object: THREE.Object3D, angles: Vector) {
-  const { forward, up } = angles.Scale(Math.PI / 180).FromAngles();
-  object.up.copy(toThreeVector(up));
-  object.lookAt(object.position.clone().add(toThreeVector(forward)));
-}
-
-function createFloorButton() {
-  const group = new THREE.Group();
-
-  const buttonTop = new THREE.Mesh(
-    new THREE.CylinderGeometry(36, 36, 4, 16),
-    new THREE.MeshLambertMaterial({ color: 0x550000 })
-  );
-  buttonTop.position.copy(toThreeVector(new Vector(0, 0, 12)));
-  const buttonBottom = new THREE.Mesh(
-    new THREE.CylinderGeometry(48, 48, 8, 16),
-    new THREE.MeshLambertMaterial({ color: 0x202020 })
-  );
-  buttonBottom.position.copy(toThreeVector(new Vector(0, 0, 4)));
-
-  group.attach(buttonTop);
-  group.attach(buttonBottom);
-
-  return group;
-}
-
-function createPedestalButton() {
-  const group = new THREE.Group();
-
-  const buttonTop = new THREE.Mesh(
-    new THREE.CylinderGeometry(6, 6, 4, 8),
-    new THREE.MeshLambertMaterial({ color: 0x550000 })
-  );
-  buttonTop.position.copy(toThreeVector(new Vector(0, 0, 26)));
-  const buttonBottom = new THREE.Mesh(
-    new THREE.CylinderGeometry(8, 8, 52, 8),
-    new THREE.MeshLambertMaterial({ color: 0x424242 })
-  );
-
-  group.attach(buttonTop);
-  group.attach(buttonBottom);
-
-  return group;
-}
-
-function createCube() {
-  return new CSG.Brush(
-    new THREE.BoxGeometry(36, 36, 36),
-    new THREE.MeshLambertMaterial({ color: 0x424242 })
-  );
-}
-
-function createLaserCube() {
-  const group = new THREE.Group();
-
-  const cubeBrush = new CSG.Brush(
-    new THREE.BoxGeometry(36.5, 36.5, 36.5),
-    new THREE.MeshLambertMaterial({ color: 0x101010 })
-  );
-  const sphereBrush = new CSG.Brush(
-    new THREE.SphereGeometry(22.6),
-    new THREE.MeshLambertMaterial({ color: 0x101010 })
-  );
-  const evaluator = new CSG.Evaluator();
-  const cubeCase = evaluator.evaluate(cubeBrush, sphereBrush, CSG.SUBTRACTION);
-
-  const cubeLens = new THREE.Mesh(
-    new THREE.SphereGeometry(18),
-    new THREE.MeshLambertMaterial({ color: 0x00703e })
-  );
-
-  group.attach(cubeCase);
-  group.attach(cubeLens);
-
-  return group;
-}
-
-function createPortal(blue = true) {
-  const color = blue ? 0x0e8cff : 0xff8602;
-
-  const portalGeometry = new THREE.CircleGeometry(32, 16);
-  portalGeometry.scale(1, 1.625, 1);
-  portalGeometry.translate(0, 0, 4);
-
-  const portal = new THREE.Mesh(
-    portalGeometry,
-    new THREE.MeshBasicMaterial({ color })
-  );
-
-  return portal;
-}
-
-function createLaserEmitter(centered = false) {
-  const group = new THREE.Group();
-
-  const emitterBase = new THREE.Mesh(
-    new THREE.BoxGeometry(64, 64, 32),
-    new THREE.MeshLambertMaterial({ color: 0x151515 })
-  );
-  const emitterTip = new THREE.Mesh(
-    new THREE.CylinderGeometry(14, 14, 2, 8),
-    new THREE.MeshLambertMaterial({ color: 0x242424 })
-  );
-  if (centered) {
-    emitterTip.position.set(0, 0, 16);
-  } else {
-    emitterTip.position.set(0, -10, 16);
-  }
-  emitterTip.rotateX(Math.PI / 2);
-
-  group.attach(emitterBase);
-  group.attach(emitterTip);
-
-  return group;
-}
-
-function getModelBuilder(modelName: string) {
-  switch (modelName) {
-    case "models/props/portal_button_damaged01.mdl": return createFloorButton;
-    case "models/props/portal_button_damaged02.mdl": return createFloorButton;
-    case "models/props/portal_button.mdl": return createFloorButton;
-    case "models/props/switch001.mdl": return createPedestalButton;
-    case "models/props/metal_box.mdl": return createCube;
-    case "models/props/reflection_cube.mdl": return createLaserCube;
-    case "models/portals/portal1.mdl": return () => createPortal(true);
-    case "models/portals/portal2.mdl": return () => createPortal(false);
-    case "models/props/laser_emitter.mdl": return createLaserEmitter;
-    case "models/props/laser_emitter_center.mdl": return () => createLaserEmitter(true);
-  }
-}
 
 function getJsonReplacer() {
   const ancestors: object[] = [];
@@ -164,16 +28,6 @@ function getJsonReplacer() {
 const VOXEL_SIZE = 128;
 const VOXEL_SIZE_HALF = VOXEL_SIZE / 2;
 
-const propMaterial = new THREE.MeshLambertMaterial({
-  color: 0xff00ff,
-  opacity: 0.5,
-  transparent: true
-});
-const brushMaterial = new THREE.MeshLambertMaterial({ color: 0x303030 });
-const wallGeometry = new THREE.PlaneGeometry(VOXEL_SIZE, VOXEL_SIZE);
-const wallMaterial = new THREE.MeshLambertMaterial({ color: 0x242424 });
-const wallPortalMaterial = new THREE.MeshLambertMaterial({ color: 0x505050 });
-
 class sppdHandler implements FormatHandler {
 
   public name: string = "sppd";
@@ -197,18 +51,168 @@ class sppdHandler implements FormatHandler {
 
   private renderBounds = { width: 640, height: 360 };
 
-  private scene: any;
-  private camera: any;
-  private renderer: any;
+  private THREE: typeof THREE_NS | null = null;
+  private CSG: any = null;
 
-  private ambientLight: any;
-  private pointLight: any;
+  private scene: any = null;
+  private camera: any = null;
+  private renderer: any = null;
+  private ambientLight: any = null;
+  private pointLight: any = null;
+
+  private propMaterial: any = null;
+  private brushMaterial: any = null;
+  private wallGeometry: any = null;
+  private wallMaterial: any = null;
+  private wallPortalMaterial: any = null;
 
   private wallObjects: any[] = [];
   private entityObjects = new Array(2048);
   private voxelGridOffset: Vector | null = null;
   private prevBluePortalPos: Vector | null = null;
   private prevOrangePortalPos: Vector | null = null;
+
+  private toThreeVector(vec: Vector): THREE_NS.Vector3 {
+    return new this.THREE!.Vector3(vec.y, vec.z, vec.x);
+  }
+
+  private rotateFromSourceAngles(object: THREE_NS.Object3D, angles: Vector) {
+    const { forward, up } = angles.Scale(Math.PI / 180).FromAngles();
+    object.up.copy(this.toThreeVector(up));
+    object.lookAt(object.position.clone().add(this.toThreeVector(forward)));
+  }
+
+  private createFloorButton() {
+    const THREE = this.THREE!;
+    const group = new THREE.Group();
+
+    const buttonTop = new THREE.Mesh(
+      new THREE.CylinderGeometry(36, 36, 4, 16),
+      new THREE.MeshLambertMaterial({ color: 0x550000 })
+    );
+    buttonTop.position.copy(this.toThreeVector(new Vector(0, 0, 12)));
+    const buttonBottom = new THREE.Mesh(
+      new THREE.CylinderGeometry(48, 48, 8, 16),
+      new THREE.MeshLambertMaterial({ color: 0x202020 })
+    );
+    buttonBottom.position.copy(this.toThreeVector(new Vector(0, 0, 4)));
+
+    group.attach(buttonTop);
+    group.attach(buttonBottom);
+
+    return group;
+  }
+
+  private createPedestalButton() {
+    const THREE = this.THREE!;
+    const group = new THREE.Group();
+
+    const buttonTop = new THREE.Mesh(
+      new THREE.CylinderGeometry(6, 6, 4, 8),
+      new THREE.MeshLambertMaterial({ color: 0x550000 })
+    );
+    buttonTop.position.copy(this.toThreeVector(new Vector(0, 0, 26)));
+    const buttonBottom = new THREE.Mesh(
+      new THREE.CylinderGeometry(8, 8, 52, 8),
+      new THREE.MeshLambertMaterial({ color: 0x424242 })
+    );
+
+    group.attach(buttonTop);
+    group.attach(buttonBottom);
+
+    return group;
+  }
+
+  private createCube() {
+    const CSG = this.CSG;
+    return new CSG.Brush(
+      new this.THREE!.BoxGeometry(36, 36, 36),
+      new this.THREE!.MeshLambertMaterial({ color: 0x424242 })
+    );
+  }
+
+  private createLaserCube() {
+    const THREE = this.THREE!;
+    const CSG = this.CSG;
+    const group = new THREE.Group();
+
+    const cubeBrush = new CSG.Brush(
+      new THREE.BoxGeometry(36.5, 36.5, 36.5),
+      new THREE.MeshLambertMaterial({ color: 0x101010 })
+    );
+    const sphereBrush = new CSG.Brush(
+      new THREE.SphereGeometry(22.6),
+      new THREE.MeshLambertMaterial({ color: 0x101010 })
+    );
+    const evaluator = new CSG.Evaluator();
+    const cubeCase = evaluator.evaluate(cubeBrush, sphereBrush, CSG.SUBTRACTION);
+
+    const cubeLens = new THREE.Mesh(
+      new THREE.SphereGeometry(18),
+      new THREE.MeshLambertMaterial({ color: 0x00703e })
+    );
+
+    group.attach(cubeCase);
+    group.attach(cubeLens);
+
+    return group;
+  }
+
+  private createPortal(blue = true) {
+    const THREE = this.THREE!;
+    const color = blue ? 0x0e8cff : 0xff8602;
+
+    const portalGeometry = new THREE.CircleGeometry(32, 16);
+    portalGeometry.scale(1, 1.625, 1);
+    portalGeometry.translate(0, 0, 4);
+
+    const portal = new THREE.Mesh(
+      portalGeometry,
+      new THREE.MeshBasicMaterial({ color })
+    );
+
+    return portal;
+  }
+
+  private createLaserEmitter(centered = false) {
+    const THREE = this.THREE!;
+    const group = new THREE.Group();
+
+    const emitterBase = new THREE.Mesh(
+      new THREE.BoxGeometry(64, 64, 32),
+      new THREE.MeshLambertMaterial({ color: 0x151515 })
+    );
+    const emitterTip = new THREE.Mesh(
+      new THREE.CylinderGeometry(14, 14, 2, 8),
+      new THREE.MeshLambertMaterial({ color: 0x242424 })
+    );
+    if (centered) {
+      emitterTip.position.set(0, 0, 16);
+    } else {
+      emitterTip.position.set(0, -10, 16);
+    }
+    emitterTip.rotateX(Math.PI / 2);
+
+    group.attach(emitterBase);
+    group.attach(emitterTip);
+
+    return group;
+  }
+
+  private getModelBuilder(modelName: string) {
+    switch (modelName) {
+      case "models/props/portal_button_damaged01.mdl": return () => this.createFloorButton();
+      case "models/props/portal_button_damaged02.mdl": return () => this.createFloorButton();
+      case "models/props/portal_button.mdl": return () => this.createFloorButton();
+      case "models/props/switch001.mdl": return () => this.createPedestalButton();
+      case "models/props/metal_box.mdl": return () => this.createCube();
+      case "models/props/reflection_cube.mdl": return () => this.createLaserCube();
+      case "models/portals/portal1.mdl": return () => this.createPortal(true);
+      case "models/portals/portal2.mdl": return () => this.createPortal(false);
+      case "models/props/laser_emitter.mdl": return () => this.createLaserEmitter();
+      case "models/props/laser_emitter_center.mdl": return () => this.createLaserEmitter(true);
+    }
+  }
 
   resetSceneEntities() {
     for (let i = 0; i < 2048; i++) {
@@ -419,9 +423,9 @@ class sppdHandler implements FormatHandler {
         const meshFacing = meshCenterPosition
           .Sub(directions[i]);
 
-        const wallMesh = new THREE.Mesh(wallGeometry, isPortalable ? wallPortalMaterial : wallMaterial);
-        wallMesh.position.copy(toThreeVector(meshCenterPosition));
-        wallMesh.lookAt(toThreeVector(meshFacing));
+        const wallMesh = new this.THREE!.Mesh(this.wallGeometry, isPortalable ? this.wallPortalMaterial : this.wallMaterial);
+        wallMesh.position.copy(this.toThreeVector(meshCenterPosition));
+        wallMesh.lookAt(this.toThreeVector(meshFacing));
 
         this.wallObjects.push(wallMesh);
         this.scene.add(wallMesh);
@@ -436,8 +440,8 @@ class sppdHandler implements FormatHandler {
     if (!entities) return;
 
     const { viewOrigin, viewAngles } = demo.state.players[0];
-    this.camera.position.copy(toThreeVector(viewOrigin.Add(new Vector(0, 0, 56))));
-    rotateFromSourceAngles(this.camera, viewAngles);
+    this.camera.position.copy(this.toThreeVector(viewOrigin.Add(new Vector(0, 0, 56))));
+    this.rotateFromSourceAngles(this.camera, viewAngles);
     this.pointLight.position.copy(this.camera.position);
 
     for (let i = 2; i < entities.length; i++) {
@@ -467,7 +471,7 @@ class sppdHandler implements FormatHandler {
       // Mesh being drawn does not correspond to this entity
       if (object.entity !== entity) {
 
-        const modelBuilder = getModelBuilder(model);
+        const modelBuilder = this.getModelBuilder(model);
         if (modelBuilder) {
           if (classname === "phys_bone_follower") {
             continue;
@@ -480,10 +484,10 @@ class sppdHandler implements FormatHandler {
           const maxs = entity.GetBoundingMaxs();
           const size = maxs.Sub(mins);
 
-          const geometry = new THREE.BoxGeometry(size.y, size.z, size.x);
-          const offset = toThreeVector(center.Sub(pos));
+          const geometry = new this.THREE!.BoxGeometry(size.y, size.z, size.x);
+          const offset = this.toThreeVector(center.Sub(pos));
           geometry.translate(offset.x, offset.y, offset.z);
-          object.renderable = new THREE.Mesh(geometry, isBrush ? brushMaterial : propMaterial);
+          object.renderable = new this.THREE!.Mesh(geometry, isBrush ? this.brushMaterial : this.propMaterial);
 
           if (object.renderable) {
             this.scene.remove(object.renderable);
@@ -494,14 +498,32 @@ class sppdHandler implements FormatHandler {
 
       object.entity = entity;
 
-      object.renderable.position.copy(toThreeVector(pos));
-      rotateFromSourceAngles(object.renderable, ang);
+      object.renderable.position.copy(this.toThreeVector(pos));
+      this.rotateFromSourceAngles(object.renderable, ang);
 
     }
 
   }
 
   async init() {
+    this.THREE = await import('three');
+    this.CSG = await import('three-bvh-csg');
+
+    this.propMaterial = new this.THREE.MeshLambertMaterial({
+      color: 0xff00ff,
+      opacity: 0.5,
+      transparent: true
+    });
+    this.brushMaterial = new this.THREE.MeshLambertMaterial({ color: 0x303030 });
+    this.wallGeometry = new this.THREE.PlaneGeometry(VOXEL_SIZE, VOXEL_SIZE);
+    this.wallMaterial = new this.THREE.MeshLambertMaterial({ color: 0x242424 });
+    this.wallPortalMaterial = new this.THREE.MeshLambertMaterial({ color: 0x505050 });
+
+    this.scene = new this.THREE.Scene();
+    this.camera = new this.THREE.PerspectiveCamera(60, this.renderBounds.width / this.renderBounds.height, 1, 100000);
+    this.renderer = new this.THREE.WebGLRenderer({ antialias: false });
+    this.ambientLight = new this.THREE.AmbientLight(0x404040);
+    this.pointLight = new this.THREE.PointLight(0xffffff, 1);
 
     this.renderer.setSize(this.renderBounds.width, this.renderBounds.height);
     this.scene.add(this.ambientLight);

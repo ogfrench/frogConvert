@@ -146,7 +146,14 @@ describe('Conversion Handlers Yielding', () => {
         const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
 
         const handler = new sppdHandler();
+        (handler as any).THREE = {
+            Mesh: vi.fn().mockReturnValue({ position: { copy: vi.fn() }, lookAt: vi.fn() }),
+            Vector3: vi.fn().mockReturnValue({ x: 0, y: 0, z: 0 }),
+        };
         (handler as any).scene = { add: vi.fn(), remove: vi.fn() };
+        (handler as any).wallGeometry = {};
+        (handler as any).wallMaterial = {};
+        (handler as any).wallPortalMaterial = {};
 
         const mockVoxels = new Map([
             ['0;0;0', { x: 0, y: 0, z: 0, Add: vi.fn().mockReturnValue({ x: 0, y: 0, z: 0 }), Sub: vi.fn(), Scale: vi.fn().mockReturnThis() }],

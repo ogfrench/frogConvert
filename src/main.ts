@@ -69,8 +69,9 @@ initCategoryTabs((category) => {
   activeCategory.value = category;
   updateCategoryText(currentFiles.value.length > 0);
   renderFormatOptions(allOptionsRef.value, activeCategory.value);
-  selectedToIndex.value = null;
-  clearFormatSelection(activeCategory.value);
+  if (selectedToIndex.value === null) {
+    clearFormatSelection(activeCategory.value);
+  }
   updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
 });
 
@@ -85,7 +86,7 @@ initUploadZone(
 
       // Dynamically select the tab related to the uploaded file
       const category = getFormatCategory(allOptionsRef.value[matchIndex].format);
-      if (category && category !== activeCategory.value) {
+      if (category && category !== activeCategory.value && selectedToIndex.value === null) {
         selectCategoryTab(category);
       }
     } else {

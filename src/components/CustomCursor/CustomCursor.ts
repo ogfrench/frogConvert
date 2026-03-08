@@ -5,6 +5,11 @@ export function initCustomCursor() {
 
     const cursor = document.createElement("div");
     cursor.id = "custom-cursor";
+
+    const glow = document.createElement("div");
+    glow.className = "cursor-glow";
+    cursor.appendChild(glow);
+
     document.body.appendChild(cursor);
 
     let mouseX = -100;
@@ -12,17 +17,24 @@ export function initCustomCursor() {
     let cursorX = -100;
     let cursorY = -100;
 
+    let lastHoverCheck = 0;
+    const HOVER_CHECK_INTERVAL = 100; // ms
+
     document.addEventListener("mousemove", (mouseEvent) => {
         mouseX = mouseEvent.clientX;
         mouseY = mouseEvent.clientY;
 
-        const hoveredElement = mouseEvent.target as HTMLElement;
-        const isInteractive = hoveredElement.closest("a, button, input, select, label, .clickable, .cat-tab, #upload-zone");
+        const now = Date.now();
+        if (now - lastHoverCheck > HOVER_CHECK_INTERVAL) {
+            const hoveredElement = mouseEvent.target as HTMLElement;
+            const isInteractive = hoveredElement.closest("a, button, input, select, label, .clickable, .cat-tab, #upload-zone");
 
-        if (isInteractive) {
-            cursor.classList.add("interactive");
-        } else {
-            cursor.classList.remove("interactive");
+            if (isInteractive) {
+                cursor.classList.add("interactive");
+            } else {
+                cursor.classList.remove("interactive");
+            }
+            lastHoverCheck = now;
         }
     });
 
@@ -34,11 +46,18 @@ export function initCustomCursor() {
         cursor.classList.remove("active-click");
     });
 
-    function renderCursor() {
-        cursorX += (mouseX - cursorX) * 0.2;
-        cursorY += (mouseY - cursorY) * 0.2;
-        cursor.style.left = `${cursorX}px`;
-        cursor.style.top = `${cursorY}px`;
+    const CURSOR_LERP_BASE = 0.2; // lerp factor calibrated at 60fps
+    let prevCursorTimestamp = 0;
+
+    function renderCursor(timestamp: number) {
+        const dt = prevCursorTimestamp === 0 ? 1000 / 60 : timestamp - prevCursorTimestamp;
+        prevCursorTimestamp = timestamp;
+        const factor = 1 - Math.pow(1 - CURSOR_LERP_BASE, dt / (1000 / 60));
+
+        cursorX += (mouseX - cursorX) * factor;
+        cursorY += (mouseY - cursorY) * factor;
+
+        cursor.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0) translate(-50%, -50%)`;
         requestAnimationFrame(renderCursor);
     }
 

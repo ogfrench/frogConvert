@@ -70,10 +70,7 @@ export async function loadBackgroundHandlers() {
     async () => { const m = await import("./toon.ts"); handlers.push(new m.default()); },
   ];
 
-  for (const loader of loaders) {
-    try { await loader(); } catch (_) { }
-    await new Promise(r => setTimeout(r, 0));
-  }
+  await Promise.all(loaders.map(loader => loader().catch(() => {})));
 }
 
 export default handlers;

@@ -9,10 +9,11 @@ describe("Confetti Component", () => {
     });
 
     test("creates canvas element on trigger", () => {
-        vi.stubGlobal('requestAnimationFrame', vi.fn());
+        vi.useFakeTimers();
         triggerConfetti();
         const canvas = document.getElementById("confetti-canvas");
         expect(canvas).not.toBeNull();
+        vi.useRealTimers();
     });
 
     test("removes canvas after completion", async () => {

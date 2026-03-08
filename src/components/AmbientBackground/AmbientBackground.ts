@@ -18,14 +18,25 @@ export function initParallax() {
   let mouseY = -500;
   let smoothX = -500;
   let smoothY = -500;
-  const LERP_FACTOR = 0.25;
+  const PARALLAX_LERP_BASE = 0.25; // lerp factor calibrated at 60fps
+  let prevParallaxTimestamp = 0;
+  let isWide = window.innerWidth > MOBILE_BREAKPOINT;
+  let dirty = false; // only start writing once the mouse has actually moved
 
-  function updateParallax() {
-    smoothX += (mouseX - smoothX) * LERP_FACTOR;
-    smoothY += (mouseY - smoothY) * LERP_FACTOR;
+  window.addEventListener("resize", () => {
+    isWide = window.innerWidth > MOBILE_BREAKPOINT;
+  });
 
-    // Parallax on background elements
-    if (window.innerWidth > MOBILE_BREAKPOINT) {
+  function updateParallax(timestamp: number) {
+    const dt = prevParallaxTimestamp === 0 ? 1000 / 60 : timestamp - prevParallaxTimestamp;
+    prevParallaxTimestamp = timestamp;
+    const factor = 1 - Math.pow(1 - PARALLAX_LERP_BASE, dt / (1000 / 60));
+
+    smoothX += (mouseX - smoothX) * factor;
+    smoothY += (mouseY - smoothY) * factor;
+
+    // Only write to DOM when mouse has moved or smoothing hasn't converged
+    if (dirty && isWide) {
       bgSpans.forEach((span, i) => {
         const pos = originalPositions[i];
         const dx = smoothX - pos.x;
@@ -36,6 +47,13 @@ export function initParallax() {
         const offsetY = (dy / (dist || 1)) * strength;
         span.style.translate = `${offsetX}px ${offsetY}px`;
       });
+
+      // Stop writing once smoothing has converged
+      if (Math.abs(mouseX - smoothX) < 0.05 && Math.abs(mouseY - smoothY) < 0.05) {
+        smoothX = mouseX;
+        smoothY = mouseY;
+        dirty = false;
+      }
     }
 
     requestAnimationFrame(updateParallax);
@@ -46,5 +64,6 @@ export function initParallax() {
   document.addEventListener("mousemove", (e) => {
     mouseX = e.clientX;
     mouseY = e.clientY;
+    dirty = true;
   });
 }

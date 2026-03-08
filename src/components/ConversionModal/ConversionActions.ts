@@ -37,9 +37,9 @@ function _showEnginesLoadingPopup() {
         _enginesLoadingPollId = null;
     }
     showPopup(
-        `<h2>Engines loading...</h2>` +
+        `<h2>Wow, you're fast! 🐸</h2>` +
         `<div class="loader-spinner"></div>` +
-        `<p>Conversion engines are still starting up. Hang tight!</p>` +
+        `<p>Engines are starting up. This only happens on first load, so it'll be instant next time!</p>` +
         `<div class="popup-actions">` +
         `<button class="popup-secondary" onclick="window.hidePopup()">Dismiss</button>` +
         `</div>`,
