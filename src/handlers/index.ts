@@ -2,12 +2,9 @@ import type { FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
 // --- Core handlers (statically imported, included in main bundle) ---
 import canvasToBlobHandler from "./canvasToBlob.ts";
-import FFmpegHandler from "./FFmpeg.ts";
 import pdftoimgHandler from "./pdftoimg.ts";
-import ImageMagickHandler from "./ImageMagick.ts";
 import svgTraceHandler from "./svgTrace.ts";
 import envelopeHandler from "./envelope.ts";
-import pandocHandler from "./pandoc.ts";
 import jszipHandler from "./jszip.ts";
 import { fromJsonHandler, toJsonHandler } from "./json.ts";
 import fontHandler from "./font.ts";
@@ -16,11 +13,8 @@ import textEncodingHandler from "./textEncoding.ts";
 const handlers: FormatHandler[] = [];
 try { handlers.push(new svgTraceHandler()) } catch (_) { };
 try { handlers.push(new canvasToBlobHandler()) } catch (_) { };
-try { handlers.push(new FFmpegHandler()) } catch (_) { };
 try { handlers.push(new pdftoimgHandler()) } catch (_) { };
-try { handlers.push(new ImageMagickHandler()) } catch (_) { };
 try { handlers.push(new envelopeHandler()) } catch (_) { };
-try { handlers.push(new pandocHandler()) } catch (_) { };
 try { handlers.push(new jszipHandler()) } catch (_) { };
 try { handlers.push(new fromJsonHandler()) } catch (_) { };
 try { handlers.push(new toJsonHandler()) } catch (_) { };
@@ -30,6 +24,9 @@ try { handlers.push(new textEncodingHandler()) } catch (_) { };
 /** Dynamically load all non-core handlers. Appends to the handlers array. */
 export async function loadBackgroundHandlers() {
   const loaders: Array<() => Promise<void>> = [
+    async () => { const m = await import("./FFmpeg.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./ImageMagick.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./pandoc.ts"); handlers.push(new m.default()); },
     async () => { const m = await import("./meyda.ts"); handlers.push(new m.default()); },
     async () => { const m = await import("./htmlEmbed.ts"); handlers.push(new m.default()); },
     async () => { const m = await import("./curani.ts"); handlers.push(new m.default()); },

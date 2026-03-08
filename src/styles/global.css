@@ -440,7 +440,7 @@ html {
   visibility: hidden;
   pointer-events: none;
   transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease,
-              background-color 0.3s ease, border-color 0.3s ease;
+    background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .modal-container.open {
@@ -668,6 +668,11 @@ html {
   }
 }
 
+.muted-text {
+  opacity: 0.6;
+  font-size: 0.85em;
+}
+
 /* --- Loading bar (cold start) --- */
 
 #loading-bar {
@@ -680,18 +685,30 @@ html {
   z-index: 9999;
   pointer-events: none;
   animation:
-    loading-bar-grow 2s ease-in-out forwards,
-    loading-bar-breathe 4s ease-in-out 2s infinite;
+    loading-bar-grow 30s linear forwards,
+    loading-bar-breathe 4s ease-in-out infinite;
 }
 
 @keyframes loading-bar-grow {
-  from { width: 0; }
-  to { width: 75%; }
+  from {
+    width: 0;
+  }
+
+  to {
+    width: 75%;
+  }
 }
 
 @keyframes loading-bar-breathe {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 #loading-bar.complete {
@@ -700,9 +717,20 @@ html {
 }
 
 @keyframes loading-bar-finish {
-  0%   { width: var(--bar-start); clip-path: inset(0 0 0 0); }
-  35%  { width: 100%;             clip-path: inset(0 0 0 0); }
-  100% { width: 100%;             clip-path: inset(0 0 0 100%); }
+  0% {
+    width: var(--bar-start);
+    clip-path: inset(0 0 0 0);
+  }
+
+  35% {
+    width: 100%;
+    clip-path: inset(0 0 0 0);
+  }
+
+  100% {
+    width: 100%;
+    clip-path: inset(0 0 0 100%);
+  }
 }
 
 /* --- Responsive --- */

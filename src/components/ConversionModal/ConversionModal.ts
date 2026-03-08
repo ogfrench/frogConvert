@@ -41,7 +41,7 @@ export function showConversionInProgress(messageHTML: string) {
 
     const existingSpinner = ui.popupBox.querySelector(".loader-spinner");
     if (existingSpinner) {
-        const p = ui.popupBox.querySelector("p");
+        const p = ui.popupBox.querySelector(".loader-spinner + p");
         if (p) p.innerHTML = messageHTML;
         const h2 = ui.popupBox.querySelector("h2");
         if (h2) h2.textContent = "Converting... 🐸";
@@ -52,9 +52,9 @@ export function showConversionInProgress(messageHTML: string) {
     } else {
         const html = `
       <h2>Converting... 🐸</h2>
-      <p>${messageHTML}</p>
       <div class="loader-spinner"></div>
-      <p class="muted-text">Large files may take a while</p>`;
+      <p>${messageHTML}</p>
+      <p class="muted-text">Large file conversions may take a while</p>`;
         showPopup(html);
     }
     ensureCancelButton();

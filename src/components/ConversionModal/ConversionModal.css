@@ -28,16 +28,13 @@
   opacity: var(--opacity-hover);
 }
 
-.muted-text {
-  opacity: 0.6;
-  font-size: 0.85em;
-}
 
 .conversion-path {
   font-weight: var(--font-semibold);
   color: var(--foreground);
+  opacity: 0.8;
 }
 
 #popup .loader-spinner {
-  margin: var(--space-6) auto var(--space-4);
+  margin: var(--space-8) auto var(--space-4);
 }

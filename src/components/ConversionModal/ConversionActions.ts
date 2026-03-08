@@ -37,8 +37,8 @@ function _showEnginesLoadingPopup() {
         _enginesLoadingPollId = null;
     }
     showPopup(
-        `<div class="loader-spinner"></div>` +
         `<h2>Engines loading...</h2>` +
+        `<div class="loader-spinner"></div>` +
         `<p>Conversion engines are still starting up. Hang tight!</p>` +
         `<div class="popup-actions">` +
         `<button class="popup-secondary" onclick="window.hidePopup()">Dismiss</button>` +
@@ -60,8 +60,8 @@ function _updatePopupToEnginesReady() {
     const spinner = ui.popupBox.querySelector<HTMLElement>(".loader-spinner");
     if (!spinner) return;
 
-    const h2      = ui.popupBox.querySelector("h2");
-    const p       = ui.popupBox.querySelector("p");
+    const h2 = ui.popupBox.querySelector("h2");
+    const p = ui.popupBox.querySelector("p");
     const actions = ui.popupBox.querySelector(".popup-actions");
 
     const icon = document.createElement("div");
@@ -69,7 +69,7 @@ function _updatePopupToEnginesReady() {
     spinner.replaceWith(icon);
 
     if (h2) h2.textContent = "Engines ready!";
-    if (p)  p.textContent  = "All conversion engines loaded. Ready to convert!";
+    if (p) p.textContent = "All conversion engines loaded. Ready to convert!";
     if (actions) {
         actions.innerHTML = "";
         const btn = document.createElement("button");

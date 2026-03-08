@@ -151,9 +151,16 @@ async function initCacheMissHandlers(subset: FormatHandler[]) {
     if (handler.supportedFormats) {
       window.supportedFormatCache.set(handler.name, handler.supportedFormats);
       console.info(`Updated supported format cache for "${handler.name}".`);
+      let added = 0;
       for (const format of handler.supportedFormats) {
         if (!format.mime) continue;
         allOptionsRef.value.push({ format, handler });
+        added++;
+      }
+      // Incrementally show formats as each handler loads (DOM render only, no graph rebuild)
+      if (added > 0 && ui.formatModal.classList.contains("open")) {
+        renderFormatOptions(allOptionsRef.value, activeCategory.value);
+        if (ui.formatSearch.value) filterFormats(ui.formatSearch.value);
       }
     }
   }
@@ -220,52 +227,54 @@ function refreshUI() {
     populateFromCache(handlers);
     refreshUI();
   } else {
-    // Cold start: show thin top bar while handlers initialize
+    // Cold start: show thin top bar while handlers initialize (lives through Phase 1 + Phase 2)
     showLoadingBar(true);
   }
 
   try {
-    // Phase 1: init only handlers not yet in cache (cache-miss path)
-    const sizeBefore = allOptionsRef.value.length;
-    await initCacheMissHandlers(handlers);
-    if (allOptionsRef.value.length > sizeBefore) {
-      refreshUI();
+    // Phase 1: 9 lightweight handlers — completes in <1s on cold start
+    try {
+      const sizeBefore = allOptionsRef.value.length;
+      await initCacheMissHandlers(handlers);
+      if (allOptionsRef.value.length > sizeBefore) {
+        refreshUI();
+      }
+      console.log(`Phase 1: ${handlers.length} core handlers loaded.`);
+    } catch (e) {
+      console.error("Phase 1 init failed:", e);
     }
-    showLoadingBar(false);
-    console.log(`Phase 1: ${handlers.length} core handlers loaded.`);
-  } catch (e) {
-    console.error("Phase 1 init failed:", e);
-    showLoadingBar(false);
-  }
 
-  // Phase 2: load background handlers immediately after Phase 1 (no artificial delay)
-  const countBefore = handlers.length;
-  try {
-    isLoadingPhase2.value = true;
-    if (ui.formatModal.classList.contains("open")) {
-      renderFormatOptions(allOptionsRef.value, activeCategory.value);
-      if (ui.formatSearch.value) filterFormats(ui.formatSearch.value);
+    // Phase 2: heavy handlers (FFmpeg, ImageMagick, Pandoc) + background handlers
+    const countBefore = handlers.length;
+    try {
+      isLoadingPhase2.value = true;
+      if (ui.formatModal.classList.contains("open")) {
+        renderFormatOptions(allOptionsRef.value, activeCategory.value);
+        if (ui.formatSearch.value) filterFormats(ui.formatSearch.value);
+      }
+      await loadBackgroundHandlers();
+      populateFromCache(handlers.slice(countBefore));
+      await initCacheMissHandlers(handlers.slice(countBefore));
+    } finally {
+      isLoadingPhase2.value = false;
     }
-    await loadBackgroundHandlers();
-    populateFromCache(handlers.slice(countBefore));
-    await initCacheMissHandlers(handlers.slice(countBefore));
+    // Defer graph rebuild if a conversion is currently in progress to avoid sending a new
+    // 'init' message to the route-search worker mid-pathfinding. The graph will be rebuilt
+    // immediately after the conversion's finally block runs.
+    if (!getIsConverting()) {
+      refreshUI();
+    } else {
+      setOnConversionEnd(refreshUI);
+    }
+    // Persist cache for next page load
+    try {
+      const entries = [...window.supportedFormatCache.entries()];
+      localStorage.setItem("supportedFormatCache", JSON.stringify(entries));
+    } catch (_) { }
+    console.log(`Phase 2: ${handlers.length - countBefore} background handlers loaded.`);
   } finally {
-    isLoadingPhase2.value = false;
+    showLoadingBar(false);  // always hide bar when entire loading sequence ends
   }
-  // Defer graph rebuild if a conversion is currently in progress to avoid sending a new
-  // 'init' message to the route-search worker mid-pathfinding. The graph will be rebuilt
-  // immediately after the conversion's finally block runs.
-  if (!getIsConverting()) {
-    refreshUI();
-  } else {
-    setOnConversionEnd(refreshUI);
-  }
-  // Persist cache for next page load
-  try {
-    const entries = [...window.supportedFormatCache.entries()];
-    localStorage.setItem("supportedFormatCache", JSON.stringify(entries));
-  } catch (_) { }
-  console.log(`Phase 2: ${handlers.length - countBefore} background handlers loaded.`);
 })();
 
 // --- Conversion logic ---
