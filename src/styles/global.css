@@ -685,7 +685,7 @@ html {
   z-index: 9999;
   pointer-events: none;
   animation:
-    loading-bar-grow 30s linear forwards,
+    loading-bar-grow 15s linear forwards,
     loading-bar-breathe 4s ease-in-out infinite;
 }
 
