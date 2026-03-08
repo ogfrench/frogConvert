@@ -3,4 +3,4 @@ node_modules
 start.sh
 dist
 release
-cache.json
+# cache.json (removed to allow pre-generated cache)
