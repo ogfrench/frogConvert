@@ -9,7 +9,6 @@ import {
     selectedFromIndex,
     selectedToIndex,
     allOptionsRef,
-    shortenFileName,
     escapeHTML,
     showPopup,
     hidePopup,
@@ -17,14 +16,24 @@ import {
     resetCancellation,
     showConversionInProgress,
     setWorkerCancelCallback,
-    completeCancellation
+    completeCancellation,
+    showPartialDownloadPopup
 } from "../index.ts";
+import { shortenFileName } from "../utils.ts";
 
 // --- Helpers ---
 
 const waitForPaint = () => new Promise<void>(resolve =>
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
 );
+
+function getFormattedDate() {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
 
 let isConverting = false;
 export const getIsConverting = () => isConverting;
@@ -37,7 +46,7 @@ function _showEnginesLoadingPopup() {
         _enginesLoadingPollId = null;
     }
     showPopup(
-        `<h2>Wow, you're fast! 🐸</h2>` +
+        `<h2>Wow, you're fast! ⚡</h2>` +
         `<div class="loader-spinner"></div>` +
         `<p>Engines are starting up. This only happens on first load, so it'll be instant next time!</p>` +
         `<div class="popup-actions">` +
@@ -148,7 +157,7 @@ export async function downloadAsZip(files: { name: string; bytes: Uint8Array }[]
 
 export async function downloadAllConvertedFiles() {
     if (lastConvertedFiles.length > 1) {
-        await downloadAsZip(lastConvertedFiles, `converted_files_${Date.now()}.zip`);
+        await downloadAsZip(lastConvertedFiles, `frogConvert-${getFormattedDate()}.zip`);
     } else {
         for (const file of lastConvertedFiles) {
             downloadFile(file.bytes, file.name);
@@ -236,7 +245,7 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
 
     // stabilization delay: only show the detailed path if it doesn't fail immediately
     let uiTimeout: ReturnType<typeof setTimeout> | null = setTimeout(() => {
-        showConversionInProgress(messageHTML);
+        showConversionInProgress(messageHTML, (window as any)._currentConvertingTitle || "Converting...");
         uiTimeout = null;
     }, 150);
 
@@ -290,7 +299,7 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
                     clearTimeout(uiTimeout);
                     uiTimeout = null;
                 }
-                showConversionInProgress(fallbackMsg);
+                showConversionInProgress(fallbackMsg, (window as any)._currentConvertingTitle || "Converting...");
                 await waitForPaint();
 
                 return null;
@@ -316,7 +325,7 @@ window.tryConvertByTraversing = async function (
     // Add searching listener to update UI
     const searchListener = (state: string, _path: ConvertPathNode[]) => {
         if (state === "searching" && !batchMsg) {
-            showConversionInProgress(`Finding best conversion route...`);
+            showConversionInProgress(`Finding best conversion route...`, (window as any)._currentConvertingTitle || "Converting...");
         }
     };
     window.traversionGraph.addPathEventListener(searchListener);
@@ -366,6 +375,8 @@ export function initConvertButton() {
         if (isConverting) return;
         isConverting = true;
 
+        const allOutputFiles: { name: string; bytes: Uint8Array }[] = [];
+
         try {
             const inputFiles = currentFiles.value;
             const fileCount = inputFiles.length;
@@ -398,12 +409,20 @@ export function initConvertButton() {
             const conversionStartTime = performance.now();
             resetCancellation();
 
+            const convertingTitle = fileCount > 1 ? "Converting your files" : "Converting your file";
+            (window as any)._currentConvertingTitle = convertingTitle;
+
+            await waitForPaint();
+
+            showConversionInProgress("Warming up the engines...<br><span class=\"conversion-path\">getting ready to convert</span>", "Starting up");
+            await waitForPaint();
+
             const inputFileData: FileData[] = [];
-            const allOutputFiles: { name: string; bytes: Uint8Array }[] = [];
 
             for (const inputFile of inputFiles) {
                 if (isCancelled) return;
                 const inputBuffer = await inputFile.arrayBuffer();
+                if (isCancelled) return;
                 const inputBytes = new Uint8Array(inputBuffer);
                 if (
                     inputFormat.mime === outputFormat.mime
@@ -421,8 +440,8 @@ export function initConvertButton() {
                     const truncName = shortenFileName(inputFiles[0].name, 32);
                     downloadFile(allOutputFiles[0].bytes, allOutputFiles[0].name);
                     showPopup(
-                        `<h2>Nothing to do!</h2>` +
-                        `<p><b>${escapeHTML(truncName)}</b> is already a <b>${escapeHTML(fmt)}</b> file, so nothing to convert. Downloading the original for you.</p>` +
+                        `<h2>No conversion needed</h2>` +
+                        `<p><b>${escapeHTML(truncName)}</b> is already a <b>${escapeHTML(fmt)}</b> file, so there's nothing to convert. Downloading the original for you.</p>` +
                         `<div class="popup-actions">` +
                         `<button class="popup-primary" onclick="window.hidePopup()">Got it</button>` +
                         `</div>`,
@@ -430,13 +449,13 @@ export function initConvertButton() {
                     return;
                 } else {
                     showPopup(
-                        `<h2>Nothing to do!</h2>` +
-                        `<p>These <b>${fileCount} files</b> are already in <b>${escapeHTML(fmt)}</b> format, so nothing to convert. Downloading the originals for you.</p>` +
+                        `<h2>No conversion needed</h2>` +
+                        `<p>These <b>${fileCount} files</b> are already in <b>${escapeHTML(fmt)}</b> format, so there's nothing to convert. Downloading the originals for you.</p>` +
                         `<div class="popup-actions">` +
                         `<button class="popup-primary" onclick="window.hidePopup()">Got it</button>` +
                         `</div>`,
                     );
-                    await downloadAsZip(allOutputFiles, "original-files.zip");
+                    await downloadAsZip(allOutputFiles, `original-files-${getFormattedDate()}.zip`);
                     return;
                 }
             }
@@ -444,8 +463,6 @@ export function initConvertButton() {
             await waitForPaint();
 
             if (fileCount > 1) {
-                showConversionInProgress("Getting started...");
-
                 for (let i = 0; i < inputFileData.length; i++) {
                     if (isCancelled) break;
                     const batchMsg = fileCount > 1
@@ -469,13 +486,13 @@ export function initConvertButton() {
                 setLastConvertedFiles(allOutputFiles);
 
                 if (allOutputFiles.length > 1) {
-                    showConversionInProgress("Almost done...");
+                    showConversionInProgress("Almost done...", convertingTitle);
                     const h2 = ui.popupBox.querySelector("h2");
                     if (h2) h2.textContent = "Packing your files...";
 
                     await waitForPaint();
 
-                    await downloadAsZip(allOutputFiles, "frogConvert-files.zip");
+                    await downloadAsZip(allOutputFiles, `frogConvert-${getFormattedDate()}.zip`);
                 } else {
                     for (const file of allOutputFiles) {
                         downloadFile(file.bytes, file.name);
@@ -513,7 +530,8 @@ export function initConvertButton() {
                     return;
                 }
 
-                setLastConvertedFiles(output.files);
+                allOutputFiles.push(...output.files);
+                setLastConvertedFiles(allOutputFiles);
 
                 for (const file of output.files) {
                     if (isCancelled) break;
@@ -551,7 +569,18 @@ export function initConvertButton() {
                 `</div>`,
             );
         } finally {
-            await completeCancellation();
+            const hasConvertedFiles = allOutputFiles.length > 0;
+            const shouldHide = !isCancelled || !hasConvertedFiles;
+
+            await completeCancellation(shouldHide);
+
+            if (isCancelled && hasConvertedFiles) {
+                setLastConvertedFiles(allOutputFiles);
+                showPartialDownloadPopup(allOutputFiles.length, () => {
+                    downloadAllConvertedFiles();
+                });
+            }
+
             resetCancellation();
             isConverting = false;
             if (onConversionEnd) {

@@ -14,6 +14,7 @@ frogConvert is a high-performance, privacy-first file conversion web platform bu
 - MCP (Model Context Protocol) server for programmatic AI agent access (`src/mcp/`).
 - Web Workers for pathfinding (`route-search.worker.ts`) and handler execution (`conversion.worker.ts`).
 - `requiresMainThread` flag on `FormatHandler` to safely route DOM-dependent handlers away from workers.
+- Partial download support for cancelled batch conversions.
 - Full vitest unit test suite and Puppeteer E2E tests.
 - Bun-based build system (original uses npm/tsx).
 
@@ -38,7 +39,8 @@ The codebase is organized as a vanilla TypeScript Vite project. Here are the mos
 - **`src/components/`**: The Vanilla TS/CSS User Interface.
   - **`ConversionModal/`**: Manages the "Converting... 🐸" UI state and orchestrates `ConversionActions.ts`.
   - **`FormatModal/`**: The UI for selecting output formats.
-  - **`store/`**: Lightweight reactive wrappers storing shared state (e.g., active files, UI references in `store.ts`).
+  - **`store/`**: Lightweight reactive wrappers storing shared state (e.g., active files, UI references, and global `updateScrollLock` helper in `store.ts`).
+  - **`utils.ts`**: Shared UI utilities like `escapeHTML`, `formatBytes`, and `shortenFileName`.
 - **`src/mcp/`**: Model Context Protocol integration. This allows frogConvert's engine to be exposed to connected AI assistants as a suite of external tools securely.
 - **`test/`**:
   - `e2e/`: Puppeteer end-to-end tests ensuring heavy UI flows and workers do not break.
@@ -104,7 +106,9 @@ Avoid `document.querySelector` inside components. Use the centralized `ui` objec
 
 ### Popup & Modal Management
 - **`Popup.ts`**: Provides `showPopup(html)` and `hidePopup()`. These handle the global glassmorphism modal system.
-- **Cancellation**: A global `isCancelled` flag (in `ConversionModal.ts`) is checked at every step of a conversion path. If `true`, the loop terminates.
+- **Spinners**: The application uses a "gooey" spinner (`loader-gooey`) for active conversions and a standard spinner (`loader-spinner`) for shorter operations like cancellation.
+- **Cancellation & Partial Downloads**: A global `isCancelled` flag (in `ConversionModal.ts`) is checked during conversion loops. If a batch is cancelled, the user is offered a "Partial Download" for any files that finished before the stop.
+- **Scroll Locking**: Modals automatically manage body scrolling via `updateScrollLock()` in `store.ts`, which toggles the `.scroll-lock` class on the root element.
 
 ---
 
@@ -131,5 +135,7 @@ The MCP Server allows AI Assistants to:
    - **E2E Tests**: `test/e2e/conversion-flow.test.ts` uses Puppeteer to verify that the Web Worker actually mounts and doesn't freeze the browser.
 5. **Format Standards**: 
    Use `src/core/CommonFormats/CommonFormats.ts` for all MIME types and extensions. Never hardcode MIME strings if they exist in the common registry.
-6. **Mobile First**: 
+6. **Shared Utilities**:
+   Use `src/components/utils.ts` for common UI tasks (HTML escaping, byte formatting, string shortening) to maintain consistency.
+7. **Mobile First**: 
    The application uses a `MOBILE_BREAKPOINT` of 800px. Ensure new UI elements don't break on narrow viewports or coarse pointer (touch) devices.

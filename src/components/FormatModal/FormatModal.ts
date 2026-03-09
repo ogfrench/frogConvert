@@ -1,6 +1,6 @@
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 import "./FormatModal.css";
-import { ui, CATEGORY_LABELS, formatDisplayName, isAdvancedMode, BASIC_FORMATS, getFormatCategory, activeCategory, allOptionsRef, isLoadingPhase2 } from "../store/store.ts";
+import { ui, CATEGORY_LABELS, formatDisplayName, isAdvancedMode, BASIC_FORMATS, getFormatCategory, activeCategory, allOptionsRef, isLoadingPhase2, updateScrollLock } from "../store/store.ts";
 
 // --- Format modal ---
 
@@ -14,6 +14,7 @@ export function closeFormatModal() {
   ui.formatModal.classList.remove("open");
   ui.formatModalBg.classList.remove("open");
   ui.formatModal.setAttribute("aria-hidden", "true");
+  updateScrollLock();
 }
 
 export function openFormatModal() {
@@ -30,6 +31,7 @@ export function openFormatModal() {
   }
   renderFormatOptions(allOptionsRef.value, activeCategory.value);
   filterFormats("");
+  updateScrollLock();
 }
 
 export function filterFormats(query: string) {

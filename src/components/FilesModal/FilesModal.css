@@ -1,9 +1,29 @@
 /* --- Files Management Modal --- */
+#files-modal {
+  max-height: 85vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+
+.files-modal-header {
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  z-index: 11;
+  border-bottom: 1px solid transparent;
+}
+
 .files-modal-top-actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
   padding: 0 var(--space-6) var(--space-4);
+  position: sticky;
+  top: 76px;
+  /* Below sticky header */
+  background: var(--card);
+  z-index: 10;
 }
 
 .files-modal-top-actions button {
@@ -190,9 +210,10 @@
 }
 
 .files-modal-footer {
-  padding: var(--space-4) var(--space-6) var(--space-6);
+  padding: var(--space-4) var(--space-6) var(--space-5);
   border-top: 1px solid var(--border);
   background-color: var(--card);
+  margin-top: auto;
 }
 
 .files-modal-back {

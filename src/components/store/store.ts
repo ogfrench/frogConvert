@@ -1,5 +1,5 @@
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
-import { showPopup, hidePopup } from "../Popup/Popup.ts";
+import { shortenFileName } from "../utils.ts";
 // --- DOM element references (lazy-initialized to allow testing) ---
 const uiInternal: Record<string, any> = {};
 
@@ -123,18 +123,6 @@ export const MOBILE_BREAKPOINT = 800;
 export const MAX_FILES = 100;
 const SIZE_WARNING_THRESHOLD = 3.6 * 1024 * 1024 * 1024; // 3.6 GB
 
-export function escapeHTML(str: string): string {
-  return str.replace(/[&<>'"]/g,
-    tag => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      "'": '&#39;',
-      '"': '&quot;'
-    }[tag] || tag)
-  );
-}
-
 type SizeCheckLevel = "ok" | "warning";
 
 export function checkFileSizeLimits(files: File[]): { level: SizeCheckLevel; totalSize: number } {
@@ -143,88 +131,6 @@ export function checkFileSizeLimits(files: File[]): { level: SizeCheckLevel; tot
   return { level: "ok", totalSize };
 }
 
-export function formatBytes(bytes: number): string {
-  if (bytes >= 1024 * 1024 * 1024) return `~${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-  if (bytes >= 1024 * 1024) return `~${(bytes / (1024 * 1024)).toFixed(0)} MB`;
-  return `~${(bytes / 1024).toFixed(0)} KB`;
-}
-
-export function showSizeWarningPopup(
-  totalSize: number,
-  fileCount: number,
-  onProceed: () => void,
-): void {
-  const sizeStr = formatBytes(totalSize);
-  const title = fileCount > 1 ? "Large files detected" : "Large file detected";
-  const body = fileCount > 1
-    ? `These files are ${sizeStr} total. Browsers can struggle with large files and may slow down or crash.`
-    : `This file is ${sizeStr}. Browsers can struggle with large files and may slow down or crash.`;
-
-  showPopup(
-    `<h2>${title}</h2>` +
-    `<p>${body}</p>` +
-    `<div class="popup-actions">` +
-    `<button class="popup-secondary" onclick="window.hidePopup()">‹ Go back</button>` +
-    `<button class="popup-primary" id="size-warn-proceed">Convert anyway</button>` +
-    `</div>`,
-  );
-
-  requestAnimationFrame(() => {
-    const proceedBtn = document.getElementById("size-warn-proceed");
-    proceedBtn?.addEventListener("click", () => {
-      hidePopup();
-      onProceed();
-    });
-  });
-}
-
-export function shortenFileName(name: string, maxLength: number = 24): string {
-  if (name.length <= maxLength) return name;
-  const ellipsisLen = 3;
-  const charsToShow = maxLength - ellipsisLen;
-  const frontChars = Math.ceil(charsToShow / 2);
-  const backChars = Math.floor(charsToShow / 2);
-  return name.substring(0, frontChars) + "..." + name.substring(name.length - backChars);
-}
-
-export function showFileTypeMismatchPopup(files: File[], onProceed: (filtered: File[]) => void) {
-  const typeGroups = new Map<string, File[]>();
-  for (const file of files) {
-    const type = file.type || "unknown";
-    if (!typeGroups.has(type)) typeGroups.set(type, []);
-    typeGroups.get(type)!.push(file);
-  }
-
-  const typeEntries = [...typeGroups.entries()];
-  let actionButtons = "";
-  for (const [type, groupFiles] of typeEntries) {
-    const ext = groupFiles[0].name.split(".").pop()?.toUpperCase() || "Unknown";
-    const count = groupFiles.length;
-    actionButtons += `<button class="type-filter-row" data-type-filter="${type}"><span>Keep only ${ext} (${count} file${count > 1 ? "s" : ""})</span><span class="type-filter-arrow">›</span></button>`;
-  }
-
-  showPopup(
-    `<h2>Multiple file types detected</h2>` +
-    `<p>Select which files to keep:</p>` +
-    `<div class="popup-actions popup-actions-stacked">` +
-    actionButtons +
-    `<button class="popup-secondary" onclick="window.hidePopup()">‹ Go back</button>` +
-    `</div>`,
-  );
-
-  // Bind filter buttons
-  requestAnimationFrame(() => {
-    const btns = ui.popupBox.querySelectorAll<HTMLButtonElement>("[data-type-filter]");
-    btns.forEach(btn => {
-      btn.addEventListener("click", () => {
-        const filterType = btn.getAttribute("data-type-filter")!;
-        const filtered = files.filter(f => (f.type || "unknown") === filterType);
-        hidePopup();
-        onProceed(filtered);
-      });
-    });
-  });
-}
 
 export const CATEGORY_MAP: Record<string, string[]> = {
   image: ["image", "vector"],
@@ -371,4 +277,22 @@ export function initTheme() {
     applyTheme(!isDark);
     localStorage.setItem("theme", isDark ? "light" : "dark");
   });
+}
+
+// --- Scroll Lock ---
+
+/**
+ * Checks if any modal or popup is currently open and applies/removes
+ * the .scroll-lock class on the html element accordingly.
+ */
+export function updateScrollLock() {
+  if (typeof document === "undefined") return;
+
+  const isAnyModalOpen =
+    ui.formatModal?.classList.contains("open") ||
+    ui.filesModal?.classList.contains("open") ||
+    ui.topControls?.classList.contains("menu-open") ||
+    ui.popupBox?.classList.contains("popup-visible");
+
+  document.documentElement.classList.toggle("scroll-lock", !!isAnyModalOpen);
 }

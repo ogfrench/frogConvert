@@ -22,7 +22,7 @@ export function setWorkerCancelCallback(cb: (() => void) | null) {
 let cancelStartTime: number | null = null;
 const CANCEL_MIN_MS = 1000;
 
-export async function completeCancellation() {
+export async function completeCancellation(shouldHide = true) {
     if (cancelStartTime === null) return;
     const elapsed = performance.now() - cancelStartTime;
     const remaining = CANCEL_MIN_MS - elapsed;
@@ -30,31 +30,45 @@ export async function completeCancellation() {
         await new Promise<void>(resolve => setTimeout(resolve, remaining));
     }
     cancelStartTime = null;
-    hidePopup();
+    if (shouldHide) {
+        hidePopup();
+    }
 }
 
-export function showConversionInProgress(messageHTML: string) {
+export function showConversionInProgress(messageHTML: string, title: string = "Converting...") {
     // If cancellation is in progress, don't overwrite the popup
     if (cancelStartTime !== null) {
         return;
     }
 
-    const existingSpinner = ui.popupBox.querySelector(".loader-spinner");
+    const existingSpinner = ui.popupBox.querySelector(".loader-gooey, .loader-spinner");
     if (existingSpinner) {
-        const p = ui.popupBox.querySelector(".loader-spinner + p");
-        if (p) p.innerHTML = messageHTML;
+        // Ensure we are using the gooey loader for conversions
+        if (existingSpinner.classList.contains("loader-spinner")) {
+            existingSpinner.classList.remove("loader-spinner");
+            existingSpinner.classList.add("loader-gooey");
+        }
+
         const h2 = ui.popupBox.querySelector("h2");
-        if (h2) h2.textContent = "Converting... 🐸";
+        if (h2) h2.textContent = title;
+
+        const p = existingSpinner.nextElementSibling as HTMLElement;
+        if (p && p.tagName === "P") {
+            p.innerHTML = messageHTML;
+            // If the status paragraph was muted (from cancellation popup), make it normal
+            if (p.classList.contains("muted-text")) {
+                p.classList.remove("muted-text");
+            }
+        }
 
         // Ensure visibility in case it was hidden or we are updating
         ui.popupBox.style.display = "block";
         ui.popupBackground.style.display = "block";
     } else {
         const html = `
-      <h2>Converting... 🐸</h2>
-      <div class="loader-spinner"></div>
-      <p>${messageHTML}</p>
-      <p class="muted-text">Large file conversions may take a while</p>`;
+      <h2>${title}</h2>
+      <div class="loader-gooey"></div>
+      <p>${messageHTML}</p>`;
         showPopup(html);
     }
     ensureCancelButton();
@@ -66,9 +80,9 @@ export function triggerCancellation() {
     workerCancelCallback = null;
     cancelStartTime = performance.now();
     showPopup(`
-        <h2>Cancelling... 🐸</h2>
+        <h2>Cancelling conversion</h2>
         <div class="loader-spinner"></div>
-        <p class="muted-text">Stopping conversion. This may take a moment</p>`);
+        <p>Stopping conversion...<br><span class="conversion-path">This may take a moment</span></p>`);
 }
 
 export function ensureCancelButton() {
@@ -87,4 +101,26 @@ export function ensureCancelButton() {
         btn.addEventListener("click", () => triggerCancellation());
         actions.appendChild(btn);
     }
+}
+
+export function showPartialDownloadPopup(count: number, onDownload: () => void) {
+    const html = `
+        <h2>Conversion cancelled</h2>
+        <p>${count} file${count > 1 ? "s" : ""} ${count > 1 ? "were" : "was"} successfully converted before stopping.</p>
+        <div class="popup-actions-footer">
+            <button id="partial-download-btn" class="popup-primary">Download ${count} file${count > 1 ? "s" : ""}</button>
+            <button id="partial-done-btn" class="btn-secondary">Done</button>
+        </div>`;
+    showPopup(html);
+
+    const downloadBtn = ui.popupBox.querySelector("#partial-download-btn");
+    downloadBtn?.addEventListener("click", () => {
+        onDownload();
+        hidePopup();
+    });
+
+    const doneBtn = ui.popupBox.querySelector("#partial-done-btn");
+    doneBtn?.addEventListener("click", () => {
+        hidePopup();
+    });
 }

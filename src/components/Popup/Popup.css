@@ -1,19 +1,63 @@
 /* --- Popup animations --- */
 @keyframes popup-in {
-  from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
-  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-}
-@keyframes popup-out {
-  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  to   { opacity: 0; transform: translate(-50%, -50%) scale(0.97); }
-}
-@keyframes bg-in  { from { opacity: 0; } to { opacity: 1; } }
-@keyframes bg-out { from { opacity: 1; } to { opacity: 0; } }
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
 
-#popup.popup-visible    { animation: popup-in  0.2s  ease-out forwards; }
-#popup.closing          { animation: popup-out 0.16s ease-in  forwards; }
-#popup-bg.popup-visible { animation: bg-in     0.2s  ease-out forwards; }
-#popup-bg.closing       { animation: bg-out    0.16s ease-in  forwards; }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes popup-out {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.97);
+  }
+}
+
+@keyframes bg-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes bg-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+#popup.popup-visible {
+  animation: popup-in 0.2s ease-out forwards;
+}
+
+#popup.closing {
+  animation: popup-out 0.16s ease-in forwards;
+}
+
+#popup-bg.popup-visible {
+  animation: bg-in 0.2s ease-out forwards;
+}
+
+#popup-bg.closing {
+  animation: bg-out 0.16s ease-in forwards;
+}
 
 /* --- Popup / Modal --- */
 #popup-bg {
@@ -39,7 +83,7 @@
   background-color: var(--card);
   color: var(--card-foreground);
   border: 1px solid var(--border);
-  padding: var(--space-10) var(--space-8);
+  padding: var(--space-5) var(--space-6);
   border-radius: var(--radius-xl);
   text-align: center;
   box-shadow: var(--shadow-lg);
@@ -47,8 +91,15 @@
   transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
+/* Remove bottom margin from last elements like <p> to maintain modal symmetry,
+   but NOT from the footer which uses negative margins to be flush. */
+#popup>*:last-child:not(.popup-actions-footer) {
+  margin-bottom: 0;
+}
+
+
 #popup h2 {
-  margin: 0 0 var(--space-3);
+  margin: 0 0 var(--space-6);
   font-size: var(--text-2xl);
   font-weight: var(--font-semibold);
   letter-spacing: var(--tracking-tight);
@@ -65,6 +116,7 @@
   display: flex;
   gap: var(--space-3);
   justify-content: center;
+  margin-top: var(--space-2);
 }
 
 #popup button {
@@ -161,7 +213,7 @@
   align-items: center;
   justify-content: center;
   margin: 0 auto var(--space-5);
-  font-size: 1.25rem;
+  font-size: var(--text-2xl);
   color: var(--primary);
   font-weight: var(--font-semibold);
 }
@@ -172,7 +224,7 @@
 
 .type-filter-arrow {
   color: var(--muted-foreground);
-  font-size: 1.2em;
+  font-size: var(--text-xl);
   font-weight: var(--font-normal);
   margin-left: var(--space-4);
 }

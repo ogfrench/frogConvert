@@ -10,6 +10,7 @@ Compared to the original `Convert to it!`, frogConvert focuses on frontend impro
 - **Redesigned Modern UI/UX:** A completely fresh, visually appealing look with dedicated modules, light/dark theme toggles, and a refined file format selection interface.
 - **Enhanced Mobile Experience:** Fully responsive layout with a hamburger menu, fixed file name overflowing, and optimized padding and alignments for smaller screens.
 - **File Management & Uploads:** Introduced a new file management feature and set limits on maximum file uploads to prevent crashes and improve stability.
+- **Partial Download support:** If you cancel a large batch conversion, frogConvert now offers to download the files that have already finished processing.
 - **MCP (Model Context Protocol) Integration:** Built-in MCP server interface allowing AI agents to easily discover formats, analyze conversion paths, and utilize the app's core capabilities.
 - **Web Worker Performance:** Heavy conversion tasks and pathfinding run in background Web Workers, keeping the UI fully responsive even during complex, multi-step conversions.
 - **Robust Engineering Foundation:** Refactored the codebase, resolved initial load cache warnings, and introduced modern testing infrastructure for long-term maintainability.
@@ -42,6 +43,7 @@ For a semi-technical overview of the original tool, check out this video: https:
 - **Theme toggle** — Switch between light and dark mode with the theme button in the top bar.
 - **Mode toggle** — Switch between "Simple" and "All" mode to control how many output formats are shown.
 - **Multiple files** — When you upload more than one file, use the file manager to review, add, remove, or replace individual files.
+- **Partial Downloads** — Cancelled a batch mid-way? No problem. You can still download the files that were successfully converted before you hit cancel.
 - **Performance** — frogConvert detects your device's available RAM and adjusts limits to prevent crashes on lower-end hardware.
 
 ## Deployment

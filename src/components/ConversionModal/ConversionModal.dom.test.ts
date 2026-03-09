@@ -1,6 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { showConversionInProgress, ensureCancelButton, resetCancellation, setWorkerCancelCallback, triggerCancellation, completeCancellation } from "./ConversionModal.ts";
 import { ui } from "../store/store.ts";
+import { showConversionInProgress, ensureCancelButton, resetCancellation, setWorkerCancelCallback, triggerCancellation, completeCancellation, showPartialDownloadPopup } from "./ConversionModal.ts";
+
+vi.mock("../Popup/Popup.ts", () => ({
+    showPopup: vi.fn((html: string) => {
+        ui.popupBox.innerHTML = html;
+        ui.popupBox.style.display = "block";
+        ui.popupBackground.style.display = "block";
+    }),
+    hidePopup: vi.fn(() => {
+        ui.popupBox.style.display = "none";
+        ui.popupBackground.style.display = "none";
+    }),
+}));
 
 describe("ConversionModal DOM bindings", () => {
     beforeEach(() => {
@@ -12,7 +24,7 @@ describe("ConversionModal DOM bindings", () => {
         ui.popupBox = document.getElementById("popup") as HTMLDivElement;
         resetCancellation();
 
-        // Polyfill hidePopup globally so it doesn't fail
+        // Polyfill hidePopup globally so it doesn't fail if called via window
         (window as any).hidePopup = () => {
             ui.popupBox.style.display = "none";
             ui.popupBackground.style.display = "none";
@@ -21,6 +33,7 @@ describe("ConversionModal DOM bindings", () => {
 
     afterEach(() => {
         document.body.innerHTML = "";
+        vi.clearAllMocks();
     });
 
     describe("cancellation state machine", () => {
@@ -49,8 +62,8 @@ describe("ConversionModal DOM bindings", () => {
         showConversionInProgress("Step 1...");
         expect(ui.popupBox.style.display).not.toBe("none");
         expect(ui.popupBackground.style.display).not.toBe("none");
-        expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Converting... 🐸");
-        expect(ui.popupBox.querySelector(".loader-spinner")).not.toBeNull();
+        expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Converting...");
+        expect(ui.popupBox.querySelector(".loader-gooey")).not.toBeNull();
         expect(ui.popupBox.querySelector("p")?.textContent).toBe("Step 1...");
         expect(ui.popupBox.querySelector("#cancel-conversion-btn")).not.toBeNull();
     });
@@ -87,7 +100,7 @@ describe("ConversionModal DOM bindings", () => {
         it("shows the Cancelling popup", () => {
             showConversionInProgress("Working...");
             triggerCancellation();
-            expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Cancelling... 🐸");
+            expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Cancelling conversion");
             resetCancellation();
         });
     });
@@ -126,6 +139,43 @@ describe("ConversionModal DOM bindings", () => {
 
             vi.useRealTimers();
             resetCancellation();
+        });
+    });
+
+    describe("showPartialDownloadPopup", () => {
+        it("renders the correct message and buttons", () => {
+            const onDownload = vi.fn();
+            showPartialDownloadPopup(5, onDownload);
+
+            expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Conversion cancelled");
+            expect(ui.popupBox.querySelector("p")?.textContent).toBe("5 files were successfully converted before stopping.");
+
+            const downloadBtn = ui.popupBox.querySelector("#partial-download-btn") as HTMLButtonElement;
+            const doneBtn = ui.popupBox.querySelector("#partial-done-btn") as HTMLButtonElement;
+
+            expect(downloadBtn).not.toBeNull();
+            expect(doneBtn).not.toBeNull();
+            expect(downloadBtn.textContent).toBe("Download 5 files");
+        });
+
+        it("calls onDownload and hides popup when 'Download' is clicked", () => {
+            const onDownload = vi.fn();
+            showPartialDownloadPopup(5, onDownload);
+
+            const downloadBtn = ui.popupBox.querySelector("#partial-download-btn") as HTMLButtonElement;
+            downloadBtn.click();
+
+            expect(onDownload).toHaveBeenCalledOnce();
+            expect(ui.popupBox.style.display).toBe("none");
+        });
+
+        it("hides popup when 'Done' is clicked", () => {
+            showPartialDownloadPopup(5, () => { });
+
+            const doneBtn = ui.popupBox.querySelector("#partial-done-btn") as HTMLButtonElement;
+            doneBtn.click();
+
+            expect(ui.popupBox.style.display).toBe("none");
         });
     });
 });

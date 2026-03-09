@@ -1,10 +1,12 @@
 import "./FilesModal.css";
 import {
-  ui, currentFiles, shortenFileName, FILES_PER_PAGE, filesModalPage,
+  ui, currentFiles, FILES_PER_PAGE, filesModalPage,
   filesModalResizeHandler, onClearFiles, onFilesChanged, MAX_FILES,
-  checkFileSizeLimits, showSizeWarningPopup, showFileTypeMismatchPopup, sortFilesByName, bindDragAndDropVisuals
+  checkFileSizeLimits, sortFilesByName, bindDragAndDropVisuals, updateScrollLock
 } from "../store/store.ts";
 import { showFileInUploadZone } from "../UploadZone/UploadZone.ts";
+import { showSizeWarningPopup } from "../Popup/Popup.ts";
+import { shortenFileName } from "../utils.ts";
 
 /** Returns a friendly label for a MIME type, e.g. "image/png" -> "PNG image" */
 function friendlyMimeLabel(mime: string): string {
@@ -55,6 +57,7 @@ export function openFilesModal() {
     });
   };
   window.addEventListener("resize", filesModalResizeHandler.value);
+  updateScrollLock();
 }
 
 export function closeFilesModal() {
@@ -69,6 +72,7 @@ export function closeFilesModal() {
     window.removeEventListener("resize", filesModalResizeHandler.value);
     filesModalResizeHandler.value = null;
   }
+  updateScrollLock();
 }
 
 function hideFilesModalError() {

@@ -41,8 +41,11 @@
 
   /* Overlays & Shadows */
   --overlay-bg: rgba(0, 0, 0, 0.5);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 
   /* Backdrop & Blur */
   --blur-overlay: blur(4px);
@@ -212,6 +215,10 @@ html {
   scrollbar-gutter: stable;
   width: 100% !important;
   max-width: 100vw !important;
+}
+
+html.scroll-lock {
+  overflow-y: hidden !important;
 }
 
 /* Hide default cursor globally on desktop devices */
@@ -460,7 +467,7 @@ html {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-6) var(--space-6) var(--space-4);
+  padding: var(--space-8) var(--space-16) var(--space-4) var(--space-6);
 }
 
 .modal-header h2 {
@@ -472,6 +479,10 @@ html {
 
 /* --- Modal Close Button --- */
 .modal-close-btn {
+  position: absolute;
+  top: var(--space-6);
+  right: var(--space-6);
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -655,16 +666,72 @@ html {
   animation-delay: 0.55s;
 }
 
-/* --- Spinner --- */
+/* --- Spinners --- */
 
+/* Gooey Spinner - Used for active conversion */
+.loader-gooey {
+  width: var(--space-16);
+  aspect-ratio: 1;
+  padding: calc(var(--space-16) * 0.125);
+  box-sizing: border-box;
+  display: grid;
+  background: #fff;
+  mix-blend-mode: multiply;
+  filter: blur(4px) contrast(12);
+  margin: var(--space-8) auto;
+}
+
+.dark .loader-gooey {
+  background: #000;
+  mix-blend-mode: screen;
+}
+
+.loader-gooey:before,
+.loader-gooey:after {
+  content: "";
+  grid-area: 1/1;
+  width: 38%;
+  height: 38%;
+  background: var(--primary);
+  animation: gooey-spin 2s infinite;
+  border-radius: 50%;
+}
+
+.loader-gooey:after {
+  animation-delay: -1s;
+}
+
+@keyframes gooey-spin {
+  0% {
+    transform: translate(0, 0)
+  }
+
+  25% {
+    transform: translate(100%, 0)
+  }
+
+  50% {
+    transform: translate(100%, 100%)
+  }
+
+  75% {
+    transform: translate(0, 100%)
+  }
+
+  100% {
+    transform: translate(0, 0)
+  }
+}
+
+/* Standard Spinner - Used for cancellation and other modals */
 .loader-spinner {
-  width: var(--space-10);
-  height: var(--space-10);
-  border: 3px solid var(--border);
+  width: var(--space-8);
+  height: var(--space-8);
+  border: 2px solid var(--border);
   border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin-complex 2.4s cubic-bezier(0.45, 0.15, 0.55, 0.85) infinite;
-  margin: 0 auto var(--space-5);
+  margin: var(--space-8) auto;
 }
 
 @keyframes spin {

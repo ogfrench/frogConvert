@@ -1,5 +1,5 @@
 import "./TopBar.css";
-import { ui, isAdvancedMode } from "../store/store.ts";
+import { ui, isAdvancedMode, updateScrollLock } from "../store/store.ts";
 
 // --- Mode Toggle ---
 
@@ -44,12 +44,14 @@ export function initModeToggle(onModeChanged: () => void) {
     applyMode(!isAdvancedMode.value);
     onModeChanged();
     ui.topControls.classList.remove("menu-open");
+    updateScrollLock();
   });
 }
 
 export function initResponsiveMenu() {
   ui.hamburgerBtn.addEventListener("click", () => {
     ui.topControls.classList.toggle("menu-open");
+    updateScrollLock();
   });
 
   // Close menu when clicking outside
@@ -57,6 +59,7 @@ export function initResponsiveMenu() {
     const target = clickEvent.target as HTMLElement;
     if (!ui.topControls.contains(target) && ui.topControls.classList.contains("menu-open")) {
       ui.topControls.classList.remove("menu-open");
+      updateScrollLock();
     }
   });
 }

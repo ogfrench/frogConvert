@@ -1,8 +1,8 @@
 /* --- Conversion Modal Specific Styles --- */
 
 #popup .popup-actions-footer {
-  margin: var(--space-8) calc(-1 * var(--space-8)) calc(-1 * var(--space-10));
-  padding: var(--space-4) var(--space-6) var(--space-6);
+  margin: var(--space-8) calc(-1 * var(--space-6)) calc(-1 * var(--space-5));
+  padding: var(--space-4) var(--space-6) var(--space-5);
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -30,11 +30,10 @@
 
 
 .conversion-path {
-  font-weight: var(--font-semibold);
-  color: var(--foreground);
-  opacity: 0.8;
-}
-
-#popup .loader-spinner {
-  margin: var(--space-8) auto var(--space-4);
+  font-weight: var(--font-normal) !important;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  opacity: 0.6;
+  display: block;
+  margin-top: var(--space-1);
 }

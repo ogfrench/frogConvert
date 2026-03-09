@@ -68,8 +68,10 @@ src/
 │   ├── FormatHandler/      # Core interfaces (FormatHandler, FileFormat, FileData)
 │   ├── CommonFormats/      # Constants for defining MIME types and extensions
 │   └── TraversionGraph/    # Pathfinding graph algorithm
+├── components/             # The Vanilla TS/CSS User Interface
+│   ├── store/              # Reactive state and UI references
+│   └── utils.ts            # Shared UI utilities (escapeHTML, formatBytes)
 ├── handlers/               # The actual conversion logic (FFmpeg, ImageMagick, Pandoc, etc.)
-├── workers/                # Web Workers for offloading heavy compute off the main thread
 │   ├── conversion.worker.ts    # Executes handler conversions in a background thread
 │   └── route-search.worker.ts  # Runs Dijkstra pathfinding in a background thread
 └── mcp/                    # MCP Server implementation

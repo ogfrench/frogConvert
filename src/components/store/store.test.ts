@@ -6,7 +6,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { escapeHTML, shortenFileName, formatBytes, getFormatCategory, checkFileSizeLimits, formatDisplayName, sortFilesByName, DEFAULT_UPLOAD_TEXT, DEFAULT_UPLOAD_LABEL } from "./store.ts";
+import { getFormatCategory, checkFileSizeLimits, formatDisplayName, sortFilesByName, DEFAULT_UPLOAD_TEXT, DEFAULT_UPLOAD_LABEL } from "./store.ts";
+import { escapeHTML, shortenFileName, formatBytes } from "../utils.ts";
 import type { FileFormat } from "../../core/FormatHandler/FormatHandler.ts";
 
 // ---------------------------------------------------------------------------
