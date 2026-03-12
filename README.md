@@ -10,10 +10,11 @@ Compared to the original `Convert to it!`, frogConvert focuses on frontend impro
 - **Redesigned Modern UI/UX:** A completely fresh, visually appealing look with dedicated modules, light/dark theme toggles, and a refined file format selection interface.
 - **Enhanced Mobile Experience:** Fully responsive layout with a hamburger menu, fixed file name overflowing, and optimized padding and alignments for smaller screens.
 - **File Management & Uploads:** Introduced a new file management feature and set limits on maximum file uploads to prevent crashes and improve stability.
+- **Format Mode (Core / Plus / All):** Three-tier filter for the format picker — Core shows common everyday formats, Plus adds data, font, and extra media formats, All shows every supported format.
 - **Partial Download support:** If you cancel a large batch conversion, frogConvert now offers to download the files that have already finished processing.
 - **MCP (Model Context Protocol) Integration:** Built-in MCP server interface allowing AI agents to easily discover formats, analyze conversion paths, and utilize the app's core capabilities.
 - **Web Worker Performance:** Heavy conversion tasks and pathfinding run in background Web Workers, keeping the UI fully responsive even during complex, multi-step conversions.
-- **Robust Engineering Foundation:** Refactored the codebase, resolved initial load cache warnings, and introduced modern testing infrastructure for long-term maintainability.
+- **Robust Engineering Foundation:** Refactored the codebase with centralized modal management, base handler classes, and a full vitest + Puppeteer E2E test suite.
 
 ## What is it?
 > _This section is adapted from the [original README](https://github.com/p2r3/convert#readme)._
@@ -41,7 +42,7 @@ For a semi-technical overview of the original tool, check out this video: https:
 - **Any-to-any** — frogConvert can chain multiple conversion tools together to reach formats that no single tool supports directly. Want to turn a WAV into a PDF? Go for it.
 - **Privacy first** — Everything runs in your browser. No files are ever uploaded to a server.
 - **Theme toggle** — Switch between light and dark mode with the theme button in the top bar.
-- **Mode toggle** — Switch between "Simple" and "All" mode to control how many output formats are shown.
+- **Mode toggle** — Switch between **Core**, **Plus**, and **All** mode to control how many output formats are shown. Core shows the most common formats; Plus adds data, font, and more; All shows everything.
 - **Multiple files** — When you upload more than one file, use the file manager to review, add, remove, or replace individual files.
 - **Partial Downloads** — Cancelled a batch mid-way? No problem. You can still download the files that were successfully converted before you hit cancel.
 - **Performance** — frogConvert detects your device's available RAM and adjusts limits to prevent crashes on lower-end hardware.
@@ -99,6 +100,11 @@ The best way to contribute is by adding support for new file formats (duh). Here
 ### Creating a handler
 
 Each "tool" used for conversion has to be normalized to a standard form - effectively a "wrapper" that abstracts away the internal processes. These wrappers are available in [src/handlers](src/handlers/).
+
+Two abstract base classes make handler authoring easier:
+
+- **`BaseHandler`** (`src/core/FormatHandler/BaseHandler.ts`) — provides `ready = true`, a no-op `init()`, and a `replaceExtension(filename, ext)` helper. Extend this for binary/WASM handlers.
+- **`TextFormatHandler`** (`src/core/FormatHandler/TextFormatHandler.ts`) — extends `BaseHandler` and handles the `Uint8Array ↔ string` decode/encode pipeline automatically. Implement `doConvertText()` instead of `doConvert()`. Use this for JSON, CSV, XML, YAML, source code, etc.
 
 Below is a super barebones handler that does absolutely nothing. You can use this as a starting point for adding a new format:
 

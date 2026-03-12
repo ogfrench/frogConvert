@@ -23,7 +23,13 @@
   --input: #e4e4e7;
   --ring: #a1a1aa;
   --input-filled-dark: #ffffff;
-  --top-bar-bg: rgba(255, 255, 255, 0.45);
+  --top-bar-bg: rgba(255, 255, 255, 0.75);
+  --glass-bg: var(--top-bar-bg);
+  --glass-highlight: rgba(255, 255, 255, 0.85);
+  --glass-separator: rgba(0, 0, 0, 0.05);
+
+  /* Resets */
+  --link-color: inherit;
 
   /* Radius */
   --radius: 0.5rem;
@@ -135,7 +141,10 @@
   --input: #27272a;
   --ring: #52525b;
   --input-filled-dark: #18181b;
-  --top-bar-bg: rgba(10, 10, 10, 0.45);
+  --top-bar-bg: rgba(10, 10, 10, 0.60);
+  --glass-bg: var(--top-bar-bg);
+  --glass-highlight: rgba(250, 250, 250, 0.12);
+  --glass-separator: rgba(250, 250, 250, 0.05);
   color-scheme: dark;
 }
 
@@ -162,6 +171,11 @@
   box-sizing: border-box;
 }
 
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
 /* --- Glassy Scrollbar --- */
 * {
   scrollbar-width: thin;
@@ -169,8 +183,8 @@
 }
 
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 5px;
+  height: 5px;
 }
 
 *::-webkit-scrollbar-track {
@@ -260,7 +274,7 @@ html.scroll-lock {
 /* --- Footer / Github Link --- */
 #page-footer {
   margin-top: auto;
-  padding: var(--space-12) var(--space-6) var(--space-8);
+  padding: var(--space-12) var(--space-6) var(--space-4);
   display: flex;
   justify-content: center;
   pointer-events: none;
@@ -280,7 +294,7 @@ html.scroll-lock {
 .footer-text {
   font-size: var(--text-sm);
   color: var(--muted-foreground);
-  font-weight: var(--font-medium);
+  font-weight: var(--font-normal);
 }
 
 @media (max-width: 600px) {
@@ -430,6 +444,18 @@ html.scroll-lock {
   visibility: visible;
 }
 
+/* --- Shared Card Visuals --- */
+.card-base {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: none;
+  min-width: 300px;
+  min-height: 200px;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
 /* --- Modal Container --- */
 .modal-container {
   position: fixed;
@@ -439,11 +465,6 @@ html.scroll-lock {
   width: var(--modal-width);
   max-width: var(--mobile-content-width);
   max-height: 80vh;
-  background-color: var(--card);
-  color: var(--card-foreground);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
   z-index: 301;
   overflow: hidden;
   display: flex;
@@ -452,7 +473,7 @@ html.scroll-lock {
   visibility: hidden;
   pointer-events: none;
   transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease,
-    background-color 0.3s ease, border-color 0.3s ease;
+    background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
 .modal-container.open {
@@ -460,6 +481,16 @@ html.scroll-lock {
   visibility: visible;
   transform: translate(-50%, -50%) scale(1);
   pointer-events: auto;
+}
+
+.modal-container.popup-size {
+  width: var(--popup-width);
+  text-align: center;
+  overflow-y: auto;
+}
+
+.modal-container.popup-size>*:last-child:not(.popup-actions-footer) {
+  margin-bottom: 0;
 }
 
 /* --- Modal Header --- */
@@ -678,7 +709,7 @@ html.scroll-lock {
   background: #fff;
   mix-blend-mode: multiply;
   filter: blur(4px) contrast(12);
-  margin: var(--space-8) auto;
+  margin: var(--space-5) auto;
 }
 
 .dark .loader-gooey {

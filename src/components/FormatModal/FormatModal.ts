@@ -1,37 +1,31 @@
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 import "./FormatModal.css";
-import { ui, CATEGORY_LABELS, formatDisplayName, isAdvancedMode, BASIC_FORMATS, getFormatCategory, activeCategory, allOptionsRef, isLoadingPhase2, updateScrollLock } from "../store/store.ts";
+import { ui, CATEGORY_LABELS, formatDisplayName, formatMode, getFormatCategory, activeCategory, allOptionsRef, isLoadingPhase2, updateScrollLock, isFormatVisible, isCategoryVisible } from "../store/store.ts";
 
 // --- Format modal ---
 
-let _formatModalOpener: Element | null = null;
+import { ModalManager } from "../utils/ModalManager.ts";
+
 let _searchTimeout: ReturnType<typeof setTimeout> | undefined;
 
 export function closeFormatModal() {
   clearTimeout(_searchTimeout);
-  (_formatModalOpener as HTMLElement | null)?.focus();
-  _formatModalOpener = null;
-  ui.formatModal.classList.remove("open");
-  ui.formatModalBg.classList.remove("open");
-  ui.formatModal.setAttribute("aria-hidden", "true");
-  updateScrollLock();
+  ModalManager.close(ui.formatModal, ui.formatModalBg);
 }
 
 export function openFormatModal() {
-  _formatModalOpener = document.activeElement;
-  ui.formatModal.classList.add("open");
-  ui.formatModalBg.classList.add("open");
-  ui.formatModal.removeAttribute("aria-hidden");
   const label = CATEGORY_LABELS[activeCategory.value];
   ui.formatModalTitle.textContent = label ? `Choose ${label.toLowerCase()} format` : "Choose format";
   ui.formatSearch.value = "";
+  renderFormatOptions(allOptionsRef.value, activeCategory.value);
+  filterFormats("");
+
+  ModalManager.open(ui.formatModal, ui.formatModalBg, closeFormatModal);
+
   // Don't auto-focus search on mobile to prevent keyboard popup
   if (!window.matchMedia("(pointer: coarse)").matches) {
     ui.formatSearch.focus();
   }
-  renderFormatOptions(allOptionsRef.value, activeCategory.value);
-  filterFormats("");
-  updateScrollLock();
 }
 
 export function filterFormats(query: string) {
@@ -97,11 +91,6 @@ export function initFormatModal(
 
   ui.formatModalBg.addEventListener("click", () => closeFormatModal());
   ui.formatModalClose.addEventListener("click", () => closeFormatModal());
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && ui.formatModal.classList.contains("open")) {
-      closeFormatModal();
-    }
-  });
 }
 
 export function setSelectedFormat(index: number, allOptions: Array<{ format: FileFormat; handler: FormatHandler }>) {
@@ -157,13 +146,10 @@ export function renderFormatOptions(
     if (!format.mime) continue;
 
     const cat = getFormatCategory(format);
+    if (!isFormatVisible(format, formatMode.value)) continue;
     if (activeCategory.value && cat !== activeCategory.value) continue;
 
-    if (!isAdvancedMode.value && !BASIC_FORMATS.has(format.format.toLowerCase())) {
-      continue;
-    }
-
-    const dedupeKey = `${format.mime}::${format.format}`;
+    const dedupeKey = `${cat}::${format.mime}::${format.format}`;
 
     if (format.to) {
       if (!seenTo.has(dedupeKey)) {

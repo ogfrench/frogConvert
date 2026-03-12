@@ -1,8 +1,8 @@
 /* --- Conversion Modal Specific Styles --- */
 
 #popup .popup-actions-footer {
-  margin: var(--space-8) calc(-1 * var(--space-6)) calc(-1 * var(--space-5));
-  padding: var(--space-4) var(--space-6) var(--space-5);
+  margin: auto calc(-1 * var(--space-6)) calc(-1 * var(--space-8));
+  padding: var(--space-4) var(--space-6) var(--space-6);
   display: flex;
   flex-direction: column;
   justify-content: flex-start;

@@ -3,7 +3,17 @@
   max-height: 85vh;
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-gutter: stable;
+  direction: rtl;
+}
+
+/* Reset text/layout direction for all direct children */
+.files-modal-header,
+.files-modal-top-actions,
+#files-list,
+#files-drop-more,
+.files-error,
+.files-modal-footer {
+  direction: ltr;
 }
 
 .files-modal-header {
@@ -24,6 +34,7 @@
   /* Below sticky header */
   background: var(--card);
   z-index: 10;
+  box-shadow: 0 8px 10px 1px var(--card);
 }
 
 .files-modal-top-actions button {
@@ -46,9 +57,19 @@
 #files-list {
   flex: 1;
   overflow-y: auto;
-  scrollbar-gutter: stable;
-  min-height: 180px;
+  min-height: 135px;
   padding: 0 var(--space-2);
+}
+
+#files-list::after {
+  content: "";
+  position: sticky;
+  bottom: 0;
+  display: block;
+  height: 10px;
+  margin-top: -10px;
+  background: linear-gradient(to bottom, transparent, var(--card));
+  pointer-events: none;
 }
 
 .file-row {
@@ -159,11 +180,11 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
-  margin: 0 var(--space-4) var(--space-3);
+  margin: 0 var(--space-6) var(--space-3);
   padding: var(--space-3) var(--space-8) var(--space-3) var(--space-4);
-  background-color: color-mix(in srgb, var(--destructive), transparent 92%);
-  color: var(--destructive);
-  border: 1px solid color-mix(in srgb, var(--destructive), transparent 80%);
+  background-color: var(--secondary);
+  color: var(--foreground);
+  border: 1px solid var(--ring);
   border-radius: var(--radius);
   animation: files-error-slide-in 0.2s ease both;
 }
@@ -171,7 +192,7 @@
 .files-error::before {
   content: "⚠";
   font-size: var(--text-base);
-  color: var(--destructive);
+  color: var(--muted-foreground);
   flex-shrink: 0;
   line-height: 1.4;
 }
@@ -179,14 +200,14 @@
 #files-modal-error-text {
   flex: 1;
   font-size: var(--text-sm);
-  color: var(--destructive);
+  color: var(--muted-foreground);
   line-height: 1.5;
 }
 
 .files-error-close {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: var(--space-2);
+  right: var(--space-2);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -196,17 +217,15 @@
   background: none;
   border: none;
   border-radius: var(--radius-sm);
-  color: var(--destructive);
-  font-size: var(--text-base);
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
   cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.15s ease, background-color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .files-error-close:hover {
-  opacity: 1;
-  background-color: color-mix(in srgb, var(--destructive), transparent 85%);
-  color: var(--destructive);
+  background-color: var(--border);
+  color: var(--foreground);
 }
 
 .files-modal-footer {

@@ -12,6 +12,11 @@
       document.documentElement.classList.add("dark");
     }
 
+    // Critical styles (logo color)
+    var style = document.createElement('style');
+    style.innerHTML = '#logo { color: ' + (document.documentElement.classList.contains("dark") ? '#fafafa' : '#0a0a0a') + ' !important; }';
+    document.head.appendChild(style);
+
     // FOUC prevention logic
     document.documentElement.style.visibility = 'hidden';
     document.documentElement.style.opacity = '0';
@@ -201,8 +206,9 @@
         <button id="theme-toggle" title="Toggle theme" aria-label="Toggle colour theme">&#9788;</button>
         <span class="menu-label" id="label-formats">Formats</span>
         <div class="segmented-control" id="mode-segmented" role="group" aria-labelledby="label-formats">
-          <button class="segmented-option active" data-value="basic" aria-pressed="true">Core</button>
-          <button class="segmented-option" data-value="advanced" aria-pressed="false">All</button>
+          <button class="segmented-option active" data-value="core" aria-pressed="true">Core</button>
+          <button class="segmented-option" data-value="plus" aria-pressed="false">Core+</button>
+          <button class="segmented-option" data-value="all" aria-pressed="false">All</button>
         </div>
         <span class="menu-label" id="label-theme">Theme</span>
         <div class="segmented-control" id="theme-segmented" role="group" aria-labelledby="label-theme">
@@ -229,14 +235,31 @@
     <button class="cat-tab" data-category="audio" aria-pressed="false">Audio</button>
     <button class="cat-tab" data-category="video" aria-pressed="false">Video</button>
     <button class="cat-tab" data-category="document" aria-pressed="false">Document</button>
-    <button class="cat-tab" data-category="data" aria-pressed="false">Data</button>
     <button class="cat-tab" data-category="archive" aria-pressed="false">Archive</button>
-    <button class="cat-tab" data-category="font" aria-pressed="false">Font</button>
+    <button class="cat-tab tab-hidden" data-category="data" aria-pressed="false">Data</button>
+    <button class="cat-tab tab-hidden" data-category="font" aria-pressed="false">Font</button>
     <button class="cat-tab tab-hidden" data-category="code" aria-pressed="false">Code</button>
     <button class="cat-tab tab-hidden" data-category="other" aria-pressed="false">Other</button>
   </nav>
+  <script>
+    // Pre-apply tab visibility from saved mode to prevent layout jitter on load.
+    (function () {
+      try {
+        var mode = localStorage.getItem("formatMode") || "core";
+        if (mode === "advanced") mode = "all";
+        if (mode === "plus" || mode === "all") {
+          var show = mode === "all" ? ["data", "font", "code", "other"] : ["data", "font"];
+          var tabs = document.querySelectorAll('#category-tabs .cat-tab[data-category]');
+          for (var i = 0; i < tabs.length; i++) {
+            var cat = tabs[i].getAttribute("data-category");
+            if (cat && show.indexOf(cat) !== -1) tabs[i].classList.remove("tab-hidden");
+          }
+        }
+      } catch (e) { }
+    })();
+  </script>
 
-  <main id="convert-card" class="entrance d5" aria-label="File converter">
+  <main id="convert-card" class="card-base entrance d5" aria-label="File converter">
 
     <div class="convert-field" id="from-field">
       <span id="upload-label" class="field-label">Your file</span>
@@ -289,7 +312,8 @@
   </footer>
 
   <div id="format-modal-bg" class="modal-overlay" aria-hidden="true"></div>
-  <div id="format-modal" class="modal-container" role="dialog" aria-modal="true" aria-labelledby="format-modal-title" aria-hidden="true">
+  <div id="format-modal" class="card-base modal-container" role="dialog" aria-modal="true"
+    aria-labelledby="format-modal-title" aria-hidden="true">
     <div class="format-modal-header modal-header">
       <h2 id="format-modal-title">Choose format</h2>
       <button class="format-modal-close modal-close-btn" id="format-modal-close" title="Close"
@@ -301,7 +325,8 @@
   </div>
 
   <div id="files-modal-bg" class="modal-overlay" aria-hidden="true"></div>
-  <div id="files-modal" class="modal-container" role="dialog" aria-modal="true" aria-labelledby="files-modal-title" aria-hidden="true">
+  <div id="files-modal" class="card-base modal-container" role="dialog" aria-modal="true"
+    aria-labelledby="files-modal-title" aria-hidden="true">
     <div class="files-modal-header modal-header">
       <h2 id="files-modal-title">Your files</h2>
       <button class="files-modal-close modal-close-btn" id="files-modal-close" title="Close"
@@ -324,8 +349,9 @@
     </div>
   </div>
 
-  <div id="popup-bg" style="display:none" aria-hidden="true"></div>
-  <div id="popup" style="display:none" role="status" aria-live="polite" aria-atomic="true"></div>
+  <div id="popup-bg" class="modal-overlay" aria-hidden="true"></div>
+  <div id="popup" class="card-base modal-container popup-size" role="status" aria-live="polite" aria-atomic="true">
+  </div>
 
   <script type="module" src="src/main.ts"></script>
 

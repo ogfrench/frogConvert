@@ -1,27 +1,23 @@
 import "./TopBar.css";
-import { ui, isAdvancedMode, updateScrollLock } from "../store/store.ts";
+import { ui, formatMode, updateScrollLock, isCategoryVisible, type FormatMode } from "../store/store.ts";
 
-// --- Mode Toggle ---
-
-/** Categories only shown in advanced (All Formats) mode. */
-const ADVANCED_ONLY_CATEGORIES = ["code", "other"];
 
 export function initModeToggle(onModeChanged: () => void) {
-  function applyMode(advanced: boolean) {
-    isAdvancedMode.value = advanced;
-    ui.modeToggleButton.textContent = advanced ? "All Formats" : "Core Formats";
-    localStorage.setItem("formatMode", advanced ? "advanced" : "basic");
+  function applyMode(mode: FormatMode) {
+    formatMode.value = mode;
+    const label = mode === "core" ? "Core Formats" : mode === "plus" ? "Core+ Formats" : "All Formats";
+    ui.modeToggleButton.textContent = label;
+    localStorage.setItem("formatMode", mode);
 
-    // Show/hide advanced-only category tabs with animation
+    // Show/hide category tabs with animation
     for (const tab of Array.from(ui.categoryTabs.children) as HTMLElement[]) {
       const categoryName = tab.getAttribute("data-category") || "";
-      if (ADVANCED_ONLY_CATEGORIES.includes(categoryName)) {
-        tab.classList.toggle("tab-hidden", !advanced);
-      }
+      if (categoryName === "") continue; // Always show "Any"
+      tab.classList.toggle("tab-hidden", !isCategoryVisible(categoryName, mode));
     }
   }
 
-  applyMode(isAdvancedMode.value);
+  applyMode(formatMode.value);
 
   window.addEventListener("scroll", () => {
     if (ui.topBar) {
@@ -31,17 +27,20 @@ export function initModeToggle(onModeChanged: () => void) {
 
   ui.modeToggleButton.addEventListener("click", () => {
     // If an advanced-only tab is active, reset to "Any" before switching to core
-    if (isAdvancedMode.value) {
-      const activeTab = ui.categoryTabs.querySelector(".cat-tab.active") as HTMLElement | null;
-      const activeCat = activeTab?.getAttribute("data-category") || "";
-      if (ADVANCED_ONLY_CATEGORIES.includes(activeCat)) {
-        activeTab?.classList.remove("active");
-        const anyTab = ui.categoryTabs.querySelector('.cat-tab[data-category=""]') as HTMLElement | null;
-        anyTab?.classList.add("active");
-        anyTab?.click();
-      }
+    let nextMode: FormatMode;
+    if (formatMode.value === "core") nextMode = "plus";
+    else if (formatMode.value === "plus") nextMode = "all";
+    else nextMode = "core";
+
+    const activeTab = ui.categoryTabs.querySelector(".cat-tab.active") as HTMLElement | null;
+    const activeCat = activeTab?.getAttribute("data-category") || "";
+    if (!isCategoryVisible(activeCat, nextMode)) {
+      activeTab?.classList.remove("active");
+      const anyTab = ui.categoryTabs.querySelector('.cat-tab[data-category=""]') as HTMLElement | null;
+      anyTab?.classList.add("active");
+      anyTab?.click();
     }
-    applyMode(!isAdvancedMode.value);
+    applyMode(nextMode);
     onModeChanged();
     ui.topControls.classList.remove("menu-open");
     updateScrollLock();
@@ -71,8 +70,7 @@ export function initSegmentedControls() {
   const themeSegmented = document.querySelector("#theme-segmented") as HTMLDivElement;
 
   // Sync initial state
-  const isAdvanced = localStorage.getItem("formatMode") === "advanced";
-  syncSegmentedActive(modeSegmented, isAdvanced ? "advanced" : "basic");
+  syncSegmentedActive(modeSegmented, formatMode.value);
 
   const isDark = document.documentElement.classList.contains("dark");
   syncSegmentedActive(themeSegmented, isDark ? "dark" : "light");
@@ -80,7 +78,7 @@ export function initSegmentedControls() {
   bindSegmented(
     modeSegmented,
     ui.modeToggleButton,
-    (value) => (value === "advanced") !== isAdvancedMode.value,
+    (value) => value !== formatMode.value,
     () => { }
   );
 
@@ -92,7 +90,7 @@ export function initSegmentedControls() {
   );
 
   new MutationObserver(() => {
-    syncSegmentedActive(modeSegmented, isAdvancedMode.value ? "advanced" : "basic");
+    syncSegmentedActive(modeSegmented, formatMode.value);
   }).observe(ui.modeToggleButton, { childList: true, characterData: true, subtree: true });
 
   new MutationObserver(() => {
@@ -115,7 +113,11 @@ function bindSegmented(
 
     syncSegmentedActive(container, value);
     if (isActiveValue(value)) {
-      desktopBtn.click();
+      // Click the desktop button until the mode matches the selected value (cycles core→plus→all→core)
+      let guard = 0;
+      while (formatMode.value !== value && guard++ < 3) {
+        desktopBtn.click();
+      }
     }
     onSelect(value);
   });

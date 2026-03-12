@@ -14,6 +14,9 @@ frogConvert is a high-performance, privacy-first file conversion web platform bu
 - MCP (Model Context Protocol) server for programmatic AI agent access (`src/mcp/`).
 - Web Workers for pathfinding (`route-search.worker.ts`) and handler execution (`conversion.worker.ts`).
 - `requiresMainThread` flag on `FormatHandler` to safely route DOM-dependent handlers away from workers.
+- 3-tier format mode system (Core / Plus / All) controlling which formats are visible in the picker.
+- `BaseHandler` and `TextFormatHandler` base classes for cleaner handler authoring.
+- Centralized `ModalManager` for all popup/modal lifecycle (focus, scroll-lock, keyboard escape).
 - Partial download support for cancelled batch conversions.
 - Full vitest unit test suite and Puppeteer E2E tests.
 - Bun-based build system (original uses npm/tsx).
@@ -37,10 +40,11 @@ The codebase is organized as a vanilla TypeScript Vite project. Here are the mos
   - **`TraversionGraph/`**: The Dijkstra-based pathfinding engine that figures out how to chain handlers together (e.g., PNG → CanvasToBlob → BMP → FFmpeg → MP4).
 - **`src/workers/`**: Contains `conversion.worker.ts` (executes handler `doConvert` calls off the main thread) and `route-search.worker.ts` (runs Dijkstra pathfinding in a background thread). Both communicate via message-passing. See the `requiresMainThread` flag on handlers to determine which can run in a worker.
 - **`src/components/`**: The Vanilla TS/CSS User Interface.
-  - **`ConversionModal/`**: Manages the "Converting... 🐸" UI state and orchestrates `ConversionActions.ts`.
-  - **`FormatModal/`**: The UI for selecting output formats.
-  - **`store/`**: Lightweight reactive wrappers storing shared state (e.g., active files, UI references, and global `updateScrollLock` helper in `store.ts`).
-  - **`utils.ts`**: Shared UI utilities like `escapeHTML`, `formatBytes`, and `shortenFileName`.
+  - **`ConversionModal/`**: Manages the conversion progress popup state machine (`ConversionModal.ts`) and orchestrates the full conversion flow (`ConversionActions.ts`).
+  - **`FormatModal/`**: The UI for selecting output formats, including the 3-tier format mode system (Core / Plus / All).
+  - **`store/`**: Lightweight reactive wrappers storing shared state (active files, UI references, `formatMode`, `isCategoryVisible`, `isFormatVisible`, `updateScrollLock`).
+  - **`utils.ts`**: Shared utilities — `escapeHTML`, `formatBytes`, `shortenFileName`, `ensureMinDuration`.
+  - **`utils/ModalManager.ts`**: Centralized open/close lifecycle for all modals.
 - **`src/mcp/`**: Model Context Protocol integration. This allows frogConvert's engine to be exposed to connected AI assistants as a suite of external tools securely.
 - **`test/`**:
   - `e2e/`: Puppeteer end-to-end tests ensuring heavy UI flows and workers do not break.
@@ -61,6 +65,13 @@ export interface FormatHandler {
     doConvert: (inputFiles: FileData[], inputFormat: FileFormat, outputFormat: FileFormat, args?: string[]) => Promise<FileData[]>;
 }
 ```
+
+### Base Classes (prefer these over raw `FormatHandler`)
+
+Two abstract base classes live in `src/core/FormatHandler/`:
+
+- **`BaseHandler`** — implements `ready = true`, a no-op `init()`, and a `replaceExtension(filename, ext)` helper. Use this when your handler needs a custom `doConvert()` but doesn't deal with WASM loading.
+- **`TextFormatHandler extends BaseHandler`** — additionally handles the `Uint8Array → string → Uint8Array` decode/encode pipeline. Instead of `doConvert()`, implement `doConvertText(inputTexts, inputFormat, outputFormat)` which receives plain strings and returns plain strings. Use this for JSON, CSV, XML, YAML, source code, and any other text-based format.
 
 ### The `requiresMainThread` Rule
 This flag governs whether a handler blocks the UI.
@@ -105,10 +116,12 @@ UI components subscribe to or update these `.value` properties manually.
 Avoid `document.querySelector` inside components. Use the centralized `ui` object in `store.ts` which caches all primary DOM references.
 
 ### Popup & Modal Management
-- **`Popup.ts`**: Provides `showPopup(html)` and `hidePopup()`. These handle the global glassmorphism modal system.
-- **Spinners**: The application uses a "gooey" spinner (`loader-gooey`) for active conversions and a standard spinner (`loader-spinner`) for shorter operations like cancellation.
-- **Cancellation & Partial Downloads**: A global `isCancelled` flag (in `ConversionModal.ts`) is checked during conversion loops. If a batch is cancelled, the user is offered a "Partial Download" for any files that finished before the stop.
-- **Scroll Locking**: Modals automatically manage body scrolling via `updateScrollLock()` in `store.ts`, which toggles the `.scroll-lock` class on the root element.
+- **`Popup.ts`**: Provides `showPopup(content, persistent?)`, `hidePopup()`, `showAlertPopup(title, html)`, `createPopupButton(text, class, onClick)`, and specialised helpers (`showSizeWarningPopup`, `showFileTypeMismatchPopup`). All open/close is delegated to `ModalManager`.
+- **`utils/ModalManager.ts`**: Centralized modal lifecycle. Maintains a stack of open modals, manages `open` class toggling, `aria-hidden`, keyboard escape handling (non-persistent modals only), focus trapping, and calls `updateScrollLock()` on every open/close. The three managed modals are `#format-modal`, `#files-modal`, and `#popup`.
+- **Visibility contract**: Modals are shown/hidden via the `open` CSS class — never `style.display`. A modal is considered open when its element has `classList.contains("open")`.
+- **Spinners**: Active conversions use the gooey spinner (`loader-gooey`); short blocking operations like cancellation use the standard spinner (`loader-spinner`).
+- **Cancellation & Partial Downloads**: `isCancelled` flag and related state machine live in `ConversionModal.ts`. If a batch is cancelled, `showPartialDownloadPopup()` offers to download the files that finished.
+- **Scroll Locking**: `updateScrollLock()` in `store.ts` checks all three modal elements for the `open` class and toggles `.scroll-lock` on `<html>` accordingly. Called automatically by `ModalManager`.
 
 ---
 

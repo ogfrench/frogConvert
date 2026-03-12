@@ -12,14 +12,20 @@ import {
     escapeHTML,
     showPopup,
     hidePopup,
+    showAlertPopup,
+    createPopupButton,
     isCancelled,
     resetCancellation,
     showConversionInProgress,
     setWorkerCancelCallback,
     completeCancellation,
-    showPartialDownloadPopup
+    showPartialDownloadPopup,
+    ensureCancelButton,
+    removeCancelButton,
+    formatMode,
+    isFormatVisible
 } from "../index.ts";
-import { shortenFileName } from "../utils.ts";
+import { shortenFileName, ensureMinDuration } from "../utils.ts";
 
 // --- Helpers ---
 
@@ -38,6 +44,8 @@ function getFormattedDate() {
 let isConverting = false;
 export const getIsConverting = () => isConverting;
 
+let _convertingTitle = "Converting...";
+
 let _enginesLoadingPollId: ReturnType<typeof setInterval> | null = null;
 
 function _showEnginesLoadingPopup() {
@@ -45,18 +53,27 @@ function _showEnginesLoadingPopup() {
         clearInterval(_enginesLoadingPollId);
         _enginesLoadingPollId = null;
     }
+
+    const popupStartTime = performance.now();
+
     showPopup(
         `<h2>Wow, you're fast! ⚡</h2>` +
         `<div class="loader-spinner"></div>` +
         `<p>Engines are starting up. This only happens on first load, so it'll be instant next time!</p>` +
         `<div class="popup-actions">` +
-        `<button class="popup-secondary" onclick="window.hidePopup()">Dismiss</button>` +
+        `<button class="btn-secondary" id="engines-dismiss-btn">Dismiss</button>` +
         `</div>`,
     );
-    _enginesLoadingPollId = setInterval(() => {
+    requestAnimationFrame(() => {
+        document.getElementById("engines-dismiss-btn")?.addEventListener("click", () => hidePopup());
+    });
+    _enginesLoadingPollId = setInterval(async () => {
         if (window.traversionGraph.nodeCount > 0) {
             clearInterval(_enginesLoadingPollId!);
             _enginesLoadingPollId = null;
+
+            // Enforce 1s min duration so it doesn't flicker
+            await ensureMinDuration(popupStartTime, 1000);
             _updatePopupToEnginesReady();
         }
     }, 200);
@@ -64,7 +81,7 @@ function _showEnginesLoadingPopup() {
 
 function _updatePopupToEnginesReady() {
     // Guard 1: popup was dismissed before engines loaded — don't update a hidden popup
-    if (!ui.popupBox.classList.contains("popup-visible")) return;
+    if (!ui.popupBox.classList.contains("open")) return;
     // Guard 2: another popup replaced our content (no spinner means different popup is showing)
     const spinner = ui.popupBox.querySelector<HTMLElement>(".loader-spinner");
     if (!spinner) return;
@@ -82,7 +99,7 @@ function _updatePopupToEnginesReady() {
     if (actions) {
         actions.innerHTML = "";
         const btn = document.createElement("button");
-        btn.className = "popup-primary";
+        btn.className = "btn-primary";
         btn.textContent = "Convert now";
         btn.addEventListener("click", () => {
             hidePopup();
@@ -106,12 +123,17 @@ export function findMatchingFormat(
 ): number {
     const mimeType = normalizeMimeType(files[0].type);
     const fileExtension = files[0].name.split(".").pop()?.toLowerCase();
+    const mode = formatMode.value;
 
     // Best match: MIME + extension
     let mimeMatch = -1;
     for (let i = 0; i < allOptions.length; i++) {
         const { format } = allOptions[i];
         if (!format.from || format.mime !== mimeType) continue;
+
+        // Skip formats not visible in current mode
+        if (!isFormatVisible(format, mode)) continue;
+
         if (format.extension === fileExtension) return i; // Exact MIME+ext match
         if (mimeMatch === -1) mimeMatch = i; // First MIME-only match as fallback
     }
@@ -121,7 +143,10 @@ export function findMatchingFormat(
     if (fileExtension) {
         for (let i = 0; i < allOptions.length; i++) {
             const { format } = allOptions[i];
-            if (format.from && format.extension.toLowerCase() === fileExtension) return i;
+            if (format.from && format.extension.toLowerCase() === fileExtension) {
+                // Skip formats not visible in current mode
+                if (isFormatVisible(format, mode)) return i;
+            }
         }
     }
 
@@ -164,10 +189,6 @@ export async function downloadAllConvertedFiles() {
         }
     }
 }
-
-window.downloadAgain = function () {
-    downloadAllConvertedFiles();
-};
 
 // --- Worker Manager ---
 let conversionWorker: Worker | null = null;
@@ -223,6 +244,8 @@ async function runInWorker(handlerName: string, inputFiles: FileData[], inputFor
         worker.addEventListener("message", onMessage);
         setWorkerCancelCallback(() => {
             cleanup();
+            worker.terminate();
+            conversionWorker = null;
             reject(new Error("Cancelled"));
         });
         workerErrorCallback = (err: ErrorEvent) => {
@@ -236,6 +259,66 @@ async function runInWorker(handlerName: string, inputFiles: FileData[], inputFor
 
 // --- Conversion logic helpers ---
 
+async function preInitPath(path: ConvertPathNode[]) {
+    for (let i = 0; i < path.length - 1; i++) {
+        const handler = path[i + 1].handler;
+        if (!handler.ready) {
+            try {
+                await handler.init();
+                if (handler.supportedFormats) {
+                    window.supportedFormatCache.set(handler.name, handler.supportedFormats);
+                }
+            } catch (e) {
+                // Swallow — attemptConvertPath retries init and handles failures
+            }
+        }
+    }
+}
+
+/**
+ * Warming-up phase: finds the best conversion path and pre-initialises all handlers.
+ * No cancel button is shown during this phase.
+ * Returns the path, or null if no conversion route exists.
+ */
+async function findConversionPath(
+    from: ConvertPathNode,
+    to: ConvertPathNode,
+): Promise<ConvertPathNode[] | null> {
+    window.traversionGraph.clearDeadEndPaths();
+
+    const warmingMsg = `Warming up the engines...<br><span class="conversion-path">getting ready to convert</span>`;
+    showConversionInProgress(warmingMsg, _convertingTitle);
+
+    const searchListener = (state: string, _path: ConvertPathNode[]) => {
+        if (state === "searching") {
+            showConversionInProgress(warmingMsg, _convertingTitle);
+        }
+    };
+
+    window.traversionGraph.addPathEventListener(searchListener);
+
+    try {
+        const searchStartTime = performance.now();
+        await waitForPaint();
+
+        for await (const path of window.traversionGraph.searchPath(from, to, true)) {
+            if (isCancelled) return null;
+            if (path.at(-1)?.handler === to.handler) {
+                path[path.length - 1] = to;
+            }
+
+            await ensureMinDuration(searchStartTime, 1000);
+            await preInitPath(path);
+            if (isCancelled) return null;
+
+            return path;
+        }
+        return null;
+    } finally {
+        window.traversionGraph.removePathEventListener(searchListener);
+    }
+}
+
 async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], batchMsg?: string) {
     const pathString = path.map(c => c.format.format).join(" \u2192 ");
 
@@ -243,129 +326,64 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
         ? `${batchMsg}<br><span class="muted-text">${pathString}</span>`
         : `<span class="conversion-path">${pathString}</span>`;
 
-    // stabilization delay: only show the detailed path if it doesn't fail immediately
-    let uiTimeout: ReturnType<typeof setTimeout> | null = setTimeout(() => {
-        showConversionInProgress(messageHTML, (window as any)._currentConvertingTitle || "Converting...");
-        uiTimeout = null;
-    }, 150);
+    showConversionInProgress(messageHTML, _convertingTitle);
+    ensureCancelButton();
 
-    try {
-        for (let i = 0; i < path.length - 1; i++) {
-            if (isCancelled) return null;
-            const handler = path[i + 1].handler;
-            try {
-                let supportedFormats = window.supportedFormatCache.get(handler.name);
-                if (!handler.ready) {
-                    await handler.init();
-                    if (!handler.ready) throw `Handler "${handler.name}" not ready after init.`;
-                    if (handler.supportedFormats) {
-                        window.supportedFormatCache.set(handler.name, handler.supportedFormats);
-                        supportedFormats = handler.supportedFormats;
-                    }
+    for (let i = 0; i < path.length - 1; i++) {
+        if (isCancelled) return null;
+        const handler = path[i + 1].handler;
+        try {
+            let supportedFormats = window.supportedFormatCache.get(handler.name);
+            if (!handler.ready) {
+                await handler.init();
+                if (!handler.ready) throw `Handler "${handler.name}" not ready after init.`;
+                if (handler.supportedFormats) {
+                    window.supportedFormatCache.set(handler.name, handler.supportedFormats);
+                    supportedFormats = handler.supportedFormats;
                 }
-                if (!supportedFormats) throw `Handler "${handler.name}" doesn't support any formats.`;
-                const inputFormat = supportedFormats.find(c =>
-                    c.from
-                    && c.mime === path[i].format.mime
-                    && c.format === path[i].format.format,
-                );
-                if (!inputFormat) throw `Handler "${handler.name}" doesn't support input format "${path[i].format.format}" (${path[i].format.mime}).`;
-
-                let outputFiles: FileData[];
-                if (handler.requiresMainThread) {
-                    outputFiles = await handler.doConvert(files, inputFormat, path[i + 1].format);
-                } else {
-                    outputFiles = await runInWorker(handler.name, files, inputFormat, path[i + 1].format);
-                }
-
-                files = (await Promise.all([
-                    Promise.resolve(outputFiles),
-                    waitForPaint(),
-                ]))[0];
-                if (files.some(c => !c.bytes.length)) throw "Output is empty.";
-            } catch (e) {
-                if (isCancelled) return null;
-                console.log(path.map(c => c.format.format));
-                console.error(handler.name, `${path[i].format.format} \u2192 ${path[i + 1].format.format}`, e);
-
-                const deadEndPath = path.slice(0, i + 2);
-                window.traversionGraph.addDeadEndPath(deadEndPath);
-
-                const fallbackMsg = batchMsg
-                    ? `${batchMsg}<br><span class="muted-text">Finding best conversion route...</span>`
-                    : `Finding best conversion route...`;
-
-                if (uiTimeout) {
-                    clearTimeout(uiTimeout);
-                    uiTimeout = null;
-                }
-                showConversionInProgress(fallbackMsg, (window as any)._currentConvertingTitle || "Converting...");
-                await waitForPaint();
-
-                return null;
             }
-        }
-    } finally {
-        if (uiTimeout) {
-            clearTimeout(uiTimeout);
+            if (!supportedFormats) throw `Handler "${handler.name}" doesn't support any formats.`;
+            const inputFormat = supportedFormats.find(c =>
+                c.from
+                && c.mime === path[i].format.mime
+                && c.format === path[i].format.format,
+            );
+            if (!inputFormat) throw `Handler "${handler.name}" doesn't support input format "${path[i].format.format}" (${path[i].format.mime}).`;
+
+            let outputFiles: FileData[];
+            if (handler.requiresMainThread) {
+                outputFiles = await handler.doConvert(files, inputFormat, path[i + 1].format);
+            } else {
+                outputFiles = await runInWorker(handler.name, files, inputFormat, path[i + 1].format);
+            }
+
+            await waitForPaint();
+            files = outputFiles;
+            if (files.some(c => !c.bytes.length)) throw "Output is empty.";
+        } catch (e) {
+            if (isCancelled) return null;
+            console.log(path.map(c => c.format.format));
+            console.error(handler.name, `${path[i].format.format} \u2192 ${path[i + 1].format.format}`, e);
+
+            const deadEndPath = path.slice(0, i + 2);
+            window.traversionGraph.addDeadEndPath(deadEndPath);
+
+            showConversionInProgress(`Warming up the engines...`, _convertingTitle);
+            await waitForPaint();
+
+            return null;
         }
     }
 
+    if (isCancelled) return null;
     return { files, path };
 }
 
-window.tryConvertByTraversing = async function (
-    files: FileData[],
-    from: ConvertPathNode,
-    to: ConvertPathNode,
-    batchMsg?: string
-) {
-    window.traversionGraph.clearDeadEndPaths();
-
-    // Add searching listener to update UI
-    const searchListener = (state: string, _path: ConvertPathNode[]) => {
-        if (state === "searching" && !batchMsg) {
-            showConversionInProgress(`Finding best conversion route...`, (window as any)._currentConvertingTitle || "Converting...");
-        }
-    };
-    window.traversionGraph.addPathEventListener(searchListener);
-
-    try {
-        // Yield to the browser so the "Getting started..." or finding route UI can paint
-        // before we start doing heavy handler initializations or search loops
-        await waitForPaint();
-
-        for await (const path of window.traversionGraph.searchPath(from, to, true)) {
-            if (isCancelled) break;
-            if (path.at(-1)?.handler === to.handler) {
-                path[path.length - 1] = to;
-            }
-            const attempt = await attemptConvertPath(files, path, batchMsg);
-            if (attempt) return attempt;
-            if (isCancelled) break;
-        }
-        return null;
-    } finally {
-        window.traversionGraph.removePathEventListener(searchListener);
-    }
-};
-
 function showConversionNotFoundPopup(fromFormat: string, toFormat: string) {
-    showPopup(
-        `<h2>Congratulations! You found a missing feature 🔎</h2>` +
-        `<p><b>${fromFormat}</b> to <b>${toFormat}</b> isn't available right now \u2014 but more formats are on the way!</p>` +
-        `<p class="muted-text">Try picking a different format, there's loads to choose from!</p>` +
-        `<div class="popup-actions">` +
-        `<button class="popup-primary" onclick="window.hidePopup()">Got it</button>` +
-        `</div>`,
+    showAlertPopup(
+        "Congratulations! You found a missing feature 🔎",
+        `<b>${fromFormat}</b> to <b>${toFormat}</b> isn't available right now \u2014 but more formats are on the way!<br><span class="muted-text">Try picking a different format, there's loads to choose from!</span>`,
     );
-}
-
-async function ensureMinDuration(startTime: number, minMs: number = 600) {
-    const elapsed = performance.now() - startTime;
-    if (elapsed < minMs) {
-        await new Promise(resolve => setTimeout(resolve, minMs - elapsed));
-    }
 }
 
 // --- Main convert action ---
@@ -382,16 +400,16 @@ export function initConvertButton() {
             const fileCount = inputFiles.length;
 
             if (fileCount === 0) {
-                alert("Drop files first to get started.");
+                showAlertPopup("No files yet", "Drop files here or click the drop zone to pick some.");
                 return;
             }
 
             if (selectedFromIndex.value === null) {
-                alert(`Hmm, couldn't figure out ${fileCount > 1 ? "these files'" : "this file's"} format. Try another?`);
+                showAlertPopup("Format not recognised", `Couldn't figure out ${fileCount > 1 ? "these files'" : "this file's"} format. Try a different file?`);
                 return;
             }
             if (selectedToIndex.value === null) {
-                alert("Pick a format to convert to first!");
+                showAlertPopup("Choose a format", "Select a target format from the dropdown before converting.");
                 return;
             }
 
@@ -410,11 +428,12 @@ export function initConvertButton() {
             resetCancellation();
 
             const convertingTitle = fileCount > 1 ? "Converting your files" : "Converting your file";
-            (window as any)._currentConvertingTitle = convertingTitle;
+            _convertingTitle = convertingTitle;
 
             await waitForPaint();
 
-            showConversionInProgress("Warming up the engines...<br><span class=\"conversion-path\">getting ready to convert</span>", "Starting up");
+            const startupStartTime = performance.now();
+            showConversionInProgress("Warming up the engines...<br><span class=\"conversion-path\">getting ready to convert</span>", convertingTitle);
             await waitForPaint();
 
             const inputFileData: FileData[] = [];
@@ -434,27 +453,18 @@ export function initConvertButton() {
                 inputFileData.push({ name: inputFile.name, bytes: inputBytes });
             }
 
+            // Enforce minimum startup/warming-up phase duration (includes file reading time)
+            await ensureMinDuration(startupStartTime, 1000);
+
             if (allOutputFiles.length === fileCount && inputFileData.length === 0) {
                 const fmt = outputFormat.format.toUpperCase();
                 if (fileCount === 1) {
                     const truncName = shortenFileName(inputFiles[0].name, 32);
                     downloadFile(allOutputFiles[0].bytes, allOutputFiles[0].name);
-                    showPopup(
-                        `<h2>No conversion needed</h2>` +
-                        `<p><b>${escapeHTML(truncName)}</b> is already a <b>${escapeHTML(fmt)}</b> file, so there's nothing to convert. Downloading the original for you.</p>` +
-                        `<div class="popup-actions">` +
-                        `<button class="popup-primary" onclick="window.hidePopup()">Got it</button>` +
-                        `</div>`,
-                    );
+                    showAlertPopup("No conversion needed", `<b>${escapeHTML(truncName)}</b> is already a <b>${escapeHTML(fmt)}</b> file, so there's nothing to convert. Downloading the original for you.`);
                     return;
                 } else {
-                    showPopup(
-                        `<h2>No conversion needed</h2>` +
-                        `<p>These <b>${fileCount} files</b> are already in <b>${escapeHTML(fmt)}</b> format, so there's nothing to convert. Downloading the originals for you.</p>` +
-                        `<div class="popup-actions">` +
-                        `<button class="popup-primary" onclick="window.hidePopup()">Got it</button>` +
-                        `</div>`,
-                    );
+                    showAlertPopup("No conversion needed", `These <b>${fileCount} files</b> are already in <b>${escapeHTML(fmt)}</b> format, so there's nothing to convert. Downloading the originals for you.`);
                     await downloadAsZip(allOutputFiles, `original-files-${getFormattedDate()}.zip`);
                     return;
                 }
@@ -462,112 +472,95 @@ export function initConvertButton() {
 
             await waitForPaint();
 
-            if (fileCount > 1) {
-                for (let i = 0; i < inputFileData.length; i++) {
+            // Find the conversion path once during warming-up (no cancel button yet).
+            let conversionPath = await findConversionPath(inputOption, outputOption);
+            if (!conversionPath) {
+                if (isCancelled) return;
+                showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
+                return;
+            }
+
+            const conversionLoopStartTime = performance.now();
+            for (let i = 0; i < inputFileData.length; i++) {
+                if (isCancelled) break;
+                const batchMsg = inputFileData.length > 1
+                    ? `Converting file ${i + 1 + (fileCount - inputFileData.length)} of ${fileCount}...`
+                    : undefined;
+
+                let result = await attemptConvertPath([inputFileData[i]], conversionPath, batchMsg);
+
+                if (!result) {
                     if (isCancelled) break;
-                    const batchMsg = fileCount > 1
-                        ? `Converting file ${i + 1 + (fileCount - inputFileData.length)} of ${fileCount}...`
-                        : "";
-
-                    const singleFile = [inputFileData[i]];
-                    const output = await window.tryConvertByTraversing(singleFile, inputOption, outputOption, batchMsg);
-
-                    if (!output) {
+                    // Path failed (dead end) — find the next best path and retry once.
+                    conversionPath = await findConversionPath(inputOption, outputOption);
+                    if (!conversionPath) {
+                        showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
+                        return;
+                    }
+                    result = await attemptConvertPath([inputFileData[i]], conversionPath, batchMsg);
+                    if (!result) {
                         if (isCancelled) break;
                         showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
                         return;
                     }
-
-                    allOutputFiles.push(...output.files);
                 }
 
-                if (isCancelled) return;
-
-                setLastConvertedFiles(allOutputFiles);
-
-                if (allOutputFiles.length > 1) {
-                    showConversionInProgress("Almost done...", convertingTitle);
-                    const h2 = ui.popupBox.querySelector("h2");
-                    if (h2) h2.textContent = "Packing your files...";
-
-                    await waitForPaint();
-
-                    await downloadAsZip(allOutputFiles, `frogConvert-${getFormattedDate()}.zip`);
-                } else {
-                    for (const file of allOutputFiles) {
-                        downloadFile(file.bytes, file.name);
-                    }
-                }
-
-                await ensureMinDuration(conversionStartTime);
-
-                if (isCancelled) return;
-
-                showPopup(
-                    `<h2>Files converted! 🎉</h2>` +
-                    `<p>${allOutputFiles.length} file${allOutputFiles.length > 1 ? "s" : ""} converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b>${allOutputFiles.length > 1 ? " and zipped up for you," : ","} downloading now.</p>` +
-                    `<div class="popup-actions">` +
-                    `<button class="popup-primary" onclick="window.downloadAgain()">Download again</button>` +
-                    `<button onclick="window.hidePopup()">Done</button>` +
-                    `</div>`,
-                );
-                // Delay confetti slightly to let the modal paint first
-                setTimeout(() => {
-                    const isPopupShowing = ui.popupBox.classList.contains("popup-visible");
-                    if (isPopupShowing) triggerConfetti();
-                }, 300);
-            } else {
-                const output = await window.tryConvertByTraversing(inputFileData, inputOption, outputOption);
-
-                if (isCancelled) return;
-
-                await ensureMinDuration(conversionStartTime);
-
-                if (isCancelled) return;
-
-                if (!output) {
-                    showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
-                    return;
-                }
-
-                allOutputFiles.push(...output.files);
-                setLastConvertedFiles(allOutputFiles);
-
-                for (const file of output.files) {
-                    if (isCancelled) break;
-                    downloadFile(file.bytes, file.name);
-                }
-
-                if (isCancelled) return;
-
-                const resultText = fileCount > 1
-                    ? `${fileCount} files have been converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and are downloading now.`
-                    : `<b>${escapeHTML(shortenFileName(inputFiles[0].name, 32))}</b> has been converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and is downloading now.`;
-
-                showPopup(
-                    `<h2>File converted! 🎉</h2>` +
-                    `<p>${resultText}</p>` +
-                    `<div class="popup-actions">` +
-                    `<button class="popup-primary" onclick="window.downloadAgain()">Download again</button>` +
-                    `<button onclick="window.hidePopup()">Done</button>` +
-                    `</div>`,
-                );
-                // Delay confetti slightly to let the modal paint first
-                setTimeout(() => {
-                    const isPopupShowing = ui.popupBox.classList.contains("popup-visible");
-                    if (isPopupShowing) triggerConfetti();
-                }, 300);
+                allOutputFiles.push(...result.files);
+                if (isCancelled) break;
             }
+
+            // Enforce minimum duration for the conversion loop
+            await ensureMinDuration(conversionLoopStartTime, 1000);
+
+            if (isCancelled) return;
+
+            setLastConvertedFiles(allOutputFiles);
+
+            if (allOutputFiles.length > 1) {
+                const packingStartTime = performance.now();
+                removeCancelButton();
+                showConversionInProgress(
+                    `Creating a ZIP folder<br><span class="conversion-path">packing your files</span>`,
+                    "Packing your files",
+                );
+                await waitForPaint();
+
+                // Enforce minimum duration for packing phase
+                await ensureMinDuration(packingStartTime, 1000);
+            }
+
+            await ensureMinDuration(conversionStartTime);
+
+            if (isCancelled) return;
+
+            const isBatch = allOutputFiles.length > 1;
+            const successTitle = isBatch ? "Files converted! 🎉" : "File converted! 🎉";
+            const resultText = isBatch
+                ? `${allOutputFiles.length} files converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and zipped up for you, downloading now.`
+                : `<b>${escapeHTML(shortenFileName(inputFiles[0].name, 32))}</b> has been converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and is downloading now.`;
+
+            const h2 = document.createElement("h2");
+            h2.textContent = successTitle;
+            const p = document.createElement("p");
+            p.innerHTML = resultText;
+            const actions = document.createElement("div");
+            actions.className = "popup-actions-footer";
+            actions.appendChild(createPopupButton("Download again", "btn-primary", () => downloadAllConvertedFiles()));
+            actions.appendChild(createPopupButton("Done", "btn-secondary", () => hidePopup()));
+            showPopup([h2, p, actions]);
+            // Show confetti faster for immediate celebration
+            setTimeout(() => {
+                if (ui.popupBox.classList.contains("open")) triggerConfetti();
+            }, 150);
+
+            // Delay download slightly longer to let the success UI breathe
+            setTimeout(() => {
+                if (ui.popupBox.classList.contains("open")) downloadAllConvertedFiles();
+            }, 400);
         } catch (e) {
             if (isCancelled) return;
             console.error(e);
-            showPopup(
-                `<h2>Something went wrong</h2>` +
-                `<p>${escapeHTML(String(e))}</p>` +
-                `<div class="popup-actions">` +
-                `<button class="popup-primary" onclick="window.hidePopup()">Got it</button>` +
-                `</div>`,
-            );
+            showAlertPopup("Something went wrong", escapeHTML(String(e)));
         } finally {
             const hasConvertedFiles = allOutputFiles.length > 0;
             const shouldHide = !isCancelled || !hasConvertedFiles;

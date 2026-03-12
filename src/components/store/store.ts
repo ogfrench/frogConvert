@@ -30,6 +30,7 @@ const SELECTORS: Record<string, string> = {
   popupBackground: "#popup-bg",
   topControls: "#top-controls",
   hamburgerBtn: "#hamburger-btn",
+  topControlsMenu: "#top-controls-menu",
   filesModal: "#files-modal",
   filesModalBg: "#files-modal-bg",
   filesModalClose: "#files-modal-close",
@@ -95,6 +96,7 @@ export const ui = new Proxy({} as any, {
   popupBackground: HTMLDivElement;
   topControls: HTMLDivElement;
   hamburgerBtn: HTMLButtonElement;
+  topControlsMenu: HTMLDivElement;
   filesModal: HTMLDivElement;
   filesModalBg: HTMLDivElement;
   filesModalClose: HTMLButtonElement;
@@ -155,22 +157,50 @@ export const CATEGORY_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-// --- Basic mode format whitelist (common consulting/design formats) ---
-export const BASIC_FORMATS = new Set([
+/** Categories hidden in Core (Standard) mode. */
+export const CORE_HIDDEN_CATEGORIES = ["data", "font", "code", "other"];
+/** Categories hidden in Plus mode. */
+export const PLUS_HIDDEN_CATEGORIES = ["code", "other"];
+
+export type FormatMode = "core" | "plus" | "all";
+
+/** Check if a category should be visible in the current mode. */
+export function isCategoryVisible(category: string, mode: FormatMode): boolean {
+  if (mode === "all") return true;
+  if (mode === "plus") return !PLUS_HIDDEN_CATEGORIES.includes(category);
+  return !CORE_HIDDEN_CATEGORIES.includes(category);
+}
+
+// --- Mode format whitelists ---
+
+export const CORE_FORMATS = new Set([
   // Image
-  "png", "jpeg", "webp", "gif", "svg", "tiff", "bmp", "ico",
+  "png", "jpeg", "gif",
   // Audio
-  "mp3", "wav", "ogg", "flac", "aac",
+  "mp3", "wav", "flac",
   // Video
-  "mp4", "webm", "mov", "avi",
+  "mp4", "webm", "mov",
   // Document
-  "pdf", "docx", "xlsx", "pptx", "html", "markdown", "text", "csv",
+  "pdf", "docx", "pptx", "text",
+  // Archive
+  "zip"
+]);
+
+export const PLUS_FORMATS = new Set([
+  ...CORE_FORMATS,
+  "lzh", "tar", "gz",
+  // Image
+  "webp", "svg", "ico",
+  // Audio
+  "ogg", "aac",
+  // Video
+  "avi", "mkv",
+  // Document
+  "xlsx", "csv", "markdown", "html",
   // Data
   "json", "xml", "yaml",
-  // Archive
-  "zip",
   // Font
-  "ttf", "otf", "woff", "woff2",
+  "ttf", "woff2", "woff", "otf",
 ]);
 
 const safeGetLocalStorage = (key: string) => {
@@ -181,7 +211,14 @@ const safeGetLocalStorage = (key: string) => {
   }
 };
 
-export const isAdvancedMode = { value: safeGetLocalStorage("formatMode") === "advanced" };
+export const formatMode: { value: FormatMode } = {
+  value: (() => {
+    const saved = safeGetLocalStorage("formatMode");
+    if (saved === "all" || saved === "advanced") return "all";
+    if (saved === "plus") return "plus";
+    return "core";
+  })()
+};
 
 // Lightweight reactive state: plain { value: T } wrappers shared across components.
 export const currentFiles: { value: File[] } = { value: [] };
@@ -229,6 +266,20 @@ export function getFormatCategory(format: FileFormat): string {
   return "other";
 }
 
+/** 
+ * Centralized check if a format should be shown in the picker.
+ * A format is visible if its category is visible AND its specific format is in the current mode's whitelist.
+ */
+export function isFormatVisible(format: FileFormat, mode: FormatMode): boolean {
+  const cat = getFormatCategory(format);
+  if (!isCategoryVisible(cat, mode)) return false;
+  if (mode === "all") return true;
+
+  const f = format.format.toLowerCase();
+  if (mode === "core") return CORE_FORMATS.has(f);
+  return PLUS_FORMATS.has(f);
+}
+
 // --- UI Helpers ---
 export function bindDragAndDropVisuals(element: HTMLElement, activeClass: string = "drag-over") {
   element.addEventListener("dragenter", (e) => {
@@ -256,26 +307,27 @@ export function sortFilesByName(files: File[]): void {
 export function initTheme() {
   if (typeof window === "undefined" || typeof localStorage === "undefined") return;
 
-  function applyTheme(dark: boolean) {
-    document.documentElement.classList.add("theme-transition");
+  function applyTheme(dark: boolean, transition: boolean = true) {
+    if (transition) document.documentElement.classList.add("theme-transition");
     document.documentElement.classList.toggle("dark", dark);
     if (ui.themeToggleButton) {
       ui.themeToggleButton.innerHTML = dark ? "&#9788;" : "&#9790;";
     }
-    setTimeout(() => {
-      document.documentElement.classList.remove("theme-transition");
-    }, 300);
+    if (transition) {
+      setTimeout(() => {
+        document.documentElement.classList.remove("theme-transition");
+      }, 300);
+    }
   }
 
   const savedTheme = localStorage.getItem("theme");
-  if (savedTheme === "dark" || (!savedTheme && !window.matchMedia("(prefers-color-scheme: light)").matches)) {
-    applyTheme(true);
-  }
+  const isDark = savedTheme === "dark" || (!savedTheme && !window.matchMedia("(prefers-color-scheme: light)").matches);
+  applyTheme(isDark, false);
 
   ui.themeToggleButton?.addEventListener("click", () => {
-    const isDark = document.documentElement.classList.contains("dark");
-    applyTheme(!isDark);
-    localStorage.setItem("theme", isDark ? "light" : "dark");
+    const currentlyDark = document.documentElement.classList.contains("dark");
+    applyTheme(!currentlyDark);
+    localStorage.setItem("theme", currentlyDark ? "light" : "dark");
   });
 }
 
@@ -292,7 +344,7 @@ export function updateScrollLock() {
     ui.formatModal?.classList.contains("open") ||
     ui.filesModal?.classList.contains("open") ||
     ui.topControls?.classList.contains("menu-open") ||
-    ui.popupBox?.classList.contains("popup-visible");
+    ui.popupBox?.classList.contains("open");
 
   document.documentElement.classList.toggle("scroll-lock", !!isAnyModalOpen);
 }

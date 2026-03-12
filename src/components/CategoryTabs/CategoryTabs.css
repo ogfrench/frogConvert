@@ -3,8 +3,9 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: var(--space-1-5);
+  row-gap: var(--space-1-5);
   padding: 0 var(--space-4);
+  width: 100%;
   max-width: var(--tabs-max-width);
   margin: 0 auto;
   position: relative;
@@ -29,10 +30,15 @@
     border-width 0.3s ease, opacity 0.3s ease;
 }
 
+.cat-tab + .cat-tab {
+  margin-left: var(--space-1-5);
+}
+
 .cat-tab.tab-hidden {
   max-width: 0;
   padding-left: 0;
   padding-right: 0;
+  margin-left: 0;
   border-width: 0;
   opacity: 0;
   pointer-events: none;

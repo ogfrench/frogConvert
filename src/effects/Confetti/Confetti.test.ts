@@ -21,10 +21,10 @@ describe("Confetti Component", () => {
         triggerConfetti();
         expect(document.getElementById("confetti-canvas")).not.toBeNull();
 
-        // Advance time past the 2.5s duration
-        vi.advanceTimersByTime(3000);
+        // Advance time past the 3.5s duration (first rAF fires at ~16ms, so startTime≈16)
+        vi.advanceTimersByTime(4000);
 
-        // Ensure the loop finishes
+        // Ensure the final rAF frame fires and removes the canvas
         for (let i = 0; i < 10; i++) vi.advanceTimersByTime(16);
 
         expect(document.getElementById("confetti-canvas")).toBeNull();
@@ -50,8 +50,8 @@ describe("Confetti Component", () => {
         vi.advanceTimersByTime(1000);
         expect(document.getElementById("confetti-canvas")).not.toBeNull();
 
-        // Advance to end (5000 + 2500 + buffer)
-        vi.advanceTimersByTime(2000);
+        // Advance to end (startTime≈5016, need elapsed≥3500 → now≥8516; advance 3000 more to reach ~9016)
+        vi.advanceTimersByTime(3000);
         for (let i = 0; i < 10; i++) vi.advanceTimersByTime(16);
 
         expect(document.getElementById("confetti-canvas")).toBeNull();

@@ -1,47 +1,62 @@
 import "./Popup.css";
-import { ui, updateScrollLock } from "../store/store.ts";
-import { escapeHTML, formatBytes } from "../utils.ts";
+import { ui } from "../store/store.ts";
+import { formatBytes } from "../utils.ts";
+
+import { ModalManager } from "../utils/ModalManager.ts";
 
 // --- Popup ---
 
-const HIDE_MS = 160;
-
-let _hideTimer: ReturnType<typeof setTimeout> | null = null;
-
-export function showPopup(html: string) {
-  if (_hideTimer !== null) {
-    clearTimeout(_hideTimer);
-    _hideTimer = null;
+export function showPopup(content: string | Node | Node[], persistent = false) {
+  if (typeof content === "string") {
+    ui.popupBox.innerHTML = content;
+  } else {
+    ui.popupBox.innerHTML = "";
+    if (Array.isArray(content)) {
+      content.forEach(node => ui.popupBox.appendChild(node));
+    } else {
+      ui.popupBox.appendChild(content);
+    }
   }
-  ui.popupBox.classList.remove("closing", "popup-visible");
-  ui.popupBackground.classList.remove("closing", "popup-visible");
-  ui.popupBox.innerHTML = html;
-  ui.popupBox.style.display = "block";
-  ui.popupBackground.style.display = "block";
-  void ui.popupBox.offsetWidth; // force reflow to restart animation
-  ui.popupBox.classList.add("popup-visible");
-  ui.popupBackground.classList.add("popup-visible");
-  updateScrollLock();
+  ModalManager.open(ui.popupBox, ui.popupBackground, hidePopup, persistent);
 }
 
 export function hidePopup() {
-  ui.popupBox.classList.remove("popup-visible");
-  ui.popupBackground.classList.remove("popup-visible");
-  ui.popupBox.classList.add("closing");
-  ui.popupBackground.classList.add("closing");
-  _hideTimer = setTimeout(() => {
-    _hideTimer = null;
-    ui.popupBox.style.display = "none";
-    ui.popupBackground.style.display = "none";
-    ui.popupBox.classList.remove("closing");
-    ui.popupBackground.classList.remove("closing");
-    updateScrollLock();
-  }, HIDE_MS);
+  ModalManager.close(ui.popupBox, ui.popupBackground);
 }
 
 // --- Helpers ---
 
-export { escapeHTML, formatBytes };
+/** Create a button element for use in popups */
+export function createPopupButton(
+  text: string,
+  className: string,
+  onClick: () => void,
+): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.className = className;
+  btn.textContent = text;
+  btn.addEventListener("click", onClick);
+  return btn;
+}
+
+/** Show a simple alert popup with a title, message, and dismiss button */
+export function showAlertPopup(
+  title: string,
+  messageHTML: string,
+  buttonText: string = "Got it",
+): void {
+  const h2 = document.createElement("h2");
+  h2.textContent = title;
+
+  const p = document.createElement("p");
+  p.innerHTML = messageHTML;
+
+  const actions = document.createElement("div");
+  actions.className = "popup-actions";
+  actions.appendChild(createPopupButton(buttonText, "btn-primary", () => hidePopup()));
+
+  showPopup([h2, p, actions]);
+}
 
 export function showSizeWarningPopup(
   totalSize: number,
@@ -54,20 +69,21 @@ export function showSizeWarningPopup(
     ? `These files are ${sizeStr} total. Browsers can struggle with large files and may slow down or crash.`
     : `This file is ${sizeStr}. Browsers can struggle with large files and may slow down or crash.`;
 
-  showPopup(sizeStr ? `<h2>${title}</h2>` +
-    `<p>${body}</p>` +
-    `<div class="popup-actions">` +
-    `<button class="popup-secondary" onclick="window.hidePopup()">‹ Go back</button>` +
-    `<button class="popup-primary" id="size-warn-proceed">Convert anyway</button>` +
-    `</div>` : "");
+  const h2 = document.createElement("h2");
+  h2.textContent = title;
+  const p = document.createElement("p");
+  p.textContent = body;
 
-  requestAnimationFrame(() => {
-    const proceedBtn = document.getElementById("size-warn-proceed");
-    proceedBtn?.addEventListener("click", () => {
-      hidePopup();
-      onProceed();
-    });
-  });
+  const actions = document.createElement("div");
+  actions.className = "popup-actions";
+
+  actions.appendChild(createPopupButton("Go back", "btn-secondary", () => hidePopup()));
+  actions.appendChild(createPopupButton("Convert anyway", "btn-primary", () => {
+    hidePopup();
+    onProceed();
+  }));
+
+  showPopup([h2, p, actions]);
 }
 
 export function showFileTypeMismatchPopup(files: File[], onProceed: (filtered: File[]) => void) {
@@ -79,32 +95,41 @@ export function showFileTypeMismatchPopup(files: File[], onProceed: (filtered: F
   }
 
   const typeEntries = [...typeGroups.entries()];
-  let actionButtons = "";
+  const h2 = document.createElement("h2");
+  h2.textContent = "Multiple file types detected";
+  const p = document.createElement("p");
+  p.textContent = "Select which files to keep:";
+
+  const actions = document.createElement("div");
+  actions.className = "popup-actions popup-actions-stacked";
+
   for (const [type, groupFiles] of typeEntries) {
     const ext = groupFiles[0].name.split(".").pop()?.toUpperCase() || "Unknown";
     const count = groupFiles.length;
-    actionButtons += `<button class="type-filter-row" data-type-filter="${type}"><span>Keep only ${ext} (${count} file${count > 1 ? "s" : ""})</span><span class="type-filter-arrow">›</span></button>`;
+
+    const btn = document.createElement("button");
+    btn.className = "type-filter-row";
+
+    const spanText = document.createElement("span");
+    spanText.textContent = `Keep only ${ext} (${count} file${count > 1 ? "s" : ""})`;
+
+    const spanArrow = document.createElement("span");
+    spanArrow.className = "type-filter-arrow";
+    spanArrow.textContent = "›";
+
+    btn.appendChild(spanText);
+    btn.appendChild(spanArrow);
+
+    btn.addEventListener("click", () => {
+      const filtered = files.filter(f => (f.type || "unknown") === type);
+      hidePopup();
+      onProceed(filtered);
+    });
+
+    actions.appendChild(btn);
   }
 
-  showPopup(
-    `<h2>Multiple file types detected</h2>` +
-    `<p>Select which files to keep:</p>` +
-    `<div class="popup-actions popup-actions-stacked">` +
-    actionButtons +
-    `<button class="popup-secondary" onclick="window.hidePopup()">‹ Go back</button>` +
-    `</div>`,
-  );
+  actions.appendChild(createPopupButton("Go back", "btn-secondary", () => hidePopup()));
 
-  // Bind filter buttons
-  requestAnimationFrame(() => {
-    const btns = ui.popupBox.querySelectorAll<HTMLButtonElement>("[data-type-filter]");
-    btns.forEach(btn => {
-      btn.addEventListener("click", () => {
-        const filterType = btn.getAttribute("data-type-filter")!;
-        const filtered = files.filter(f => (f.type || "unknown") === filterType);
-        hidePopup();
-        onProceed(filtered);
-      });
-    });
-  });
+  showPopup([h2, p, actions]);
 }

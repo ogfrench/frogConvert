@@ -1,100 +1,8 @@
-/* --- Popup animations --- */
-@keyframes popup-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.95);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
-}
-
-@keyframes popup-out {
-  from {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
-
-  to {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.97);
-  }
-}
-
-@keyframes bg-in {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes bg-out {
-  from {
-    opacity: 1;
-  }
-
-  to {
-    opacity: 0;
-  }
-}
-
-#popup.popup-visible {
-  animation: popup-in 0.2s ease-out forwards;
-}
-
-#popup.closing {
-  animation: popup-out 0.16s ease-in forwards;
-}
-
-#popup-bg.popup-visible {
-  animation: bg-in 0.2s ease-out forwards;
-}
-
-#popup-bg.closing {
-  animation: bg-out 0.16s ease-in forwards;
-}
-
 /* --- Popup / Modal --- */
-#popup-bg {
-  position: fixed;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  background-color: var(--overlay-bg);
-  backdrop-filter: var(--blur-overlay);
-  z-index: 300;
-}
-
 #popup {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  width: var(--popup-width);
-  max-width: var(--mobile-content-width);
-  max-height: 85vh;
-  overflow-y: auto;
-  transform: translate(-50%, -50%);
-  background-color: var(--card);
-  color: var(--card-foreground);
-  border: 1px solid var(--border);
-  padding: var(--space-5) var(--space-6);
-  border-radius: var(--radius-xl);
-  text-align: center;
-  box-shadow: var(--shadow-lg);
-  z-index: 301;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
-}
-
-/* Remove bottom margin from last elements like <p> to maintain modal symmetry,
-   but NOT from the footer which uses negative margins to be flush. */
-#popup>*:last-child:not(.popup-actions-footer) {
-  margin-bottom: 0;
+  padding: var(--space-8) var(--space-6);
+  display: flex;
+  flex-direction: column;
 }
 
 
@@ -116,45 +24,8 @@
   display: flex;
   gap: var(--space-3);
   justify-content: center;
-  margin-top: var(--space-2);
-}
-
-#popup button {
-  font-size: var(--text-md);
-  font-weight: var(--font-medium);
-  padding: var(--space-2) var(--space-6);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background-color: var(--secondary);
-  color: var(--secondary-foreground);
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-  font-family: inherit;
-}
-
-#popup button:hover {
-  background-color: var(--accent);
-}
-
-#popup button.popup-primary {
-  background-color: var(--primary);
-  color: var(--primary-foreground);
-  border-color: var(--primary);
-}
-
-#popup button.popup-primary:hover {
-  opacity: var(--opacity-hover);
-}
-
-#popup button.popup-secondary {
-  background: var(--secondary);
-  color: var(--foreground);
-  border-color: var(--border);
-}
-
-#popup button.popup-secondary:hover {
-  background-color: var(--accent);
-  border-color: var(--ring);
+  margin-top: auto;
+  padding-top: var(--space-4);
 }
 
 .type-list {

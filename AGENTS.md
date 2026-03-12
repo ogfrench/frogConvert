@@ -52,7 +52,10 @@ The web application of frogConvert chains handlers that might rely on browser AP
 
 ### Adding a New Handler
 If asked to add support for a new format:
-1. Write a new handler class in `src/handlers/` implementing `FormatHandler`.
+1. Write a new handler class in `src/handlers/`. Choose the right base class:
+   - Extend `TextFormatHandler` (`src/core/FormatHandler/TextFormatHandler.ts`) for text-based formats (JSON, CSV, XML, YAML, etc.) — it handles the `Uint8Array ↔ string` decode/encode pipeline for you. Implement `doConvertText()` instead of `doConvert()`.
+   - Extend `BaseHandler` (`src/core/FormatHandler/BaseHandler.ts`) for anything else — it provides a default `init()`, a `replaceExtension()` helper, and keeps `ready = true` by default.
+   - Implement the raw `FormatHandler` interface directly only if you need maximum control (e.g., async `init()` that loads WASM).
 2. Use the `CommonFormats` utility (`src/core/CommonFormats/CommonFormats.ts`) to declare `supportedFormats`.
 3. Set `requiresMainThread`:
    - If the handler uses only pure computation or Node-compatible WASM (no `Canvas`, `document`, `AudioContext`, `WebGL`): leave it unset or `false`. The engine will run it in a Web Worker.
@@ -65,13 +68,19 @@ If asked to add support for a new format:
 ```text
 src/
 ├── core/
-│   ├── FormatHandler/      # Core interfaces (FormatHandler, FileFormat, FileData)
+│   ├── FormatHandler/      # Core interfaces and base classes
+│   │   ├── FormatHandler.ts    # FormatHandler interface, FileFormat, FileData types
+│   │   ├── BaseHandler.ts      # Abstract base class (default init, replaceExtension helper)
+│   │   └── TextFormatHandler.ts# Base class for text formats (auto decode/encode)
 │   ├── CommonFormats/      # Constants for defining MIME types and extensions
 │   └── TraversionGraph/    # Pathfinding graph algorithm
 ├── components/             # The Vanilla TS/CSS User Interface
-│   ├── store/              # Reactive state and UI references
-│   └── utils.ts            # Shared UI utilities (escapeHTML, formatBytes)
+│   ├── store/              # Reactive state, UI references, format mode logic
+│   ├── utils.ts            # Shared utilities (escapeHTML, formatBytes, ensureMinDuration)
+│   └── utils/
+│       └── ModalManager.ts # Centralized modal lifecycle (open/close, focus, scroll-lock)
 ├── handlers/               # The actual conversion logic (FFmpeg, ImageMagick, Pandoc, etc.)
+├── workers/
 │   ├── conversion.worker.ts    # Executes handler conversions in a background thread
 │   └── route-search.worker.ts  # Runs Dijkstra pathfinding in a background thread
 └── mcp/                    # MCP Server implementation

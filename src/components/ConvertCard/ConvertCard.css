@@ -4,11 +4,6 @@
   max-width: var(--card-max-width);
   margin: var(--space-10) auto 0;
   padding: var(--space-6);
-  background-color: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-md);
-  transition: background-color 0.15s ease, border-color 0.15s ease;
   position: relative;
   z-index: 2;
 }
@@ -43,12 +38,18 @@
   font-family: inherit;
   font-size: var(--text-md);
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
   text-align: left;
 }
 
 .format-selector:hover {
   border-color: var(--ring);
+}
+
+.format-selector:focus-visible {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--primary);
 }
 
 .format-selector.has-value {

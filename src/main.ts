@@ -39,6 +39,8 @@ import {
   allOptionsRef,
   isLoadingPhase2,
   ui,
+  isCategoryVisible,
+  formatMode,
 } from "./components/index.ts";
 import { triggerConfetti } from "./effects/Confetti/Confetti.ts";
 
@@ -53,10 +55,10 @@ initFilesModal();
 
 // Set device-appropriate browse hint ("or click to browse" vs "or tap to browse")
 const browseHint = window.matchMedia("(pointer: coarse)").matches
-    ? "or tap to browse"
-    : "or click to browse";
+  ? "or tap to browse"
+  : "or click to browse";
 for (const el of document.querySelectorAll<HTMLElement>(".upload-hint")) {
-    el.textContent = browseHint;
+  el.textContent = browseHint;
 }
 
 initModeToggle(() => {
@@ -87,7 +89,9 @@ initUploadZone(
       // Dynamically select the tab related to the uploaded file
       const category = getFormatCategory(allOptionsRef.value[matchIndex].format);
       if (category && category !== activeCategory.value && selectedToIndex.value === null) {
-        selectCategoryTab(category);
+        if (isCategoryVisible(category, formatMode.value)) {
+          selectCategoryTab(category);
+        }
       }
     } else {
       selectedFromIndex.value = null;

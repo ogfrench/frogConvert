@@ -27,16 +27,14 @@ function friendlyMimeLabel(mime: string): string {
 
 // --- Files Management Modal ---
 
-let _filesModalOpener: Element | null = null;
+import { ModalManager } from "../utils/ModalManager.ts";
 
 export function openFilesModal() {
-  _filesModalOpener = document.activeElement;
-  ui.filesModal.classList.add("open");
-  ui.filesModalBg.classList.add("open");
-  ui.filesModal.removeAttribute("aria-hidden");
   filesModalPage.value = 0;
-  renderFilesModalList();
   hideFilesModalError();
+  ModalManager.open(ui.filesModal, ui.filesModalBg, closeFilesModal);
+  renderFilesModalList();
+
   // Lock the list height after first render to prevent jumps on file removal
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
@@ -57,22 +55,16 @@ export function openFilesModal() {
     });
   };
   window.addEventListener("resize", filesModalResizeHandler.value);
-  updateScrollLock();
 }
 
 export function closeFilesModal() {
-  (_filesModalOpener as HTMLElement | null)?.focus();
-  _filesModalOpener = null;
-  ui.filesModal.classList.remove("open");
-  ui.filesModalBg.classList.remove("open");
-  ui.filesModal.setAttribute("aria-hidden", "true");
+  ModalManager.close(ui.filesModal, ui.filesModalBg);
   ui.filesModal.style.minHeight = "";
   ui.filesList.style.height = "";
   if (filesModalResizeHandler.value) {
     window.removeEventListener("resize", filesModalResizeHandler.value);
     filesModalResizeHandler.value = null;
   }
-  updateScrollLock();
 }
 
 function hideFilesModalError() {
@@ -186,10 +178,9 @@ function replaceFileAtIndex(index: number) {
 
     if (currentFiles.value.length > 0 && newFile.type !== currentFiles.value[0].type) {
       const expected = friendlyMimeLabel(currentFiles.value[0].type);
-      const got = friendlyMimeLabel(newFile.type);
       const isPlural = currentFiles.value.length > 1;
-      const currentFilesText = isPlural ? `Your files are ${expected}s` : `Your file is a ${expected}`;
-      showFilesModalError(`${currentFilesText} - “${newFile.name}” is a ${got}, which doesn’t match. All files must be the same type.`);
+      const label = isPlural ? `${expected}s` : expected;
+      showFilesModalError(`This file doesn’t match your current ${label}. Please only upload files of the same format.`);
       return;
     }
 
@@ -203,12 +194,6 @@ export function initFilesModal() {
   ui.filesModalClose.addEventListener("click", closeFilesModal);
   ui.filesModalBg.addEventListener("click", closeFilesModal);
   ui.filesModalErrorClose.addEventListener("click", hideFilesModalError);
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && ui.filesModal.classList.contains("open")) {
-      closeFilesModal();
-    }
-  });
 
   ui.filesRemoveAll.addEventListener("click", () => {
     currentFiles.value = [];
@@ -280,11 +265,9 @@ function addMoreFiles(newFiles: File[]) {
         ? `Your current files are ${expectedLabel}s`
         : `Your current file is a ${expectedLabel}`;
 
-      const addedText = newFiles.length > 1
-        ? "None of those files matched"
-        : "That file didn't match";
-
-      showFilesModalError(`${addedText}. ${currentFilesText} - please add more files of the same type.`);
+      const subj = newFiles.length > 1 ? "These files don’t" : "This file doesn’t";
+      const target = isPluralCurrent ? `your current ${expectedLabel}s` : `your current ${expectedLabel}`;
+      showFilesModalError(`${subj} match ${target}. Please only upload files of the same format.`);
       return;
     }
   }

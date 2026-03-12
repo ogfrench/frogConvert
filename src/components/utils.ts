@@ -24,3 +24,11 @@ export function shortenFileName(name: string, maxLength: number = 24): string {
     const backChars = Math.floor(charsToShow / 2);
     return name.substring(0, frontChars) + "..." + name.substring(name.length - backChars);
 }
+
+/** Waits until at least `minMs` have elapsed since `startTime`, preventing UI flicker. */
+export async function ensureMinDuration(startTime: number, minMs: number = 600): Promise<void> {
+    const elapsed = performance.now() - startTime;
+    if (elapsed < minMs) {
+        await new Promise<void>(resolve => setTimeout(resolve, minMs - elapsed));
+    }
+}

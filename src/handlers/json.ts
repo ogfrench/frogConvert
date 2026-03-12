@@ -1,12 +1,12 @@
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
-import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import type { FileFormat } from "../core/FormatHandler/FormatHandler.ts";
+import { TextFormatHandler } from "../core/FormatHandler/TextFormatHandler.ts";
 import parseXML from "./envelope/parseXML.js";
 import * as yaml from "yaml";
 
 /// Converts things to JSON
-export class toJsonHandler implements FormatHandler {
+export class toJsonHandler extends TextFormatHandler {
   public name: string = "tojson";
-  public ready: boolean = true;
 
   public supportedFormats: FileFormat[] = [
     CommonFormats.CSV.builder("csv").allowFrom(),
@@ -15,27 +15,23 @@ export class toJsonHandler implements FormatHandler {
     CommonFormats.JSON.supported("json", false, true, true)
   ];
 
-  async init() {
-    this.ready = true;
-  }
-
-  async doConvert (
-    inputFiles: FileData[],
+  async doConvertText(
+    inputTexts: { name: string, text: string }[],
     inputFormat: FileFormat,
     outputFormat: FileFormat
-  ): Promise<FileData[]> {
-    return inputFiles.map(file => {
-      const name = file.name.split(".")[0]+".json";
-      const text = new TextDecoder().decode(file.bytes);
+  ): Promise<{ name: string, text: string }[]> {
+    return inputTexts.map(file => {
+      const name = this.replaceExtension(file.name, "json");
+      const text = file.text;
       let object: any;
-      switch(inputFormat.mime) {
+      switch (inputFormat.mime) {
         case "text/csv": {
           const data = text.split(/\r?\n/).map(x => {
             const arr = [...x.matchAll(/(?:(?:"(?:[^"]|"")*")|[^,]*)(?:,|$)/g)].map(([x]) => {
-              if(x.endsWith(","))
-                x = x.substring(0, x.length-1);
-              if(x.startsWith("\"") && x.endsWith("\""))
-                x = x.substring(1, x.length-1);
+              if (x.endsWith(","))
+                x = x.substring(0, x.length - 1);
+              if (x.startsWith("\"") && x.endsWith("\""))
+                x = x.substring(1, x.length - 1);
               return x;
             });
             arr.pop(); // remove empty final match that exists for some reason (I'm not good at regex)
@@ -44,10 +40,10 @@ export class toJsonHandler implements FormatHandler {
           data.pop(); // remove empty end entry
           const keys = data.shift() ?? [];
           object = [];
-          for(const entry of data) {
+          for (const entry of data) {
             let jsonEntry: any = {};
-            for(let i = 0; i < entry.length; i++) {
-              jsonEntry[i < keys.length ? keys[i] : `column${i+1}`] = entry[i];
+            for (let i = 0; i < entry.length; i++) {
+              jsonEntry[i < keys.length ? keys[i] : `column${i + 1}`] = entry[i];
             }
             object.push(jsonEntry);
           }
@@ -64,16 +60,15 @@ export class toJsonHandler implements FormatHandler {
       }
       return {
         name: name,
-        bytes: new TextEncoder().encode(JSON.stringify(object))
+        text: JSON.stringify(object)
       };
     });
   }
 }
 
 /// Converts to things from JSON
-export class fromJsonHandler {
+export class fromJsonHandler extends TextFormatHandler {
   public name: string = "fromjson";
-  public ready: boolean = true;
 
   public supportedFormats: FileFormat[] = [
     CommonFormats.CSV.builder("csv").allowTo(),
@@ -82,60 +77,56 @@ export class fromJsonHandler {
     CommonFormats.JSON.supported("json", true, false)
   ];
 
-  async init() {
-    this.ready = true;
-  }
-
-  async doConvert (
-    inputFiles: FileData[],
+  async doConvertText(
+    inputTexts: { name: string, text: string }[],
     inputFormat: FileFormat,
     outputFormat: FileFormat
-  ): Promise<FileData[]> {
-    return inputFiles.map(file => {
-      const name = file.name.split(".")[0]+"."+outputFormat.extension;
-      let object = JSON.parse(new TextDecoder().decode(file.bytes));
+  ): Promise<{ name: string, text: string }[]> {
+    return inputTexts.map(file => {
+      const name = this.replaceExtension(file.name, outputFormat.extension);
+      let object = JSON.parse(file.text);
       let text = "";
-      switch(outputFormat.mime) {
+      switch (outputFormat.mime) {
         case "text/csv": {
           let keys: string[] = [];
           function csvEscape(str: string): string {
-            if(str.includes(",") || str.includes("\""))
+            if (str.includes(",") || str.includes("\""))
               return `"${str.replaceAll("\"", "\"\"")}"`;
             return str;
           }
-          if(!Array.isArray(object)) {
+          if (!Array.isArray(object)) {
             // turn into array
             let newObject: any = [];
-            for(const [k, v] of Object.entries(object)) {
-              if(v != null && typeof v == "object" && !Array.isArray(v)) {
+            for (const [k, v] of Object.entries(object)) {
+              if (v != null && typeof v == "object" && !Array.isArray(v)) {
                 (v as any)._key = k;
                 newObject.push(v);
               }
               else {
-                newObject.push({_key: k, _value: v});
+                newObject.push({ _key: k, _value: v });
               }
             }
             object = newObject;
           }
           const keySet = new Set<string>();
-          for(const value of object) {
-            if(typeof value != "object" || Array.isArray(value)) {
+          for (const value of object) {
+            if (typeof value != "object" || Array.isArray(value)) {
               keySet.add("_value");
               continue;
             }
-            for(const key of Object.keys(value)) {
-              if(!keySet.has(key))
+            for (const key of Object.keys(value)) {
+              if (!keySet.has(key))
                 keySet.add(key);
             }
           }
           keys = [...keySet].sort();
-          text += keys.map(x => csvEscape(x)).join(",")+"\n";
-          for(const value of object) {
+          text += keys.map(x => csvEscape(x)).join(",") + "\n";
+          for (const value of object) {
             text += keys.map(key => {
-              if(key == "_value" && (typeof value != "object" || Array.isArray(value)))
+              if (key == "_value" && (typeof value != "object" || Array.isArray(value)))
                 return value;
               return value[key] ?? "";
-            }).map(x => csvEscape(typeof x == "string" ? x : JSON.stringify(x))).join(",")+"\n";
+            }).map(x => csvEscape(typeof x == "string" ? x : JSON.stringify(x))).join(",") + "\n";
           }
           break;
         }
@@ -149,37 +140,37 @@ export class fromJsonHandler {
               .replaceAll("'", "&apos;");
           }
           function write(value: any, tagName: string | null = null) {
-            if(tagName != null)
+            if (tagName != null)
               tagName = xmlEscape(tagName);
-            if(typeof value != "object") {
+            if (typeof value != "object") {
               const str = xmlEscape(typeof value == "string" ? value : JSON.stringify(value));
-              if(tagName != null)
+              if (tagName != null)
                 text += `<${tagName}>${str}</${tagName}>`;
               else
                 text += str;
               return;
             }
-            if(Array.isArray(value)) {
+            if (Array.isArray(value)) {
               tagName ??= "Array";
               text += `<${tagName}>`
-              for(const item of value) {
+              for (const item of value) {
                 write(item, "Item");
               }
               text += `</${tagName}>`;
               return;
             }
             const isXMLTag = typeof value._tag == "string" && Array.isArray(value._children); // is serialized XML tag
-            if(isXMLTag)
+            if (isXMLTag)
               tagName ??= value._tag;
             tagName ??= "Object";
             text += `<${tagName}>`
-            for(const [k, v] of Object.entries(value)) {
-              if(isXMLTag && (k == "_tag" || k == "_children"))
+            for (const [k, v] of Object.entries(value)) {
+              if (isXMLTag && (k == "_tag" || k == "_children"))
                 continue;
               write(v, k);
             }
-            if(isXMLTag) {
-              for(const child of value._children) {
+            if (isXMLTag) {
+              for (const child of value._children) {
                 write(child);
               }
             }
@@ -196,7 +187,7 @@ export class fromJsonHandler {
       }
       return {
         name: name,
-        bytes: new TextEncoder().encode(text)
+        text: text
       };
     });
   }
