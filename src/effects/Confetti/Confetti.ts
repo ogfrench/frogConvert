@@ -52,7 +52,7 @@ export function triggerConfetti() {
             w: 6 + Math.random() * 8,
             h: 4 + Math.random() * 6,
             vx: (Math.random() - 0.5) * 35,
-            vy: -(Math.random() * 15 + 8),
+            vy: -(Math.random() * 10 + 7),
             color: colors[Math.floor(Math.random() * colors.length)],
             r: Math.random() * Math.PI * 2,
             rs: (Math.random() - 0.5) * 0.25,

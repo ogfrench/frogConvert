@@ -99,6 +99,7 @@
   --text-4xl: 2.75rem;
 
   /* Typography - Font Weights */
+  --font-light: 300;
   --font-normal: 400;
   --font-medium: 500;
   --font-semibold: 600;
@@ -294,7 +295,7 @@ html.scroll-lock {
 .footer-text {
   font-size: var(--text-sm);
   color: var(--muted-foreground);
-  font-weight: var(--font-normal);
+  font-weight: var(--font-light);
 }
 
 @media (max-width: 600px) {
