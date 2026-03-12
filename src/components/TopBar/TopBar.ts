@@ -115,7 +115,7 @@ function bindSegmented(
     if (isActiveValue(value)) {
       // Click the desktop button until the mode matches the selected value (cycles core→plus→all→core)
       let guard = 0;
-      while (formatMode.value !== value && guard++ < 3) {
+      while (isActiveValue(value) && guard++ < 3) {
         desktopBtn.click();
       }
     }

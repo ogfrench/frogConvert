@@ -12,20 +12,32 @@
       document.documentElement.classList.add("dark");
     }
 
-    // Critical styles (logo color)
-    var style = document.createElement('style');
-    style.innerHTML = '#logo { color: ' + (document.documentElement.classList.contains("dark") ? '#fafafa' : '#0a0a0a') + ' !important; }';
-    document.head.appendChild(style);
-
     // FOUC prevention logic
     document.documentElement.style.visibility = 'hidden';
     document.documentElement.style.opacity = '0';
     document.documentElement.style.transition = 'opacity 0.25s ease';
 
-    window.addEventListener('DOMContentLoaded', () => {
+    // Reveal on the first paint frame after CSS is applied.
+    // In production, render-blocking CSS means rAF only fires after styles are loaded.
+    // In dev (Vite), CSS is injected via JS so rAF can fire before it — we poll the
+    // --background CSS variable as a signal that our stylesheet has been applied.
+    // DOMContentLoaded is a safety-net fallback (e.g. rAF unavailable, edge cases).
+    var _r = false;
+    function _reveal() {
+      if (_r) return;
+      _r = true;
       document.documentElement.style.visibility = 'visible';
       document.documentElement.style.opacity = '1';
-    });
+    }
+    function _waitForCSS() {
+      if (getComputedStyle(document.documentElement).getPropertyValue('--background').trim()) {
+        _reveal();
+      } else {
+        requestAnimationFrame(_waitForCSS);
+      }
+    }
+    requestAnimationFrame(function () { requestAnimationFrame(_waitForCSS); });
+    document.addEventListener('DOMContentLoaded', _reveal);
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

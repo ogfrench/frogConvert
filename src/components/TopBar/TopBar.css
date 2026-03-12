@@ -278,7 +278,7 @@
     transform: translateY(-10px);
     transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
     min-width: 180px;
-    gap: var(--space-3);
+    gap: var(--space-4);
   }
 
   #top-controls.menu-open #top-controls-menu {
@@ -298,15 +298,15 @@
     border: none;
     padding: 0;
     border-radius: 0;
-    gap: 1px;
+    gap: var(--space-1);
   }
 
   #top-controls-menu .segmented-option {
     border-radius: var(--radius);
     justify-content: space-between;
-    padding: var(--space-1-5) var(--space-2);
+    padding: var(--space-2-5) var(--space-3);
     color: var(--foreground);
-    font-size: var(--text-sm);
+    font-size: var(--text-base);
     font-weight: var(--font-normal);
   }
 
@@ -316,7 +316,7 @@
   }
 
   #top-controls-menu .segmented-option.active {
-    background: none;
+    background: var(--accent);
     color: var(--foreground);
     font-weight: var(--font-medium);
   }
