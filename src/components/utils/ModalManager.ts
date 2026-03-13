@@ -6,12 +6,13 @@ export class ModalManager {
         bg: HTMLElement;
         opener: Element | null;
         onClose?: () => void;
+        onEscape?: () => void;
         persistent?: boolean;
     }[] = [];
 
-    static open(modal: HTMLElement, bg: HTMLElement, onClose?: () => void, persistent = false) {
+    static open(modal: HTMLElement, bg: HTMLElement, onClose?: () => void, persistent = false, onEscape?: () => void) {
         const opener = document.activeElement;
-        this.activeModals.push({ modal, bg, opener, onClose, persistent });
+        this.activeModals.push({ modal, bg, opener, onClose, onEscape, persistent });
 
         modal.classList.add("open");
         bg.classList.add("open");
@@ -25,7 +26,14 @@ export class ModalManager {
     }
 
     static close(modal: HTMLElement, bg: HTMLElement) {
-        const index = this.activeModals.findIndex(m => m.modal === modal);
+        // Use a reverse search in case the same modal element was pushed multiple times
+        let index = -1;
+        for (let i = this.activeModals.length - 1; i >= 0; i--) {
+            if (this.activeModals[i].modal === modal) {
+                index = i;
+                break;
+            }
+        }
         if (index === -1) return;
 
         const { opener, onClose } = this.activeModals[index];
@@ -46,8 +54,39 @@ export class ModalManager {
     static closeTop() {
         if (this.activeModals.length === 0) return;
         const top = this.activeModals[this.activeModals.length - 1];
+        
+        if (top.onEscape) {
+            top.onEscape();
+            return;
+        }
+
         if (top.persistent) return;
         this.close(top.modal, top.bg);
+    }
+
+    static updateTop(metadata: { onEscape?: () => void; persistent?: boolean }) {
+        if (this.activeModals.length === 0) return;
+        const top = this.activeModals[this.activeModals.length - 1];
+        if ("onEscape" in metadata) top.onEscape = metadata.onEscape;
+        if (metadata.persistent !== undefined) top.persistent = metadata.persistent;
+    }
+
+    static replaceTop(modal: HTMLElement, bg: HTMLElement, onClose?: () => void, persistent = false, onEscape?: () => void) {
+        for (let i = this.activeModals.length - 1; i >= 0; i--) {
+            if (this.activeModals[i].modal === modal) {
+                this.activeModals[i].onClose = onClose;
+                this.activeModals[i].onEscape = onEscape;
+                this.activeModals[i].persistent = persistent;
+                // Move to top if not already there, preserving original opener
+                if (i !== this.activeModals.length - 1) {
+                    const entry = this.activeModals.splice(i, 1)[0];
+                    this.activeModals.push(entry);
+                }
+                return;
+            }
+        }
+        // Not in stack yet — open normally
+        this.open(modal, bg, onClose, persistent, onEscape);
     }
 
     static isOpen(modal: HTMLElement) {

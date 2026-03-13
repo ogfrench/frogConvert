@@ -1,6 +1,7 @@
 import "./ConversionModal.css";
 import { ui } from "../store/store.ts";
-import { showPopup, hidePopup, createPopupButton } from "../Popup/Popup.ts";
+import { showPopup, hidePopup, createPopupButton, replacePopup } from "../Popup/Popup.ts";
+import { ModalManager } from "../utils/ModalManager.ts";
 import { ensureMinDuration } from "../utils.ts";
 
 export let isCancelled = false;
@@ -90,11 +91,12 @@ export function triggerCancellation() {
     const p = document.createElement("p");
     p.innerHTML = `Stopping conversion...<br><span class="conversion-path">This may take a moment</span>`;
 
-    showPopup([h2, spinner, p], true);
+    replacePopup([h2, spinner, p], true);
 }
 
 export function removeCancelButton() {
     ui.popupBox.querySelector(".popup-actions-footer")?.remove();
+    ModalManager.updateTop({ onEscape: undefined });
 }
 
 export function ensureCancelButton() {
@@ -109,6 +111,7 @@ export function ensureCancelButton() {
         const btn = createPopupButton("Cancel conversion", "btn-secondary", () => triggerCancellation());
         btn.id = "cancel-conversion-btn";
         actions.appendChild(btn);
+        ModalManager.updateTop({ onEscape: triggerCancellation });
     }
 }
 
@@ -134,5 +137,5 @@ export function showPartialDownloadPopup(count: number, onDownload: () => void) 
     actions.appendChild(downloadBtn);
     actions.appendChild(doneBtn);
 
-    showPopup([h2, p, actions]);
+    replacePopup([h2, p, actions]);
 }

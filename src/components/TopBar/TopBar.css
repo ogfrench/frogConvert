@@ -20,12 +20,20 @@
   padding: var(--space-4) var(--space-6) var(--space-6);
   z-index: 200;
   animation: fadeIn 0.4s ease-out forwards;
+  transform: translateZ(0);
+  backdrop-filter: blur(0px);
+  -webkit-backdrop-filter: blur(0px);
   transition: backdrop-filter 0.3s ease, -webkit-backdrop-filter 0.3s ease;
+  pointer-events: none;
+}
+
+#top-bar > * {
+  pointer-events: auto;
 }
 
 #top-bar.scrolled {
-  backdrop-filter: blur(12px) saturate(180%) brightness(1.02);
-  -webkit-backdrop-filter: blur(12px) saturate(180%) brightness(1.02);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 #top-bar::before {
@@ -36,30 +44,13 @@
   width: 100%;
   height: 100%;
   z-index: -1;
-  background-color: transparent;
-  box-shadow: none;
-  transition: background-color 0.3s ease, box-shadow 0.3s ease;
-  pointer-events: none;
-  -webkit-mask-image: linear-gradient(to bottom, black 90%, transparent 100%);
-  mask-image: linear-gradient(to bottom, black 90%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  background-color: var(--glass-bg);
 }
 
-/* Light mode: white tint + top edge highlight */
 #top-bar.scrolled::before {
-  background-color: var(--glass-bg);
-  box-shadow:
-    0 1px 0 var(--glass-separator),
-    0 4px 16px rgba(0, 0, 0, 0.06),
-    inset 0 1px 0 var(--glass-highlight);
-}
-
-/* Dark mode: darker black tint to soften the blur and add depth */
-.dark #top-bar.scrolled::before {
-  background-color: var(--glass-bg);
-  box-shadow:
-    0 1px 0 var(--glass-separator),
-    0 4px 16px rgba(0, 0, 0, 0.25),
-    inset 0 1px 0 var(--glass-highlight);
+  opacity: 1;
 }
 
 #logo {

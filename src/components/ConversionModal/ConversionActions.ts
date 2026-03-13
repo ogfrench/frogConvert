@@ -22,6 +22,7 @@ import {
     showPartialDownloadPopup,
     ensureCancelButton,
     removeCancelButton,
+    replacePopup,
     formatMode,
     isFormatVisible
 } from "../index.ts";
@@ -547,7 +548,7 @@ export function initConvertButton() {
             actions.className = "popup-actions-footer";
             actions.appendChild(createPopupButton("Download again", "btn-primary", () => downloadAllConvertedFiles()));
             actions.appendChild(createPopupButton("Done", "btn-secondary", () => hidePopup()));
-            showPopup([h2, p, actions]);
+            replacePopup([h2, p, actions]);
             // Show confetti faster for immediate celebration
             setTimeout(() => {
                 if (ui.popupBox.classList.contains("open")) triggerConfetti();

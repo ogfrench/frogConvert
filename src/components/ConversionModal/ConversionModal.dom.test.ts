@@ -39,6 +39,12 @@ vi.mock("../Popup/Popup.ts", () => ({
         btn.addEventListener("click", onClick);
         return btn;
     }),
+    replacePopup: vi.fn((content: Node[], persistent = false, onEscape?: () => void) => {
+        ui.popupBox.innerHTML = "";
+        content.forEach(node => ui.popupBox.appendChild(node));
+        ui.popupBox.classList.add("open");
+        ui.popupBackground.classList.add("open");
+    }),
     showAlertPopup: vi.fn((title: string, messageHTML: string, buttonText: string = "Got it") => {
         const h2 = document.createElement("h2");
         h2.textContent = title;

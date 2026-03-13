@@ -23,7 +23,7 @@
   --input: #e4e4e7;
   --ring: #a1a1aa;
   --input-filled-dark: #ffffff;
-  --top-bar-bg: rgba(255, 255, 255, 0.75);
+  --top-bar-bg: rgba(255, 255, 255, 0.8);
   --glass-bg: var(--top-bar-bg);
   --glass-highlight: rgba(255, 255, 255, 0.85);
   --glass-separator: rgba(0, 0, 0, 0.05);
@@ -108,6 +108,7 @@
   /* Typography - Line Heights */
   --leading-none: 1;
   --leading-tight: 1.1;
+  --leading-snug: 1.2;
   --leading-normal: 1.6;
   --leading-relaxed: 1.7;
 
@@ -142,7 +143,7 @@
   --input: #27272a;
   --ring: #52525b;
   --input-filled-dark: #18181b;
-  --top-bar-bg: rgba(10, 10, 10, 0.60);
+  --top-bar-bg: rgba(10, 10, 10, 0.75);
   --glass-bg: var(--top-bar-bg);
   --glass-highlight: rgba(250, 250, 250, 0.12);
   --glass-separator: rgba(250, 250, 250, 0.05);
@@ -262,7 +263,7 @@ html.scroll-lock {
   color: var(--foreground);
   margin: calc(var(--space-16) + var(--space-10)) auto var(--space-6);
   padding: 0 var(--space-4);
-  line-height: var(--leading-tight);
+  line-height: var(--leading-snug);
   max-width: var(--tabs-max-width);
   position: relative;
   z-index: 2;
@@ -358,6 +359,17 @@ html.scroll-lock {
 #description a {
   pointer-events: auto;
   /* Re-enable for links */
+}
+
+#popup p {
+  margin: 0 0 var(--space-6);
+  font-size: var(--text-md);
+  color: var(--muted-foreground);
+  line-height: var(--leading-normal);
+}
+
+#popup p:last-child {
+  margin-bottom: 0;
 }
 
 /* --- Category Label --- */
@@ -486,6 +498,7 @@ html.scroll-lock {
 
 .modal-container.popup-size {
   width: var(--popup-width);
+  min-height: 0 !important;
   text-align: center;
   overflow-y: auto;
 }

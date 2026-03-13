@@ -6,7 +6,7 @@ import { ModalManager } from "../utils/ModalManager.ts";
 
 // --- Popup ---
 
-export function showPopup(content: string | Node | Node[], persistent = false) {
+export function showPopup(content: string | Node | Node[], persistent = false, onEscape?: () => void) {
   if (typeof content === "string") {
     ui.popupBox.innerHTML = content;
   } else {
@@ -17,11 +17,17 @@ export function showPopup(content: string | Node | Node[], persistent = false) {
       ui.popupBox.appendChild(content);
     }
   }
-  ModalManager.open(ui.popupBox, ui.popupBackground, hidePopup, persistent);
+  ModalManager.open(ui.popupBox, ui.popupBackground, hidePopup, persistent, onEscape);
 }
 
 export function hidePopup() {
   ModalManager.close(ui.popupBox, ui.popupBackground);
+}
+
+export function replacePopup(content: Node[], persistent = false, onEscape?: () => void) {
+  ui.popupBox.innerHTML = "";
+  content.forEach(node => ui.popupBox.appendChild(node));
+  ModalManager.replaceTop(ui.popupBox, ui.popupBackground, hidePopup, persistent, onEscape);
 }
 
 // --- Helpers ---
