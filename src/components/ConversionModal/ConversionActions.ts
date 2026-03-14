@@ -284,8 +284,9 @@ async function preInitPath(path: ConvertPathNode[]) {
 async function findConversionPath(
     from: ConvertPathNode,
     to: ConvertPathNode,
+    preserveDeadEnds = false,
 ): Promise<ConvertPathNode[] | null> {
-    window.traversionGraph.clearDeadEndPaths();
+    if (!preserveDeadEnds) window.traversionGraph.clearDeadEndPaths();
 
     const warmingMsg = `Warming up the engines...<br><span class="conversion-path">getting ready to convert</span>`;
     showConversionInProgress(warmingMsg, _convertingTitle);
@@ -323,11 +324,9 @@ async function findConversionPath(
 async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], batchMsg?: string) {
     const pathString = path.map(c => c.format.format).join(" \u2192 ");
 
-    const messageHTML = batchMsg
-        ? `${batchMsg}<br><span class="muted-text">${pathString}</span>`
-        : `<span class="conversion-path">${pathString}</span>`;
-
-    showConversionInProgress(messageHTML, _convertingTitle);
+    // Show cancel button immediately, but don't reveal the path string yet —
+    // we only display it after the first step succeeds to avoid misleading flashes
+    // when a path turns out to be broken.
     ensureCancelButton();
 
     for (let i = 0; i < path.length - 1; i++) {
@@ -361,6 +360,14 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
             await waitForPaint();
             files = outputFiles;
             if (files.some(c => !c.bytes.length)) throw "Output is empty.";
+
+            // Reveal the path only after the first step confirms conversion is working
+            if (i === 0) {
+                const messageHTML = batchMsg
+                    ? `${batchMsg}<br><span class="muted-text">${pathString}</span>`
+                    : `<span class="conversion-path">${pathString}</span>`;
+                showConversionInProgress(messageHTML, _convertingTitle);
+            }
         } catch (e) {
             if (isCancelled) return null;
             console.log(path.map(c => c.format.format));
@@ -368,9 +375,6 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
 
             const deadEndPath = path.slice(0, i + 2);
             window.traversionGraph.addDeadEndPath(deadEndPath);
-
-            showConversionInProgress(`Warming up the engines...`, _convertingTitle);
-            await waitForPaint();
 
             return null;
         }
@@ -382,8 +386,8 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
 
 function showConversionNotFoundPopup(fromFormat: string, toFormat: string) {
     showAlertPopup(
-        "Congratulations! You found a missing feature 🔎",
-        `<b>${fromFormat}</b> to <b>${toFormat}</b> isn't available right now \u2014 but more formats are on the way!<br><span class="muted-text">Try picking a different format, there's loads to choose from!</span>`,
+        "You found a missing feature 🔎",
+        `<b>${fromFormat}</b> to <b>${toFormat}</b> isn't available right now, but more formats are on the way!`,
     );
 }
 
@@ -492,15 +496,20 @@ export function initConvertButton() {
 
                 if (!result) {
                     if (isCancelled) break;
+                    removeCancelButton(); // Restore "no cancel during warm-up" invariant before retry search
                     // Path failed (dead end) — find the next best path and retry once.
-                    conversionPath = await findConversionPath(inputOption, outputOption);
+                    // Preserve dead ends so the same broken path isn't rediscovered.
+                    conversionPath = await findConversionPath(inputOption, outputOption, true);
                     if (!conversionPath) {
+                        if (isCancelled) break;
+                        removeCancelButton();
                         showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
                         return;
                     }
                     result = await attemptConvertPath([inputFileData[i]], conversionPath, batchMsg);
                     if (!result) {
                         if (isCancelled) break;
+                        removeCancelButton();
                         showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
                         return;
                     }

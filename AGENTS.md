@@ -30,7 +30,70 @@ bun run mcp
 
 3. **`convert_file`**
    - **Arguments**: `fileName`, `base64Bytes`, `inputMime`, `inputExtension`, `outputMime`, `outputExtension`
-   - **Description**: The core execution tool. It accepts a Base64 encoded string of the file buffer, automatically routes it through the necessary handler chain, and returns the converted Base64 encoded bytes. 
+   - **Description**: The core execution tool. Accepts a Base64 encoded file buffer, routes it through the handler chain, and returns all output files.
+   - **Returns**: A JSON string (inside a `text` content block) that parses to an array of output files:
+     ```json
+     [{ "fileName": "output.png", "base64Bytes": "<base64>" }]
+     ```
+     The array contains multiple entries when a conversion produces multiple output files (e.g. a multi-page PDF split into individual images).
+
+---
+
+## 🌐 Using frogConvert via REST API
+
+A local HTTP REST API is also available as an alternative to MCP — useful for shell scripts, curl, or any HTTP client.
+
+### Starting the Server
+```bash
+bun run api
+```
+*(This executes `bun src/api/index.ts` and binds to `http://127.0.0.1:3000`)*
+
+Set `PORT` env var to override the port: `PORT=8080 bun run api`
+
+### Endpoints
+
+#### `GET /health`
+Returns server status and loaded handler names.
+```json
+{ "status": "ok", "handlers": ["FFmpeg", "ImageMagick", ...] }
+```
+
+#### `GET /formats`
+Returns all supported formats (same data as `list_formats` MCP tool).
+```json
+[{ "name": "...", "mime": "...", "extension": "...", "handler": "...", "canRead": true, "canWrite": false }]
+```
+
+#### `GET /path?inputMime=&inputExt=&outputMime=&outputExt=`
+Finds the conversion path between two formats.
+```json
+{ "path": [{ "handler": "FFmpeg", "mime": "image/jpeg", "extension": "jpeg", "format": "jpeg" }, ...] }
+```
+Returns `404` with `{ "error": "..." }` if no path exists.
+
+#### `POST /convert`
+
+**Option A — multipart/form-data** (easiest for curl):
+```bash
+curl -X POST http://127.0.0.1:3000/convert \
+  -F 'file=@input.jpg' \
+  -F 'outputMime=image/png' \
+  -F 'outputExt=png' \
+  -o output.png
+```
+- Input MIME/extension are auto-detected from the uploaded filename.
+- Response: raw binary with `Content-Disposition: attachment; filename="..."` header.
+
+**Option B — application/json**:
+```bash
+curl -X POST http://127.0.0.1:3000/convert \
+  -H 'Content-Type: application/json' \
+  -d '{"fileName":"input.jpg","base64Bytes":"...","inputMime":"image/jpeg","inputExt":"jpg","outputMime":"image/png","outputExt":"png"}'
+```
+- Response: `[{ "fileName": "output.png", "base64Bytes": "<base64>" }]` (array supports multi-file outputs)
+
+Returns `400` on bad input, `422` if no path found, `500` on conversion failure.
 
 ---
 
@@ -83,13 +146,22 @@ src/
 ├── workers/
 │   ├── conversion.worker.ts    # Executes handler conversions in a background thread
 │   └── route-search.worker.ts  # Runs Dijkstra pathfinding in a background thread
-└── mcp/                    # MCP Server implementation
-    ├── index.ts            # Entry point for `bun run mcp`
-    ├── core/
-    │   ├── handlers.ts     # The Node.js compatible handler registry
-    │   └── polyfills.ts    # Fetch polyfills for loading WASM locally
-    └── tools/              # Tool execution logic
-        ├── convertFile.ts
-        ├── findConversionPath.ts
-        └── listFormats.ts
+├── mcp/                    # MCP Server (stdio) — `bun run mcp`
+│   ├── index.ts            # Entry point
+│   ├── core/
+│   │   ├── handlers.ts     # Node.js-compatible handler registry (shared with API)
+│   │   ├── polyfills.ts    # Fetch polyfills for loading WASM locally (shared with API)
+│   │   └── utils.ts        # findFormatAndHandler() helper (shared with API)
+│   └── tools/              # MCP tool registrations
+│       ├── convertFile.ts
+│       ├── findConversionPath.ts
+│       └── listFormats.ts
+└── api/                    # Local HTTP REST API — `bun run api`
+    ├── index.ts            # Entry point (Bun.serve on 127.0.0.1:3000)
+    └── routes/
+        ├── formats.ts      # GET /formats
+        ├── path.ts         # GET /path
+        └── convert.ts      # POST /convert
 ```
+
+> **Note:** `batToExeHandler` is excluded from both MCP and REST API because it uses Vite-specific `?url` binary imports that are incompatible with Node.js/Bun direct execution. It remains available in the browser web UI.

@@ -176,8 +176,9 @@ function replaceFileAtIndex(index: number) {
     const newFile = tempInput.files?.[0];
     if (!newFile) return;
 
-    if (currentFiles.value.length > 0 && newFile.type !== currentFiles.value[0].type) {
-      const expected = friendlyMimeLabel(currentFiles.value[0].type);
+    const referenceFile = currentFiles.value.find((_, i) => i !== index);
+    if (referenceFile && newFile.type !== referenceFile.type) {
+      const expected = friendlyMimeLabel(referenceFile.type);
       const isPlural = currentFiles.value.length > 1;
       const label = isPlural ? `${expected}s` : expected;
       showFilesModalError(`This file doesn’t match your current ${label}. Please only upload files of the same format.`);

@@ -12,7 +12,7 @@ Compared to the original `Convert to it!`, frogConvert focuses on frontend impro
 - **File Management & Uploads:** Introduced a new file management feature and set limits on maximum file uploads to prevent crashes and improve stability.
 - **Format Mode (Core / Plus / All):** Three-tier filter for the format picker — Core shows common everyday formats, Plus adds data, font, and extra media formats, All shows every supported format.
 - **Partial Download support:** If you cancel a large batch conversion, frogConvert now offers to download the files that have already finished processing.
-- **MCP (Model Context Protocol) Integration:** Built-in MCP server interface allowing AI agents to easily discover formats, analyze conversion paths, and utilize the app's core capabilities.
+- **MCP + REST API for AI Agents:** Built-in MCP server (`bun run mcp`) and local HTTP REST API (`bun run api`) exposing the full conversion engine to AI agents and scripts — all processing is local, no external network calls. See `AGENTS.md` for usage.
 - **Web Worker Performance:** Heavy conversion tasks and pathfinding run in background Web Workers, keeping the UI fully responsive even during complex, multi-step conversions.
 - **Robust Engineering Foundation:** Refactored the codebase with centralized modal management, base handler classes, and a full vitest + Puppeteer E2E test suite.
 
@@ -92,7 +92,7 @@ The first Docker build is expected to be slow because Chromium and related syste
 > - **Build system**: The original uses `npm`/`tsx`; frogConvert uses [Bun](https://bun.sh/) exclusively (`bun install`, `bun run dev`, `bun run test`).
 > - **Handler interface**: The `FormatHandler` interface is extended with an optional `requiresMainThread` flag that controls whether a handler runs in a Web Worker or on the main thread. See details below.
 > - **Testing**: The original has no automated tests. frogConvert adds a full vitest unit test suite (jsdom) and Puppeteer E2E tests in `test/e2e/`.
-> - **MCP server**: Entirely new in frogConvert — see `AGENTS.md` for usage.
+> - **MCP server + REST API**: Entirely new in frogConvert — see `AGENTS.md` for full usage documentation.
 > - **Everything else** (handler pattern, `doConvert`, `FileFormat`, `CommonFormats`, graph algorithm) is structurally identical to the original.
 
 The best way to contribute is by adding support for new file formats (duh). Here's how that works:

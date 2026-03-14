@@ -45,7 +45,8 @@ The codebase is organized as a vanilla TypeScript Vite project. Here are the mos
   - **`store/`**: Lightweight reactive wrappers storing shared state (active files, UI references, `formatMode`, `isCategoryVisible`, `isFormatVisible`, `updateScrollLock`).
   - **`utils.ts`**: Shared utilities — `escapeHTML`, `formatBytes`, `shortenFileName`, `ensureMinDuration`.
   - **`utils/ModalManager.ts`**: Centralized open/close lifecycle for all modals.
-- **`src/mcp/`**: Model Context Protocol integration. This allows frogConvert's engine to be exposed to connected AI assistants as a suite of external tools securely.
+- **`src/mcp/`**: MCP server (stdio) — `bun run mcp`. Exposes `list_formats`, `find_conversion_path`, `convert_file` tools to AI agents via Model Context Protocol.
+- **`src/api/`**: Local HTTP REST API — `bun run api`. Same conversion engine exposed over HTTP on `127.0.0.1:3000`. See `AGENTS.md` for endpoint details.
 - **`test/`**:
   - `e2e/`: Puppeteer end-to-end tests ensuring heavy UI flows and workers do not break.
 
@@ -125,13 +126,31 @@ Avoid `document.querySelector` inside components. Use the centralized `ui` objec
 
 ---
 
-## 6. Model Context Protocol (MCP)
+## 6. Programmatic Interfaces (MCP + REST API)
 
-This project functions dual-purpose as both a Web App and an MCP Toolset (`src/mcp/`). 
-The MCP Server allows AI Assistants to:
-- Detect formats of local files.
-- Execute the full conversion engine programmatically.
-- It uses specific polyfills (`src/mcp/core/polyfills.ts`) to simulate a browser environment for handlers that are mostly pure but touch minor browser globals.
+frogConvert exposes its conversion engine via two server-side interfaces, both running entirely locally — no external network calls or cloud services.
+
+### MCP Server (`src/mcp/`) — `bun run mcp`
+Speaks [Model Context Protocol](https://modelcontextprotocol.io/) over `stdio`. Ideal for AI assistants and agent frameworks that support MCP natively.
+
+Three tools are exposed:
+- **`list_formats`** — Returns JSON array of all supported formats with `canRead`/`canWrite` flags.
+- **`find_conversion_path`** — Returns a human-readable path string (e.g. `FFmpeg (audio/wav) -> pandoc (document/csv)`) for any input→output pair.
+- **`convert_file`** — Accepts `{fileName, base64Bytes, inputMime, inputExtension, outputMime, outputExtension}`. Returns a JSON string (inside a `text` content block) that parses to `[{fileName, base64Bytes}]` — array to support multi-file outputs.
+
+### REST API (`src/api/`) — `bun run api`
+HTTP server bound to `127.0.0.1:3000` (override with `PORT=` env var). Ideal for shell scripts, curl, or any HTTP client.
+
+Endpoints:
+- `GET /health` — Server status + handler list.
+- `GET /formats` — All supported formats.
+- `GET /path?inputMime=&inputExt=&outputMime=&outputExt=` — Conversion path as structured JSON.
+- `POST /convert` — Accepts `multipart/form-data` (returns binary) or `application/json` with base64 (returns `[{fileName, base64Bytes}]`).
+
+### Shared Infrastructure
+Both interfaces share `src/mcp/core/polyfills.ts` (browser globals for WASM), `src/mcp/core/handlers.ts` (`loadMcpHandlers()`), and `src/mcp/core/utils.ts` (`findFormatAndHandler()` with direction validation).
+
+> **Handler exclusion**: `batToExeHandler` is excluded (Vite `?url` imports incompatible with Node.js). Handlers with `requiresMainThread = true` (Canvas, AudioContext, WebGL) are also excluded.
 
 ---
 

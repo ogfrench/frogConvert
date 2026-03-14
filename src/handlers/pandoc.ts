@@ -208,7 +208,7 @@ class pandocHandler implements FormatHandler {
         mime: mimeType,
         from: inputFormats.includes(internal),
         to: outputFormats.includes(internal),
-        internal: format,
+        internal,
         category: categories.length === 1 ? categories[0] : categories,
         lossless: !isOfficeDocument
       });

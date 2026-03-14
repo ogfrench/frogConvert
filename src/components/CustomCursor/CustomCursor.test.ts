@@ -23,5 +23,6 @@ describe("CustomCursor Component", () => {
         cursor = document.getElementById("custom-cursor");
         expect(cursor).not.toBeNull();
         expect(cursor?.tagName.toLowerCase()).toBe("div");
+        expect(document.documentElement.classList.contains("custom-cursor-active")).toBe(true);
     });
 });

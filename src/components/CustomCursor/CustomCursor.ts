@@ -10,6 +10,7 @@ export function initCustomCursor() {
     glow.className = "cursor-glow";
     cursor.appendChild(glow);
 
+    document.documentElement.classList.add("custom-cursor-active");
     document.body.appendChild(cursor);
 
     let mouseX = -100;

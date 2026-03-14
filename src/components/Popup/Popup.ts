@@ -58,10 +58,10 @@ export function showAlertPopup(
   p.innerHTML = messageHTML;
 
   const actions = document.createElement("div");
-  actions.className = "popup-actions";
+  actions.className = "popup-actions-footer";
   actions.appendChild(createPopupButton(buttonText, "btn-primary", () => hidePopup()));
 
-  showPopup([h2, p, actions]);
+  replacePopup([h2, p, actions]);
 }
 
 export function showSizeWarningPopup(

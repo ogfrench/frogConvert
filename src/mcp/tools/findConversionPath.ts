@@ -16,14 +16,14 @@ export function registerFindConversionPathTool(server: McpServer, handlers: Form
             outputExtension: z.string().describe("Output file extension (e.g. png)")
         },
         async ({ inputMime, inputExtension, outputMime, outputExtension }) => {
-            const inputMatch = findFormatAndHandler(handlers, inputMime, inputExtension);
-            const outputMatch = findFormatAndHandler(handlers, outputMime, outputExtension);
+            const inputMatch = findFormatAndHandler(handlers, inputMime, inputExtension, 'from');
+            const outputMatch = findFormatAndHandler(handlers, outputMime, outputExtension, 'to');
 
             if (!inputMatch) {
-                return { content: [{ type: "text", text: `Error: Input format ${inputMime} (${inputExtension}) not found or supported.` }] };
+                return { content: [{ type: "text", text: `Error: Input format ${inputMime} (${inputExtension}) not found or supported.` }], isError: true };
             }
             if (!outputMatch) {
-                return { content: [{ type: "text", text: `Error: Output format ${outputMime} (${outputExtension}) not found or supported.` }] };
+                return { content: [{ type: "text", text: `Error: Output format ${outputMime} (${outputExtension}) not found or supported.` }], isError: true };
             }
 
             const { format: fromFormat, handler: fromHandler } = inputMatch;
@@ -37,7 +37,7 @@ export function registerFindConversionPathTool(server: McpServer, handlers: Form
 
             const pathResult = await pathsGenerator.next();
             if (pathResult.done || !pathResult.value) {
-                return { content: [{ type: "text", text: `No path found between ${inputMime} and ${outputMime}` }] };
+                return { content: [{ type: "text", text: `No path found between ${inputMime} and ${outputMime}` }], isError: true };
             }
 
             const pathText = pathResult.value.map((p: any) => `${p.handler.name} (${p.format.mime})`).join(" -> ");

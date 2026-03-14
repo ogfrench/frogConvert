@@ -2,21 +2,25 @@ import type { FormatHandler, FileFormat } from "../../core/FormatHandler/FormatH
 
 /**
  * Finds the corresponding FormatHandler and FileFormat for a given mime type and extension.
- * 
+ *
  * @param handlers - Array of supported FormatHandlers
  * @param mime - The requested MIME type
  * @param extension - The requested file extension
+ * @param direction - Optional: 'from' requires the format to support reading, 'to' requires writing
  * @returns An object containing the format and handler if found, otherwise undefined.
  */
 export function findFormatAndHandler(
     handlers: FormatHandler[],
     mime: string,
-    extension: string
+    extension: string,
+    direction?: 'from' | 'to'
 ): { format: FileFormat; handler: FormatHandler } | undefined {
     for (const h of handlers) {
         if (!h.supportedFormats) continue;
         for (const f of h.supportedFormats) {
             if (f.mime === mime && (f.extension === extension || f.format === extension)) {
+                if (direction === 'from' && !f.from) continue;
+                if (direction === 'to' && !f.to) continue;
                 return { format: f, handler: h };
             }
         }

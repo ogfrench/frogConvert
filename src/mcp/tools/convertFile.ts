@@ -18,11 +18,14 @@ export function registerConvertFileTool(server: McpServer, handlers: FormatHandl
             outputExtension: z.string().describe("Output format extension")
         },
         async ({ fileName, base64Bytes, inputMime, inputExtension, outputMime, outputExtension }) => {
-            const inputMatch = findFormatAndHandler(handlers, inputMime, inputExtension);
-            const outputMatch = findFormatAndHandler(handlers, outputMime, outputExtension);
+            const inputMatch = findFormatAndHandler(handlers, inputMime, inputExtension, 'from');
+            const outputMatch = findFormatAndHandler(handlers, outputMime, outputExtension, 'to');
 
-            if (!inputMatch || !outputMatch) {
-                return { content: [{ type: "text", text: `Error: Could not find matching formats.` }], isError: true };
+            if (!inputMatch) {
+                return { content: [{ type: "text", text: `Error: Input format ${inputMime} (${inputExtension}) not found or not readable.` }], isError: true };
+            }
+            if (!outputMatch) {
+                return { content: [{ type: "text", text: `Error: Output format ${outputMime} (${outputExtension}) not found or not writable.` }], isError: true };
             }
 
             const { format: fromFormat, handler: fromHandler } = inputMatch;
@@ -54,15 +57,15 @@ export function registerConvertFileTool(server: McpServer, handlers: FormatHandl
                     currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat);
                 }
 
-                const outBase64 = Buffer.from(currentFiles[0].bytes).toString('base64');
+                const results = currentFiles.map(f => ({
+                    fileName: f.name,
+                    base64Bytes: Buffer.from(f.bytes).toString('base64')
+                }));
 
                 return {
                     content: [{
                         type: "text",
-                        text: JSON.stringify({
-                            fileName: currentFiles[0].name,
-                            base64Bytes: outBase64
-                        })
+                        text: JSON.stringify(results)
                     }]
                 };
 

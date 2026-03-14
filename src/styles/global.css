@@ -239,10 +239,7 @@ html.scroll-lock {
 
 /* Hide default cursor globally on desktop devices */
 @media (pointer: fine) {
-
-  *,
-  *::before,
-  *::after {
+  html.custom-cursor-active * {
     cursor: none !important;
   }
 }

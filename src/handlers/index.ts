@@ -3,6 +3,7 @@ import type { FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 // --- Core handlers (statically imported, included in main bundle) ---
 import canvasToBlobHandler from "./canvasToBlob.ts";
 import pdftoimgHandler from "./pdftoimg.ts";
+import pdftotxtHandler from "./pdftotxt.ts";
 import svgTraceHandler from "./svgTrace.ts";
 import envelopeHandler from "./envelope.ts";
 import jszipHandler from "./jszip.ts";
@@ -14,6 +15,7 @@ const handlers: FormatHandler[] = [];
 try { handlers.push(new svgTraceHandler()) } catch (_) { };
 try { handlers.push(new canvasToBlobHandler()) } catch (_) { };
 try { handlers.push(new pdftoimgHandler()) } catch (_) { };
+try { handlers.push(new pdftotxtHandler()) } catch (_) { };
 try { handlers.push(new envelopeHandler()) } catch (_) { };
 try { handlers.push(new jszipHandler()) } catch (_) { };
 try { handlers.push(new fromJsonHandler()) } catch (_) { };
@@ -52,6 +54,7 @@ export async function loadBackgroundHandlers() {
     async () => { const m = await import("./libopenmpt.ts"); handlers.push(new m.default()); },
     async () => { const m = await import("./midi.ts"); handlers.push(new m.midiCodecHandler(), new m.midiSynthHandler()); },
     async () => { const m = await import("./lzh.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./tar.ts"); handlers.push(new m.default()); },
     async () => { const m = await import("./wad.ts"); handlers.push(new m.default()); },
     async () => { const m = await import("./textToGo.ts"); handlers.push(new m.default()); },
     async () => { const m = await import("./txtToInfiniteCraft.ts"); handlers.push(new m.default()); },
