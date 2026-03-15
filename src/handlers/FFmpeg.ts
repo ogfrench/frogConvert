@@ -10,6 +10,7 @@ import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 class NativeFFmpegAdapter {
   #logCallback: (log: { message: string }) => void = () => { };
   #tempDir: string = "";
+  #ffmpegBinary: string = "ffmpeg";
 
   async load() {
     const fsName = "fs/promises";
@@ -23,12 +24,32 @@ class NativeFFmpegAdapter {
     const { spawn } = await import(/* @vite-ignore */ cpName);
 
     this.#tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "ffmpeg-node-"));
-    // check if ffmpeg is available
-    await new Promise((resolve, reject) => {
-      const p = spawn("ffmpeg", ["-version"]);
-      p.on("close", (code: number) => code === 0 ? resolve(true) : reject("ffmpeg native binary not found in system PATH. Install ffmpeg on the host machine."));
+
+    const tryBinary = (bin: string) => new Promise<void>((resolve, reject) => {
+      const p = spawn(bin, ["-version"]);
+      p.on("close", (code: number) => code === 0 ? resolve() : reject());
       p.on("error", reject);
     });
+
+    // Tier 1: native ffmpeg in system PATH
+    try {
+      await tryBinary("ffmpeg");
+      this.#ffmpegBinary = "ffmpeg";
+      return;
+    } catch { /* fall through */ }
+
+    // Tier 2: ffmpeg-static bundled binary
+    try {
+      const { default: staticPath } = await import(/* @vite-ignore */ 'ffmpeg-static') as { default: string };
+      if (staticPath) {
+        await tryBinary(staticPath);
+        this.#ffmpegBinary = staticPath;
+        console.warn("[FFmpeg] Native ffmpeg not found in PATH — using bundled ffmpeg-static. Some codecs (e.g. H.264, AAC) may be unavailable. Install ffmpeg for full support: https://ffmpeg.org/download.html");
+        return;
+      }
+    } catch { /* fall through */ }
+
+    throw "ffmpeg not available. Install ffmpeg: https://ffmpeg.org/download.html";
   }
 
   on(event: string, cb: any) {
@@ -43,7 +64,7 @@ class NativeFFmpegAdapter {
     const cpName = "child_process";
     const { spawn } = await import(/* @vite-ignore */ cpName);
     return new Promise((resolve, reject) => {
-      const p = spawn("ffmpeg", args, { cwd: this.#tempDir });
+      const p = spawn(this.#ffmpegBinary, args, { cwd: this.#tempDir });
 
       p.stdout.on("data", (data: any) => {
         const msg = data.toString();

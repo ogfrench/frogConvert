@@ -38,6 +38,36 @@ bunx frogconvert api
 
 ---
 
+## Prerequisites
+
+**Most formats work out of the box.** For audio/video conversion (MP3, MP4, WAV, GIF, etc.) frogConvert uses a three-tier FFmpeg fallback:
+
+| Tier | Source | Codec support | Setup |
+|------|--------|--------------|-------|
+| 1 | Native `ffmpeg` in system PATH | Full (H.264, AAC, HEVC, HW accel…) | Install manually |
+| 2 | Bundled `ffmpeg-static` binary | Most common codecs | **None — automatic** |
+| 3 | `@ffmpeg/ffmpeg` WASM | Basic codecs | None — automatic |
+
+Tier 2 activates automatically with a console warning if native `ffmpeg` is not installed. Tier 3 is a last resort.
+
+**For best results, install native ffmpeg:**
+
+```bash
+# macOS
+brew install ffmpeg
+
+# Ubuntu / Debian
+sudo apt install ffmpeg
+
+# Windows (winget)
+winget install ffmpeg
+
+# Windows (chocolatey)
+choco install ffmpeg
+```
+
+---
+
 ## 🚀 Using frogConvert via MCP
 
 The local MCP server wraps frogConvert's complex graph-based routing engine into three easy-to-use tools over a standard `stdio` interface.

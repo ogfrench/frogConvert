@@ -83,7 +83,8 @@ Object.defineProperty(globalThis, 'fetch', {
             if (sourcePath) {
                 const fs = await import('fs');
                 // Resolve relative to the package root (src/mcp/core/ → src/mcp/ → src/ → pkgRoot)
-                const pkgRoot = path.join(import.meta.dir, '../../..');
+                const { fileURLToPath: _fileURLToPath } = await import('url');
+                const pkgRoot = path.resolve(path.dirname(_fileURLToPath(import.meta.url)), '../../..');
 
                 // For node_modules paths, walk UP the directory tree to find the actual
                 // location. This handles both nested installs (local repo, Bun cache) and
