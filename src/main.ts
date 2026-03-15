@@ -205,12 +205,14 @@ function refreshUI() {
 
 (async () => {
   // Load cache: localStorage → cache.json → nothing (cold start)
-  let isColdStart = true;
+  let hasCache = false;
+  let hasLocalStorageCache = false;
   try {
     const stored = localStorage.getItem("supportedFormatCache");
     if (stored) {
       window.supportedFormatCache = new Map(JSON.parse(stored));
-      isColdStart = false;
+      hasCache = true;
+      hasLocalStorageCache = true;
     } else {
       throw "No localStorage cache";
     }
@@ -218,7 +220,7 @@ function refreshUI() {
     try {
       const cacheJSON = await fetch("cache.json", { signal: AbortSignal.timeout(5000) }).then(r => r.json());
       window.supportedFormatCache = new Map(cacheJSON);
-      isColdStart = false;
+      hasCache = true;
     } catch {
       console.info(
         "Missing supported format precache.\n\n" +
@@ -227,12 +229,13 @@ function refreshUI() {
     }
   }
 
-  if (!isColdStart) {
+  if (hasCache) {
     // Warm load: populate format list from cache instantly, no handler.init() needed
     populateFromCache(handlers);
     refreshUI();
-  } else {
-    // Cold start: show thin top bar while handlers initialize (lives through Phase 1 + Phase 2)
+  }
+  if (!hasLocalStorageCache) {
+    // Show loading bar whenever localStorage is empty (cold start or cache.json fallback)
     showLoadingBar(true);
   }
 

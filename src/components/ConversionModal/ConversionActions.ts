@@ -24,7 +24,8 @@ import {
     removeCancelButton,
     replacePopup,
     formatMode,
-    isFormatVisible
+    isFormatVisible,
+    CATEGORY_LABELS
 } from "../index.ts";
 import { shortenFileName, ensureMinDuration } from "../utils.ts";
 
@@ -253,22 +254,28 @@ async function runInWorker(handlerName: string, inputFiles: FileData[], inputFor
             cleanup();
             reject(new Error(`Conversion worker crashed: ${err.message}`));
         };
-        const transferables = inputFiles.map(f => f.bytes.buffer).filter(b => b.byteLength > 0);
-        worker.postMessage({ id, handlerName, inputFiles, inputFormat, outputFormat, args }, transferables);
+        // Copy bytes before transferring — originals must remain usable if this path fails and another is retried
+        const inputCopies = inputFiles.map(f => ({ ...f, bytes: f.bytes.slice() }));
+        const transferables = inputCopies.map(f => f.bytes.buffer).filter(b => b.byteLength > 0);
+        worker.postMessage({ id, handlerName, inputFiles: inputCopies, inputFormat, outputFormat, args }, transferables);
     });
 }
 
 // --- Conversion logic helpers ---
 
-async function preInitPath(path: ConvertPathNode[]) {
+async function preInitPath(path: ConvertPathNode[], onProgress?: (outputFormat: FileFormat) => void) {
     for (let i = 0; i < path.length - 1; i++) {
+        if (isCancelled) return;
         const handler = path[i + 1].handler;
         if (!handler.ready) {
+            const downloadStart = performance.now();
+            onProgress?.(path[i + 1].format);
             try {
                 await handler.init();
                 if (handler.supportedFormats) {
                     window.supportedFormatCache.set(handler.name, handler.supportedFormats);
                 }
+                await ensureMinDuration(downloadStart, 500);
             } catch (e) {
                 // Swallow — attemptConvertPath retries init and handles failures
             }
@@ -278,7 +285,6 @@ async function preInitPath(path: ConvertPathNode[]) {
 
 /**
  * Warming-up phase: finds the best conversion path and pre-initialises all handlers.
- * No cancel button is shown during this phase.
  * Returns the path, or null if no conversion route exists.
  */
 async function findConversionPath(
@@ -288,7 +294,7 @@ async function findConversionPath(
 ): Promise<ConvertPathNode[] | null> {
     if (!preserveDeadEnds) window.traversionGraph.clearDeadEndPaths();
 
-    const warmingMsg = `Warming up the engines...<br><span class="conversion-path">getting ready to convert</span>`;
+    const warmingMsg = `Warming up the engines...<br><span class="conversion-path">finding the best conversion route</span>`;
     showConversionInProgress(warmingMsg, _convertingTitle);
 
     const searchListener = (state: string, _path: ConvertPathNode[]) => {
@@ -310,7 +316,14 @@ async function findConversionPath(
             }
 
             await ensureMinDuration(searchStartTime, 1000);
-            await preInitPath(path);
+            await preInitPath(path, (outputFormat) => {
+                const cat = Array.isArray(outputFormat.category) ? outputFormat.category[0] : outputFormat.category;
+                const label = (cat && CATEGORY_LABELS[cat]) ? CATEGORY_LABELS[cat].toLowerCase() : "file";
+                showConversionInProgress(
+                    `Downloading the ${label} converter...<br><span class="conversion-path">this happens once and may take a moment</span>`,
+                    _convertingTitle,
+                );
+            });
             if (isCancelled) return null;
 
             return path;
@@ -324,10 +337,13 @@ async function findConversionPath(
 async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], batchMsg?: string) {
     const pathString = path.map(c => c.format.format).join(" \u2192 ");
 
-    // Show cancel button immediately, but don't reveal the path string yet —
-    // we only display it after the first step succeeds to avoid misleading flashes
-    // when a path turns out to be broken.
     ensureCancelButton();
+
+    // Show status + path immediately — path is already validated by findConversionPath
+    const messageHTML = batchMsg
+        ? `${batchMsg}<br><span class="muted-text">${pathString}</span>`
+        : `<span class="conversion-path">${pathString}</span>`;
+    showConversionInProgress(messageHTML, _convertingTitle);
 
     for (let i = 0; i < path.length - 1; i++) {
         if (isCancelled) return null;
@@ -360,14 +376,6 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
             await waitForPaint();
             files = outputFiles;
             if (files.some(c => !c.bytes.length)) throw "Output is empty.";
-
-            // Reveal the path only after the first step confirms conversion is working
-            if (i === 0) {
-                const messageHTML = batchMsg
-                    ? `${batchMsg}<br><span class="muted-text">${pathString}</span>`
-                    : `<span class="conversion-path">${pathString}</span>`;
-                showConversionInProgress(messageHTML, _convertingTitle);
-            }
         } catch (e) {
             if (isCancelled) return null;
             console.log(path.map(c => c.format.format));
@@ -432,13 +440,12 @@ export function initConvertButton() {
             const conversionStartTime = performance.now();
             resetCancellation();
 
-            const convertingTitle = fileCount > 1 ? "Converting your files" : "Converting your file";
-            _convertingTitle = convertingTitle;
+            _convertingTitle = `Converting your ${fileCount > 1 ? "files" : "file"}`;
 
             await waitForPaint();
 
             const startupStartTime = performance.now();
-            showConversionInProgress("Warming up the engines...<br><span class=\"conversion-path\">getting ready to convert</span>", convertingTitle);
+            showConversionInProgress(`Reading your ${fileCount > 1 ? "files" : "file"}...<br><span class="conversion-path">getting ready to convert</span>`, _convertingTitle);
             await waitForPaint();
 
             const inputFileData: FileData[] = [];
@@ -477,7 +484,9 @@ export function initConvertButton() {
 
             await waitForPaint();
 
-            // Find the conversion path once during warming-up (no cancel button yet).
+            ensureCancelButton();
+
+            // Find the conversion path during warming-up (cancel is now available).
             let conversionPath = await findConversionPath(inputOption, outputOption);
             if (!conversionPath) {
                 if (isCancelled) return;
@@ -488,9 +497,8 @@ export function initConvertButton() {
             const conversionLoopStartTime = performance.now();
             for (let i = 0; i < inputFileData.length; i++) {
                 if (isCancelled) break;
-                const batchMsg = inputFileData.length > 1
-                    ? `Converting file ${i + 1 + (fileCount - inputFileData.length)} of ${fileCount}...`
-                    : undefined;
+                const fileNum = i + 1 + (fileCount - inputFileData.length);
+                const batchMsg = `Converting file ${fileNum} of ${fileCount}...`;
 
                 let result = await attemptConvertPath([inputFileData[i]], conversionPath, batchMsg);
 
