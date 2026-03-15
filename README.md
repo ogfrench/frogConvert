@@ -12,7 +12,7 @@ Compared to the original `Convert to it!`, frogConvert focuses on frontend impro
 - **File Management & Uploads:** Introduced a new file management feature and set limits on maximum file uploads to prevent crashes and improve stability.
 - **Format Mode (Core / Plus / All):** Three-tier filter for the format picker — Core shows common everyday formats, Plus adds data, font, and extra media formats, All shows every supported format.
 - **Partial Download support:** If you cancel a large batch conversion, frogConvert now offers to download the files that have already finished processing.
-- **MCP + REST API for AI Agents:** Built-in MCP server (`bun run mcp`) and local HTTP REST API (`bun run api`) exposing the full conversion engine to AI agents and scripts — all processing is local, no external network calls. See `AGENTS.md` for usage.
+- **MCP + REST API for AI Agents:** Built-in MCP server and local HTTP REST API exposing the full conversion engine to AI agents and scripts — all processing is local, no external network calls. Run without cloning: `bunx frogconvert mcp` / `bunx frogconvert api`. See `AGENTS.md` for full usage.
 - **Web Worker Performance:** Heavy conversion tasks and pathfinding run in background Web Workers, keeping the UI fully responsive even during complex, multi-step conversions.
 - **Robust Engineering Foundation:** Refactored the codebase with centralized modal management, base handler classes, and a full vitest + Puppeteer E2E test suite.
 - **Frogsworth:** A desktop Easter egg mascot in the bottom-right corner. Click the frog for context-aware quips about your chosen file formats. Lazy-loaded at idle priority — zero impact on startup performance.
@@ -50,6 +50,32 @@ For a semi-technical overview of the original tool, check out this video: https:
 
 ## Deployment
 > _The deployment steps below are adapted from the [original README](https://github.com/p2r3/convert#readme), updated for this fork's repository URL._
+
+### MCP Server / REST API — No Repo Clone Required
+
+The MCP server and REST API can be run directly via `bunx` — no clone or install needed. Requires [Bun](https://bun.sh/).
+
+**MCP server** (add to `~/.claude.json` or `claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "frogconvert": {
+      "command": "bunx",
+      "args": ["frogconvert", "mcp"]
+    }
+  }
+}
+```
+
+**REST API:**
+```bash
+bunx frogconvert api
+# PORT=8080 bunx frogconvert api
+```
+
+See [AGENTS.md](docs/AGENTS.md) for full API documentation and tool reference.
+
+> **First-run note:** The npm package bundles `pandoc.wasm` (~58 MB uncompressed, ~12 MB compressed download) for document conversion. `bunx` caches this after the first run.
 
 ### Local development (Bun + Vite)
 

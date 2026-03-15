@@ -6,6 +6,38 @@ Instead of interacting with the frontend web UI, **agents should always use the 
 
 ---
 
+## ⚡ Quick Start — No Repo Clone Required
+
+The easiest way to use frogConvert as an MCP server or REST API is directly via `bunx` — no clone or install needed. Requires [Bun](https://bun.sh/).
+
+### MCP Server (for Claude Code / Claude Desktop)
+
+Add this to your MCP config (`~/.claude.json` or `claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "frogconvert": {
+      "command": "bunx",
+      "args": ["frogconvert", "mcp"]
+    }
+  }
+}
+```
+
+### REST API Server
+
+```bash
+bunx frogconvert api
+# Optional: PORT=8080 bunx frogconvert api
+```
+
+> **Privacy:** All file processing is 100% local. No files are ever sent to any remote server.
+
+> **Note:** The REST API uses `Bun.serve()` and requires Bun. It will not work with `npx` (Node.js).
+
+---
+
 ## 🚀 Using frogConvert via MCP
 
 The local MCP server wraps frogConvert's complex graph-based routing engine into three easy-to-use tools over a standard `stdio` interface.
@@ -16,6 +48,11 @@ Start the MCP server locally with:
 bun run mcp
 ```
 *(This executes `bun src/mcp/index.ts`)*
+
+Or without cloning the repo:
+```bash
+bunx frogconvert mcp
+```
 
 ### Exposed MCP Tools
 
@@ -48,6 +85,11 @@ A local HTTP REST API is also available as an alternative to MCP — useful for 
 bun run api
 ```
 *(This executes `bun src/api/index.ts` and binds to `http://127.0.0.1:3000`)*
+
+Or without cloning the repo:
+```bash
+bunx frogconvert api
+```
 
 Set `PORT` env var to override the port: `PORT=8080 bun run api`
 
@@ -111,7 +153,7 @@ The web application of frogConvert chains handlers that might rely on browser AP
 **The MCP server (`src/mcp/index.ts`) runs in Node.js.** Therefore:
 1. The MCP registry (`src/mcp/core/handlers.ts`) **strictly excludes** browser-only handlers.
 2. Only handlers capable of running purely in Node.js or via Node-compatible WASM (like `FFmpegHandler` and `ImageMagickHandler`) are registered.
-3. WASM asset `fetch` calls are polyfilled (`src/mcp/core/polyfills.ts`) to read local files from the repository (`node_modules` or `src/`) instead of relying on a development server URL.
+3. WASM asset `fetch` calls are polyfilled (`src/mcp/core/polyfills.ts`) to read local files from the package root (`node_modules` or `src/`) instead of relying on a development server URL. Paths are resolved relative to `import.meta.dir` so this works both from the repo and when installed via `bunx`/npm.
 
 ### Adding a New Handler
 If asked to add support for a new format:

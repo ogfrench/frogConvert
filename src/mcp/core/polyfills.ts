@@ -82,7 +82,29 @@ Object.defineProperty(globalThis, 'fetch', {
 
             if (sourcePath) {
                 const fs = await import('fs');
-                const fullPath = path.join(process.cwd(), sourcePath);
+                // Resolve relative to the package root (src/mcp/core/ → src/mcp/ → src/ → pkgRoot)
+                const pkgRoot = path.join(import.meta.dir, '../../..');
+
+                // For node_modules paths, walk UP the directory tree to find the actual
+                // location. This handles both nested installs (local repo, Bun cache) and
+                // hoisted/flat installs (bunx temp dir) where deps are siblings of the package,
+                // not children. This mirrors how Node.js module resolution works.
+                let fullPath: string;
+                if (sourcePath.startsWith('node_modules/')) {
+                    const moduleRelPath = sourcePath.slice('node_modules/'.length);
+                    let found: string | null = null;
+                    let dir = pkgRoot;
+                    while (true) {
+                        const candidate = path.join(dir, 'node_modules', moduleRelPath);
+                        if (fs.existsSync(candidate)) { found = candidate; break; }
+                        const parent = path.dirname(dir);
+                        if (parent === dir) break;
+                        dir = parent;
+                    }
+                    fullPath = found ?? path.join(pkgRoot, sourcePath);
+                } else {
+                    fullPath = path.join(pkgRoot, sourcePath);
+                }
                 try {
                     const buffer = fs.readFileSync(fullPath);
                     return new Response(buffer, {

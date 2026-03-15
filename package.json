@@ -3,12 +3,23 @@
   "productName": "frogConvert",
   "author": "ogfrench",
   "description": "Truly universal browser-based file converter",
-  "private": true,
   "version": "0.2.0",
   "homepage": "https://frogconvert.xyz",
   "repository": "https://github.com/ogfrench/frogConvert",
   "type": "module",
   "main": "src/electron.cjs",
+  "bin": {
+    "frogconvert": "bin/frogconvert.ts"
+  },
+  "files": [
+    "bin/",
+    "src/mcp/",
+    "src/api/",
+    "src/core/",
+    "src/workers/",
+    "src/handlers/",
+    "src/global.d.ts"
+  ],
   "scripts": {
     "dev": "bun x vite",
     "mcp": "bun src/mcp/index.ts",
@@ -27,7 +38,11 @@
     "desktop:start": "bun run desktop:build && bun run desktop:preview",
     "desktop:dist:win": "bun run desktop:build && bun x electron-builder --win --publish never",
     "desktop:dist:mac": "bun run desktop:build && bun x electron-builder --mac --publish never",
-    "desktop:dist:linux": "bun run desktop:build && bun x electron-builder --linux --publish never"
+    "desktop:dist:linux": "bun run desktop:build && bun x electron-builder --linux --publish never",
+    "compile:win": "bun build --compile --target=bun-windows-x64 bin/frogconvert.ts --outfile=release/frogconvert-win.exe",
+    "compile:mac": "bun build --compile --target=bun-darwin-arm64 bin/frogconvert.ts --outfile=release/frogconvert-mac-arm64",
+    "compile:mac:x64": "bun build --compile --target=bun-darwin-x64 bin/frogconvert.ts --outfile=release/frogconvert-mac-x64",
+    "compile:linux": "bun build --compile --target=bun-linux-x64 bin/frogconvert.ts --outfile=release/frogconvert-linux"
   },
   "build": {
     "appId": "com.ogfrench.frogconvert",
