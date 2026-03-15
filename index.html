@@ -157,6 +157,8 @@
         margin-bottom: 1rem;
       }
 
+      .frog-emoji-img { height: 1.1em; width: auto; display: block; }
+
       /* Hide the main app UI when JS is disabled */
       #bg-visuals,
       #top-bar,
@@ -169,7 +171,7 @@
       }
     </style>
     <div id="noscript-overlay" role="main" aria-labelledby="noscript-heading">
-      <div class="emoji" aria-hidden="true">🐸</div>
+      <div class="emoji" aria-hidden="true"><img src="/frog-emoji.webp" alt="" class="frog-emoji-img"></div>
       <h1 id="noscript-heading">JavaScript Required</h1>
       <p>frogConvert does all its heavy lifting locally on your device for maximum privacy. To make this magic happen,
         please enable JavaScript in your browser settings.</p>
@@ -201,7 +203,7 @@
 
   <header id="top-bar" class="entrance d1">
     <a href="/" id="logo" class="clickable" aria-label="frogConvert home">
-      <span class="logo-emoji" aria-hidden="true">🐸</span>
+      <span class="logo-emoji" aria-hidden="true"><img src="/frog-emoji.webp" alt="" class="frog-emoji-img"></span>
       <span class="logo-text">frogConvert</span>
     </a>
     <div id="top-controls">
@@ -316,9 +318,8 @@
 
   <footer id="page-footer" class="entrance d7">
     <div class="footer-content">
-      <span class="footer-text">designed with ♥ by François - view on <a id="commit-id"
-          href="https://github.com/ogfrench/frogConvert" target="_blank" rel="noopener noreferrer"
-          aria-label="View frogConvert on GitHub (opens in new tab)">GitHub</a></span>
+      <span class="footer-text">designed with ♥ by François - <a id="commit-id"
+          href="/convert/docs/" aria-label="View Documentation">view docs</a></span>
       <button id="footer-confetti-btn" title="Party time!" aria-label="Launch confetti!">🎉</button>
     </div>
   </footer>

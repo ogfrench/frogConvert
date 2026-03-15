@@ -41,10 +41,6 @@ class meydaHandler implements FormatHandler {
     );
     dummy.remove();
 
-    this.#audioContext = new AudioContext({
-      sampleRate: 34000
-    });
-
     this.#canvas = document.createElement("canvas");
     const ctx = this.#canvas.getContext("2d");
     if (!ctx) throw "Failed to create 2D rendering context.";
@@ -59,13 +55,12 @@ class meydaHandler implements FormatHandler {
     inputFormat: FileFormat,
     outputFormat: FileFormat
   ): Promise<FileData[]> {
-    if (
-      !this.ready
-      || !this.#audioContext
-      || !this.#canvas
-      || !this.#ctx
-    ) {
+    if (!this.ready || !this.#canvas || !this.#ctx) {
       throw "Handler not initialized!";
+    }
+
+    if (!this.#audioContext) {
+      this.#audioContext = new AudioContext({ sampleRate: 34000 });
     }
     const outputFiles: FileData[] = [];
 
@@ -93,6 +88,7 @@ class meydaHandler implements FormatHandler {
           image.addEventListener("error", reject);
           image.src = url;
         });
+        URL.revokeObjectURL(url);
 
         const imageWidth = image.naturalWidth;
         const imageHeight = image.naturalHeight;

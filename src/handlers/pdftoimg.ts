@@ -1,16 +1,10 @@
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
-import { pdfToImg } from "pdftoimg-js/browser";
+import * as pdfjsLib from 'pdfjs-dist';
+import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-function base64ToBytes (base64: string) {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
-}
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
 class pdftoimgHandler implements FormatHandler {
 
@@ -40,32 +34,36 @@ class pdftoimgHandler implements FormatHandler {
       && outputFormat.format !== "jpeg"
     ) throw "Invalid output format.";
 
+    const mimeType = outputFormat.format === "jpeg" ? "image/jpeg" : "image/png";
     const outputFiles: FileData[] = [];
 
     for (const inputFile of inputFiles) {
+      const pdf = await pdfjsLib.getDocument({ data: inputFile.bytes }).promise;
+      const baseName = inputFile.name.split(".").slice(0, -1).join(".");
 
-      const blob = new Blob([inputFile.bytes as BlobPart], { type: inputFormat.mime });
-      const url = URL.createObjectURL(blob);
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 2 });
 
-      const imgType = outputFormat.format === "jpeg" ? "jpg" : "png";
-      const images = await pdfToImg(url, {
-        imgType,
-        pages: "all"
-      });
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
 
-      const baseName = inputFile.name.split(".")[0];
+        await page.render({ canvas, viewport }).promise;
 
-      for (let i = 0; i < images.length; i++) {
-        const base64 = images[i].slice(images[i].indexOf(";base64,") + 8);
-        const bytes = base64ToBytes(base64);
-        const name = `${baseName}_${i}.${outputFormat.extension}`;
-        outputFiles.push({ bytes, name });
+        const blob = await new Promise<Blob>((resolve, reject) =>
+          canvas.toBlob(b => b ? resolve(b) : reject("Canvas toBlob failed"), mimeType)
+        );
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        const suffix = pdf.numPages > 1 ? `_${pageNum}` : "";
+        outputFiles.push({ bytes, name: `${baseName}${suffix}.${outputFormat.extension}` });
+        page.cleanup();
       }
 
+      await pdf.destroy();
     }
 
     return outputFiles;
-
   }
 
 }

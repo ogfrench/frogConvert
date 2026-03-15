@@ -2,8 +2,9 @@ import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
 import * as pdfjsLib from 'pdfjs-dist';
+import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
 class pdftotxtHandler implements FormatHandler {
 
@@ -45,7 +46,10 @@ class pdftotxtHandler implements FormatHandler {
           .map((item: any) => ("str" in item ? item.str : ""))
           .join(" ");
         fullText += pageText + "\n";
+        page.cleanup();
       }
+
+      await pdfDocument.destroy();
 
       const bytes = new TextEncoder().encode(fullText);
       const name = inputFile.name.split(".").slice(0, -1).join(".") + "." + outputFormat.extension;

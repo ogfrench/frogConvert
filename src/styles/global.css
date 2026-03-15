@@ -711,57 +711,78 @@ html.scroll-lock {
 /* --- Spinners --- */
 
 /* Gooey Spinner - Used for active conversion */
-.loader-gooey {
-  width: var(--space-16);
-  aspect-ratio: 1;
-  padding: calc(var(--space-16) * 0.125);
-  box-sizing: border-box;
-  display: grid;
-  background: #fff;
-  mix-blend-mode: multiply;
-  filter: blur(4px) contrast(12);
-  margin: var(--space-5) auto;
-}
-
-.dark .loader-gooey {
-  background: #000;
-  mix-blend-mode: screen;
-}
-
-.loader-gooey:before,
-.loader-gooey:after {
-  content: "";
-  grid-area: 1/1;
-  width: 38%;
-  height: 38%;
-  background: var(--primary);
-  animation: gooey-spin 2s infinite;
-  border-radius: 50%;
-}
-
-.loader-gooey:after {
-  animation-delay: -1s;
-}
-
-@keyframes gooey-spin {
-  0% {
-    transform: translate(0, 0)
+@supports (filter: blur(1px)) and (mix-blend-mode: multiply) and (aspect-ratio: 1) {
+  .loader-gooey {
+    width: var(--space-16);
+    aspect-ratio: 1;
+    padding: calc(var(--space-16) * 0.125);
+    box-sizing: border-box;
+    display: grid;
+    background: #fff;
+    mix-blend-mode: multiply;
+    filter: blur(4px) contrast(12);
+    margin: var(--space-5) auto;
   }
 
-  25% {
-    transform: translate(100%, 0)
+  .dark .loader-gooey {
+    background: #000;
+    mix-blend-mode: screen;
   }
 
-  50% {
-    transform: translate(100%, 100%)
+  .loader-gooey:before,
+  .loader-gooey:after {
+    content: "";
+    grid-area: 1/1;
+    width: 38%;
+    height: 38%;
+    background: var(--primary);
+    animation: gooey-spin 2s infinite;
+    border-radius: 50%;
   }
 
-  75% {
-    transform: translate(0, 100%)
+  .loader-gooey:after {
+    animation-delay: -1s;
   }
 
-  100% {
-    transform: translate(0, 0)
+  @keyframes gooey-spin {
+    0% {
+      transform: translate(0, 0)
+    }
+
+    25% {
+      transform: translate(100%, 0)
+    }
+
+    50% {
+      transform: translate(100%, 100%)
+    }
+
+    75% {
+      transform: translate(0, 100%)
+    }
+
+    100% {
+      transform: translate(0, 0)
+    }
+  }
+}
+
+/* Fallback for browsers lacking filter/mix-blend-mode/aspect-ratio support */
+@supports not ((filter: blur(1px)) and (mix-blend-mode: multiply) and (aspect-ratio: 1)) {
+  .loader-gooey {
+    width: var(--space-8);
+    height: var(--space-8);
+    background: none;
+    border: 2px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin-complex 2.4s cubic-bezier(0.45, 0.15, 0.55, 0.85) infinite;
+    margin: var(--space-8) auto;
+  }
+
+  .loader-gooey:before,
+  .loader-gooey:after {
+    display: none;
   }
 }
 

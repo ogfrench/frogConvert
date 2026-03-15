@@ -65,7 +65,7 @@ class threejsHandler implements FormatHandler {
       this.THREE = await import('three');
       this.scene = new this.THREE.Scene();
       this.camera = new this.THREE.PerspectiveCamera(90, 16 / 9, 0.1, 4096);
-      this.renderer = new this.THREE.WebGLRenderer();
+      this.renderer = new this.THREE.WebGLRenderer({ preserveDrawingBuffer: true });
       this.renderer.setSize(960, 540);
     }
 
@@ -102,6 +102,8 @@ class threejsHandler implements FormatHandler {
       const bbox = new THREE.Box3().setFromObject(object);
       bbox.getCenter(camera.position);
       camera.position.z = bbox.max.z * 2;
+
+      URL.revokeObjectURL(url);
 
       scene.background = new THREE.Color(0x424242);
       scene.add(object);

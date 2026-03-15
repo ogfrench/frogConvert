@@ -88,6 +88,7 @@ class canvasToBlobHandler implements FormatHandler {
           image.addEventListener("error", reject);
           image.src = url;
         });
+        if (inputFormat.mime !== "image/svg+xml") URL.revokeObjectURL(url);
 
         this.#canvas.width = image.naturalWidth;
         this.#canvas.height = image.naturalHeight;

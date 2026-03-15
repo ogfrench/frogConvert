@@ -33,3 +33,9 @@ Allow: /
 # Sitemap location
 Sitemap: https://frogconvert.xyz/sitemap.xml
 
+# Documentation (human + agent readable)
+# HTML docs: https://frogconvert.xyz/docs/
+# Raw markdown: https://frogconvert.xyz/docs/README.md
+#              https://frogconvert.xyz/docs/AGENTS.md
+#              https://frogconvert.xyz/docs/AGENT_CONTEXT.md
+

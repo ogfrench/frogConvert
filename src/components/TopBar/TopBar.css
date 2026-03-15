@@ -56,7 +56,7 @@
 #logo {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-1-5);
   text-decoration: none;
   color: var(--foreground);
   font-weight: var(--font-bold);
@@ -74,6 +74,12 @@
   transition: transform 0.2s ease;
 }
 
+.logo-emoji .frog-emoji-img {
+  height: 1.1em;
+  width: auto;
+  display: block;
+}
+
 #logo:hover .logo-emoji {
   transform: scale(1.1) rotate(5deg);
 }
@@ -88,12 +94,12 @@
 #top-controls {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1-5);
 }
 
 #top-controls-menu {
   display: flex;
-  gap: var(--space-2);
+  gap: var(--space-1-5);
   align-items: center;
 }
 

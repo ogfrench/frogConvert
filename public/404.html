@@ -127,6 +127,8 @@
       line-height: 1;
     }
 
+    .frog-emoji-img { height: 1.1em; width: auto; display: block; }
+
     .error-code {
       font-size: clamp(4rem, 15vw, 6rem);
       font-weight: 700;
@@ -241,13 +243,13 @@
 
   <header class="page-header">
     <a href="/convert/" class="logo" aria-label="frogConvert home">
-      <span class="logo-emoji" aria-hidden="true">🐸</span>
+      <span class="logo-emoji" aria-hidden="true"><img src="/frog-emoji.webp" alt="" class="frog-emoji-img"></span>
       <span>frogConvert</span>
     </a>
   </header>
 
   <main class="error-page" role="main">
-    <div class="frog-emoji" aria-hidden="true">🐸</div>
+    <div class="frog-emoji" aria-hidden="true"><img src="/frog-emoji.webp" alt="" class="frog-emoji-img"></div>
     <p class="error-code" aria-label="Error 404">404</p>
     <h1 class="error-title">Ribbit! This page hopped away.</h1>
     <p class="error-body">The URL you're looking for doesn't exist. Maybe the frog ate it.</p>

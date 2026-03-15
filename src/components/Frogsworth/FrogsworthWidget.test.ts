@@ -147,8 +147,8 @@ describe("pick() — exclude parameter", () => {
     it("with a 2-item pair array, exclude avoids repeating the excluded text", () => {
         // PAIR_QUIPS["pdf→docx"] has exactly 2 items
         // Run enough times to confirm the excluded quip doesn't dominate
-        const firstQuip = "attempting to undo what adobe hath wrought";
-        const secondQuip = "good luck. lower your expectations first";
+        const firstQuip = "pdf to docx: attempting to undo what adobe hath wrought";
+        const secondQuip = "pdf to docx: lower your expectations before you proceed";
 
         let gotSecond = false;
         for (let i = 0; i < 30; i++) {
@@ -160,7 +160,7 @@ describe("pick() — exclude parameter", () => {
 
     it("with a 1-item array and matching exclude, still returns the only item", () => {
         // PAIR_QUIPS["wav→mp3"] has exactly 1 item
-        const singleQuip = "you will lose something. probably won't notice";
+        const singleQuip = "wav to mp3: you will lose something. your ears probably won't notice.";
         const result = pick("wav", "mp3", singleQuip);
         // Should still return it (no infinite loop / fallback to empty)
         expect(result.text).toBe(singleQuip);
