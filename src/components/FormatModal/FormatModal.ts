@@ -1,6 +1,6 @@
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 import "./FormatModal.css";
-import { ui, CATEGORY_LABELS, formatDisplayName, formatMode, getFormatCategory, activeCategory, allOptionsRef, isLoadingPhase2, updateScrollLock, isFormatVisible, isCategoryVisible } from "../store/store.ts";
+import { ui, CATEGORY_LABELS, formatDisplayName, formatMode, getFormatCategory, activeCategory, allOptionsRef, isLoadingPhase2, isLoadingHandlers, updateScrollLock, isFormatVisible, isCategoryVisible } from "../store/store.ts";
 
 // --- Format modal ---
 
@@ -116,8 +116,10 @@ export function clearFormatSelection(activeCategory: string = "") {
 export function updateConvertButtonState(selectedFromIndex: number | null, selectedToIndex: number | null) {
   if (selectedFromIndex !== null && selectedToIndex !== null) {
     ui.convertButton.classList.remove("disabled");
+    ui.convertButton.textContent = "Convert";
   } else {
     ui.convertButton.classList.add("disabled");
+    ui.convertButton.textContent = isLoadingHandlers.value ? "Loading formats…" : "Convert";
   }
 }
 

@@ -69,7 +69,10 @@ export default defineConfig({
         {
           src: "src/handlers/espeakng.js/js/espeakng.worker.data",
           dest: "js"
-        }
+        },
+        { src: "README.md",        dest: "" },
+        { src: "AGENTS.md",        dest: "" },
+        { src: "AGENT_CONTEXT.md", dest: "" }
       ]
     }),
     tsconfigPaths()

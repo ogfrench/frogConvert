@@ -38,9 +38,11 @@ import {
   selectedToIndex,
   allOptionsRef,
   isLoadingPhase2,
+  isLoadingHandlers,
   ui,
   isCategoryVisible,
   formatMode,
+  formatDisplayName,
 } from "./components/index.ts";
 import { triggerConfetti } from "./effects/Confetti/Confetti.ts";
 
@@ -199,11 +201,30 @@ function refreshUI() {
   if (ui.formatModal.classList.contains("open")) {
     filterFormats(ui.formatSearch.value);
   }
+
+  // Re-attempt format detection if a file is loaded but wasn't matched when uploaded
+  if (currentFiles.value.length > 0 && selectedFromIndex.value === null) {
+    const matchIndex = findMatchingFormat(currentFiles.value, allOptionsRef.value);
+    if (matchIndex >= 0) {
+      selectedFromIndex.value = matchIndex;
+      showDetectedFormat(allOptionsRef.value[matchIndex].format.format, currentFiles.value.length);
+      const category = getFormatCategory(allOptionsRef.value[matchIndex].format);
+      if (category && category !== activeCategory.value && selectedToIndex.value === null) {
+        if (isCategoryVisible(category, formatMode.value)) {
+          selectCategoryTab(category);
+        }
+      }
+      updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
+    }
+  }
 }
 
 // --- Init ---
 
 (async () => {
+  isLoadingHandlers.value = true;
+  updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
+
   // Load cache: localStorage → cache.json → nothing (cold start)
   let hasCache = false;
   let hasLocalStorageCache = false;
@@ -282,6 +303,8 @@ function refreshUI() {
     console.log(`Phase 2: ${handlers.length - countBefore} background handlers loaded.`);
   } finally {
     showLoadingBar(false);  // always hide bar when entire loading sequence ends
+    isLoadingHandlers.value = false;
+    updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
   }
 })();
 
@@ -289,6 +312,25 @@ function refreshUI() {
 
 initConvertButton();
 
+
+// Load Frogsworth at lowest priority — idle + code-split
+const scheduleIdle = (cb: () => void) =>
+  'requestIdleCallback' in window
+    ? requestIdleCallback(cb, { timeout: 10_000 })
+    : setTimeout(cb, 3_000);
+
+scheduleIdle(() => {
+  import("./components/Frogsworth/FrogsworthWidget.ts").then(({ initFrogsworth }) => {
+    initFrogsworth(() => ({
+      from: selectedFromIndex.value !== null
+        ? allOptionsRef.value[selectedFromIndex.value].format.format
+        : null,
+      to: selectedToIndex.value !== null
+        ? allOptionsRef.value[selectedToIndex.value].format.format
+        : null,
+    }));
+  }).catch(() => {}); // Easter egg — silent fail is acceptable
+});
 
 // --- Footer Confetti ---
 

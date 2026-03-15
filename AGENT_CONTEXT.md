@@ -42,9 +42,10 @@ The codebase is organized as a vanilla TypeScript Vite project. Here are the mos
 - **`src/components/`**: The Vanilla TS/CSS User Interface.
   - **`ConversionModal/`**: Manages the conversion progress popup state machine (`ConversionModal.ts`) and orchestrates the full conversion flow (`ConversionActions.ts`).
   - **`FormatModal/`**: The UI for selecting output formats, including the 3-tier format mode system (Core / Plus / All).
-  - **`store/`**: Lightweight reactive wrappers storing shared state (active files, UI references, `formatMode`, `isCategoryVisible`, `isFormatVisible`, `updateScrollLock`).
+  - **`store/`**: Lightweight reactive wrappers storing shared state (active files, UI references, `formatMode`, `isCategoryVisible`, `isFormatVisible`, `updateScrollLock`, `isLoadingHandlers` — true during Phase 1+2 handler loading, drives Convert button copy).
   - **`utils.ts`**: Shared utilities — `escapeHTML`, `formatBytes`, `shortenFileName`, `ensureMinDuration`.
   - **`utils/ModalManager.ts`**: Centralized open/close lifecycle for all modals.
+  - **`Frogsworth/`**: Desktop-only Easter egg mascot widget (`FrogsworthWidget.ts`). Lazy-loaded via `requestIdleCallback` + dynamic import after the main app initializes. Provides context-aware quips based on selected from/to formats. Hidden on screens ≤999px.
 - **`src/mcp/`**: MCP server (stdio) — `bun run mcp`. Exposes `list_formats`, `find_conversion_path`, `convert_file` tools to AI agents via Model Context Protocol.
 - **`src/api/`**: Local HTTP REST API — `bun run api`. Same conversion engine exposed over HTTP on `127.0.0.1:3000`. See `AGENTS.md` for endpoint details.
 - **`test/`**:

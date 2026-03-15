@@ -3,8 +3,9 @@
  * Run with: bun test src/components/FormatModal/FormatModal.test.ts
  */
 
-import { describe, it, expect } from "vitest";
-import { CATEGORY_LABELS } from "../store/store.ts";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { CATEGORY_LABELS, ui, isLoadingHandlers } from "../store/store.ts";
+import { updateConvertButtonState } from "./FormatModal.ts";
 
 
 // ---------------------------------------------------------------------------
@@ -102,5 +103,58 @@ describe("updateConvertButtonState logic", () => {
 
     it("returns '' when indices are 0 (falsy but non-null)", () => {
         expect(buttonClass(0, 0)).toBe("");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// updateConvertButtonState — actual DOM function with isLoadingHandlers
+// ---------------------------------------------------------------------------
+
+describe("updateConvertButtonState (DOM)", () => {
+    beforeEach(() => {
+        document.body.innerHTML = `<button id="convert-button"></button>`;
+        ui.convertButton = document.getElementById("convert-button") as HTMLButtonElement;
+        isLoadingHandlers.value = false;
+    });
+
+    afterEach(() => {
+        document.body.innerHTML = "";
+        isLoadingHandlers.value = false;
+        (ui as any).convertButton = null;
+    });
+
+    it("removes 'disabled' and sets text to 'Convert' when both indices are non-null", () => {
+        ui.convertButton.classList.add("disabled");
+        updateConvertButtonState(0, 1);
+        expect(ui.convertButton.classList.contains("disabled")).toBe(false);
+        expect(ui.convertButton.textContent).toBe("Convert");
+    });
+
+    it("adds 'disabled' and text 'Convert' when from is null and isLoadingHandlers=false", () => {
+        updateConvertButtonState(null, 1);
+        expect(ui.convertButton.classList.contains("disabled")).toBe(true);
+        expect(ui.convertButton.textContent).toBe("Convert");
+    });
+
+    it("adds 'disabled' and text 'Loading formats…' when from is null and isLoadingHandlers=true", () => {
+        isLoadingHandlers.value = true;
+        updateConvertButtonState(null, 1);
+        expect(ui.convertButton.classList.contains("disabled")).toBe(true);
+        expect(ui.convertButton.textContent).toBe("Loading formats\u2026");
+    });
+
+    it("adds 'disabled' when to is null", () => {
+        updateConvertButtonState(0, null);
+        expect(ui.convertButton.classList.contains("disabled")).toBe(true);
+    });
+
+    it("reverts to 'Convert' text after isLoadingHandlers goes false", () => {
+        isLoadingHandlers.value = true;
+        updateConvertButtonState(null, null);
+        expect(ui.convertButton.textContent).toBe("Loading formats\u2026");
+
+        isLoadingHandlers.value = false;
+        updateConvertButtonState(null, null);
+        expect(ui.convertButton.textContent).toBe("Convert");
     });
 });

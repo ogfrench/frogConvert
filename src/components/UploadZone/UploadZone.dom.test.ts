@@ -7,7 +7,7 @@ describe("UploadZone DOM bindings", () => {
         document.body.innerHTML = `
             <div id="upload-zone">
                 <input type="file" id="file-input" />
-                <div id="upload-text">Drop your files here</div>
+                <div id="upload-text">Drop your files</div>
                 <div class="upload-hint">or click to browse</div>
                 <div class="upload-file-info">
                     <span class="upload-file-name"></span>
@@ -39,12 +39,17 @@ describe("UploadZone DOM bindings", () => {
     it("toggles drag-over class on drag events", () => {
         initUploadZone(() => { }, () => { });
 
-        const dragEnterEvent = new Event("dragenter");
-        ui.uploadZone.dispatchEvent(dragEnterEvent);
+        // bindDragAndDropVisuals listens on window and guards on dataTransfer.types
+        const makeFileDragEvent = (type: string) => {
+            const ev = new Event(type, { bubbles: true });
+            Object.defineProperty(ev, "dataTransfer", { value: { types: ["Files"] } });
+            return ev;
+        };
+
+        window.dispatchEvent(makeFileDragEvent("dragenter"));
         expect(ui.uploadZone.classList.contains("drag-over")).toBe(true);
 
-        const dragLeaveEvent = new Event("dragleave");
-        ui.uploadZone.dispatchEvent(dragLeaveEvent);
+        window.dispatchEvent(makeFileDragEvent("dragleave"));
         expect(ui.uploadZone.classList.contains("drag-over")).toBe(false);
     });
 

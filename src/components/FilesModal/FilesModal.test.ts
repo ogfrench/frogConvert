@@ -203,8 +203,8 @@ describe("pagination label", () => {
 // ---------------------------------------------------------------------------
 
 describe("drop more files zone copy", () => {
-    it("primary text is 'Drop more files here'", () => {
-        expect("Drop more files here").toBe("Drop more files here");
+    it("primary text is 'Drop more files'", () => {
+        expect("Drop more files").toBe("Drop more files");
     });
 
     it("hint text is 'or tap to browse'", () => {

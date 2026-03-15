@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { findMatchingFormat, setLastConvertedFiles } from "./ConversionActions.ts";
+import { findMatchingFormat, setLastConvertedFiles, getIsConverting } from "./ConversionActions.ts";
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 
 // ---------------------------------------------------------------------------
@@ -105,5 +105,15 @@ describe("setLastConvertedFiles", () => {
         expect(() => setLastConvertedFiles([
             { name: "out.png", bytes: new Uint8Array([1, 2, 3]) },
         ])).not.toThrow();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getIsConverting
+// ---------------------------------------------------------------------------
+
+describe("getIsConverting", () => {
+    it("returns false initially (no conversion running in test environment)", () => {
+        expect(getIsConverting()).toBe(false);
     });
 });

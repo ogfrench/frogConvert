@@ -23,8 +23,6 @@ import {
     ensureCancelButton,
     removeCancelButton,
     replacePopup,
-    formatMode,
-    isFormatVisible,
     CATEGORY_LABELS
 } from "../index.ts";
 import { shortenFileName, ensureMinDuration } from "../utils.ts";
@@ -66,8 +64,12 @@ function _showEnginesLoadingPopup() {
         `<button class="btn-secondary" id="engines-dismiss-btn">Dismiss</button>` +
         `</div>`,
     );
+    ui.popupBox.dataset.enginesLoading = "1";
     requestAnimationFrame(() => {
-        document.getElementById("engines-dismiss-btn")?.addEventListener("click", () => hidePopup());
+        document.getElementById("engines-dismiss-btn")?.addEventListener("click", () => {
+            delete ui.popupBox.dataset.enginesLoading;
+            hidePopup();
+        });
     });
     _enginesLoadingPollId = setInterval(async () => {
         if (window.traversionGraph.nodeCount > 0) {
@@ -84,7 +86,9 @@ function _showEnginesLoadingPopup() {
 function _updatePopupToEnginesReady() {
     // Guard 1: popup was dismissed before engines loaded — don't update a hidden popup
     if (!ui.popupBox.classList.contains("open")) return;
-    // Guard 2: another popup replaced our content (no spinner means different popup is showing)
+    // Guard 2: another popup replaced our content — check for the unique marker set when this popup opened
+    if (!ui.popupBox.dataset.enginesLoading) return;
+    delete ui.popupBox.dataset.enginesLoading;
     const spinner = ui.popupBox.querySelector<HTMLElement>(".loader-spinner");
     if (!spinner) return;
 
@@ -123,18 +127,16 @@ export function findMatchingFormat(
     files: File[],
     allOptions: Array<{ format: FileFormat; handler: FormatHandler }>,
 ): number {
+    // Intentionally format-mode-agnostic: detect the real format regardless of the
+    // current display mode. refreshUI() re-runs after each handler phase and handles
+    // switching to the matched category tab if the format wasn't yet loaded on upload.
     const mimeType = normalizeMimeType(files[0].type);
     const fileExtension = files[0].name.split(".").pop()?.toLowerCase();
-    const mode = formatMode.value;
-
     // Best match: MIME + extension
     let mimeMatch = -1;
     for (let i = 0; i < allOptions.length; i++) {
         const { format } = allOptions[i];
         if (!format.from || format.mime !== mimeType) continue;
-
-        // Skip formats not visible in current mode
-        if (!isFormatVisible(format, mode)) continue;
 
         if (format.extension === fileExtension) return i; // Exact MIME+ext match
         if (mimeMatch === -1) mimeMatch = i; // First MIME-only match as fallback
@@ -146,8 +148,7 @@ export function findMatchingFormat(
         for (let i = 0; i < allOptions.length; i++) {
             const { format } = allOptions[i];
             if (format.from && format.extension.toLowerCase() === fileExtension) {
-                // Skip formats not visible in current mode
-                if (isFormatVisible(format, mode)) return i;
+                return i;
             }
         }
     }
@@ -399,6 +400,55 @@ function showConversionNotFoundPopup(fromFormat: string, toFormat: string) {
     );
 }
 
+// --- Dancing frog for success popup ---
+
+function createDancingFrog(): HTMLElement {
+    const BASE_FRAME = "ദ്ദി₍𝄐⩌𝄐₎";
+    const frogFrames = [
+        "/₍𝄐⩌𝄐₎/",
+        "ヽ₍𝄐⩌𝄐₎ﾉ",
+        "ﾉ₍𝄐⩌𝄐₎ヽ",
+        "₍𝄐⩌𝄐₎",
+        "₍𝄐-𝄐₎",
+        "\\₍𝄐⩌𝄐₎/",
+        "/₍𝄐~𝄐₎/",
+        "₍𝄐~𝄐₎",
+    ];
+    const frogDiv = document.createElement("div");
+    frogDiv.className = "dancing-frog";
+    const spanA = document.createElement("span");
+    const spanB = document.createElement("span");
+    spanA.textContent = BASE_FRAME;
+    spanB.textContent = BASE_FRAME;
+    spanA.style.opacity = "1";
+    spanB.style.opacity = "0";
+    frogDiv.appendChild(spanA);
+    frogDiv.appendChild(spanB);
+    let frameIndex = 0;
+    let curSpan = spanA, nxtSpan = spanB;
+    let frogInterval: ReturnType<typeof setInterval> | null = null;
+    const crossfadeTo = (text: string) => {
+        nxtSpan.textContent = text;
+        nxtSpan.style.opacity = "1";
+        curSpan.style.opacity = "0";
+        [curSpan, nxtSpan] = [nxtSpan, curSpan];
+    };
+    frogDiv.addEventListener("mouseenter", () => {
+        if (frogInterval) return;
+        frogInterval = setInterval(() => {
+            if (!document.contains(frogDiv)) { clearInterval(frogInterval!); frogInterval = null; return; }
+            frameIndex = (frameIndex + 1) % frogFrames.length;
+            crossfadeTo(frogFrames[frameIndex]);
+        }, 700);
+    });
+    frogDiv.addEventListener("mouseleave", () => {
+        if (frogInterval) { clearInterval(frogInterval); frogInterval = null; }
+        frameIndex = 0; // reset so next hover always starts from the first frame
+        crossfadeTo(BASE_FRAME);
+    });
+    return frogDiv;
+}
+
 // --- Main convert action ---
 
 export function initConvertButton() {
@@ -559,13 +609,14 @@ export function initConvertButton() {
 
             const h2 = document.createElement("h2");
             h2.textContent = successTitle;
+            const frogDiv = createDancingFrog();
             const p = document.createElement("p");
             p.innerHTML = resultText;
             const actions = document.createElement("div");
             actions.className = "popup-actions-footer";
             actions.appendChild(createPopupButton("Download again", "btn-primary", () => downloadAllConvertedFiles()));
             actions.appendChild(createPopupButton("Done", "btn-secondary", () => hidePopup()));
-            replacePopup([h2, p, actions]);
+            replacePopup([h2, frogDiv, p, actions]);
             // Show confetti faster for immediate celebration
             setTimeout(() => {
                 if (ui.popupBox.classList.contains("open")) triggerConfetti();

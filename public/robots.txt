@@ -32,3 +32,4 @@ Allow: /
 
 # Sitemap location
 Sitemap: https://frogconvert.xyz/sitemap.xml
+

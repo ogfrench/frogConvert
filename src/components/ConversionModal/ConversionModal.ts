@@ -77,6 +77,7 @@ export function showConversionInProgress(messageHTML: string, title: string = "C
 }
 
 export function triggerCancellation() {
+    if (isCancelled) return;  // guard against double-calls overwriting cancelStartTime
     isCancelled = true;
     workerCancelCallback?.();
     workerCancelCallback = null;

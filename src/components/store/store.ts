@@ -113,7 +113,7 @@ export const ui = new Proxy({} as any, {
 
 // --- Constants ---
 
-export const DEFAULT_UPLOAD_TEXT = "Drop your files here";
+export const DEFAULT_UPLOAD_TEXT = "Drop your files";
 export const DEFAULT_UPLOAD_LABEL = "Your file";
 export const FILES_PER_PAGE = 20;
 
@@ -231,6 +231,7 @@ export const activeCategory = { value: "" };
 export const selectedFromIndex: { value: number | null } = { value: null };
 export const selectedToIndex: { value: number | null } = { value: null };
 export const isLoadingPhase2: { value: boolean } = { value: false };
+export const isLoadingHandlers: { value: boolean } = { value: false };
 
 // --- Helpers ---
 
@@ -282,17 +283,18 @@ export function isFormatVisible(format: FileFormat, mode: FormatMode): boolean {
 
 // --- UI Helpers ---
 export function bindDragAndDropVisuals(element: HTMLElement, activeClass: string = "drag-over") {
-  element.addEventListener("dragenter", (e) => {
-    e.preventDefault();
-    element.classList.add(activeClass);
+  let dragCount = 0;
+  window.addEventListener("dragenter", (e) => {
+    if (!(e.dataTransfer?.types ?? []).includes("Files")) return;
+    if (++dragCount === 1) element.classList.add(activeClass);
   });
-  element.addEventListener("dragleave", () => {
-    element.classList.remove(activeClass);
+  window.addEventListener("dragleave", (e) => {
+    if (!(e.dataTransfer?.types ?? []).includes("Files")) return;
+    dragCount = Math.max(0, dragCount - 1);
+    if (dragCount === 0) element.classList.remove(activeClass);
   });
-  element.addEventListener("dragover", (e) => {
-    e.preventDefault();
-  });
-  element.addEventListener("drop", () => {
+  window.addEventListener("drop", () => {
+    dragCount = 0;
     element.classList.remove(activeClass);
   });
 }

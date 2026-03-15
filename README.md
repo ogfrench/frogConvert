@@ -15,6 +15,7 @@ Compared to the original `Convert to it!`, frogConvert focuses on frontend impro
 - **MCP + REST API for AI Agents:** Built-in MCP server (`bun run mcp`) and local HTTP REST API (`bun run api`) exposing the full conversion engine to AI agents and scripts — all processing is local, no external network calls. See `AGENTS.md` for usage.
 - **Web Worker Performance:** Heavy conversion tasks and pathfinding run in background Web Workers, keeping the UI fully responsive even during complex, multi-step conversions.
 - **Robust Engineering Foundation:** Refactored the codebase with centralized modal management, base handler classes, and a full vitest + Puppeteer E2E test suite.
+- **Frogsworth:** A desktop Easter egg mascot in the bottom-right corner. Click the frog for context-aware quips about your chosen file formats. Lazy-loaded at idle priority — zero impact on startup performance.
 
 ## What is it?
 > _This section is adapted from the [original README](https://github.com/p2r3/convert#readme)._

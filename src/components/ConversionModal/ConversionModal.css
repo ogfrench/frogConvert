@@ -29,6 +29,24 @@
 }
 
 
+.dancing-frog {
+  font-size: 1.75rem;
+  text-align: center;
+  margin: 0;
+  padding: var(--space-5) 0 var(--space-8);
+  color: var(--primary);
+  letter-spacing: 0.05em;
+  user-select: none;
+  line-height: 1;
+  display: grid;
+  cursor: default;
+}
+
+.dancing-frog span {
+  grid-area: 1 / 1;
+  transition: opacity 0.25s ease;
+}
+
 .conversion-path {
   font-weight: var(--font-normal) !important;
   color: var(--muted-foreground);
