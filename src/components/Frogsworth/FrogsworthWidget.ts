@@ -4,12 +4,12 @@ type Context = { from: string | null; to: string | null };
 type Face = "idle" | "thinking" | "happy" | "excited" | "smug" | "hungry";
 
 const KAOMOJI: Record<Face, string> = {
-  idle:    "₍𝄐-𝄐₎",
-  thinking:"₍𝄐^𝄐₎",
-  happy:   "₍𝄐⩌𝄐₎",
+  idle: "₍𝄐-𝄐₎",
+  thinking: "₍𝄐^𝄐₎",
+  happy: "₍𝄐⩌𝄐₎",
   excited: "ദ്ദി₍𝄐⩌𝄐₎",
-  smug:    "₍𝄐~𝄐₎",
-  hungry:  "₍𝄐O𝄐₎",
+  smug: "₍𝄐~𝄐₎",
+  hungry: "₍𝄐O𝄐₎",
 };
 
 type Quip = string | [string, Face];
@@ -32,7 +32,7 @@ const IDLE_QUIPS: Quip[] = [
   q("feed me", "happy"),
   q("just sitting here being amphibious", "happy"),
   q("my pond has a conversion pipeline", "excited"),
-  q("technically i have no legs in this little face but i still showed up", "excited"),
+  q("technically i have no legs in this widget but i still showed up", "excited"),
   q("i've seen things. mostly bad file formats", "smug"),
   q("hi. i'm frogsworth. i convert files", "happy"),
   q("frogsworth at your service", "excited"),

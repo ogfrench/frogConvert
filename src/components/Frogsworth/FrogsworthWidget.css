@@ -5,11 +5,12 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: var(--space-2);
+  gap: var(--space-3);
   z-index: 100;
   cursor: pointer;
   pointer-events: auto;
   transition: opacity 0.4s ease, transform 0.4s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Frog face — always present, dimmed at rest */
@@ -47,8 +48,15 @@
 }
 
 @keyframes frog-reveal {
-  0%   { opacity: 0; transform: translateY(4px); }
-  100% { opacity: 0.75; transform: translateY(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  100% {
+    opacity: 0.75;
+    transform: translateY(0);
+  }
 }
 
 .frogsworth-bubble.frogsworth-reveal {
@@ -62,18 +70,33 @@
 }
 
 @keyframes frog-pulse {
-  0%, 100% { opacity: 0.85; }
-  50% { opacity: 0.3; }
+
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+
+  50% {
+    opacity: 0.3;
+  }
 }
 
 
 @keyframes frog-slot-enter {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Pre-allocate slot height on mobile so the layout doesn't shift when JS loads the widget */
-@media (max-width: 1000px), (max-height: 350px) {
+@media (max-width: 1000px),
+(max-height: 350px) {
   #frogsworth-slot {
     min-height: 6rem;
   }
@@ -83,12 +106,12 @@
 #frogsworth-slot .frogsworth-widget {
   position: static;
   align-items: center;
-  margin: var(--space-8) auto 0;
+  margin: var(--space-8) auto var(--space-2);
   animation: frog-slot-enter 0.45s ease forwards;
 }
 
 /* Reduce footer top padding when frogsworth is in the slot */
-#frogsworth-slot:has(.frogsworth-widget) + #page-footer {
+#frogsworth-slot:has(.frogsworth-widget)+#page-footer {
   padding-top: var(--space-4);
   transition: padding-top 0.4s ease;
 }
@@ -96,7 +119,8 @@
 
 #frogsworth-slot .frogsworth-bubble {
   text-align: center;
-  min-height: calc(var(--text-xs) * var(--leading-relaxed) * 3); /* 3 lines of xs text */
+  min-height: calc(var(--text-xs) * var(--leading-relaxed) * 3);
+  /* 3 lines of xs text */
   display: flex;
   flex-direction: column;
   justify-content: flex-end;

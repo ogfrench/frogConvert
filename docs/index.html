@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,124 +24,73 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" as="style">
+  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+    as="style">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"
     media="print" onload="this.media='all'">
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"></noscript>
+  <noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
+  </noscript>
+
+  <link rel="stylesheet" href="../src/styles/global.css">
 
   <!-- marked + highlight.js -->
-  <script src="https://cdn.jsdelivr.net/npm/marked@13/marked.min.js"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github.min.css" id="hljs-light">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github-dark.min.css" id="hljs-dark" disabled>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css" id="hljs-light">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css" id="hljs-dark"
+    disabled>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
 
   <style>
-    /* ── Design tokens (mirrors global.css) ── */
     :root {
-      --background: #ffffff;
-      --foreground: #0a0a0a;
-      --card: #ffffff;
-      --card-foreground: #0a0a0a;
-      --primary: #0a0a0a;
-      --primary-foreground: #fafafa;
-      --secondary: #f4f4f5;
-      --secondary-foreground: #18181b;
-      --muted: #f4f4f5;
-      --muted-foreground: #71717a;
-      --accent: #e4e4e7;
-      --border: #e4e4e7;
-      --ring: #a1a1aa;
-      --top-bar-bg: rgba(255,255,255,0.85);
-      --radius: 0.5rem;
-      --radius-sm: 0.375rem;
-      --radius-xl: 1.25rem;
-      --radius-full: 9999px;
-      --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      --font-mono: "SF Mono", "Fira Code", "Cascadia Code", monospace;
-      --shadow-md: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);
+      --topbar-h: 64px;
       --sidebar-w: 240px;
-      --topbar-h: 56px;
-      color-scheme: light;
     }
-    .dark {
-      --background: #0a0a0a;
-      --foreground: #fafafa;
-      --card: #141414;
-      --card-foreground: #fafafa;
-      --primary: #fafafa;
-      --primary-foreground: #0a0a0a;
-      --secondary: #27272a;
-      --secondary-foreground: #fafafa;
-      --muted: #27272a;
-      --muted-foreground: #a1a1aa;
-      --accent: #3f3f46;
-      --border: #27272a;
-      --ring: #52525b;
-      --top-bar-bg: rgba(10,10,10,0.85);
-      color-scheme: dark;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; }
-
-    html, body {
-      margin: 0; padding: 0;
-      height: 100%;
-      font-family: var(--font-sans);
-      background-color: var(--background);
-      color: var(--foreground);
-      -webkit-font-smoothing: antialiased;
-    }
-
-    /* ── Scrollbar ── */
-    * { scrollbar-width: thin; scrollbar-color: rgba(128,128,128,.3) transparent; }
-    *::-webkit-scrollbar { width: 5px; height: 5px; }
-    *::-webkit-scrollbar-track { background: transparent; }
-    *::-webkit-scrollbar-thumb { background: rgba(128,128,128,.3); border-radius: 99px; }
 
     /* ── Top Bar ── */
     #topbar {
       position: fixed; top: 0; left: 0; right: 0;
       height: var(--topbar-h);
       display: flex; align-items: center; justify-content: space-between;
-      padding: 0 1.25rem;
+      padding: var(--space-4) var(--space-6);
       background-color: var(--top-bar-bg);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: var(--blur-bg-visual);
+      -webkit-backdrop-filter: var(--blur-bg-visual);
       border-bottom: 1px solid var(--border);
       z-index: 100;
       transition: background-color .3s ease, border-color .3s ease;
     }
 
-    #topbar-left { display: flex; align-items: center; gap: .75rem; }
+    #topbar-left { display: flex; align-items: center; gap: var(--space-3); }
 
     #logo {
-      display: flex; align-items: center; gap: .35rem;
+      display: flex; align-items: center; gap: var(--space-1-5);
       text-decoration: none; color: var(--foreground);
-      font-weight: 700; font-size: .9375rem;
+      font-weight: var(--font-bold); font-size: var(--text-xl);
       transition: opacity .15s ease;
     }
-    #logo:hover { opacity: .75; }
+    #logo:hover { opacity: var(--opacity-hover); }
 
-    .logo-emoji { font-size: 1.1rem; line-height: 1; transition: transform .2s ease; }
+    .logo-emoji { font-size: var(--text-xl); line-height: 1; transition: transform .2s ease; }
     .frog-emoji-img { height: 1.1em; width: auto; display: block; }
     #logo:hover .logo-emoji { transform: scale(1.1) rotate(5deg); }
 
     .docs-badge {
-      font-size: .6875rem; font-weight: 600;
-      letter-spacing: .04em; text-transform: uppercase;
-      padding: .2rem .55rem;
+      font-size: var(--text-xs); font-weight: var(--font-semibold);
+      letter-spacing: var(--tracking-wider); text-transform: uppercase;
+      padding: var(--space-1) var(--space-2-5);
       background-color: var(--secondary);
       color: var(--muted-foreground);
       border: 1px solid var(--border);
       border-radius: var(--radius-full);
     }
 
-    #topbar-right { display: flex; align-items: center; gap: .5rem; }
+    #topbar-right { display: flex; align-items: center; gap: var(--space-2); }
 
     .topbar-btn {
-      display: flex; align-items: center; gap: .35rem;
-      height: 2rem; padding: 0 .75rem;
-      font-family: inherit; font-size: .75rem; font-weight: 500;
+      display: flex; align-items: center; gap: var(--space-1-5);
+      height: 2rem; padding: 0 var(--space-3);
+      font-family: inherit; font-size: var(--text-sm); font-weight: var(--font-medium);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       background-color: var(--secondary);
@@ -153,7 +103,7 @@
     #theme-toggle {
       width: 2rem; height: 2rem; padding: 0;
       display: flex; align-items: center; justify-content: center;
-      font-size: 1rem;
+      font-size: var(--text-xl);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       background-color: var(--secondary);
@@ -167,7 +117,7 @@
     #nav-toggle {
       display: none;
       width: 2rem; height: 2rem; padding: 0;
-      flex-direction: column; justify-content: center; align-items: center; gap: 4px;
+      flex-direction: column; justify-content: center; align-items: center; gap: var(--space-1);
       border: 1px solid var(--border); border-radius: var(--radius);
       background-color: var(--secondary); cursor: pointer;
       transition: background-color .15s ease;
@@ -184,6 +134,7 @@
       display: flex;
       padding-top: var(--topbar-h);
       min-height: 100vh;
+      background-color: var(--background);
     }
 
     /* ── Sidebar ── */
@@ -192,24 +143,65 @@
       top: var(--topbar-h); bottom: 0; left: 0;
       width: var(--sidebar-w);
       overflow-y: auto;
-      padding: 1.5rem 0 2rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
       border-right: 1px solid var(--border);
       background-color: var(--background);
       transition: background-color .3s ease, border-color .3s ease, transform .25s ease;
       z-index: 50;
     }
 
+    #sidebar-items {
+      display: flex;
+      flex-direction: column;
+      padding: var(--space-4) 0;
+    }
+
+    #sidebar-footer {
+      padding: var(--space-8) var(--space-5) var(--space-4);
+      opacity: 0.6;
+      font-size: var(--text-xs);
+      color: var(--muted-foreground);
+      line-height: var(--leading-normal);
+    }
+
+    #sidebar-footer-label {
+      font-weight: var(--font-semibold);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wider);
+      margin-bottom: var(--space-1-5);
+    }
+
+    #build-sha {
+      font-family: var(--font-mono);
+      margin-top: var(--space-1);
+    }
+
+    #commit-link {
+      color: inherit;
+      text-decoration: none;
+      border-bottom: 1px dashed var(--muted-foreground);
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+
+    #commit-link.disabled {
+      border-bottom: none;
+      cursor: default;
+    }
+
     .sidebar-section-label {
-      padding: 0 1rem .5rem;
-      font-size: .6875rem; font-weight: 600;
-      letter-spacing: .06em; text-transform: uppercase;
+      padding: 0 var(--space-5) var(--space-2);
+      font-size: var(--text-xs); font-weight: var(--font-semibold);
+      letter-spacing: var(--tracking-wider); text-transform: uppercase;
       color: var(--muted-foreground);
     }
 
     .nav-item {
-      display: flex; align-items: center; gap: .5rem;
-      width: 100%; padding: .45rem 1rem;
-      font-family: inherit; font-size: .8125rem; font-weight: 500;
+      display: flex; align-items: center; gap: var(--space-3);
+      width: 100%; padding: var(--space-3) var(--space-5);
+      font-family: inherit; font-size: var(--text-base); font-weight: var(--font-medium);
       color: var(--muted-foreground);
       background: none; border: none; cursor: pointer; text-align: left;
       border-radius: 0;
@@ -219,7 +211,7 @@
     }
     .nav-item:hover { color: var(--foreground); background-color: var(--secondary); }
     .nav-item.active {
-      color: var(--foreground); font-weight: 600;
+      color: var(--foreground); font-weight: var(--font-semibold);
       background-color: var(--accent);
     }
     .nav-item.active::before {
@@ -228,19 +220,19 @@
       width: 2px; border-radius: 2px;
       background-color: var(--primary);
     }
-    .nav-icon { font-size: .9rem; flex-shrink: 0; }
+    .nav-icon { font-size: 1.15rem; flex-shrink: 0; line-height: 1; }
     .nav-desc {
-      display: block; margin-top: .1rem;
-      font-size: .6875rem; font-weight: 400;
-      color: var(--muted-foreground); opacity: .8;
+      display: block; margin-top: 1px;
+      font-size: var(--text-xs); font-weight: var(--font-normal);
+      color: var(--muted-foreground); opacity: .7;
     }
 
-    /* ── Content ── */
+    /* ── Content Area ── */
     #content {
       flex: 1;
       margin-left: var(--sidebar-w);
-      padding: 2.5rem 3rem 4rem;
-      max-width: 860px;
+      padding: var(--space-8) var(--space-12) var(--space-16);
+      max-width: 1200px;
       min-width: 0;
     }
 
@@ -250,51 +242,77 @@
       align-items: center; justify-content: center;
       min-height: 40vh;
       color: var(--muted-foreground);
-      font-size: .875rem; gap: .75rem;
+      font-size: var(--text-md); gap: var(--space-3);
     }
-    .spinner {
-      width: 1.5rem; height: 1.5rem;
-      border: 2px solid var(--border);
-      border-top-color: var(--primary);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── Rendered Markdown ── */
     #doc-body {
-      font-size: .9375rem;
-      line-height: 1.75;
+      font-size: var(--text-lg);
+      line-height: var(--leading-relaxed);
       color: var(--foreground);
     }
 
     #doc-body h1 {
-      font-size: 1.875rem; font-weight: 700;
-      letter-spacing: -.03em; margin: 0 0 .5rem;
-      line-height: 1.2;
-      padding-bottom: .75rem;
+      font-size: var(--text-3xl); font-weight: var(--font-bold);
+      margin-top: 0;
+      margin-bottom: var(--space-6);
+      padding-bottom: var(--space-3);
       border-bottom: 1px solid var(--border);
     }
+
     #doc-body h2 {
-      font-size: 1.25rem; font-weight: 600;
-      letter-spacing: -.02em; margin: 2.5rem 0 .75rem;
-      padding-bottom: .5rem;
+      font-size: var(--text-2xl); font-weight: var(--font-bold);
+      margin-top: var(--space-12); margin-bottom: var(--space-4);
+      padding-bottom: var(--space-2);
       border-bottom: 1px solid var(--border);
     }
+
     #doc-body h3 {
-      font-size: 1.0625rem; font-weight: 600;
-      margin: 1.75rem 0 .5rem;
+      font-size: var(--text-xl); font-weight: var(--font-semibold);
+      margin: var(--space-7) 0 var(--space-2);
+      color: var(--foreground);
     }
+
     #doc-body h4 {
-      font-size: .9375rem; font-weight: 600;
-      margin: 1.25rem 0 .4rem;
+      font-size: var(--text-lg);
+      font-weight: var(--font-semibold);
+      margin: var(--space-5) 0 var(--space-1);
     }
-    #doc-body p { margin: .9rem 0; }
-    #doc-body ul, #doc-body ol {
-      padding-left: 1.5rem; margin: .75rem 0;
+
+    #doc-body p,
+    #doc-body ul,
+    #doc-body ol,
+    #doc-body pre,
+    #doc-body blockquote,
+    #doc-body table {
+      max-width: 680px;
     }
-    #doc-body li { margin: .3rem 0; }
-    #doc-body li > ul, #doc-body li > ol { margin: .25rem 0; }
+
+    #doc-body h1,
+    #doc-body h2,
+    #doc-body h3,
+    #doc-body hr {
+      max-width: none;
+    }
+
+    #doc-body p {
+      margin: var(--space-3-5) 0;
+    }
+
+    #doc-body ul,
+    #doc-body ol {
+      padding-left: var(--space-6);
+      margin: var(--space-3) 0;
+    }
+
+    #doc-body li {
+      margin: var(--space-1) 0;
+    }
+
+    #doc-body li>ul,
+    #doc-body li>ol {
+      margin: var(--space-1) 0;
+    }
 
     #doc-body a {
       color: var(--foreground);
@@ -303,29 +321,42 @@
       text-underline-offset: 2px;
       transition: text-decoration-color .15s ease;
     }
-    #doc-body a:hover { text-decoration-color: var(--foreground); }
 
-    #doc-body strong { font-weight: 600; }
-    #doc-body em { font-style: italic; }
+    #doc-body a:hover {
+      text-decoration-color: var(--foreground);
+    }
+
+    #doc-body strong {
+      font-weight: var(--font-semibold);
+    }
+
+    #doc-body em {
+      font-style: italic;
+    }
 
     #doc-body hr {
-      border: none; border-top: 1px solid var(--border);
-      margin: 2rem 0;
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: var(--space-8) 0;
     }
 
     #doc-body blockquote {
-      margin: 1rem 0; padding: .75rem 1rem;
+      margin: var(--space-4) 0;
+      padding: var(--space-3) var(--space-4);
       border-left: 3px solid var(--border);
       background-color: var(--secondary);
       border-radius: 0 var(--radius) var(--radius) 0;
       color: var(--muted-foreground);
     }
-    #doc-body blockquote p { margin: 0; }
+
+    #doc-body blockquote p {
+      margin: 0;
+    }
 
     /* Inline code */
-    #doc-body :not(pre) > code {
+    #doc-body :not(pre)>code {
       font-family: var(--font-mono);
-      font-size: .8125rem;
+      font-size: var(--text-base);
       padding: .15em .4em;
       background-color: var(--secondary);
       border: 1px solid var(--border);
@@ -335,56 +366,58 @@
 
     /* Code blocks */
     #doc-body pre {
-      margin: 1.25rem 0;
+      margin: var(--space-5) 0;
       border-radius: var(--radius);
       border: 1px solid var(--border);
       overflow: hidden;
     }
+
     #doc-body pre code {
       display: block;
-      padding: 1rem 1.25rem !important;
+      padding: var(--space-4) var(--space-5) !important;
       font-family: var(--font-mono) !important;
-      font-size: .8125rem !important;
-      line-height: 1.65 !important;
+      font-size: var(--text-base) !important;
+      line-height: var(--leading-normal) !important;
       overflow-x: auto;
       background: transparent !important;
       border: none !important;
     }
+
     /* Wrap hljs backgrounds into border */
-    #doc-body pre > .hljs {
+    #doc-body pre>.hljs {
       border-radius: calc(var(--radius) - 1px);
     }
 
     /* Tables */
     #doc-body table {
       width: 100%; border-collapse: collapse;
-      font-size: .875rem; margin: 1.25rem 0;
+      font-size: var(--text-md); margin: var(--space-6) 0;
     }
     #doc-body th {
-      padding: .5rem .75rem; text-align: left;
-      font-weight: 600; font-size: .75rem;
-      letter-spacing: .04em; text-transform: uppercase;
+      padding: var(--space-2-5) var(--space-3); text-align: left;
+      font-weight: var(--font-semibold); font-size: var(--text-xs);
+      letter-spacing: var(--tracking-wider); text-transform: uppercase;
       color: var(--muted-foreground);
       border-bottom: 2px solid var(--border);
     }
     #doc-body td {
-      padding: .5rem .75rem;
+      padding: var(--space-3);
       border-bottom: 1px solid var(--border);
+      font-size: var(--text-base);
     }
     #doc-body tr:last-child td { border-bottom: none; }
     #doc-body tr:hover td { background-color: var(--secondary); }
 
     /* ── Responsive ── */
-    @media (max-width: 600px) {
-      .logo-text { display: none; }
-    }
-
-    @media (max-width: 400px) {
-      a.topbar-btn[href*="github"] { display: none; }
-    }
-
     @media (max-width: 768px) {
-      :root { --sidebar-w: 0px; }
+      :root {
+        --sidebar-w: 0px;
+      }
+
+      #topbar { padding: var(--space-4) var(--space-6); }
+      #topbar-right { gap: var(--space-2); }
+      .logo-text { display: none; }
+      .logo-emoji { font-size: var(--text-3xl); }
 
       #sidebar {
         width: 240px;
@@ -392,32 +425,39 @@
         box-shadow: var(--shadow-md);
       }
       #sidebar.open { transform: translateX(0); }
-
       #nav-toggle { display: flex; }
 
       #content {
         margin-left: 0;
-        padding: 1.75rem 1.25rem 3rem;
+        padding: var(--space-8) var(--space-6) var(--space-12);
       }
 
-      #doc-body h1 { font-size: 1.5rem; }
-      #doc-body h2 { font-size: 1.125rem; }
+      #doc-body h1 {
+        padding-bottom: 0;
+      }
+      #doc-body h2 { font-size: var(--text-xl); }
     }
 
     @media (max-width: 480px) {
-      #content { padding: 1.5rem 1rem 3rem; }
+      #topbar { padding: var(--space-4) var(--space-4); }
+      #topbar-right a.topbar-btn[href*="github"] { display: none; }
+      #content { padding: var(--space-6) var(--space-4) var(--space-12); }
     }
 
     /* Overlay for mobile sidebar */
     #sidebar-overlay {
       display: none;
       position: fixed; inset: 0;
-      background: rgba(0,0,0,.4);
+      background: var(--overlay-bg);
       z-index: 49;
     }
-    #sidebar-overlay.visible { display: block; }
+
+    #sidebar-overlay.visible {
+      display: block;
+    }
   </style>
 </head>
+
 <body>
 
   <!-- Top Bar -->
@@ -426,8 +466,8 @@
       <button id="nav-toggle" aria-label="Toggle navigation">
         <span></span><span></span><span></span>
       </button>
-      <a id="logo" href="../" aria-label="frogConvert home">
-        <span class="logo-emoji"><img src="../frog-emoji.webp" alt="" class="frog-emoji-img"></span>
+      <a id="logo" href="../" class="clickable" aria-label="frogConvert home">
+        <span class="logo-emoji" aria-hidden="true"><img src="../frog-emoji.webp" alt="" class="frog-emoji-img"></span>
         <span class="logo-text">frogConvert</span>
       </a>
       <span class="docs-badge">Docs</span>
@@ -436,7 +476,8 @@
       <a class="topbar-btn" href="../">
         ← App
       </a>
-      <a class="topbar-btn" href="https://github.com/ogfrench/frogConvert" target="_blank" rel="noopener" aria-label="GitHub repository">
+      <a class="topbar-btn" href="https://github.com/ogfrench/frogConvert" target="_blank" rel="noopener"
+        aria-label="GitHub repository">
         GitHub
       </a>
       <button id="theme-toggle" aria-label="Toggle theme">&#9790;</button>
@@ -448,44 +489,59 @@
   <div id="layout">
     <!-- Sidebar -->
     <nav id="sidebar" aria-label="Documentation navigation">
-      <div class="sidebar-section-label">Documentation</div>
+      <div id="sidebar-items">
+        <div class="sidebar-section-label">Documentation</div>
 
-      <button class="nav-item" data-doc="README.md">
-        <span class="nav-icon">📖</span>
-        <span>
-          README
-          <span class="nav-desc">Setup &amp; contributing</span>
-        </span>
-      </button>
+        <button class="nav-item" data-doc="README.md">
+          <span class="nav-icon">📖</span>
+          <span>
+            README
+            <span class="nav-desc">Setup &amp; contributing</span>
+          </span>
+        </button>
 
-      <button class="nav-item" data-doc="AGENTS.md">
-        <span class="nav-icon">🤖</span>
-        <span>
-          AGENTS
-          <span class="nav-desc">MCP &amp; REST API guide</span>
-        </span>
-      </button>
+        <button class="nav-item" data-doc="AGENTS.md">
+          <span class="nav-icon">🤖</span>
+          <span>
+            AGENTS
+            <span class="nav-desc">MCP &amp; REST API guide</span>
+          </span>
+        </button>
 
-      <button class="nav-item" data-doc="AGENT_CONTEXT.md">
-        <span class="nav-icon">⚙️</span>
-        <span>
-          Agent Context
-          <span class="nav-desc">Architecture deep-dive</span>
-        </span>
-      </button>
+        <button class="nav-item" data-doc="AGENT_CONTEXT.md">
+          <span class="nav-icon">⚙️</span>
+          <span>
+            Agent Context
+            <span class="nav-desc">Architecture deep-dive</span>
+          </span>
+        </button>
+      </div>
+
+      <div id="sidebar-footer">
+        <div id="sidebar-footer-label">Build Info</div>
+        <div id="build-time">...</div>
+        <div id="build-sha">
+          <a id="commit-link" href="#" target="_blank" rel="noopener">...</a>
+        </div>
+      </div>
     </nav>
 
     <!-- Main content -->
     <main id="content">
       <div id="doc-placeholder">
-        <div class="spinner"></div>
+        <div class="loader-spinner"></div>
         <span>Loading…</span>
       </div>
       <div id="doc-body" style="display:none"></div>
     </main>
   </div>
 
-  <script>
+  <script type="module">
+    import { initCustomCursor } from "../src/components/index.ts";
+
+    // --- Custom Cursor ---
+    initCustomCursor();
+
     // ── Theme ──
     const html = document.documentElement;
     const themeBtn = document.getElementById('theme-toggle');
@@ -524,7 +580,7 @@
       activeBtn = filename;
 
       // Show loading
-      placeholder.innerHTML = '<div class="spinner"></div><span>Loading…</span>';
+      placeholder.innerHTML = '<div class="loader-spinner"></div><span>Loading…</span>';
       placeholder.style.display = 'flex';
       docBody.style.display = 'none';
 
@@ -555,7 +611,7 @@
         // Update URL hash
         history.replaceState(null, '', `#${filename}`);
       } catch (err) {
-        placeholder.innerHTML = `<span>⚠️ Failed to load ${filename}</span><span style="font-size:.75rem;color:var(--muted-foreground)">${err.message}</span>`;
+        placeholder.innerHTML = `<span>⚠️ Failed to load ${filename}</span><span style="font-size:var(--text-xs);color:var(--muted-foreground)">${err.message}</span>`;
       }
 
       // Auto-close sidebar on mobile
@@ -567,10 +623,39 @@
       btn.addEventListener('click', () => loadDoc(btn.dataset.doc));
     });
 
+    // Load build info
+    const buildTimeEl = document.getElementById('build-time');
+    const buildShaEl = document.getElementById('build-sha');
+    const appName = import.meta.env.VITE_APP_NAME || 'frogConvert';
+    const buildTime = import.meta.env.VITE_BUILD_TIME;
+    const commitSha = import.meta.env.VITE_COMMIT_SHA || 'dev';
+
+    document.title = `${appName} Docs`;
+    document.querySelectorAll('.logo-text').forEach(el => el.textContent = appName);
+
+    if (buildTimeEl && buildTime) {
+      const date = new Date(buildTime);
+      buildTimeEl.textContent = date.toLocaleString();
+    }
+    if (buildShaEl) {
+      const sha = commitSha.substring(0, 7);
+      const link = document.getElementById('commit-link');
+      if (link) {
+        link.textContent = sha;
+        if (commitSha !== 'dev') {
+          link.href = `https://github.com/ogfrench/frogConvert/commit/${commitSha}`;
+        } else {
+          link.classList.add('disabled');
+          link.onclick = (e) => e.preventDefault();
+        }
+      }
+    }
+
     // Load doc from hash or default to README
     const hash = location.hash.replace('#', '');
     const validDocs = ['README.md', 'AGENTS.md', 'AGENT_CONTEXT.md'];
     loadDoc(validDocs.includes(hash) ? hash : 'README.md');
   </script>
 </body>
+
 </html>

@@ -11,6 +11,9 @@ import { registerListFormatsTool } from './tools/listFormats.ts';
 import { registerFindConversionPathTool } from './tools/findConversionPath.ts';
 import { registerConvertFileTool } from './tools/convertFile.ts';
 import { warmUpBridge } from './core/browserBridge.ts';
+import type { McpContext } from './core/types.ts';
+
+export type { McpContext };
 
 async function main() {
     const server = new McpServer({
@@ -18,17 +21,29 @@ async function main() {
         version: "1.0.0"
     });
 
-    const handlers = await loadMcpHandlers();
+    // Initialize handlers in the background — don't block server startup.
+    // Pandoc WASM (~55 MB) can take 30 s – 3 min to compile on cold start;
+    // waiting here would make the MCP client time out before the server is ready.
+    // Each tool call awaits this promise before processing.
+    const initPromise: Promise<McpContext> = (async () => {
+        const handlers = await loadMcpHandlers();
 
-    const supportedFormatCache = new Map<string, FileFormat[]>();
-    handlers.forEach(h => supportedFormatCache.set(h.name, h.supportedFormats || []));
+        const supportedFormatCache = new Map<string, FileFormat[]>();
+        handlers.forEach(h => supportedFormatCache.set(h.name, h.supportedFormats || []));
 
-    const graph = new TraversionGraph();
-    graph.init(supportedFormatCache, handlers, false);
+        const graph = new TraversionGraph();
+        graph.init(supportedFormatCache, handlers, false);
 
-    registerListFormatsTool(server, handlers);
-    registerFindConversionPathTool(server, handlers, graph);
-    registerConvertFileTool(server, handlers, graph);
+        return { handlers, graph };
+    })();
+
+    initPromise.catch(err => {
+        console.error("[MCP] Handler initialization failed:", err);
+    });
+
+    registerListFormatsTool(server, initPromise);
+    registerFindConversionPathTool(server, initPromise);
+    registerConvertFileTool(server, initPromise);
 
     // Start browser warm-up immediately — don't await, let it run in parallel
     // with the transport setup and user think time before the first tool call.

@@ -42,7 +42,9 @@
     "compile:win": "bun build --compile --target=bun-windows-x64 bin/frogconvert.ts --outfile=release/frogconvert-win.exe",
     "compile:mac": "bun build --compile --target=bun-darwin-arm64 bin/frogconvert.ts --outfile=release/frogconvert-mac-arm64",
     "compile:mac:x64": "bun build --compile --target=bun-darwin-x64 bin/frogconvert.ts --outfile=release/frogconvert-mac-x64",
-    "compile:linux": "bun build --compile --target=bun-linux-x64 bin/frogconvert.ts --outfile=release/frogconvert-linux"
+    "compile:linux": "bun build --compile --target=bun-linux-x64 bin/frogconvert.ts --outfile=release/frogconvert-linux",
+    "docs:verify": "bun run scripts/verify-docs.ts",
+    "prepare": "husky"
   },
   "build": {
     "appId": "com.ogfrench.frogconvert",
@@ -74,6 +76,7 @@
     "@types/three": "^0.182.0",
     "electron": "^40.6.0",
     "electron-builder": "^26.8.1",
+    "husky": "^9.1.7",
     "jsdom": "^28.1.0",
     "puppeteer": "^24.36.0",
     "typescript": "~5.9.3",

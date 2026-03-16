@@ -87,9 +87,19 @@ class NativeFFmpegAdapter {
         }, timeout);
       }
 
-      p.on("close", () => {
+      p.on("close", (code: number | null) => {
         if (to) clearTimeout(to);
-        resolve();
+        // code is null when the process was killed by a signal (e.g. our own
+        // timeout handler calling p.kill()). Treat that as already-rejected —
+        // don't inject a second "Conversion failed!" or call reject() again.
+        if (code !== null && code !== 0) {
+          // Inject the "Conversion failed!" marker so the recovery-pattern
+          // checks in FFmpegHandler.doConvert() work for native ffmpeg too.
+          this.#logCallback({ message: "Conversion failed!" });
+          reject(new Error(`ffmpeg exited with code ${code}`));
+        } else if (code === 0) {
+          resolve();
+        }
       });
       p.on("error", (err: any) => {
         if (to) clearTimeout(to);
@@ -155,9 +165,14 @@ class FFmpegHandler implements FormatHandler {
   async getStdout(callback: () => void | Promise<void>) {
     if (!this.#ffmpeg) return "";
     this.clearStdout();
-    this.#ffmpeg.on("log", this.handleStdout.bind(this));
-    await callback();
-    this.#ffmpeg.off("log", this.handleStdout.bind(this));
+    // Use a stable reference so on() and off() match the same function object.
+    const handler = this.handleStdout.bind(this);
+    this.#ffmpeg.on("log", handler);
+    try {
+      await callback();
+    } finally {
+      this.#ffmpeg.off("log", handler);
+    }
     return this.#stdout;
   }
 
@@ -422,9 +437,16 @@ class FFmpegHandler implements FormatHandler {
     if (args) command.push(...args);
     command.push("output");
 
-    const stdout = await this.getStdout(async () => {
-      await this.#ffmpeg!.exec(command);
-    });
+    let stdout: string;
+    try {
+      stdout = await this.getStdout(async () => {
+        await this.#ffmpeg!.exec(command);
+      });
+    } catch {
+      // Native ffmpeg rejects on non-zero exit code; use whatever was
+      // accumulated before the failure so recovery patterns can still fire.
+      stdout = this.#stdout;
+    }
 
     for (let i = 0; i < fileIndex; i++) {
       const entryName = `file_${i}.${inputFormat.extension}`;

@@ -1,12 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import type { FormatHandler, FileFormat, FileData } from "../../core/FormatHandler/FormatHandler.ts";
-import type { TraversionGraph } from "../../core/TraversionGraph/TraversionGraph.ts";
+import type { FileData } from "../../core/FormatHandler/FormatHandler.ts";
+import type { McpContext } from "../core/types.ts";
 
 import { findFormatAndHandler } from "../core/utils.ts";
 import { convertViaBrowser } from "../core/browserBridge.ts";
 
-export function registerConvertFileTool(server: McpServer, handlers: FormatHandler[], graph: TraversionGraph) {
+export function registerConvertFileTool(server: McpServer, initPromise: Promise<McpContext>) {
     server.tool(
         "convert_file",
         "Convert a file by providing its base64-encoded bytes.",
@@ -19,6 +19,16 @@ export function registerConvertFileTool(server: McpServer, handlers: FormatHandl
             outputExtension: z.string().describe("Output format extension")
         },
         async ({ fileName, base64Bytes, inputMime, inputExtension, outputMime, outputExtension }) => {
+            const maxUploadMb = Number(process.env.MAX_UPLOAD_MB ?? 4096);
+            if (base64Bytes.length * 0.75 > maxUploadMb * 1024 * 1024) {
+                return {
+                    content: [{ type: "text", text: `Error: File too large (max ${maxUploadMb} MB)` }],
+                    isError: true
+                };
+            }
+
+            const { handlers, graph } = await initPromise;
+
             const inputMatch = findFormatAndHandler(handlers, inputMime, inputExtension, 'from');
             const outputMatch = findFormatAndHandler(handlers, outputMime, outputExtension, 'to');
 

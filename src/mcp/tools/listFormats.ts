@@ -1,12 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
+import type { McpContext } from "../core/types.ts";
 
-export function registerListFormatsTool(server: McpServer, handlers: FormatHandler[]) {
+export function registerListFormatsTool(server: McpServer, initPromise: Promise<McpContext>) {
     server.tool(
         "list_formats",
         "List all supported conversion formats in frogConvert MCP.",
         {},
         async () => {
+            const { handlers } = await initPromise;
             const formats = [];
             for (const handler of handlers) {
                 if (!handler.supportedFormats) continue;

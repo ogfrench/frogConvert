@@ -121,7 +121,6 @@
     .frog-emoji {
       font-size: 5rem;
       display: inline-block;
-      animation: hop 3s ease-in-out infinite;
       margin-bottom: 1.5rem;
       user-select: none;
       line-height: 1;
@@ -202,8 +201,8 @@
     @keyframes hop {
       0%        { transform: translateY(0) scale(1, 1); }
       8%        { transform: translateY(5px) scale(1.1, 0.88); }
-      25%       { transform: translateY(-40px) scale(0.9, 1.12); }
-      45%       { transform: translateY(-44px) scale(0.88, 1.15); }
+      25%       { transform: translateY(-45px) scale(0.9, 1.12); }
+      45%       { transform: translateY(-48px) scale(0.88, 1.15); }
       62%       { transform: translateY(0) scale(1.12, 0.9); }
       72%       { transform: translateY(-10px) scale(0.96, 1.04); }
       82%       { transform: translateY(0) scale(1.04, 0.97); }
@@ -257,6 +256,31 @@
       <span aria-hidden="true">&#8592;</span> Back to frogConvert
     </a>
   </main>
+
+  <script>
+    (function() {
+      const frog = document.querySelector('.frog-emoji');
+      if (!frog) return;
+
+      const JUMP_DURATION = 4000; // 4s per jump (reduced frequency)
+      const JUMPS_PER_SESSION = 3;
+      const PAUSE_DURATION = 30000; // 30s pause
+
+      function startJumping() {
+        // Trigger 3 jumps
+        frog.style.animation = `hop ${JUMP_DURATION}ms ease-in-out ${JUMPS_PER_SESSION}`;
+        
+        // After 3 jumps (3 * 4s = 12s), remove animation and wait 30s
+        setTimeout(() => {
+          frog.style.animation = 'none';
+          setTimeout(startJumping, PAUSE_DURATION);
+        }, JUMP_DURATION * JUMPS_PER_SESSION);
+      }
+
+      // Initial delay to let the page settle
+      setTimeout(startJumping, 1000);
+    })();
+  </script>
 
 </body>
 

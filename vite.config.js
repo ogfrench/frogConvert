@@ -4,8 +4,26 @@ import { defineConfig } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import tsconfigPaths from "vite-tsconfig-paths";
 
+import { execSync } from "child_process";
+
+const projectPkg = JSON.parse(fs.readFileSync("./package.json", "utf-8"));
+const commitSha = (() => {
+  try {
+    return execSync('git rev-parse --short HEAD', { stdio: 'pipe', encoding: 'utf8' }).trim();
+  } catch (e) {
+    // Log the error for debugging purposes during development, but don't fail the build.
+    console.warn("Could not determine git commit SHA. Defaulting to 'dev'. Error:", e.message);
+    return 'dev';
+  }
+})();
+
 export default defineConfig({
   appType: 'mpa',
+  define: {
+    'import.meta.env.VITE_APP_NAME': JSON.stringify(projectPkg.productName || "frogConvert"),
+    'import.meta.env.VITE_BUILD_TIME': JSON.stringify(new Date().toISOString()),
+    'import.meta.env.VITE_COMMIT_SHA': JSON.stringify(commitSha),
+  },
   build: {
     sourcemap: true,
     target: "esnext",
@@ -38,16 +56,33 @@ export default defineConfig({
       configureServer(server) {
         server.middlewares.use((req, res, next) => {
           if (req.url.endsWith('.md')) {
-            const url = req.url.replace(/^\/convert\//, '');
-            // Map /docs/README.md to root README.md, others to their respective paths
+            const urlPath = req.url.replace(/^\/convert\//, '').split('?')[0];
+            
+            // Map /docs/*.md requests to their file locations
+            // If it's in /docs/, check if it's there or at project root
             let filePath;
-            if (url === 'docs/README.md') {
-              filePath = resolve(__dirname, 'README.md');
+            if (urlPath.startsWith('docs/')) {
+              const filename = urlPath.replace('docs/', '');
+              const rootPath = resolve(__dirname, filename);
+              const docsPath = resolve(__dirname, 'docs', filename);
+              
+              // Path traversal protection: ensure the file is within root or docs
+              if (!rootPath.startsWith(__dirname) && !docsPath.startsWith(__dirname)) {
+                next();
+                return;
+              }
+
+              // Prioritize file at root (README.md, etc) if it exists, otherwise check docs/
+              filePath = fs.existsSync(rootPath) ? rootPath : docsPath;
             } else {
-              filePath = resolve(__dirname, url);
+              filePath = resolve(__dirname, urlPath);
+              if (!filePath.startsWith(__dirname)) {
+                next();
+                return;
+              }
             }
 
-            if (fs.existsSync(filePath)) {
+            if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
               res.setHeader('Content-Type', 'text/markdown');
               res.end(fs.readFileSync(filePath));
               return;
@@ -103,9 +138,9 @@ export default defineConfig({
           src: "src/handlers/espeakng.js/js/espeakng.worker.data",
           dest: "js"
         },
-        { src: "README.md",             dest: "docs" },
-        { src: "docs/AGENTS.md",        dest: "docs" },
-        { src: "docs/AGENT_CONTEXT.md", dest: "docs" }
+        // Auto-sync all documentation files
+        { src: "*.md", dest: "docs" },
+        { src: "docs/*.md", dest: "docs" }
       ]
     }),
     tsconfigPaths()

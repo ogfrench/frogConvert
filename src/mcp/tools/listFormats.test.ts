@@ -18,7 +18,8 @@ describe('listFormats', () => {
             doConvert: async () => []
         };
 
-        registerListFormatsTool(mockServer, [mockHandler]);
+        const initPromise = Promise.resolve({ handlers: [mockHandler], graph: {} as any });
+        registerListFormatsTool(mockServer, initPromise);
 
         // Verify the tool was registered
         expect(mockServer.tool).toHaveBeenCalled();

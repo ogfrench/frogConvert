@@ -57,11 +57,19 @@ async function runConversion(
     }
 }
 
+const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB ?? 4096);
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+
 export async function handleConvert(
     req: Request,
     handlers: FormatHandler[],
     graph: TraversionGraph
 ): Promise<Response> {
+    const contentLength = Number(req.headers.get("content-length") ?? 0);
+    if (contentLength > MAX_UPLOAD_BYTES) {
+        return Response.json({ error: `Payload too large (max ${MAX_UPLOAD_MB} MB)` }, { status: 413 });
+    }
+
     const contentType = req.headers.get("content-type") ?? "";
 
     if (contentType.includes("multipart/form-data")) {

@@ -33,37 +33,37 @@ import envelopeHandler from "../../handlers/envelope.ts";
 export const loadMcpHandlers = async (): Promise<FormatHandler[]> => {
     const handlers: FormatHandler[] = [];
 
-    try { handlers.push(new FFmpegHandler()); } catch (e: any) { console.error("[MCP] Skipping FFmpeg:", e?.message || e); }
-    try { handlers.push(new ImageMagickHandler()); } catch (e) { console.error("Failed to load ImageMagickHandler:", e); }
-    try { handlers.push(new pandocHandler()); } catch (e) { console.error("Failed to load pandocHandler:", e); }
-    try { handlers.push(new jszipHandler()); } catch (e) { console.error("Failed to load jszipHandler:", e); }
-    try { handlers.push(new fromJsonHandler()); } catch (e) { console.error("Failed to load fromJsonHandler:", e); }
-    try { handlers.push(new toJsonHandler()); } catch (e) { console.error("Failed to load toJsonHandler:", e); }
-    try { handlers.push(new fontHandler()); } catch (e) { console.error("Failed to load fontHandler:", e); }
-    try { handlers.push(new textEncodingHandler()); } catch (e) { console.error("Failed to load textEncodingHandler:", e); }
-    try { handlers.push(new bsonHandler()); } catch (e) { console.error("Failed to load bsonHandler:", e); }
-    try { handlers.push(new nbtHandler()); } catch (e) { console.error("Failed to load nbtHandler:", e); }
-    try { handlers.push(new LZHHandler()); } catch (e) { console.error("Failed to load LZHHandler:", e); }
-    try { handlers.push(new batchHandler()); } catch (e) { console.error("Failed to load batchHandler:", e); }
-    try { handlers.push(new alsHandler()); } catch (e) { console.error("Failed to load alsHandler:", e); }
-    try { handlers.push(new mcSchematicHandler()); } catch (e) { console.error("Failed to load mcSchematicHandler:", e); }
-    try { handlers.push(new wadHandler()); } catch (e) { console.error("Failed to load wadHandler:", e); }
-    try { handlers.push(new toonHandler()); } catch (e) { console.error("Failed to load toonHandler:", e); }
-    try { handlers.push(new htmlEmbedHandler()); } catch (e) { console.error("Failed to load htmlEmbedHandler:", e); }
-    try { handlers.push(new sqlite3Handler()); } catch (e) { console.error("Failed to load sqlite3Handler:", e); }
-    try { handlers.push(new cgbiToPngHandler()); } catch (e) { console.error("Failed to load cgbiToPngHandler:", e); }
-    try { handlers.push(new flptojsonHandler()); } catch (e) { console.error("Failed to load flptojsonHandler:", e); }
-    try { handlers.push(renameZipHandler); } catch (e) { console.error("Failed to load renameZipHandler:", e); }
-    try { handlers.push(renameTxtHandler); } catch (e) { console.error("Failed to load renameTxtHandler:", e); }
-    try { handlers.push(new peToZipHandler()); } catch (e) { console.error("Failed to load peToZipHandler:", e); }
-    try { handlers.push(new curaniHandler()); } catch (e) { console.error("Failed to load curaniHandler:", e); }
-    try { handlers.push(new sb3ToHtmlHandler()); } catch (e) { console.error("Failed to load sb3ToHtmlHandler:", e); }
-    try { handlers.push(new txtToPyHandler()); } catch (e) { console.error("Failed to load txtToPyHandler:", e); }
-    try { handlers.push(new textToGoHandler()); } catch (e) { console.error("Failed to load textToGoHandler:", e); }
-    try { handlers.push(new textToShellHandler()); } catch (e) { console.error("Failed to load textToShellHandler:", e); }
-    try { handlers.push(new csharpHandler()); } catch (e) { console.error("Failed to load csharpHandler:", e); }
-    try { handlers.push(new txtToInfiniteCraftHandler()); } catch (e) { console.error("Failed to load txtToInfiniteCraftHandler:", e); }
-    try { handlers.push(new envelopeHandler()); } catch (e) { console.error("Failed to load envelopeHandler:", e); }
+    try { handlers.push(new FFmpegHandler()); } catch (e: any) { console.error("[MCP] Failed to load FFmpeg:", e?.message || e); }
+    try { handlers.push(new ImageMagickHandler()); } catch (e) { console.error("[MCP] Failed to load ImageMagick:", e); }
+    try { handlers.push(new pandocHandler()); } catch (e) { console.error("[MCP] Failed to load pandoc:", e); }
+    try { handlers.push(new jszipHandler()); } catch (e) { console.error("[MCP] Failed to load jszip:", e); }
+    try { handlers.push(new fromJsonHandler()); } catch (e) { console.error("[MCP] Failed to load fromJson:", e); }
+    try { handlers.push(new toJsonHandler()); } catch (e) { console.error("[MCP] Failed to load toJson:", e); }
+    try { handlers.push(new fontHandler()); } catch (e) { console.error("[MCP] Failed to load font:", e); }
+    try { handlers.push(new textEncodingHandler()); } catch (e) { console.error("[MCP] Failed to load textEncoding:", e); }
+    try { handlers.push(new bsonHandler()); } catch (e) { console.error("[MCP] Failed to load bson:", e); }
+    try { handlers.push(new nbtHandler()); } catch (e) { console.error("[MCP] Failed to load nbt:", e); }
+    try { handlers.push(new LZHHandler()); } catch (e) { console.error("[MCP] Failed to load LZH:", e); }
+    try { handlers.push(new batchHandler()); } catch (e) { console.error("[MCP] Failed to load batch:", e); }
+    try { handlers.push(new alsHandler()); } catch (e) { console.error("[MCP] Failed to load als:", e); }
+    try { handlers.push(new mcSchematicHandler()); } catch (e) { console.error("[MCP] Failed to load mcSchematic:", e); }
+    try { handlers.push(new wadHandler()); } catch (e) { console.error("[MCP] Failed to load wad:", e); }
+    try { handlers.push(new toonHandler()); } catch (e) { console.error("[MCP] Failed to load toon:", e); }
+    try { handlers.push(new htmlEmbedHandler()); } catch (e) { console.error("[MCP] Failed to load htmlEmbed:", e); }
+    try { handlers.push(new sqlite3Handler()); } catch (e) { console.error("[MCP] Failed to load sqlite3:", e); }
+    try { handlers.push(new cgbiToPngHandler()); } catch (e) { console.error("[MCP] Failed to load cgbi-to-png:", e); }
+    try { handlers.push(new flptojsonHandler()); } catch (e) { console.error("[MCP] Failed to load flptojson:", e); }
+    try { handlers.push(renameZipHandler); } catch (e) { console.error("[MCP] Failed to load renameZip:", e); }
+    try { handlers.push(renameTxtHandler); } catch (e) { console.error("[MCP] Failed to load renameTxt:", e); }
+    try { handlers.push(new peToZipHandler()); } catch (e) { console.error("[MCP] Failed to load peToZip:", e); }
+    try { handlers.push(new curaniHandler()); } catch (e) { console.error("[MCP] Failed to load curani:", e); }
+    try { handlers.push(new sb3ToHtmlHandler()); } catch (e) { console.error("[MCP] Failed to load sb3ToHtml:", e); }
+    try { handlers.push(new txtToPyHandler()); } catch (e) { console.error("[MCP] Failed to load txtToPy:", e); }
+    try { handlers.push(new textToGoHandler()); } catch (e) { console.error("[MCP] Failed to load textToGo:", e); }
+    try { handlers.push(new textToShellHandler()); } catch (e) { console.error("[MCP] Failed to load textToShell:", e); }
+    try { handlers.push(new csharpHandler()); } catch (e) { console.error("[MCP] Failed to load csharp:", e); }
+    try { handlers.push(new txtToInfiniteCraftHandler()); } catch (e) { console.error("[MCP] Failed to load txtToInfiniteCraft:", e); }
+    try { handlers.push(new envelopeHandler()); } catch (e) { console.error("[MCP] Failed to load envelope:", e); }
 
     // Initialize all handlers in parallel — Pandoc WASM is 55 MB and takes 30s–3min
     // to compile; sequential init blocks everything behind the slowest handler.

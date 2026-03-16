@@ -55,9 +55,11 @@ async function init() {
     }
 
     // Pre-warm all handlers in parallel so WASM is compiled before the first
-    // conversion request arrives. Errors are swallowed — lazy init per-conversion
-    // will surface them with a clear message if a handler truly can't be used.
-    Promise.all(handlers.map(h => ensureHandlerReady(h).catch(() => {})));
+    // conversion request arrives. Errors are logged — lazy init per-conversion
+    // will surface them again with a clear message if a handler truly can't be used.
+    Promise.all(handlers.map(h => ensureHandlerReady(h).catch(e =>
+        console.warn(`[headless] Pre-warm failed for handler '${h.name}':`, e)
+    )));
 }
 
 /** Encode Uint8Array to base64 without O(n²) string concatenation. */

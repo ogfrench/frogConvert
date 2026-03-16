@@ -165,6 +165,25 @@ async function ensureInitialized(): Promise<void> {
             });
         bridgePage = await browser.newPage();
 
+        // Reset ALL singleton state if the page dies so the next caller gets a
+        // completely fresh initialization attempt. Critically: staticServer and
+        // browser must also be nulled here — ensureInitialized() overwrites both
+        // module-level vars on re-init, so without closing them first the old
+        // server socket and Chrome process would be permanently leaked.
+        const onPageDead = () => {
+            process.stderr.write("[bridge] Page died — will re-initialize on next request\n");
+            bridgePage = null;
+            initPromise = null;
+            staticServer?.close();
+            staticServer = null;
+            // browser.close() is async; kill the child process directly for
+            // synchronous cleanup (same pattern used in process.on("exit")).
+            browser?.process()?.kill();
+            browser = null;
+        };
+        bridgePage.on("error", onPageDead);
+        bridgePage.on("crash", onPageDead);
+
         // Suppress noisy console output from the headless page
         bridgePage.on("console", msg => {
             if (msg.text() === "frogConvert headless ready") {

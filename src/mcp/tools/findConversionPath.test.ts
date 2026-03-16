@@ -43,7 +43,7 @@ describe('registerFindConversionPathTool', () => {
 
     it('registers a tool named find_conversion_path', () => {
         const server = makeMockServer();
-        registerFindConversionPathTool(server, [], makeGraph(null));
+        registerFindConversionPathTool(server, Promise.resolve({ handlers: [], graph: makeGraph(null) }));
         expect(server.tool).toHaveBeenCalledWith('find_conversion_path', expect.any(String), expect.any(Object), expect.any(Function));
     });
 
@@ -55,7 +55,7 @@ describe('registerFindConversionPathTool', () => {
         ];
 
         const server = makeMockServer();
-        registerFindConversionPathTool(server, [handler], makeGraph(path));
+        registerFindConversionPathTool(server, Promise.resolve({ handlers: [handler], graph: makeGraph(path) }));
         const cb = getCallback(server);
 
         const result = await cb({ inputMime: 'image/jpeg', inputExtension: 'jpeg', outputMime: 'image/png', outputExtension: 'png' });
@@ -72,7 +72,7 @@ describe('registerFindConversionPathTool', () => {
         vi.mocked(canConvertViaBrowser).mockResolvedValue(true);
 
         const server = makeMockServer();
-        registerFindConversionPathTool(server, [handler], makeGraph(null));
+        registerFindConversionPathTool(server, Promise.resolve({ handlers: [handler], graph: makeGraph(null) }));
         const cb = getCallback(server);
 
         const result = await cb({ inputMime: 'image/jpeg', inputExtension: 'jpeg', outputMime: 'image/png', outputExtension: 'png' });
@@ -87,7 +87,7 @@ describe('registerFindConversionPathTool', () => {
         vi.mocked(canConvertViaBrowser).mockResolvedValue(false);
 
         const server = makeMockServer();
-        registerFindConversionPathTool(server, [handler], makeGraph(null));
+        registerFindConversionPathTool(server, Promise.resolve({ handlers: [handler], graph: makeGraph(null) }));
         const cb = getCallback(server);
 
         const result = await cb({ inputMime: 'image/jpeg', inputExtension: 'jpeg', outputMime: 'image/png', outputExtension: 'png' });
@@ -101,7 +101,7 @@ describe('registerFindConversionPathTool', () => {
         vi.mocked(canConvertViaBrowser).mockRejectedValue(new Error('bridge down'));
 
         const server = makeMockServer();
-        registerFindConversionPathTool(server, [handler], makeGraph(null));
+        registerFindConversionPathTool(server, Promise.resolve({ handlers: [handler], graph: makeGraph(null) }));
         const cb = getCallback(server);
 
         const result = await cb({ inputMime: 'image/jpeg', inputExtension: 'jpeg', outputMime: 'image/png', outputExtension: 'png' });
@@ -114,7 +114,7 @@ describe('registerFindConversionPathTool', () => {
     it('returns input-not-found error immediately (no bridge check) when input format is unknown', async () => {
         // No handlers → inputMatch will be null
         const server = makeMockServer();
-        registerFindConversionPathTool(server, [], makeGraph(null));
+        registerFindConversionPathTool(server, Promise.resolve({ handlers: [], graph: makeGraph(null) }));
         const cb = getCallback(server);
 
         const result = await cb({ inputMime: 'image/jpeg', inputExtension: 'jpeg', outputMime: 'image/png', outputExtension: 'png' });
@@ -130,7 +130,7 @@ describe('registerFindConversionPathTool', () => {
         const inputHandler = makeHandler('InputHandler', [jpegFormat]);
 
         const server = makeMockServer();
-        registerFindConversionPathTool(server, [inputHandler], makeGraph(null));
+        registerFindConversionPathTool(server, Promise.resolve({ handlers: [inputHandler], graph: makeGraph(null) }));
         const cb = getCallback(server);
 
         const result = await cb({ inputMime: 'image/jpeg', inputExtension: 'jpeg', outputMime: 'model/gltf+json', outputExtension: 'gltf' });

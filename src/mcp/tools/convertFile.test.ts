@@ -50,7 +50,7 @@ describe('registerConvertFileTool', () => {
 
     it('registers a tool named convert_file', () => {
         const server = makeMockServer();
-        registerConvertFileTool(server, [], makeGraph(null));
+        registerConvertFileTool(server, Promise.resolve({ handlers: [], graph: makeGraph(null) }));
         expect(server.tool).toHaveBeenCalledWith('convert_file', expect.any(String), expect.any(Object), expect.any(Function));
     });
 
@@ -61,7 +61,7 @@ describe('registerConvertFileTool', () => {
             { format: pngFormat, handler },
         ];
         const server = makeMockServer();
-        registerConvertFileTool(server, [handler], makeGraph(path));
+        registerConvertFileTool(server, Promise.resolve({ handlers: [handler], graph: makeGraph(path) }));
         const cb = getCallback(server);
 
         const result = await cb({
@@ -83,7 +83,7 @@ describe('registerConvertFileTool', () => {
 
         const server = makeMockServer();
         // Graph yields nothing → no native path
-        registerConvertFileTool(server, [handler], makeGraph(null));
+        registerConvertFileTool(server, Promise.resolve({ handlers: [handler], graph: makeGraph(null) }));
         const cb = getCallback(server);
 
         const result = await cb({
@@ -106,7 +106,7 @@ describe('registerConvertFileTool', () => {
         vi.mocked(convertViaBrowser).mockResolvedValue([{ fileName: 'out.png', base64Bytes: 'eHl6' }]);
 
         const server = makeMockServer();
-        registerConvertFileTool(server, [], makeGraph(null));
+        registerConvertFileTool(server, Promise.resolve({ handlers: [], graph: makeGraph(null) }));
         const cb = getCallback(server);
 
         const result = await cb({
@@ -126,7 +126,7 @@ describe('registerConvertFileTool', () => {
         vi.mocked(convertViaBrowser).mockRejectedValue(new Error('Input format application/x-bsor (bsor) not found'));
 
         const server = makeMockServer();
-        registerConvertFileTool(server, [], makeGraph(null));
+        registerConvertFileTool(server, Promise.resolve({ handlers: [], graph: makeGraph(null) }));
         const cb = getCallback(server);
 
         const result = await cb({
@@ -146,7 +146,7 @@ describe('registerConvertFileTool', () => {
         vi.mocked(convertViaBrowser).mockRejectedValue(new Error('Output format model/gltf+json (gltf) not found or not writable'));
 
         const server = makeMockServer();
-        registerConvertFileTool(server, [inputHandler], makeGraph(null));
+        registerConvertFileTool(server, Promise.resolve({ handlers: [inputHandler], graph: makeGraph(null) }));
         const cb = getCallback(server);
 
         const result = await cb({
@@ -166,7 +166,7 @@ describe('registerConvertFileTool', () => {
         vi.mocked(convertViaBrowser).mockRejectedValue(new Error('No conversion path found between image/jpeg and image/png'));
 
         const server = makeMockServer();
-        registerConvertFileTool(server, [handler], makeGraph(null));
+        registerConvertFileTool(server, Promise.resolve({ handlers: [handler], graph: makeGraph(null) }));
         const cb = getCallback(server);
 
         const result = await cb({
@@ -190,7 +190,7 @@ describe('registerConvertFileTool', () => {
         ];
 
         const server = makeMockServer();
-        registerConvertFileTool(server, [handler], makeGraph(path));
+        registerConvertFileTool(server, Promise.resolve({ handlers: [handler], graph: makeGraph(path) }));
         const cb = getCallback(server);
 
         const result = await cb({
