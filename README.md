@@ -67,11 +67,13 @@ The MCP server and REST API can be run directly via `bunx` — no clone or insta
 }
 ```
 
-**REST API:**
+**REST API (recommended for scripting and automation):**
 ```bash
 bunx frogconvert api
 # PORT=8080 bunx frogconvert api
 ```
+
+> **Recommended for most programmatic use cases.** The REST API requires no approval prompts, works with any HTTP client (`curl`, `fetch`, scripts), and is faster to iterate with than the MCP server. Use MCP only when you want Claude to drive conversions autonomously within a Claude Code / Claude Desktop session.
 
 See [AGENTS.md](docs/AGENTS.md) for full API documentation and tool reference.
 

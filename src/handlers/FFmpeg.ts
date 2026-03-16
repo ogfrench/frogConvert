@@ -265,7 +265,8 @@ class FFmpegHandler implements FormatHandler {
     const stdout = await this.getStdout(async () => {
       await this.execSafe(["-formats", "-hide_banner"], 3000, 5);
     });
-    const lines = stdout.split(" --\n")[1].split("\n");
+    const blocks = stdout.split(" --\n");
+    const lines = blocks.length > 1 ? blocks[1].split("\n") : stdout.split("\n").filter(l => l.startsWith(" "));
 
     for (let line of lines) {
 

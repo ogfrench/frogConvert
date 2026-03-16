@@ -11,8 +11,8 @@ import { convertViaBrowser } from '../../mcp/core/browserBridge.ts';
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 
-const jpegFormat: FileFormat = { name: 'JPEG', mime: 'image/jpeg', extension: 'jpeg', from: true, to: true, format: 'jpeg' };
-const pngFormat: FileFormat  = { name: 'PNG',  mime: 'image/png',  extension: 'png',  from: true, to: true, format: 'png'  };
+const jpegFormat: FileFormat = { name: 'JPEG', mime: 'image/jpeg', extension: 'jpeg', from: true, to: true, format: 'jpeg', internal: 'jpeg' };
+const pngFormat: FileFormat  = { name: 'PNG',  mime: 'image/png',  extension: 'png',  from: true, to: true, format: 'png', internal: 'png'  };
 
 function makeHandler(name: string, formats: FileFormat[]): FormatHandler {
     return {
@@ -20,6 +20,7 @@ function makeHandler(name: string, formats: FileFormat[]): FormatHandler {
         ready: true,
         supportedFormats: formats,
         doConvert: vi.fn().mockResolvedValue([{ name: 'output.png', bytes: new Uint8Array([1, 2, 3]) }]),
+        init: vi.fn().mockResolvedValue(undefined),
     };
 }
 
@@ -39,6 +40,40 @@ function makeJsonRequest(body: object): Request {
 }
 
 // ─── tests ─────────────────────────────────────────────────────────────────
+
+describe('handleConvert (size limits)', () => {
+    it('returns 413 for JSON body whose base64Bytes exceeds MAX_UPLOAD_MB', async () => {
+        vi.resetModules();
+        process.env.MAX_UPLOAD_MB = '0';
+        const { handleConvert: handleConvertFresh } = await import('./convert.ts');
+
+        const req = {
+            headers: { get: (k: string) => k.toLowerCase() === 'content-length' ? '1000000' : null },
+        } as unknown as Request;
+
+        const res = await handleConvertFresh(req, [], makeGraph(null));
+        expect(res.status).toBe(413);
+
+        delete process.env.MAX_UPLOAD_MB;
+        vi.resetModules();
+    });
+
+    it('returns 413 for multipart file whose size exceeds MAX_UPLOAD_MB', async () => {
+        vi.resetModules();
+        process.env.MAX_UPLOAD_MB = '0';
+        const { handleConvert: handleConvertFresh } = await import('./convert.ts');
+
+        const req = {
+            headers: { get: (k: string) => k.toLowerCase() === 'content-type' ? 'multipart/form-data' : k.toLowerCase() === 'content-length' ? '1000000' : null },
+        } as unknown as Request;
+
+        const res = await handleConvertFresh(req, [], makeGraph(null));
+        expect(res.status).toBe(413);
+
+        delete process.env.MAX_UPLOAD_MB;
+        vi.resetModules();
+    });
+});
 
 describe('handleConvert (JSON mode)', () => {
     beforeEach(() => {

@@ -91,6 +91,10 @@ export async function handleConvert(
             return Response.json({ error: "Missing 'outputMime' or 'outputExt' fields" }, { status: 400 });
         }
 
+        if (file.size > MAX_UPLOAD_BYTES) {
+            return Response.json({ error: `File too large (max ${MAX_UPLOAD_MB} MB)` }, { status: 413 });
+        }
+
         const fileName = file.name;
         const ext = fileName.includes(".") ? fileName.split(".").pop()! : "";
         const detectedMime = mime.getType(fileName) || "application/octet-stream";
@@ -129,6 +133,10 @@ export async function handleConvert(
                 { error: "Body must include: fileName, base64Bytes, inputMime, inputExt, outputMime, outputExt" },
                 { status: 400 }
             );
+        }
+
+        if (typeof base64Bytes === "string" && base64Bytes.length * 0.75 > MAX_UPLOAD_BYTES) {
+            return Response.json({ error: `File too large (max ${MAX_UPLOAD_MB} MB)` }, { status: 413 });
         }
 
         const buffer = Buffer.from(base64Bytes, "base64");

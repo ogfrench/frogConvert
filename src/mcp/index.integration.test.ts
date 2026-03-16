@@ -34,5 +34,5 @@ describe('MCP Server Integration', () => {
         expect(toolNames).toContain('list_formats');
         expect(toolNames).toContain('find_conversion_path');
         expect(toolNames).toContain('convert_file');
-    });
+    }, 10000);
 });

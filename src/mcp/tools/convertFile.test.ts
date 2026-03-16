@@ -8,12 +8,24 @@ vi.mock('../core/browserBridge.ts', () => ({
     convertViaBrowser: vi.fn(),
 }));
 
+vi.mock('fs/promises', () => {
+    const mocked = {
+        readFile: vi.fn(),
+        writeFile: vi.fn(),
+    };
+    return {
+        ...mocked,
+        default: mocked,
+    };
+});
+
 import { convertViaBrowser } from '../core/browserBridge.ts';
+import { readFile, writeFile } from 'fs/promises';
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 
-const jpegFormat: FileFormat = { name: 'JPEG', mime: 'image/jpeg', extension: 'jpeg', from: true, to: true, format: 'jpeg' };
-const pngFormat: FileFormat  = { name: 'PNG',  mime: 'image/png',  extension: 'png',  from: true, to: true, format: 'png' };
+const jpegFormat: FileFormat = { name: 'JPEG', mime: 'image/jpeg', extension: 'jpeg', from: true, to: true, format: 'jpeg', internal: 'jpeg' };
+const pngFormat: FileFormat  = { name: 'PNG',  mime: 'image/png',  extension: 'png',  from: true, to: true, format: 'png', internal: 'png' };
 
 function makeHandler(name: string, formats: FileFormat[]): FormatHandler {
     return {
@@ -46,6 +58,8 @@ function makeMockServer(): McpServer {
 describe('registerConvertFileTool', () => {
     beforeEach(() => {
         vi.mocked(convertViaBrowser).mockReset();
+        vi.mocked(readFile).mockReset();
+        vi.mocked(writeFile).mockReset();
     });
 
     it('registers a tool named convert_file', () => {
@@ -178,6 +192,144 @@ describe('registerConvertFileTool', () => {
 
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/No conversion path found/);
+    });
+
+    it('returns error when neither base64Bytes nor filePath is provided', async () => {
+        const server = makeMockServer();
+        registerConvertFileTool(server, Promise.resolve({ handlers: [], graph: makeGraph(null) }));
+        const cb = getCallback(server);
+
+        const result = await cb({
+            inputMime: 'image/jpeg', inputExtension: 'jpeg',
+            outputMime: 'image/png',  outputExtension: 'png',
+        });
+
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toMatch(/base64Bytes or filePath/);
+    });
+
+    it('returns error when base64Bytes provided without fileName', async () => {
+        const server = makeMockServer();
+        registerConvertFileTool(server, Promise.resolve({ handlers: [], graph: makeGraph(null) }));
+        const cb = getCallback(server);
+
+        const result = await cb({
+            base64Bytes: 'aGVsbG8=',
+            inputMime: 'image/jpeg', inputExtension: 'jpeg',
+            outputMime: 'image/png',  outputExtension: 'png',
+        });
+
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toMatch(/fileName/);
+    });
+
+    it('reads file from disk when filePath is provided', async () => {
+        const diskBytes = Buffer.from('hello');
+        vi.mocked(readFile).mockResolvedValue(diskBytes as any);
+
+        const handler = makeHandler('TestHandler', [jpegFormat, pngFormat]);
+        const path = [
+            { format: jpegFormat, handler },
+            { format: pngFormat,  handler },
+        ];
+        const server = makeMockServer();
+        registerConvertFileTool(server, Promise.resolve({ handlers: [handler], graph: makeGraph(path) }));
+        const cb = getCallback(server);
+
+        const result = await cb({
+            filePath: '/tmp/test.jpg',
+            inputMime: 'image/jpeg', inputExtension: 'jpeg',
+            outputMime: 'image/png',  outputExtension: 'png',
+        });
+
+        expect(readFile).toHaveBeenCalledWith('/tmp/test.jpg');
+        expect(result.isError).toBeFalsy();
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed[0].fileName).toBe('output.png');
+    });
+
+    it('infers fileName from filePath basename', async () => {
+        vi.mocked(readFile).mockResolvedValue(Buffer.from('hello') as any);
+        vi.mocked(convertViaBrowser).mockResolvedValue([{ fileName: 'out.png', base64Bytes: 'YWJj' }]);
+
+        const server = makeMockServer();
+        registerConvertFileTool(server, Promise.resolve({ handlers: [], graph: makeGraph(null) }));
+        const cb = getCallback(server);
+
+        await cb({
+            filePath: '/some/path/photo.jpg',
+            inputMime: 'image/jpeg', inputExtension: 'jpeg',
+            outputMime: 'image/png',  outputExtension: 'png',
+        });
+
+        expect(convertViaBrowser).toHaveBeenCalledWith(
+            'photo.jpg', expect.any(String), 'image/jpeg', 'jpeg', 'image/png', 'png'
+        );
+    });
+
+    it('returns error when filePath cannot be read', async () => {
+        vi.mocked(readFile).mockRejectedValue(new Error('ENOENT: no such file or directory'));
+
+        const server = makeMockServer();
+        registerConvertFileTool(server, Promise.resolve({ handlers: [], graph: makeGraph(null) }));
+        const cb = getCallback(server);
+
+        const result = await cb({
+            filePath: '/nonexistent/file.jpg',
+            inputMime: 'image/jpeg', inputExtension: 'jpeg',
+            outputMime: 'image/png',  outputExtension: 'png',
+        });
+
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toMatch(/Error reading filePath/);
+    });
+
+    it('writes output to disk when outputFilePath is provided (native path)', async () => {
+        vi.mocked(writeFile).mockResolvedValue(undefined);
+
+        const handler = makeHandler('TestHandler', [jpegFormat, pngFormat]);
+        const path = [
+            { format: jpegFormat, handler },
+            { format: pngFormat,  handler },
+        ];
+        const server = makeMockServer();
+        registerConvertFileTool(server, Promise.resolve({ handlers: [handler], graph: makeGraph(path) }));
+        const cb = getCallback(server);
+
+        const result = await cb({
+            fileName: 'test.jpg',
+            base64Bytes: Buffer.from('hello').toString('base64'),
+            inputMime: 'image/jpeg', inputExtension: 'jpeg',
+            outputMime: 'image/png',  outputExtension: 'png',
+            outputFilePath: '/tmp/output.png',
+        });
+
+        expect(writeFile).toHaveBeenCalledWith('/tmp/output.png', expect.any(Uint8Array));
+        expect(result.isError).toBeFalsy();
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.savedTo).toContain('/tmp/output.png');
+    });
+
+    it('writes output to disk when outputFilePath is provided (bridge path)', async () => {
+        vi.mocked(writeFile).mockResolvedValue(undefined);
+        vi.mocked(convertViaBrowser).mockResolvedValue([{ fileName: 'bridge.png', base64Bytes: 'YWJj' }]);
+
+        const server = makeMockServer();
+        registerConvertFileTool(server, Promise.resolve({ handlers: [], graph: makeGraph(null) }));
+        const cb = getCallback(server);
+
+        const result = await cb({
+            fileName: 'test.jpg',
+            base64Bytes: 'aGVsbG8=',
+            inputMime: 'image/jpeg', inputExtension: 'jpeg',
+            outputMime: 'image/png',  outputExtension: 'png',
+            outputFilePath: '/tmp/output.png',
+        });
+
+        expect(writeFile).toHaveBeenCalledWith('/tmp/output.png', expect.any(Uint8Array));
+        expect(result.isError).toBeFalsy();
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.savedTo).toContain('/tmp/output.png');
     });
 
     it('falls back to bridge when native handler throws', async () => {

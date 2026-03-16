@@ -2,7 +2,24 @@
 
 frogConvert is a universal file converter built on top of **[Convert to it!](https://p2r3.github.io/convert/)** by PortalRunner ([repo](https://github.com/p2r3/convert)). The core conversion engine — the `FormatHandler` interface, graph-based routing, and underlying handlers — is inherited from that project. frogConvert adds a redesigned UI and a built-in MCP server that gives AI agents direct programmatic access to the same engine.
 
-When working with frogConvert programmatically, **use the MCP server or REST API rather than the web UI**. The tools below cover everything you'd do through the browser.
+When working with frogConvert programmatically, **use the REST API or MCP server rather than the web UI**. The tools below cover everything you'd do through the browser.
+
+> **REST API is recommended for most programmatic use cases.** It requires no approval prompts, works with any HTTP client (`curl`, `fetch`, shell scripts), and is faster to iterate with. The MCP server is best suited for fully autonomous Claude-driven workflows (Claude Code / Claude Desktop) where you want Claude to call conversions without any shell access — but note that each MCP tool call triggers a permission prompt unless pre-approved in settings.
+
+---
+
+## 🆚 REST API vs MCP — Which Should You Use?
+
+| | REST API | MCP Server |
+|---|---|---|
+| **Recommended for** | Scripts, curl, CI, any HTTP client | Claude Code / Claude Desktop autonomous workflows |
+| **Permission prompts** | None | Required per tool call (unless pre-approved in settings) |
+| **Iteration speed** | Fast | Slower due to approval gate |
+| **Interface** | HTTP (`curl`, `fetch`, any language) | `stdio` JSON-RPC |
+| **Setup** | `bunx frogconvert api` | Add to MCP config, restart Claude |
+| **Large files** | Use `filePath`-based multipart | Use `filePath` + `outputFilePath` params |
+
+**TL;DR: Use the REST API unless you specifically need Claude to drive conversions autonomously without shell access.**
 
 ---
 
@@ -52,13 +69,33 @@ Three tools, all over `stdio`:
    - **Returns**: A text string of the form `Path: HandlerA (mime/type) -> HandlerB (mime/type)`. Returns an error if no native or browser path exists. If no native path exists but the browser bridge can handle it, returns an informational note instead of an error.
 
 3. **`convert_file`**
-   - **Arguments**: `fileName`, `base64Bytes`, `inputMime`, `inputExtension`, `outputMime`, `outputExtension`
-   - **Description**: The core execution tool. Accepts a Base64 encoded file buffer, routes it through the handler chain, and returns all output files.
-   - **Returns**: A JSON string (inside a `text` content block) that parses to an array of output files:
-     ```json
-     [{ "fileName": "output.png", "base64Bytes": "<base64>" }]
-     ```
+   - **Arguments**:
+     | Argument | Required | Description |
+     |---|---|---|
+     | `filePath` | one of `filePath`/`base64Bytes` | Absolute path to a local file. The server reads it directly — use this for large files to avoid context window limits. |
+     | `base64Bytes` | one of `filePath`/`base64Bytes` | Base64-encoded file content. |
+     | `fileName` | required with `base64Bytes`; optional with `filePath` | Input filename (e.g. `image.jpg`). Inferred from `filePath` basename when omitted. |
+     | `inputMime` | required | Input MIME type. |
+     | `inputExtension` | required | Input format extension. |
+     | `outputMime` | required | Output MIME type. |
+     | `outputExtension` | required | Output format extension. |
+     | `outputFilePath` | optional | Absolute path where the output file should be saved. **Strongly recommended for large outputs** — avoids returning megabytes of base64 through the context window. |
+   - **Description**: The core execution tool. Routes the file through the handler chain and returns all output files.
+   - **Returns**:
+     - When `outputFilePath` is omitted — a JSON array of output files:
+       ```json
+       [{ "fileName": "output.png", "base64Bytes": "<base64>" }]
+       ```
+     - When `outputFilePath` is provided — a JSON object with the saved paths:
+       ```json
+       { "savedTo": ["/path/to/output.pptx"] }
+       ```
      The array contains multiple entries when a conversion produces multiple output files (e.g. a multi-page PDF split into individual images).
+   - **Large file guidance**: For files that are too large to embed in the context window, always use `filePath` (input) and `outputFilePath` (output) together:
+     ```
+     filePath: "/absolute/path/to/input.png"
+     outputFilePath: "/absolute/path/to/output.pptx"
+     ```
 
 ---
 
