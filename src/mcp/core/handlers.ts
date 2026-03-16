@@ -33,7 +33,7 @@ import envelopeHandler from "../../handlers/envelope.ts";
 export const loadMcpHandlers = async (): Promise<FormatHandler[]> => {
     const handlers: FormatHandler[] = [];
 
-    try { handlers.push(new FFmpegHandler()); } catch (e: any) { console.warn("[MCP] Skipping FFmpeg:", e?.message || e); }
+    try { handlers.push(new FFmpegHandler()); } catch (e: any) { console.error("[MCP] Skipping FFmpeg:", e?.message || e); }
     try { handlers.push(new ImageMagickHandler()); } catch (e) { console.error("Failed to load ImageMagickHandler:", e); }
     try { handlers.push(new pandocHandler()); } catch (e) { console.error("Failed to load pandocHandler:", e); }
     try { handlers.push(new jszipHandler()); } catch (e) { console.error("Failed to load jszipHandler:", e); }
@@ -65,14 +65,13 @@ export const loadMcpHandlers = async (): Promise<FormatHandler[]> => {
     try { handlers.push(new txtToInfiniteCraftHandler()); } catch (e) { console.error("Failed to load txtToInfiniteCraftHandler:", e); }
     try { handlers.push(new envelopeHandler()); } catch (e) { console.error("Failed to load envelopeHandler:", e); }
 
-    // Initialize them
-    for (const h of handlers) {
-        if (h.init) {
-            await h.init().catch(err => {
-                console.error(`[MCP] Failed to init handler ${h.name}:`, err);
-            });
-        }
-    }
+    // Initialize all handlers in parallel — Pandoc WASM is 55 MB and takes 30s–3min
+    // to compile; sequential init blocks everything behind the slowest handler.
+    await Promise.all(handlers.map(h =>
+        h.init
+            ? h.init().catch(err => console.error(`[MCP] Failed to init handler ${h.name}:`, err))
+            : Promise.resolve()
+    ));
 
     // Filter out those that failed to become ready
     return handlers.filter(h => h.ready);

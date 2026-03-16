@@ -10,6 +10,7 @@ import type { FileFormat } from '../core/FormatHandler/FormatHandler.ts';
 import { registerListFormatsTool } from './tools/listFormats.ts';
 import { registerFindConversionPathTool } from './tools/findConversionPath.ts';
 import { registerConvertFileTool } from './tools/convertFile.ts';
+import { warmUpBridge } from './core/browserBridge.ts';
 
 async function main() {
     const server = new McpServer({
@@ -28,6 +29,10 @@ async function main() {
     registerListFormatsTool(server, handlers);
     registerFindConversionPathTool(server, handlers, graph);
     registerConvertFileTool(server, handlers, graph);
+
+    // Start browser warm-up immediately — don't await, let it run in parallel
+    // with the transport setup and user think time before the first tool call.
+    warmUpBridge();
 
     const transport = new StdioServerTransport();
     await server.connect(transport);

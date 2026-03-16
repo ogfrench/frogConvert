@@ -107,7 +107,7 @@ Object.defineProperty(globalThis, 'fetch', {
                     fullPath = path.join(pkgRoot, sourcePath);
                 }
                 try {
-                    const buffer = fs.readFileSync(fullPath);
+                    const buffer = await fs.promises.readFile(fullPath);
                     return new Response(buffer, {
                         status: 200,
                         headers: { 'Content-Type': 'application/wasm' }

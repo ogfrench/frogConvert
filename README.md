@@ -12,10 +12,10 @@ Compared to the original `Convert to it!`, frogConvert focuses on frontend impro
 - **File Management & Uploads:** Introduced a new file management feature and set limits on maximum file uploads to prevent crashes and improve stability.
 - **Format Mode (Core / Plus / All):** Three-tier filter for the format picker — Core shows common everyday formats, Plus adds data, font, and extra media formats, All shows every supported format.
 - **Partial Download support:** If you cancel a large batch conversion, frogConvert now offers to download the files that have already finished processing.
-- **MCP + REST API for AI Agents:** Built-in MCP server and local HTTP REST API exposing the full conversion engine to AI agents and scripts — all processing is local, no external network calls. Run without cloning: `bunx frogconvert mcp` / `bunx frogconvert api`. See `AGENTS.md` for full usage.
+- **MCP + REST API for AI Agents:** Built-in MCP server and local HTTP REST API exposing the full conversion engine to AI agents and scripts — all processing is local, no external network calls. Run without cloning: `bunx frogconvert mcp` / `bunx frogconvert api`. See [AGENTS.md](docs/AGENTS.md) for full usage.
 - **Web Worker Performance:** Heavy conversion tasks and pathfinding run in background Web Workers, keeping the UI fully responsive even during complex, multi-step conversions.
 - **Robust Engineering Foundation:** Refactored the codebase with centralized modal management, base handler classes, and a full vitest + Puppeteer E2E test suite.
-- **Frogsworth:** A desktop Easter egg mascot in the bottom-right corner. Click the frog for context-aware quips about your chosen file formats. Lazy-loaded at idle priority — zero impact on startup performance.
+- **Frogsworth:** A desktop mascot in the bottom-right corner. Click the frog for context-aware quips about your chosen file formats. Lazy-loaded at idle priority — zero impact on startup performance.
 
 ## What is it?
 > _This section is adapted from the [original README](https://github.com/p2r3/convert#readme)._
@@ -75,7 +75,7 @@ bunx frogconvert api
 
 See [AGENTS.md](docs/AGENTS.md) for full API documentation and tool reference.
 
-> **First-run note:** The npm package bundles `pandoc.wasm` (~58 MB uncompressed, ~12 MB compressed download) for document conversion. `bunx` caches this after the first run.
+> **First-run note:** The npm package bundles `pandoc.wasm` (~55 MB uncompressed, ~12 MB compressed download) for document conversion. `bunx` caches this after the first run.
 
 ### Local development (Bun + Vite)
 
@@ -88,7 +88,7 @@ _The following steps are optional, but recommended for performance:_
 
 When you first open the page, it'll take a while to generate the list of supported formats for each tool. If you open the console, you'll see it complaining a bunch about missing caches.
 
-After this is done (indicated by a `Built initial format list` message in the console), use `printSupportedFormatCache()` to get a JSON string with the cache data. You can then save this string to `cache.json` to skip that loading screen on startup.
+After this is done (indicated by a `Built initial format list` message in the console), use `printSupportedFormatCache()` to get a JSON string with the cache data. You can then save this string to `public/cache.json` to skip that loading screen on startup.
 
 ### Docker (prebuilt image)
 
@@ -130,7 +130,7 @@ Each "tool" used for conversion has to be normalized to a standard form - effect
 
 Two abstract base classes make handler authoring easier:
 
-- **`BaseHandler`** (`src/core/FormatHandler/BaseHandler.ts`) — provides `ready = true`, a no-op `init()`, and a `replaceExtension(filename, ext)` helper. Extend this for binary/WASM handlers.
+- **`BaseHandler`** (`src/core/FormatHandler/BaseHandler.ts`) — provides `ready = true`, a no-op `init()`, and a `replaceExtension(filename, ext)` helper. Extend this for handlers that don't need async initialization (no WASM loading — heavy WASM handlers implement `FormatHandler` directly).
 - **`TextFormatHandler`** (`src/core/FormatHandler/TextFormatHandler.ts`) — extends `BaseHandler` and handles the `Uint8Array ↔ string` decode/encode pipeline automatically. Implement `doConvertText()` instead of `doConvert()`. Use this for JSON, CSV, XML, YAML, source code, etc.
 
 Below is a super barebones handler that does absolutely nothing. You can use this as a starting point for adding a new format:

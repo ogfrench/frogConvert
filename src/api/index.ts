@@ -7,6 +7,7 @@ import type { FileFormat } from '../core/FormatHandler/FormatHandler.ts';
 import { handleFormats } from './routes/formats.ts';
 import { handlePath } from './routes/path.ts';
 import { handleConvert } from './routes/convert.ts';
+import { warmUpBridge } from '../mcp/core/browserBridge.ts';
 
 async function main() {
     const handlers = await loadMcpHandlers();
@@ -50,6 +51,10 @@ async function main() {
 
     console.error(`frogConvert API server running at http://127.0.0.1:${server.port}`);
     console.error(`Loaded handlers: ${handlers.map(h => h.name).join(", ")}`);
+
+    // Start browser warm-up immediately — don't await, let it run in parallel
+    // with the transport setup and user think time before the first request.
+    warmUpBridge();
 }
 
 main().catch(err => {

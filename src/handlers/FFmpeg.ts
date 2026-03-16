@@ -472,13 +472,13 @@ class FFmpegHandler implements FormatHandler {
       const encoder = new TextEncoder();
       bytes = encoder.encode(fileData);
     } else {
-      bytes = new Uint8Array(fileData?.buffer);
+      bytes = new Uint8Array(fileData.buffer, fileData.byteOffset, fileData.byteLength);
     }
 
     await this.#ffmpeg.deleteFile("output");
     await this.#ffmpeg.deleteFile("list.txt");
 
-    const baseName = inputFiles[0].name.split(".")[0];
+    const baseName = inputFiles[0].name.replace(/\.[^.]+$/, '');
     const name = baseName + "." + outputFormat.extension;
 
     return [{ bytes, name }];

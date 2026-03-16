@@ -34,7 +34,7 @@ bunx frogconvert api
 
 > **Privacy:** All file processing is 100% local. No files are ever sent to any remote server.
 
-> **Prerequisites:** For audio/video formats, native `ffmpeg` gives best results (`winget install ffmpeg` / `brew install ffmpeg`). frogConvert falls back to a bundled static binary and then WASM automatically — see [README.md](../README.md#prerequisites) for the full fallback table.
+> **Prerequisites:** For audio/video formats, native `ffmpeg` gives best results (`winget install ffmpeg` / `brew install ffmpeg`). frogConvert falls back to a bundled static binary and then WASM automatically.
 
 ---
 
@@ -43,13 +43,13 @@ bunx frogconvert api
 Three tools, all over `stdio`:
 
 1. **`list_formats`**
-   - **Description**: Returns a JSON mapping of all supported input and output formats available in the Node.js environment.
+   - **Description**: Returns a JSON array of all supported input and output formats available in the Node.js environment.
    - **Usage**: Use this to see what extensions and MIME types are currently supported.
 
 2. **`find_conversion_path`**
    - **Arguments**: `inputMime`, `inputExtension`, `outputMime`, `outputExtension`
    - **Description**: Uses frogConvert's `TraversionGraph` algorithm to calculate the step-by-step handler chain required to convert from the input to the output.
-   - **Returns**: A visual string representation of the path (e.g. `ImageMagick (image/jpeg) -> ImageMagick (image/png)`). Returns an error if no path exists.
+   - **Returns**: A text string of the form `Path: HandlerA (mime/type) -> HandlerB (mime/type)`. Returns an error if no native or browser path exists. If no native path exists but the browser bridge can handle it, returns an informational note instead of an error.
 
 3. **`convert_file`**
    - **Arguments**: `fileName`, `base64Bytes`, `inputMime`, `inputExtension`, `outputMime`, `outputExtension`
@@ -98,7 +98,7 @@ curl -X POST http://127.0.0.1:3000/convert \
   -o output.png
 ```
 - Input MIME/extension are auto-detected from the uploaded filename.
-- Response: raw binary with `Content-Disposition: attachment; filename="..."` header.
+- Response: raw binary of the first output file with `Content-Disposition: attachment; filename*=UTF-8''...` header. If conversion produces multiple files, the remaining filenames are listed in an `X-Extra-Files` JSON header — use the JSON API instead if you need all files.
 
 **Option B — application/json**:
 ```bash
@@ -108,7 +108,7 @@ curl -X POST http://127.0.0.1:3000/convert \
 ```
 - Response: `[{ "fileName": "output.png", "base64Bytes": "<base64>" }]` (array supports multi-file outputs)
 
-Returns `400` on bad input, `422` if no path found, `500` on conversion failure.
+Returns `400` on bad input, `415` if Content-Type is unsupported, `422` if no path found or conversion fails.
 
 ---
 
@@ -123,6 +123,20 @@ This means conversions like PDF → PNG (via Canvas), SVG tracing, Three.js rend
 - A production build must be present: run `bun run build` from the repo root before starting the MCP/API server.
 - Puppeteer (already a dev dependency) must be accessible — it is when running from a repo clone.
 - The `bunx frogconvert` quick-start **does not** include the browser bridge (no `dist/` is present without a clone and build step).
+
+### Performance expectations
+
+The browser bridge uses a **lazy-init architecture** — the headless page signals ready as soon as it has built the format graph from `cache.json` (a few seconds), then initialises individual WASM handlers on demand as conversions arrive.
+
+| Call | Expected time |
+|------|--------------|
+| First ever call (cold Chromium) | 30 s – 8 min depending on handler |
+| Second call, same handler | 2–10 s (Chromium warm, handler compiled) |
+| Subsequent calls | Near-instant (handler already in memory) |
+
+The first call is slow because headless Chromium must launch and the specific handler's WASM must be compiled in that browser context. Handlers that require heavy WASM (pandoc ~55 MB, ImageMagick ~80 MB) will be at the upper end. This is inherent to the cold-start path — subsequent calls are fast.
+
+> **Tip:** If you need predictable latency, call `POST /convert` with a small browser-bridge conversion (e.g. a 1×1 PNG→SVG via svgTrace) immediately after starting the server to get Chromium running before real traffic arrives.
 
 ### How to detect browser-assisted paths
 
@@ -151,4 +165,5 @@ For architecture details, handler authoring rules, and the full file structure, 
 - The MCP server runs in **Node.js**, loading handlers where `requiresMainThread` is unset or `false`. Handlers that need browser APIs are not loaded natively, but are available via the Puppeteer browser bridge (see above).
 - WASM `fetch` calls are polyfilled in `src/mcp/core/polyfills.ts` to read files from disk rather than a dev server.
 - `batToExeHandler` is excluded from both MCP and REST API (uses Vite-specific `?url` imports incompatible with Node.js). It remains available in the browser UI.
-- The browser bridge entry point lives in `src/headless/index.ts` and is built as a separate Vite MPA entry to `dist/headless/`. The bridge implementation is in `src/mcp/core/browserBridge.ts`.
+- The browser bridge entry point lives in `src/headless/index.ts`, built from `headless/index.html` as a separate Vite MPA entry to `dist/headless/`. The bridge implementation is in `src/mcp/core/browserBridge.ts`.
+- The headless page uses a **cache-first, lazy-init strategy**: it fetches `cache.json` to build the `TraversionGraph` immediately (no WASM loaded), signals `__headlessReady`, then initialises individual handlers on demand as conversions arrive. Heavy WASM (pandoc, ImageMagick) is only compiled when first needed.

@@ -18,7 +18,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Control variables — updated per-test before vi.resetModules()
 // ---------------------------------------------------------------------------
 
-let _existsSyncReturns = true;
+let _distDirExists = true;
 let _mockLaunchResolves: any = null; // set in beforeEach
 
 const _mockPage = {
@@ -44,13 +44,20 @@ vi.mock('puppeteer', () => ({
     },
 }));
 
-vi.mock('fs', async (importOriginal) => {
-    const real = await importOriginal<typeof import('fs')>();
+vi.mock('fs/promises', async (importOriginal) => {
+    const real = await importOriginal<typeof import('fs/promises')>();
     return {
         ...real,
-        existsSync: vi.fn().mockImplementation(() => _existsSyncReturns),
-        statSync: vi.fn().mockReturnValue({ isFile: () => false }),
-        readFileSync: real.readFileSync,
+        stat: vi.fn().mockImplementation((p: string) => {
+            // Reject for DIST_DIR when dist should be missing; resolve for all other paths
+            if (!_distDirExists && p.endsWith('dist')) {
+                return Promise.reject(new Error('ENOENT'));
+            }
+            // dist itself is a directory; everything else is treated as a file
+            const isDir = p.endsWith('dist');
+            return Promise.resolve({ isDirectory: () => isDir, isFile: () => !isDir });
+        }),
+        readFile: vi.fn().mockResolvedValue(Buffer.from('')),
     };
 });
 
@@ -77,7 +84,7 @@ beforeEach(() => {
     vi.clearAllMocks();
 
     // Reset control variables to their safe defaults.
-    _existsSyncReturns = true;
+    _distDirExists = true;
     _mockLaunchResolves = _mockBrowser;
 
     // Re-apply default resolved values that clearAllMocks wiped from the queue.
@@ -110,7 +117,7 @@ describe('canConvertViaBrowser — before bridge is initialized', () => {
 
 describe('convertViaBrowser — dist/ directory missing', () => {
     it('rejects with a message instructing user to run bun run build', async () => {
-        _existsSyncReturns = false;
+        _distDirExists = false;
 
         vi.resetModules();
         const { convertViaBrowser } = await import('./browserBridge.ts');

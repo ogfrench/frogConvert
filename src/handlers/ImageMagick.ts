@@ -83,8 +83,8 @@ class ImageMagickHandler implements FormatHandler {
       MagickImageCollection.use(outputCollection => {
         for (const inputFile of inputFiles) {
            if (inputFormat.format == "rgb") {
-             // Guess how big the Image should be
-             inputSettings.width = Math.sqrt(inputFile.bytes.length / 3);
+             // Best-guess dimensions for raw RGB data: assume square, round to nearest pixel
+             inputSettings.width = Math.round(Math.sqrt(inputFile.bytes.length / 3));
              inputSettings.height = inputSettings.width;
            }
           MagickImageCollection.use(fileCollection => {

@@ -61,6 +61,7 @@ Every handler must conform to the `FormatHandler` interface (defined in `src/cor
 export interface FormatHandler {
     name: string;
     supportedFormats?: FileFormat[]; // Defines from/to compatibility
+    supportAnyInput?: boolean; // If true, handler accepts any input type (used as a last-resort fallback)
     ready: boolean; // Flag indicating init completion
     requiresMainThread?: boolean; // CRITICAL FLAG
     init: () => Promise<void>; // Fetch assets, load WASM, setup contexts
@@ -72,7 +73,7 @@ export interface FormatHandler {
 
 Two abstract base classes live in `src/core/FormatHandler/`:
 
-- **`BaseHandler`** — implements `ready = true`, a no-op `init()`, and a `replaceExtension(filename, ext)` helper. Use this when your handler needs a custom `doConvert()` but doesn't deal with WASM loading.
+- **`BaseHandler`** — implements `ready = true`, a no-op `init()`, and a `replaceExtension(filename, ext)` helper. Use this for handlers that don't need async initialization — `supportedFormats` must be defined at class level. **Do not use for WASM handlers** — those implement `FormatHandler` directly, start with `ready = false`, and set `supportedFormats` inside `init()`.
 - **`TextFormatHandler extends BaseHandler`** — additionally handles the `Uint8Array → string → Uint8Array` decode/encode pipeline. Instead of `doConvert()`, implement `doConvertText(inputTexts, inputFormat, outputFormat)` which receives plain strings and returns plain strings. Use this for JSON, CSV, XML, YAML, source code, and any other text-based format.
 
 ### The `requiresMainThread` Rule
@@ -136,7 +137,7 @@ Speaks [Model Context Protocol](https://modelcontextprotocol.io/) over `stdio`. 
 
 Three tools are exposed:
 - **`list_formats`** — Returns JSON array of all supported formats with `canRead`/`canWrite` flags.
-- **`find_conversion_path`** — Returns a human-readable path string (e.g. `FFmpeg (audio/wav) -> pandoc (document/csv)`) for any input→output pair.
+- **`find_conversion_path`** — Returns a human-readable path string of the form `Path: FFmpeg (audio/wav) -> pandoc (text/csv)` for any input→output pair.
 - **`convert_file`** — Accepts `{fileName, base64Bytes, inputMime, inputExtension, outputMime, outputExtension}`. Returns a JSON string (inside a `text` content block) that parses to `[{fileName, base64Bytes}]` — array to support multi-file outputs.
 
 ### REST API (`src/api/`) — `bun run api`
@@ -151,7 +152,22 @@ Endpoints:
 ### Shared Infrastructure
 Both interfaces share `src/mcp/core/polyfills.ts` (browser globals for WASM), `src/mcp/core/handlers.ts` (`loadMcpHandlers()`), and `src/mcp/core/utils.ts` (`findFormatAndHandler()` with direction validation).
 
-> **Handler exclusion**: `batToExeHandler` is excluded (Vite `?url` imports incompatible with Node.js). Handlers with `requiresMainThread = true` (Canvas, AudioContext, WebGL) are also excluded.
+> **Handler exclusion**: `batToExeHandler` is excluded (Vite `?url` imports incompatible with Node.js). Handlers with `requiresMainThread = true` (Canvas, AudioContext, WebGL) are also excluded from the Node.js path but are available via the browser bridge.
+
+### Browser Bridge (`src/mcp/core/browserBridge.ts`)
+
+Formats that require browser-only APIs (Canvas, WebGL, DOM) are handled via a Puppeteer headless Chromium instance. The bridge warms up eagerly at server startup (via `warmUpBridge()`) so Chromium is already running before the first request arrives.
+
+**Headless page architecture** (`src/headless/index.ts`, built to `dist/headless/`):
+- On load: fetches `cache.json` + runs `loadBackgroundHandlers()` in parallel
+- Builds `TraversionGraph` from the cache immediately — **no WASM loaded at this stage**
+- Sets `window.__headlessReady = true` (bridge unblocks, typically within ~5–15 s of Chromium launch)
+- Per-conversion: calls `handler.init()` lazily, only for the handlers actually needed
+- Module-level `Map<FormatHandler, Promise<void>>` deduplicates concurrent init calls
+
+**Performance**: first call cold-starts Chromium and compiles the needed WASM (~30 s–8 min depending on handler). Subsequent calls reuse the same Chromium process and already-compiled WASM. See `docs/AGENTS.md` for the performance table.
+
+**Important**: format lookup uses `supportedFormatCache` (fetched from `cache.json`), not `handler.supportedFormats`. Heavy handlers (FFmpeg, pandoc) only populate `supportedFormats` after `init()` — searching them directly before init returns empty results.
 
 ---
 

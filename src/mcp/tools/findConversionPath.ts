@@ -20,10 +20,20 @@ export function registerFindConversionPathTool(server: McpServer, handlers: Form
             const inputMatch = findFormatAndHandler(handlers, inputMime, inputExtension, 'from');
             const outputMatch = findFormatAndHandler(handlers, outputMime, outputExtension, 'to');
 
-            if (!inputMatch) {
-                return { content: [{ type: "text", text: `Error: Input format ${inputMime} (${inputExtension}) not found or supported.` }], isError: true };
-            }
-            if (!outputMatch) {
+            // If either format is missing from native handlers, it may still be reachable
+            // via the browser bridge (e.g. handlers that require Canvas/WebGL/AudioContext).
+            if (!inputMatch || !outputMatch) {
+                const browserAvailable = await canConvertViaBrowser(
+                    inputMime, inputExtension, outputMime, outputExtension
+                ).catch(() => false);
+                if (browserAvailable) {
+                    return {
+                        content: [{ type: "text", text: `No native path found. A browser-assisted path is available — use convert_file to convert via the browser bridge.` }]
+                    };
+                }
+                if (!inputMatch) {
+                    return { content: [{ type: "text", text: `Error: Input format ${inputMime} (${inputExtension}) not found or supported.` }], isError: true };
+                }
                 return { content: [{ type: "text", text: `Error: Output format ${outputMime} (${outputExtension}) not found or supported.` }], isError: true };
             }
 

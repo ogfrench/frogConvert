@@ -38,6 +38,7 @@ export function registerConvertFileTool(server: McpServer, handlers: FormatHandl
                     let currentFiles: FileData[] = [{ name: fileName, bytes }];
 
                     try {
+                        // path[0] is the source node (no conversion step); steps start at index 1
                         for (let i = 1; i < path.length; i++) {
                             const stepHandler = path[i].handler;
                             const prevFormat = path[i - 1].format;
@@ -51,8 +52,9 @@ export function registerConvertFileTool(server: McpServer, handlers: FormatHandl
                         }));
 
                         return { content: [{ type: "text", text: JSON.stringify(results) }] };
-                    } catch {
-                        // Native execution failed — fall through to browser bridge
+                    } catch (nativeErr: any) {
+                        // Native execution failed — log for diagnostics and fall through to browser bridge
+                        process.stderr.write(`[mcp] Native conversion failed, trying browser bridge: ${nativeErr?.message ?? nativeErr}\n`);
                     }
                 }
             }

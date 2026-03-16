@@ -8,19 +8,22 @@
  * The bridge:
  * 1. Spins up a minimal static HTTP server serving the production dist/
  * 2. Launches a headless Chromium instance (lazy, singleton)
- * 3. Loads /convert/headless/ which initialises ALL handlers including browser-only ones
+ * 3. Loads /convert/headless/ — graph built from cache.json, handlers init lazily on first use
  * 4. Delegates conversions to window.__frogConvertHeadless() via page.evaluate()
  *
  * Requires a production build (bun run build) to be present in dist/.
  */
 
 import { createServer, type Server } from "http";
-import { readFile, existsSync, statSync } from "fs";
+import { stat, readFile, mkdir } from "fs/promises";
 import { join, extname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const DIST_DIR = join(__dirname, "..", "..", "..", "dist");
+// Persistent Chrome profile: V8 caches compiled WASM here between restarts.
+// On a warm restart, Pandoc WASM (~55 MB) compiles in seconds instead of minutes.
+const BRIDGE_CACHE_DIR = join(__dirname, "..", "..", "..", ".bridge-cache");
 
 const MIME_TYPES: Record<string, string> = {
     ".html": "text/html",
@@ -51,15 +54,16 @@ let signalHandlersRegistered = false;
 // Serialise concurrent page.evaluate() calls so conversions don't interleave
 let conversionQueue: Promise<unknown> = Promise.resolve();
 
-function startStaticServer(): Promise<number> {
-    return new Promise((resolve, reject) => {
-        if (!existsSync(DIST_DIR)) {
-            reject(new Error(
-                "Browser bridge requires a production build. Run `bun run build` first."
-            ));
-            return;
-        }
+async function startStaticServer(): Promise<number> {
+    // Verify dist/ exists before starting the server
+    const distStat = await stat(DIST_DIR).catch(() => null);
+    if (!distStat?.isDirectory()) {
+        throw new Error(
+            "Browser bridge requires a production build. Run `bun run build` first."
+        );
+    }
 
+    return new Promise((resolve, reject) => {
         const server = createServer((req, res) => {
             // Strip the /convert/ base path
             const urlPath = (req.url ?? "/").replace(/\?.*$/, "");
@@ -73,30 +77,39 @@ function startStaticServer(): Promise<number> {
                 join(DIST_DIR, relative, "index.html"),
             ];
 
-            let filePath: string | null = null;
-            for (const candidate of candidates) {
-                if (existsSync(candidate) && statSync(candidate).isFile()) {
-                    filePath = candidate;
-                    break;
+            (async () => {
+                let filePath: string | null = null;
+                for (const candidate of candidates) {
+                    try {
+                        const s = await stat(candidate);
+                        if (s.isFile()) { filePath = candidate; break; }
+                    } catch { /* not found */ }
                 }
-            }
 
-            if (!filePath) {
-                res.writeHead(404);
-                res.end("Not found");
-                return;
-            }
-
-            const ext = extname(filePath).toLowerCase();
-            const contentType = MIME_TYPES[ext] ?? "application/octet-stream";
-            readFile(filePath, (err, data) => {
-                if (err) {
-                    res.writeHead(500);
-                    res.end("Read error");
+                if (!filePath) {
+                    res.writeHead(404);
+                    res.end("Not found");
                     return;
                 }
-                res.writeHead(200, { "Content-Type": contentType });
-                res.end(data);
+
+                const ext = extname(filePath).toLowerCase();
+                const contentType = MIME_TYPES[ext] ?? "application/octet-stream";
+                try {
+                    const data = await readFile(filePath);
+                    // Vite outputs content-hashed filenames for JS/WASM — safe to
+                    // cache indefinitely. HTML and JSON change with each build.
+                    const immutable = [".js", ".mjs", ".wasm"].includes(ext);
+                    const cacheControl = immutable
+                        ? "public, max-age=31536000, immutable"
+                        : "no-cache";
+                    res.writeHead(200, { "Content-Type": contentType, "Cache-Control": cacheControl });
+                    res.end(data);
+                } catch {
+                    res.writeHead(500);
+                    res.end("Read error");
+                }
+            })().catch(() => {
+                if (!res.headersSent) { res.writeHead(500); res.end("Internal error"); }
             });
         });
 
@@ -121,7 +134,9 @@ async function ensureInitialized(): Promise<void> {
     if (!signalHandlersRegistered) {
         signalHandlersRegistered = true;
         process.on("exit", () => {
-            browser?.close().catch(() => {});
+            // browser.close() is async and won't complete in a synchronous exit handler.
+            // Kill the underlying child process directly for reliable cleanup.
+            browser?.process()?.kill();
             staticServer?.close();
         });
         process.on("SIGINT",  () => process.exit(0));
@@ -129,12 +144,25 @@ async function ensureInitialized(): Promise<void> {
     }
 
     const attempt = (async () => {
+        // Ensure the persistent cache directory exists
+        await mkdir(BRIDGE_CACHE_DIR, { recursive: true });
+
         const port = await startStaticServer();
 
         // Dynamically import puppeteer to avoid loading it at module parse time
         const puppeteer = (await import("puppeteer")).default;
 
-        browser = await puppeteer.launch({ headless: true });
+        // userDataDir persists Chrome's HTTP cache and V8's compiled-WASM cache
+        // between restarts. On a warm restart, Pandoc (~55 MB) compiles in seconds.
+        // Chrome locks its profile dir — if a second server process tries to use the same
+        // path (e.g. MCP + API running simultaneously), fall back to a fresh session.
+        browser = await puppeteer.launch({ headless: true, userDataDir: BRIDGE_CACHE_DIR })
+            .catch(async (lockErr) => {
+                process.stderr.write(
+                    `[bridge] Persistent cache unavailable (${lockErr?.message ?? lockErr}), launching without cache\n`
+                );
+                return puppeteer.launch({ headless: true });
+            });
         bridgePage = await browser.newPage();
 
         // Suppress noisy console output from the headless page
@@ -144,21 +172,29 @@ async function ensureInitialized(): Promise<void> {
             }
         });
 
+        // domcontentloaded fires after module scripts execute — sufficient here
+        // because waitForFunction(__headlessReady) handles the real readiness check.
         await bridgePage.goto(`http://127.0.0.1:${port}/convert/headless/`, {
-            waitUntil: "load",
+            waitUntil: "domcontentloaded",
             timeout: 120_000,
         });
 
-        // Wait for all handlers to initialise (set by src/headless/index.ts)
+        // Wait for the headless page to signal ready (graph built from cache)
         await bridgePage.waitForFunction(
             () => (window as any).__headlessReady === true,
             { timeout: 120_000 }
         );
     })();
 
-    // Cache the promise but clear it on failure so callers can retry
+    // Cache the promise; on failure clean up all resources so the next caller
+    // gets a completely fresh attempt rather than a half-initialised state.
     initPromise = attempt.catch(err => {
         initPromise = null;
+        browser?.close().catch(() => {});
+        browser = null;
+        bridgePage = null;
+        staticServer?.close();
+        staticServer = null;
         throw err;
     });
 
@@ -199,6 +235,16 @@ export async function convertViaBrowser(
     conversionQueue = result.catch(() => {});
 
     return result as Promise<BridgeResult[]>;
+}
+
+/**
+ * Fire-and-forget bridge warm-up. Call at server startup so the browser is
+ * already running before the first convert_file tool call arrives.
+ */
+export function warmUpBridge(): void {
+    ensureInitialized().catch(err => {
+        process.stderr.write(`[bridge] warm-up failed: ${err?.message ?? err}\n`);
+    });
 }
 
 /**
