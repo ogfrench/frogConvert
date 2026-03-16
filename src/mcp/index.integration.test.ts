@@ -8,8 +8,8 @@ describe('MCP Server Integration', () => {
     beforeAll(async () => {
         const proc = (globalThis as any).process;
         const transport = new StdioClientTransport({
-            command: proc?.platform === 'win32' ? "npx.cmd" : "npx",
-            args: ["tsx", "src/mcp/index.ts"],
+            command: "bun",
+            args: ["src/mcp/index.ts"],
             env: { ...proc?.env }
         });
 
@@ -19,7 +19,7 @@ describe('MCP Server Integration', () => {
         );
 
         await client.connect(transport);
-    });
+    }, 30000);
 
     afterAll(async () => {
         if (client) {

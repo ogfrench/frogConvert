@@ -21,7 +21,8 @@
   user-select: none;
 }
 
-.frogsworth-widget:hover .frogsworth-face {
+.frogsworth-widget:hover .frogsworth-face,
+.frogsworth-widget:active .frogsworth-face {
   opacity: 1;
 }
 
@@ -65,11 +66,38 @@
   50% { opacity: 0.3; }
 }
 
-/* Desktop-only gimmick */
-@media (max-width: 999px), (max-height: 300px) {
-  .frogsworth-widget {
-    opacity: 0;
-    transform: scale(0.9);
-    pointer-events: none;
+
+@keyframes frog-slot-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Pre-allocate slot height on mobile so the layout doesn't shift when JS loads the widget */
+@media (max-width: 1000px), (max-height: 350px) {
+  #frogsworth-slot {
+    min-height: 6rem;
   }
+}
+
+/* Mobile inline layout — when moved into #frogsworth-slot by JS */
+#frogsworth-slot .frogsworth-widget {
+  position: static;
+  align-items: center;
+  margin: var(--space-8) auto 0;
+  animation: frog-slot-enter 0.45s ease forwards;
+}
+
+/* Reduce footer top padding when frogsworth is in the slot */
+#frogsworth-slot:has(.frogsworth-widget) + #page-footer {
+  padding-top: var(--space-4);
+  transition: padding-top 0.4s ease;
+}
+
+
+#frogsworth-slot .frogsworth-bubble {
+  text-align: center;
+  min-height: calc(var(--text-xs) * var(--leading-relaxed) * 3); /* 3 lines of xs text */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
 }

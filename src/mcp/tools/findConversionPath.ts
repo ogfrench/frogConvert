@@ -4,6 +4,7 @@ import type { FormatHandler, FileFormat } from "../../core/FormatHandler/FormatH
 import type { TraversionGraph } from "../../core/TraversionGraph/TraversionGraph.ts";
 
 import { findFormatAndHandler } from "../core/utils.ts";
+import { canConvertViaBrowser } from "../core/browserBridge.ts";
 
 export function registerFindConversionPathTool(server: McpServer, handlers: FormatHandler[], graph: TraversionGraph) {
     server.tool(
@@ -37,6 +38,14 @@ export function registerFindConversionPathTool(server: McpServer, handlers: Form
 
             const pathResult = await pathsGenerator.next();
             if (pathResult.done || !pathResult.value) {
+                const browserAvailable = await canConvertViaBrowser(
+                    inputMime, inputExtension, outputMime, outputExtension
+                ).catch(() => false);
+                if (browserAvailable) {
+                    return {
+                        content: [{ type: "text", text: `No native path found. A browser-assisted path is available — use convert_file to convert via the browser bridge.` }]
+                    };
+                }
                 return { content: [{ type: "text", text: `No path found between ${inputMime} and ${outputMime}` }], isError: true };
             }
 

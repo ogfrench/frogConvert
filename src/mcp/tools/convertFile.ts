@@ -4,6 +4,7 @@ import type { FormatHandler, FileFormat, FileData } from "../../core/FormatHandl
 import type { TraversionGraph } from "../../core/TraversionGraph/TraversionGraph.ts";
 
 import { findFormatAndHandler } from "../core/utils.ts";
+import { convertViaBrowser } from "../core/browserBridge.ts";
 
 export function registerConvertFileTool(server: McpServer, handlers: FormatHandler[], graph: TraversionGraph) {
     server.tool(
@@ -21,56 +22,53 @@ export function registerConvertFileTool(server: McpServer, handlers: FormatHandl
             const inputMatch = findFormatAndHandler(handlers, inputMime, inputExtension, 'from');
             const outputMatch = findFormatAndHandler(handlers, outputMime, outputExtension, 'to');
 
-            if (!inputMatch) {
-                return { content: [{ type: "text", text: `Error: Input format ${inputMime} (${inputExtension}) not found or not readable.` }], isError: true };
-            }
-            if (!outputMatch) {
-                return { content: [{ type: "text", text: `Error: Output format ${outputMime} (${outputExtension}) not found or not writable.` }], isError: true };
-            }
+            // Try native path when both formats are known to native handlers
+            if (inputMatch && outputMatch) {
+                const pathsGenerator = graph.searchPath(
+                    { format: inputMatch.format, handler: inputMatch.handler },
+                    { format: outputMatch.format, handler: outputMatch.handler },
+                    false
+                );
 
-            const { format: fromFormat, handler: fromHandler } = inputMatch;
-            const { format: toFormat, handler: toHandler } = outputMatch;
+                const pathResult = await pathsGenerator.next();
+                if (!pathResult.done && pathResult.value) {
+                    const path = pathResult.value;
+                    const buffer = Buffer.from(base64Bytes, 'base64');
+                    const bytes = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+                    let currentFiles: FileData[] = [{ name: fileName, bytes }];
 
-            const pathsGenerator = graph.searchPath(
-                { format: fromFormat, handler: fromHandler },
-                { format: toFormat, handler: toHandler },
-                false
-            );
+                    try {
+                        for (let i = 1; i < path.length; i++) {
+                            const stepHandler = path[i].handler;
+                            const prevFormat = path[i - 1].format;
+                            const nextFormat = path[i].format;
+                            currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat);
+                        }
 
-            const pathResult = await pathsGenerator.next();
-            if (pathResult.done || !pathResult.value) {
-                return { content: [{ type: "text", text: `Error: No path found.` }], isError: true };
-            }
+                        const results = currentFiles.map(f => ({
+                            fileName: f.name,
+                            base64Bytes: Buffer.from(f.bytes).toString('base64')
+                        }));
 
-            const path = pathResult.value;
-            const buffer = Buffer.from(base64Bytes, 'base64');
-            const bytes = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-
-            let currentFiles: FileData[] = [{ name: fileName, bytes }];
-
-            try {
-                for (let i = 1; i < path.length; i++) {
-                    const stepHandler = path[i].handler;
-                    const prevFormat = path[i - 1].format;
-                    const nextFormat = path[i].format;
-
-                    currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat);
+                        return { content: [{ type: "text", text: JSON.stringify(results) }] };
+                    } catch {
+                        // Native execution failed — fall through to browser bridge
+                    }
                 }
+            }
 
-                const results = currentFiles.map(f => ({
-                    fileName: f.name,
-                    base64Bytes: Buffer.from(f.bytes).toString('base64')
-                }));
-
+            // No native path, format unknown to native registry, or native execution failed.
+            // The bridge loads ALL handlers including browser-only ones (requiresMainThread=true).
+            try {
+                const bridgeResults = await convertViaBrowser(
+                    fileName, base64Bytes, inputMime, inputExtension, outputMime, outputExtension
+                );
+                return { content: [{ type: "text", text: JSON.stringify(bridgeResults) }] };
+            } catch (bridgeErr: any) {
                 return {
-                    content: [{
-                        type: "text",
-                        text: JSON.stringify(results)
-                    }]
+                    content: [{ type: "text", text: `Error: ${bridgeErr?.message ?? `No conversion path found between ${inputMime} and ${outputMime}`}` }],
+                    isError: true
                 };
-
-            } catch (e: any) {
-                return { content: [{ type: "text", text: `Conversion failed: ${e?.toString()}` }], isError: true };
             }
         }
     );

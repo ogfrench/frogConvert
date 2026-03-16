@@ -621,6 +621,8 @@ class FrogsworthWidget {
   private busy = false;
   private lastQuip: string | null = null;
   private getContext: () => Context;
+  private _mq: MediaQueryList | null = null;
+  private _mqListener: ((e: MediaQueryListEvent) => void) | null = null;
 
   constructor(getContext: () => Context) {
     this.getContext = getContext;
@@ -657,7 +659,15 @@ class FrogsworthWidget {
       dragCount = 0;
       if (!this.busy) this.setState("idle");
     });
-    document.body.appendChild(this.el);
+    const slot = document.getElementById("frogsworth-slot");
+    this._mq = window.matchMedia("(max-width: 1000px), (max-height: 350px)");
+    const updatePlacement = (mobile: boolean) => {
+      if (mobile && slot) slot.appendChild(this.el);
+      else document.body.appendChild(this.el);
+    };
+    updatePlacement(this._mq.matches);
+    this._mqListener = (e) => updatePlacement(e.matches);
+    this._mq.addEventListener("change", this._mqListener);
   }
 
   private onClick(): void {
@@ -700,6 +710,13 @@ class FrogsworthWidget {
     this.bubble.classList.remove("visible");
     setTimeout(() => this.setState("idle"), 400);
     this.busy = false;
+  }
+
+  destroy(): void {
+    if (this._mq && this._mqListener) {
+      this._mq.removeEventListener("change", this._mqListener);
+    }
+    this.el.remove();
   }
 
 }

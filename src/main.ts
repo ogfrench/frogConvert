@@ -1,4 +1,5 @@
 import './styles/global.css';
+import { initFrogsworth } from "./components/Frogsworth/FrogsworthWidget.ts";
 import type { FormatHandler } from "./core/FormatHandler/FormatHandler.js";
 import handlers, { loadBackgroundHandlers } from "./handlers";
 import { TraversionGraph } from "./core/TraversionGraph/TraversionGraph.js";
@@ -313,24 +314,14 @@ function refreshUI() {
 initConvertButton();
 
 
-// Load Frogsworth at lowest priority — idle + code-split
-const scheduleIdle = (cb: () => void) =>
-  'requestIdleCallback' in window
-    ? requestIdleCallback(cb, { timeout: 10_000 })
-    : setTimeout(cb, 3_000);
-
-scheduleIdle(() => {
-  import("./components/Frogsworth/FrogsworthWidget.ts").then(({ initFrogsworth }) => {
-    initFrogsworth(() => ({
-      from: selectedFromIndex.value !== null
-        ? allOptionsRef.value[selectedFromIndex.value].format.format
-        : null,
-      to: selectedToIndex.value !== null
-        ? allOptionsRef.value[selectedToIndex.value].format.format
-        : null,
-    }));
-  }).catch(() => {}); // Easter egg — silent fail is acceptable
-});
+initFrogsworth(() => ({
+  from: selectedFromIndex.value !== null
+    ? allOptionsRef.value[selectedFromIndex.value].format.format
+    : null,
+  to: selectedToIndex.value !== null
+    ? allOptionsRef.value[selectedToIndex.value].format.format
+    : null,
+}));
 
 // --- Footer Confetti ---
 

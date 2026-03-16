@@ -1,6 +1,7 @@
 import type { FormatHandler, FileData } from "../../core/FormatHandler/FormatHandler.ts";
 import type { TraversionGraph } from "../../core/TraversionGraph/TraversionGraph.ts";
 import { findFormatAndHandler } from "../../mcp/core/utils.ts";
+import { convertViaBrowser } from "../../mcp/core/browserBridge.ts";
 import mime from "mime";
 
 async function runConversion(
@@ -16,39 +17,44 @@ async function runConversion(
     const inputMatch = findFormatAndHandler(handlers, inputMime, inputExt, 'from');
     const outputMatch = findFormatAndHandler(handlers, outputMime, outputExt, 'to');
 
-    if (!inputMatch) {
-        return { error: `Input format ${inputMime} (${inputExt}) not found or not readable`, status: 400 };
-    }
-    if (!outputMatch) {
-        return { error: `Output format ${outputMime} (${outputExt}) not found or not writable`, status: 400 };
-    }
-
-    const pathsGenerator = graph.searchPath(
-        { format: inputMatch.format, handler: inputMatch.handler },
-        { format: outputMatch.format, handler: outputMatch.handler },
-        false
-    );
-
-    const pathResult = await pathsGenerator.next();
-    if (pathResult.done || !pathResult.value) {
-        return { error: `No conversion path found between ${inputMime} and ${outputMime}`, status: 422 };
-    }
-
-    const path = pathResult.value;
-    let currentFiles: FileData[] = [{ name: fileName, bytes }];
-
-    try {
-        for (let i = 1; i < path.length; i++) {
-            const stepHandler = path[i].handler;
-            const prevFormat = path[i - 1].format;
-            const nextFormat = path[i].format;
-            currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat);
+    // Try native path when both formats are known to native handlers
+    if (inputMatch && outputMatch) {
+        const pathsGenerator = graph.searchPath(
+            { format: inputMatch.format, handler: inputMatch.handler },
+            { format: outputMatch.format, handler: outputMatch.handler },
+            false
+        );
+        const pathResult = await pathsGenerator.next();
+        if (!pathResult.done && pathResult.value) {
+            const path = pathResult.value;
+            let currentFiles: FileData[] = [{ name: fileName, bytes }];
+            try {
+                for (let i = 1; i < path.length; i++) {
+                    const stepHandler = path[i].handler;
+                    const prevFormat = path[i - 1].format;
+                    const nextFormat = path[i].format;
+                    currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat);
+                }
+                return { files: currentFiles };
+            } catch {
+                // Native execution failed — fall through to browser bridge
+            }
         }
-    } catch (e: any) {
-        return { error: `Conversion failed: ${e?.toString()}`, status: 500 };
     }
 
-    return { files: currentFiles };
+    // No native path, format unknown to native registry, or native execution failed.
+    // The bridge loads ALL handlers including browser-only ones (requiresMainThread=true).
+    try {
+        const b64 = Buffer.from(bytes).toString("base64");
+        const bridgeResults = await convertViaBrowser(fileName, b64, inputMime, inputExt, outputMime, outputExt);
+        const files: FileData[] = bridgeResults.map(r => ({
+            name: r.fileName,
+            bytes: new Uint8Array(Buffer.from(r.base64Bytes, "base64"))
+        }));
+        return { files };
+    } catch (bridgeErr: any) {
+        return { error: bridgeErr?.message ?? `No conversion path found between ${inputMime} and ${outputMime}`, status: 422 };
+    }
 }
 
 export async function handleConvert(

@@ -1,8 +1,8 @@
 # AGENTS.md — AI Agent Guide for frogConvert
 
-frogConvert is a universal file converter built as a fork of [Convert to it!](https://github.com/p2r3/convert). It includes a built-in Model Context Protocol (MCP) server — an addition exclusive to this fork — that provides AI agents with direct programmatic access to its core file conversion engine.
+frogConvert is a universal file converter built on top of **[Convert to it!](https://p2r3.github.io/convert/)** by PortalRunner ([repo](https://github.com/p2r3/convert)). The core conversion engine — the `FormatHandler` interface, graph-based routing, and underlying handlers — is inherited from that project. frogConvert adds a redesigned UI and a built-in MCP server that gives AI agents direct programmatic access to the same engine.
 
-Instead of interacting with the frontend web UI, **agents should always use the MCP server to convert files**, discover formats, and analyze conversion paths.
+When working with frogConvert programmatically, **use the MCP server or REST API rather than the web UI**. The tools below cover everything you'd do through the browser.
 
 ---
 
@@ -34,57 +34,13 @@ bunx frogconvert api
 
 > **Privacy:** All file processing is 100% local. No files are ever sent to any remote server.
 
-> **Note:** The REST API uses `Bun.serve()` and requires Bun. It will not work with `npx` (Node.js).
+> **Prerequisites:** For audio/video formats, native `ffmpeg` gives best results (`winget install ffmpeg` / `brew install ffmpeg`). frogConvert falls back to a bundled static binary and then WASM automatically — see [README.md](../README.md#prerequisites) for the full fallback table.
 
 ---
 
-## Prerequisites
+## 🚀 MCP Tools Reference
 
-**Most formats work out of the box.** For audio/video conversion (MP3, MP4, WAV, GIF, etc.) frogConvert uses a three-tier FFmpeg fallback:
-
-| Tier | Source | Codec support | Setup |
-|------|--------|--------------|-------|
-| 1 | Native `ffmpeg` in system PATH | Full (H.264, AAC, HEVC, HW accel…) | Install manually |
-| 2 | Bundled `ffmpeg-static` binary | Most common codecs | **None — automatic** |
-| 3 | `@ffmpeg/ffmpeg` WASM | Basic codecs | None — automatic |
-
-Tier 2 activates automatically with a console warning if native `ffmpeg` is not installed. Tier 3 is a last resort.
-
-**For best results, install native ffmpeg:**
-
-```bash
-# macOS
-brew install ffmpeg
-
-# Ubuntu / Debian
-sudo apt install ffmpeg
-
-# Windows (winget)
-winget install ffmpeg
-
-# Windows (chocolatey)
-choco install ffmpeg
-```
-
----
-
-## 🚀 Using frogConvert via MCP
-
-The local MCP server wraps frogConvert's complex graph-based routing engine into three easy-to-use tools over a standard `stdio` interface.
-
-### Starting the Server
-Start the MCP server locally with:
-```bash
-bun run mcp
-```
-*(This executes `bun src/mcp/index.ts`)*
-
-Or without cloning the repo:
-```bash
-bunx frogconvert mcp
-```
-
-### Exposed MCP Tools
+Three tools, all over `stdio`:
 
 1. **`list_formats`**
    - **Description**: Returns a JSON mapping of all supported input and output formats available in the Node.js environment.
@@ -93,7 +49,7 @@ bunx frogconvert mcp
 2. **`find_conversion_path`**
    - **Arguments**: `inputMime`, `inputExtension`, `outputMime`, `outputExtension`
    - **Description**: Uses frogConvert's `TraversionGraph` algorithm to calculate the step-by-step handler chain required to convert from the input to the output.
-   - **Returns**: A visual string representation of the path (e.g. `FFmpeg (audio/wav) -> pandoc (document/csv)`). Returns an error if no path exists.
+   - **Returns**: A visual string representation of the path (e.g. `ImageMagick (image/jpeg) -> ImageMagick (image/png)`). Returns an error if no path exists.
 
 3. **`convert_file`**
    - **Arguments**: `fileName`, `base64Bytes`, `inputMime`, `inputExtension`, `outputMime`, `outputExtension`
@@ -106,22 +62,9 @@ bunx frogconvert mcp
 
 ---
 
-## 🌐 Using frogConvert via REST API
+## 🌐 REST API Reference
 
-A local HTTP REST API is also available as an alternative to MCP — useful for shell scripts, curl, or any HTTP client.
-
-### Starting the Server
-```bash
-bun run api
-```
-*(This executes `bun src/api/index.ts` and binds to `http://127.0.0.1:3000`)*
-
-Or without cloning the repo:
-```bash
-bunx frogconvert api
-```
-
-Set `PORT` env var to override the port: `PORT=8080 bun run api`
+A local HTTP REST API is also available as an alternative to MCP — useful for shell scripts, curl, or any HTTP client. Binds to `http://127.0.0.1:3000`; override with the `PORT` env var.
 
 ### Endpoints
 
@@ -169,71 +112,43 @@ Returns `400` on bad input, `422` if no path found, `500` on conversion failure.
 
 ---
 
+## 🌐 Browser-Assisted Conversions — Automatic Fallback
+
+Conversions that require browser-only APIs (`Canvas`, `WebGL`, `AudioContext`, `document`) are handled automatically via a **Puppeteer browser bridge**. The server tries its native Node.js handler chain first; if no path is found, it transparently falls back to launching headless Chromium and running the conversion there using the full handler set.
+
+This means conversions like PDF → PNG (via Canvas), SVG tracing, Three.js rendering, audio synthesis, and many others work out of the box — no special handling needed from the caller.
+
+### Requirements for the browser bridge
+
+- A production build must be present: run `bun run build` from the repo root before starting the MCP/API server.
+- Puppeteer (already a dev dependency) must be accessible — it is when running from a repo clone.
+- The `bunx frogconvert` quick-start **does not** include the browser bridge (no `dist/` is present without a clone and build step).
+
+### How to detect browser-assisted paths
+
+- `find_conversion_path` / `GET /path`: if no native path exists but the browser bridge can handle it, the response will indicate a browser-assisted path is available rather than returning an error.
+  - MCP: returns text `"No native path found. A browser-assisted path is available — use convert_file to convert via the browser bridge."`
+  - REST: returns `{ "browserAssisted": true, "message": "..." }` (HTTP 200)
+- `convert_file` / `POST /convert`: the fallback is automatic — if the native path fails, the browser bridge is tried silently. The caller gets back the converted file(s) just like a native conversion.
+
+### General fallback strategy for agents
+
+| Situation | Action |
+|-----------|--------|
+| `GET /path` returns `browserAssisted: true` | Browser bridge will handle it — call `POST /convert` normally |
+| `GET /path` returns 404 | No path available at all (neither native nor browser) |
+| `POST /convert` returns 422 | No path found even via browser bridge |
+| Format needs native binaries not in PATH | Check `/health` handler list; install missing tool |
+| FFmpeg not found | `winget install ffmpeg` / `brew install ffmpeg` — bundled fallback activates automatically |
+| Browser bridge fails to start | Ensure `bun run build` has been run and `dist/` exists |
+
+---
+
 ## 🛠️ Developing on frogConvert
 
-If you are tasked with expanding frogConvert's capabilities, here is how the conversion engine operates under the hood.
+For architecture details, handler authoring rules, and the full file structure, see [`AGENT_CONTEXT.md`](AGENT_CONTEXT.md). The key points relevant to the MCP/API environment:
 
-### Architecture
-frogConvert relies on **Handlers** and a **TraversionGraph**:
-- **Handlers** (`src/handlers/*`): Individual modules wrapping underlying conversion libraries (e.g., FFmpeg WASM, ImageMagick WASM, Pandoc). Each handler implements the `FormatHandler` interface (`src/core/FormatHandler/FormatHandler.ts`).
-- **TraversionGraph** (`src/core/TraversionGraph/TraversionGraph.ts`): Uses Dijkstra's algorithm to compute the cheapest conversion path between formats using the edges provided by initialized handlers.
-
-### The MCP Environment constraints
-The web application of frogConvert chains handlers that might rely on browser APIs (like `Canvas`, `DOM`, `window`). 
-**The MCP server (`src/mcp/index.ts`) runs in Node.js.** Therefore:
-1. The MCP registry (`src/mcp/core/handlers.ts`) **strictly excludes** browser-only handlers.
-2. Only handlers capable of running purely in Node.js or via Node-compatible WASM (like `FFmpegHandler` and `ImageMagickHandler`) are registered.
-3. WASM asset `fetch` calls are polyfilled (`src/mcp/core/polyfills.ts`) to read local files from the package root (`node_modules` or `src/`) instead of relying on a development server URL. Paths are resolved relative to `import.meta.dir` so this works both from the repo and when installed via `bunx`/npm.
-
-### Adding a New Handler
-If asked to add support for a new format:
-1. Write a new handler class in `src/handlers/`. Choose the right base class:
-   - Extend `TextFormatHandler` (`src/core/FormatHandler/TextFormatHandler.ts`) for text-based formats (JSON, CSV, XML, YAML, etc.) — it handles the `Uint8Array ↔ string` decode/encode pipeline for you. Implement `doConvertText()` instead of `doConvert()`.
-   - Extend `BaseHandler` (`src/core/FormatHandler/BaseHandler.ts`) for anything else — it provides a default `init()`, a `replaceExtension()` helper, and keeps `ready = true` by default.
-   - Implement the raw `FormatHandler` interface directly only if you need maximum control (e.g., async `init()` that loads WASM).
-2. Use the `CommonFormats` utility (`src/core/CommonFormats/CommonFormats.ts`) to declare `supportedFormats`.
-3. Set `requiresMainThread`:
-   - If the handler uses only pure computation or Node-compatible WASM (no `Canvas`, `document`, `AudioContext`, `WebGL`): leave it unset or `false`. The engine will run it in a Web Worker.
-   - If the handler requires browser-only DOM APIs: set `public requiresMainThread = true`. The engine will keep it on the main thread.
-4. If the handler relies **only** on Node-compatible APIs or WASM:
-   - Export and register it in `src/mcp/core/handlers.ts` to make it available to the MCP server.
-5. If the handler requires WASM files, add an interception rule in `src/mcp/core/polyfills.ts` so `fetch()` can read the WASM file from disk.
-
-### File Structure
-```text
-src/
-├── core/
-│   ├── FormatHandler/      # Core interfaces and base classes
-│   │   ├── FormatHandler.ts    # FormatHandler interface, FileFormat, FileData types
-│   │   ├── BaseHandler.ts      # Abstract base class (default init, replaceExtension helper)
-│   │   └── TextFormatHandler.ts# Base class for text formats (auto decode/encode)
-│   ├── CommonFormats/      # Constants for defining MIME types and extensions
-│   └── TraversionGraph/    # Pathfinding graph algorithm
-├── components/             # The Vanilla TS/CSS User Interface
-│   ├── store/              # Reactive state, UI references, format mode logic
-│   ├── utils.ts            # Shared utilities (escapeHTML, formatBytes, ensureMinDuration)
-│   └── utils/
-│       └── ModalManager.ts # Centralized modal lifecycle (open/close, focus, scroll-lock)
-├── handlers/               # The actual conversion logic (FFmpeg, ImageMagick, Pandoc, etc.)
-├── workers/
-│   ├── conversion.worker.ts    # Executes handler conversions in a background thread
-│   └── route-search.worker.ts  # Runs Dijkstra pathfinding in a background thread
-├── mcp/                    # MCP Server (stdio) — `bun run mcp`
-│   ├── index.ts            # Entry point
-│   ├── core/
-│   │   ├── handlers.ts     # Node.js-compatible handler registry (shared with API)
-│   │   ├── polyfills.ts    # Fetch polyfills for loading WASM locally (shared with API)
-│   │   └── utils.ts        # findFormatAndHandler() helper (shared with API)
-│   └── tools/              # MCP tool registrations
-│       ├── convertFile.ts
-│       ├── findConversionPath.ts
-│       └── listFormats.ts
-└── api/                    # Local HTTP REST API — `bun run api`
-    ├── index.ts            # Entry point (Bun.serve on 127.0.0.1:3000)
-    └── routes/
-        ├── formats.ts      # GET /formats
-        ├── path.ts         # GET /path
-        └── convert.ts      # POST /convert
-```
-
-> **Note:** `batToExeHandler` is excluded from both MCP and REST API because it uses Vite-specific `?url` binary imports that are incompatible with Node.js/Bun direct execution. It remains available in the browser web UI.
+- The MCP server runs in **Node.js**, loading handlers where `requiresMainThread` is unset or `false`. Handlers that need browser APIs are not loaded natively, but are available via the Puppeteer browser bridge (see above).
+- WASM `fetch` calls are polyfilled in `src/mcp/core/polyfills.ts` to read files from disk rather than a dev server.
+- `batToExeHandler` is excluded from both MCP and REST API (uses Vite-specific `?url` imports incompatible with Node.js). It remains available in the browser UI.
+- The browser bridge entry point lives in `src/headless/index.ts` and is built as a separate Vite MPA entry to `dist/headless/`. The bridge implementation is in `src/mcp/core/browserBridge.ts`.

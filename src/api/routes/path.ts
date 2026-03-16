@@ -1,6 +1,7 @@
 import type { FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 import type { TraversionGraph } from "../../core/TraversionGraph/TraversionGraph.ts";
 import { findFormatAndHandler } from "../../mcp/core/utils.ts";
+import { canConvertViaBrowser } from "../../mcp/core/browserBridge.ts";
 
 export async function handlePath(url: URL, handlers: FormatHandler[], graph: TraversionGraph): Promise<Response> {
     const inputMime = url.searchParams.get("inputMime");
@@ -33,6 +34,13 @@ export async function handlePath(url: URL, handlers: FormatHandler[], graph: Tra
 
     const pathResult = await pathsGenerator.next();
     if (pathResult.done || !pathResult.value) {
+        const browserAvailable = await canConvertViaBrowser(inputMime, inputExt, outputMime, outputExt).catch(() => false);
+        if (browserAvailable) {
+            return Response.json({
+                browserAssisted: true,
+                message: "No native path found. Conversion is available via the browser bridge."
+            });
+        }
         return Response.json({ error: `No conversion path found between ${inputMime} and ${outputMime}` }, { status: 404 });
     }
 
