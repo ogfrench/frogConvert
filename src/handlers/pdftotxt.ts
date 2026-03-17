@@ -3,10 +3,12 @@ import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/
 
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Safari (identified by navigator.vendor) has issues loading the .mjs worker bundle —
-// it either rejects it or hangs silently. Inline mode is slower but fully compatible.
-// Chrome, Firefox, and other non-Apple browsers get the worker for better performance.
-if (navigator.vendor !== 'Apple Computer, Inc.') {
+// Safari has issues loading the .mjs worker bundle — it either rejects it or hangs silently.
+// Setting workerSrc to '' explicitly triggers PDF.js's FakeWorker (inline) path on Safari.
+// Other browsers get the real worker for better performance.
+if (navigator.vendor === 'Apple Computer, Inc.') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+} else {
   import('pdfjs-dist/build/pdf.worker.min.mjs?url').then(({ default: workerSrc }) => {
     pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
   });

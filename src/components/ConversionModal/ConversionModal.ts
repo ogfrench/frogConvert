@@ -33,6 +33,9 @@ export async function completeCancellation(shouldHide = true) {
     }
 }
 
+// Safari's blur+contrast filter doesn't sharpen gooey edges cleanly — fall back to the plain spinner.
+const CONVERSION_SPINNER_CLASS = navigator.vendor === 'Apple Computer, Inc.' ? "loader-spinner" : "loader-gooey";
+
 export function showConversionInProgress(messageHTML: string, title: string = "Converting...") {
     // If cancellation is in progress, don't overwrite the popup
     if (cancelStartTime !== null) {
@@ -43,10 +46,10 @@ export function showConversionInProgress(messageHTML: string, title: string = "C
         ? ui.popupBox.querySelector(".loader-gooey, .loader-spinner")
         : null;
     if (existingSpinner) {
-        // Ensure we are using the gooey loader for conversions
-        if (existingSpinner.classList.contains("loader-spinner")) {
-            existingSpinner.classList.remove("loader-spinner");
-            existingSpinner.classList.add("loader-gooey");
+        // Ensure we are using the right loader for conversions
+        if (!existingSpinner.classList.contains(CONVERSION_SPINNER_CLASS)) {
+            existingSpinner.classList.remove("loader-gooey", "loader-spinner");
+            existingSpinner.classList.add(CONVERSION_SPINNER_CLASS);
         }
 
         const h2 = ui.popupBox.querySelector("h2");
@@ -67,7 +70,7 @@ export function showConversionInProgress(messageHTML: string, title: string = "C
         h2.textContent = title;
 
         const spinner = document.createElement("div");
-        spinner.className = "loader-gooey";
+        spinner.className = CONVERSION_SPINNER_CLASS;
 
         const p = document.createElement("p");
         p.innerHTML = messageHTML;
