@@ -391,6 +391,16 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
             const deadEndPath = path.slice(0, i + 2);
             window.traversionGraph.addDeadEndPath(deadEndPath);
 
+            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            const isPdfHandler = handler.name === "pdftoimg" || handler.name === "pdftotxt";
+            if (isSafari && isPdfHandler) {
+                showAlertPopup(
+                    "PDF conversion on Safari",
+                    "PDF conversion has limited support on Safari due to browser restrictions. For best results, use Chrome or Firefox.",
+                );
+                return null;
+            }
+
             return null;
         }
     }

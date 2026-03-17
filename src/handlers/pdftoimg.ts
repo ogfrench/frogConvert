@@ -40,7 +40,9 @@ class pdftoimgHandler implements FormatHandler {
     for (const inputFile of inputFiles) {
       const pdf = await pdfjsLib.getDocument({
         data: inputFile.bytes,
-        isEvalSupported: false
+        isEvalSupported: false,
+        isOffscreenCanvasSupported: false,
+        isImageDecoderSupported: false,
       }).promise;
       const baseName = inputFile.name.split(".").slice(0, -1).join(".");
 

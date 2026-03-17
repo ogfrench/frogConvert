@@ -40,6 +40,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css" id="hljs-dark"
     disabled>
   <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 
   <style>
     :root {
@@ -61,7 +62,7 @@
       transition: background-color .3s ease, border-color .3s ease;
     }
 
-    #topbar-left { display: flex; align-items: center; gap: var(--space-3); }
+    #topbar-left { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 
     #logo {
       display: flex; align-items: center; gap: var(--space-1-5);
@@ -85,7 +86,7 @@
       border-radius: var(--radius-full);
     }
 
-    #topbar-right { display: flex; align-items: center; gap: var(--space-2); }
+    #topbar-right { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; }
 
     .topbar-btn {
       display: flex; align-items: center; gap: var(--space-1-5);
@@ -408,6 +409,10 @@
     #doc-body tr:last-child td { border-bottom: none; }
     #doc-body tr:hover td { background-color: var(--secondary); }
 
+    /* ── Mermaid diagrams ── */
+    .mermaid { margin: var(--space-6) 0; overflow-x: auto; }
+    .mermaid svg { max-width: 100%; height: auto; }
+
     /* ── Responsive ── */
     @media (max-width: 768px) {
       :root {
@@ -491,30 +496,7 @@
     <nav id="sidebar" aria-label="Documentation navigation">
       <div id="sidebar-items">
         <div class="sidebar-section-label">Documentation</div>
-
-        <button class="nav-item" data-doc="README.md">
-          <span class="nav-icon">📖</span>
-          <span>
-            README
-            <span class="nav-desc">Setup &amp; contributing</span>
-          </span>
-        </button>
-
-        <button class="nav-item" data-doc="AGENTS.md">
-          <span class="nav-icon">🤖</span>
-          <span>
-            AGENTS
-            <span class="nav-desc">MCP &amp; REST API guide</span>
-          </span>
-        </button>
-
-        <button class="nav-item" data-doc="AGENT_CONTEXT.md">
-          <span class="nav-icon">⚙️</span>
-          <span>
-            Agent Context
-            <span class="nav-desc">Architecture deep-dive</span>
-          </span>
-        </button>
+        <!-- Nav items injected by JS from NAV_DOCS -->
       </div>
 
       <div id="sidebar-footer">
@@ -542,19 +524,67 @@
     // --- Custom Cursor ---
     initCustomCursor();
 
+    // ── Nav manifest — single source of truth for sidebar & valid docs ──
+    // To add a new doc: add one entry here. No other changes needed.
+    const NAV_DOCS = [
+      { file: 'README.md',        icon: '📖', label: 'README',        desc: 'Setup & contributing' },
+      { file: 'OVERVIEW.md',      icon: '🗺️', label: 'Overview',      desc: 'How it works (plain English)' },
+      { file: 'AGENTS.md',        icon: '🤖', label: 'AGENTS',        desc: 'MCP & REST API guide' },
+      { file: 'AGENT_CONTEXT.md', icon: '⚙️', label: 'Agent Context', desc: 'Architecture deep-dive' },
+    ];
+
+    // ── Build sidebar nav from manifest ──
+    const sidebarItemsEl = document.getElementById('sidebar-items');
+    NAV_DOCS.forEach(({ file, icon, label, desc }) => {
+      const btn = document.createElement('button');
+      btn.className = 'nav-item';
+      btn.dataset.doc = file;
+      btn.innerHTML = `<span class="nav-icon">${icon}</span><span>${label}<span class="nav-desc">${desc}</span></span>`;
+      sidebarItemsEl.appendChild(btn);
+    });
+
+    // ── Mermaid ──
+    function initMermaid() {
+      if (!window.mermaid) return;
+      mermaid.initialize({ startOnLoad: false, theme: isDark() ? 'dark' : 'default' });
+    }
+
     // ── Theme ──
     const html = document.documentElement;
     const themeBtn = document.getElementById('theme-toggle');
     function isDark() { return html.classList.contains('dark'); }
-    function applyTheme(dark) {
+    let themeTransitionTimer = null;
+    function applyTheme(dark, animate = false) {
+      if (animate) {
+        if (themeTransitionTimer) clearTimeout(themeTransitionTimer);
+        html.classList.add('theme-transition');
+        void html.offsetHeight; // force reflow so browser registers transition before dark toggles
+        themeTransitionTimer = setTimeout(() => {
+          html.classList.remove('theme-transition');
+          themeTransitionTimer = null;
+        }, 350);
+      }
       html.classList.toggle('dark', dark);
       themeBtn.innerHTML = dark ? '&#9788;' : '&#9790;';
       localStorage.setItem('theme', dark ? 'dark' : 'light');
       document.getElementById('hljs-light').disabled = dark;
       document.getElementById('hljs-dark').disabled = !dark;
+      // Re-render Mermaid diagrams with updated theme
+      initMermaid();
+      const diagramEls = [...document.querySelectorAll('#doc-body .mermaid')];
+      if (diagramEls.length && window.mermaid) {
+        diagramEls.forEach(el => {
+          if (el.dataset.mermaidSrc) {
+            el.removeAttribute('data-processed');
+            el.textContent = el.dataset.mermaidSrc;
+          }
+        });
+        mermaid.run({ nodes: diagramEls });
+      }
     }
     applyTheme(isDark());
-    themeBtn.addEventListener('click', () => applyTheme(!isDark()));
+    initMermaid();
+    themeBtn.addEventListener('click', () => applyTheme(!isDark(), true));
 
     // ── Sidebar toggle (mobile) ──
     const sidebar = document.getElementById('sidebar');
@@ -570,14 +600,14 @@
     // ── Doc loader ──
     const placeholder = document.getElementById('doc-placeholder');
     const docBody = document.getElementById('doc-body');
-    let activeBtn = null;
+    let activeDoc = null;
 
     async function loadDoc(filename) {
       // Update nav active state
       document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
       const btn = document.querySelector(`[data-doc="${filename}"]`);
       if (btn) btn.classList.add('active');
-      activeBtn = filename;
+      activeDoc = filename;
 
       // Show loading
       placeholder.innerHTML = '<div class="loader-spinner"></div><span>Loading…</span>';
@@ -597,11 +627,25 @@
           a.setAttribute('rel', 'noopener');
         });
 
-        // Syntax highlight
+        // Convert mermaid fenced code blocks into .mermaid divs before hljs runs
+        docBody.querySelectorAll('code.language-mermaid').forEach(code => {
+          const div = document.createElement('div');
+          div.className = 'mermaid';
+          const src = code.textContent;
+          div.textContent = src;
+          div.dataset.mermaidSrc = src; // stored for theme re-renders
+          code.closest('pre').replaceWith(div);
+        });
+
+        // Syntax highlight (mermaid blocks already replaced above)
         if (window.hljs) {
-          docBody.querySelectorAll('pre code').forEach(el => {
-            hljs.highlightElement(el);
-          });
+          docBody.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+        }
+
+        // Render Mermaid diagrams
+        if (window.mermaid) {
+          const nodes = [...docBody.querySelectorAll('.mermaid')];
+          if (nodes.length) mermaid.run({ nodes });
         }
 
         placeholder.style.display = 'none';
@@ -618,7 +662,7 @@
       if (window.innerWidth <= 768) closeSidebar();
     }
 
-    // Wire up nav buttons
+    // Wire up nav buttons (created above from NAV_DOCS)
     document.querySelectorAll('.nav-item').forEach(btn => {
       btn.addEventListener('click', () => loadDoc(btn.dataset.doc));
     });
@@ -653,8 +697,7 @@
 
     // Load doc from hash or default to README
     const hash = location.hash.replace('#', '');
-    const validDocs = ['README.md', 'AGENTS.md', 'AGENT_CONTEXT.md'];
-    loadDoc(validDocs.includes(hash) ? hash : 'README.md');
+    loadDoc(NAV_DOCS.some(d => d.file === hash) ? hash : 'README.md');
   </script>
 </body>
 

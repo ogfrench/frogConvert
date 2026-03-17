@@ -41,6 +41,22 @@ const IDLE_QUIPS: Quip[] = [
   q("drop something. i'm ready", "happy"),
   q("i have been waiting here for precisely this moment", "excited"),
   q("no judgment on the file. some judgment on the format", "smug"),
+  q("still here. still a frog. still converting.", "idle"),
+  q("you could drop a file. i'm not saying you have to.", "smug"),
+  q("blinking. thinking about file formats.", "idle"),
+  q("every second without a file is a second wasted", "hungry"),
+  q("i have converted many files. i will convert many more.", "smug"),
+  q("a frog's work is never done. mostly because no one has dropped anything yet.", "smug"),
+  q("frogs don't sleep. we wait.", "idle"),
+  q("the pond is quiet. the conversion queue is empty.", "idle"),
+  q("some websites have spinners. i have opinions.", "smug"),
+  q("drop a file in. a different file comes out. that's the deal.", "idle"),
+  q("i've been a frog my whole life. the file conversion is new.", "smug"),
+  q("in my pond there are no wrong formats. only suboptimal ones.", "smug"),
+  q("waiting is fine. i am a frog. i am patient.", "happy"),
+  q("no file yet. that's okay. frogsworth is coping.", "happy"),
+  q("i am not an ai. i am a frog with a very fast conversion pipeline.", "excited"),
+  q("ribbit (this is a file converter)", "happy"),
 ];
 
 const PAIR_QUIPS: Record<string, Quip[]> = {
@@ -618,7 +634,9 @@ class FrogsworthWidget {
   private face: HTMLElement;
   private bubble: HTMLElement;
   private dismissTimer: ReturnType<typeof setTimeout> | null = null;
+  private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private busy = false;
+  private dragging = false;
   private lastQuip: string | null = null;
   private getContext: () => Context;
   private _mq: MediaQueryList | null = null;
@@ -648,17 +666,18 @@ class FrogsworthWidget {
     let dragCount = 0;
     window.addEventListener("dragenter", (e) => {
       if (!(e.dataTransfer?.types ?? []).includes("Files")) return;
-      if (++dragCount === 1 && !this.busy) this.setState("hungry");
+      if (++dragCount === 1 && !this.busy) { this.dragging = true; this.setState("hungry"); }
     });
     window.addEventListener("dragleave", (e) => {
       if (!(e.dataTransfer?.types ?? []).includes("Files")) return;
       dragCount = Math.max(0, dragCount - 1);
-      if (dragCount === 0 && !this.busy) this.setState("idle");
+      if (dragCount === 0 && !this.busy) { this.dragging = false; this.setState("idle"); }
     });
     window.addEventListener("drop", () => {
       dragCount = 0;
-      if (!this.busy) this.setState("idle");
+      if (!this.busy) { this.dragging = false; this.setState("idle"); }
     });
+    this.scheduleIdle();
     const slot = document.getElementById("frogsworth-slot");
     this._mq = window.matchMedia("(max-width: 1000px), (max-height: 350px)");
     const updatePlacement = (mobile: boolean) => {
@@ -670,8 +689,19 @@ class FrogsworthWidget {
     this._mq.addEventListener("change", this._mqListener);
   }
 
+  private scheduleIdle(): void {
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => {
+      this.idleTimer = null;
+      if (this.busy || this.dragging) { this.scheduleIdle(); return; }
+      const { from, to } = this.getContext();
+      this.run(from, to);
+    }, 30_000);
+  }
+
   private onClick(): void {
     if (this.busy) return;
+    this.scheduleIdle();
     const { from, to } = this.getContext();
     this.run(from, to);
   }
@@ -710,12 +740,14 @@ class FrogsworthWidget {
     this.bubble.classList.remove("visible");
     setTimeout(() => this.setState("idle"), 400);
     this.busy = false;
+    this.scheduleIdle();
   }
 
   destroy(): void {
     if (this._mq && this._mqListener) {
       this._mq.removeEventListener("change", this._mqListener);
     }
+    if (this.idleTimer) clearTimeout(this.idleTimer);
     this.el.remove();
   }
 
