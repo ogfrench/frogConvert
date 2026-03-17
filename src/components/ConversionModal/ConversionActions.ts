@@ -391,16 +391,6 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
             const deadEndPath = path.slice(0, i + 2);
             window.traversionGraph.addDeadEndPath(deadEndPath);
 
-            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-            const isPdfHandler = handler.name === "pdftoimg" || handler.name === "pdftotxt";
-            if (isSafari && isPdfHandler) {
-                showAlertPopup(
-                    "PDF conversion on Safari",
-                    "PDF conversion has limited support on Safari due to browser restrictions. For best results, use Chrome or Firefox.",
-                );
-                return null;
-            }
-
             return null;
         }
     }
@@ -552,11 +542,23 @@ export function initConvertButton() {
 
             ensureCancelButton();
 
+            const isSafariBrowser = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            const pathUsesPdfHandler = (path: ConvertPathNode[]) =>
+                path.some(n => n.handler?.name === "pdftoimg" || n.handler?.name === "pdftotxt");
+            const showSafariPdfPopup = () => showAlertPopup(
+                "PDF conversion on Safari",
+                "PDF conversion has limited support on Safari due to browser restrictions. For best results, use Chrome or Firefox.",
+            );
+
             // Find the conversion path during warming-up (cancel is now available).
             let conversionPath = await findConversionPath(inputOption, outputOption);
             if (!conversionPath) {
                 if (isCancelled) return;
                 showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
+                return;
+            }
+            if (isSafariBrowser && pathUsesPdfHandler(conversionPath)) {
+                showSafariPdfPopup();
                 return;
             }
 
@@ -578,6 +580,10 @@ export function initConvertButton() {
                         if (isCancelled) break;
                         removeCancelButton();
                         showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
+                        return;
+                    }
+                    if (isSafariBrowser && pathUsesPdfHandler(conversionPath)) {
+                        showSafariPdfPopup();
                         return;
                     }
                     result = await attemptConvertPath([inputFileData[i]], conversionPath, batchMsg);
