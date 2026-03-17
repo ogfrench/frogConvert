@@ -2,7 +2,7 @@ import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
 import * as pdfjsLib from 'pdfjs-dist';
-import { getPDFWorker } from './pdfWorkerSetup.ts';
+import { setupPDFWorker } from './pdfWorkerSetup.ts';
 
 class pdftotxtHandler implements FormatHandler {
 
@@ -29,12 +29,13 @@ class pdftotxtHandler implements FormatHandler {
     if (inputFormat.format !== "pdf") throw "Invalid input format.";
     if (outputFormat.format !== "text") throw "Invalid output format.";
 
+    setupPDFWorker();
+
     const outputFiles: FileData[] = [];
 
     for (const inputFile of inputFiles) {
       const loadingTask = pdfjsLib.getDocument({
         data: inputFile.bytes,
-        worker: getPDFWorker(),
         isEvalSupported: false
       });
       const pdfDocument = await loadingTask.promise;

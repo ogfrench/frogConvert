@@ -103,7 +103,7 @@ describe("ConversionModal DOM bindings", () => {
         expect(ui.popupBox.classList.contains("open")).toBe(true);
         expect(ui.popupBackground.classList.contains("open")).toBe(true);
         expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Converting...");
-        expect(ui.popupBox.querySelector(".loader-gooey")).not.toBeNull();
+        expect(ui.popupBox.querySelector(".loader-gooey, .loader-spinner")).not.toBeNull();
         expect(ui.popupBox.querySelector("p")?.innerHTML).toBe("Step 1...");
         expect(ui.popupBox.querySelector("#cancel-conversion-btn")).toBeNull();
     });
@@ -113,7 +113,7 @@ describe("ConversionModal DOM bindings", () => {
         // popup is now open — next call should mutate rather than recreate
         showConversionInProgress("Step 2...", "My Title");
         // Still only one spinner
-        expect(ui.popupBox.querySelectorAll(".loader-gooey").length).toBe(1);
+        expect(ui.popupBox.querySelectorAll(".loader-gooey, .loader-spinner").length).toBe(1);
         expect(ui.popupBox.querySelector("p")?.innerHTML).toBe("Step 2...");
         expect(ui.popupBox.querySelector("h2")?.textContent).toBe("My Title");
     });

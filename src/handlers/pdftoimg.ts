@@ -2,7 +2,7 @@ import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
 import * as pdfjsLib from 'pdfjs-dist';
-import { getPDFWorker } from './pdfWorkerSetup.ts';
+import { setupPDFWorker } from './pdfWorkerSetup.ts';
 
 class pdftoimgHandler implements FormatHandler {
 
@@ -32,13 +32,14 @@ class pdftoimgHandler implements FormatHandler {
       && outputFormat.format !== "jpeg"
     ) throw "Invalid output format.";
 
+    setupPDFWorker();
+
     const mimeType = outputFormat.format === "jpeg" ? "image/jpeg" : "image/png";
     const outputFiles: FileData[] = [];
 
     for (const inputFile of inputFiles) {
       const pdf = await pdfjsLib.getDocument({
         data: inputFile.bytes,
-        worker: getPDFWorker(),
         isEvalSupported: false
       }).promise;
       const baseName = inputFile.name.split(".").slice(0, -1).join(".");

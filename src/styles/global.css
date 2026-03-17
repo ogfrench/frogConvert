@@ -722,6 +722,7 @@ html.scroll-lock {
     mix-blend-mode: multiply;
     filter: blur(4px) contrast(12);
     margin: var(--space-5) auto;
+    flex-shrink: 0;
   }
 
   .dark .loader-gooey {
@@ -778,6 +779,7 @@ html.scroll-lock {
     border-radius: 50%;
     animation: spin-complex 2.4s cubic-bezier(0.45, 0.15, 0.55, 0.85) infinite;
     margin: var(--space-8) auto;
+    flex-shrink: 0;
   }
 
   .loader-gooey:before,
@@ -795,6 +797,7 @@ html.scroll-lock {
   border-radius: 50%;
   animation: spin-complex 2.4s cubic-bezier(0.45, 0.15, 0.55, 0.85) infinite;
   margin: var(--space-8) auto;
+  flex-shrink: 0;
 }
 
 @keyframes spin {
