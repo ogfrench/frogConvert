@@ -139,3 +139,22 @@ export function showFileTypeMismatchPopup(files: File[], onProceed: (filtered: F
 
   showPopup([h2, p, actions]);
 }
+
+export function showUnsupportedFilePopup(files: File[]) {
+  const h2 = document.createElement("h2");
+  h2.textContent = files.length > 1 ? "Unsupported files" : "Unsupported file";
+
+  const p = document.createElement("p");
+  if (files.length > 1) {
+    p.innerHTML = `These formats aren't supported yet.<br><br>Stay tuned, they might be on the way!`;
+  } else {
+    const ext = files[0].name.split(".").pop()?.toUpperCase() || "this";
+    p.innerHTML = `<b>.${ext}</b> isn't supported yet.<br><br>Stay tuned, this format might be on the way!`;
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "popup-actions-footer";
+  actions.appendChild(createPopupButton("Got it", "btn-primary", () => hidePopup()));
+
+  showPopup([h2, p, actions]);
+}

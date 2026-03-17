@@ -11,6 +11,7 @@ import {
   initUploadZone,
   showPopup,
   hidePopup,
+  showUnsupportedFilePopup,
   closeFormatModal,
   setSelectedFormat,
   updateConvertButtonState,
@@ -80,27 +81,35 @@ initCategoryTabs((category) => {
   updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
 });
 
-initUploadZone(
-  (files) => {
-    showFileInUploadZone(files);
+  initUploadZone(
+    (files) => {
+      const matchIndex = findMatchingFormat(files, allOptionsRef.value);
 
-    const matchIndex = findMatchingFormat(files, allOptionsRef.value);
-    if (matchIndex >= 0) {
-      selectedFromIndex.value = matchIndex;
-      showDetectedFormat(allOptionsRef.value[matchIndex].format.format, files.length);
-
-      // Dynamically select the tab related to the uploaded file
-      const category = getFormatCategory(allOptionsRef.value[matchIndex].format);
-      if (category && category !== activeCategory.value && selectedToIndex.value === null) {
-        if (isCategoryVisible(category, formatMode.value)) {
-          selectCategoryTab(category);
-        }
+      // If no match found and we're not in the middle of a "cold start" loading phase,
+      // block the upload and show an unsupported file popup.
+      if (matchIndex < 0 && !isLoadingHandlers.value && !isLoadingPhase2.value) {
+        showUnsupportedFilePopup(files);
+        return;
       }
-    } else {
-      selectedFromIndex.value = null;
-    }
-    updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
-  },
+
+      showFileInUploadZone(files);
+
+      if (matchIndex >= 0) {
+        selectedFromIndex.value = matchIndex;
+        showDetectedFormat(allOptionsRef.value[matchIndex].format.format, files.length);
+
+        // Dynamically select the tab related to the uploaded file
+        const category = getFormatCategory(allOptionsRef.value[matchIndex].format);
+        if (category && category !== activeCategory.value && selectedToIndex.value === null) {
+          if (isCategoryVisible(category, formatMode.value)) {
+            selectCategoryTab(category);
+          }
+        }
+      } else {
+        selectedFromIndex.value = null;
+      }
+      updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
+    },
   () => {
     selectedFromIndex.value = null;
     resetUploadZone();

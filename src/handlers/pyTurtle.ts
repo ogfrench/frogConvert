@@ -96,7 +96,7 @@ class pyTurtleHandler implements FormatHandler {
     if (elements.length > MAX_ELEMENTS) {
         elements = elements.slice(0, MAX_ELEMENTS);
     }
-    const pt = svgEl.createSVGPoint(); // this API is deprecated
+    const pt = new DOMPoint();
 
     const formatColor = (col:string) => {
         if (!col || col === 'none' || col === 'transparent') return null;

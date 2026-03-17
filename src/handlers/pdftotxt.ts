@@ -2,7 +2,7 @@ import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
 import * as pdfjsLib from 'pdfjs-dist';
-import './pdfWorkerSetup.ts';
+import { getPDFWorker } from './pdfWorkerSetup.ts';
 
 class pdftotxtHandler implements FormatHandler {
 
@@ -32,7 +32,11 @@ class pdftotxtHandler implements FormatHandler {
     const outputFiles: FileData[] = [];
 
     for (const inputFile of inputFiles) {
-      const loadingTask = pdfjsLib.getDocument({ data: inputFile.bytes, isEvalSupported: false });
+      const loadingTask = pdfjsLib.getDocument({
+        data: inputFile.bytes,
+        worker: getPDFWorker(),
+        isEvalSupported: false
+      });
       const pdfDocument = await loadingTask.promise;
 
       let fullText = "";
