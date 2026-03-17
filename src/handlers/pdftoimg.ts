@@ -2,7 +2,9 @@ import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
 import * as pdfjsLib from 'pdfjs-dist';
-import { setupPDFWorker } from './pdfWorkerSetup.ts';
+import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
 class pdftoimgHandler implements FormatHandler {
 
@@ -27,12 +29,13 @@ class pdftoimgHandler implements FormatHandler {
     outputFormat: FileFormat
   ): Promise<FileData[]> {
 
+    if (/^((?!chrome|android).)*safari/i.test(navigator.userAgent))
+      throw "PDF conversion is not supported on Safari. Please use Chrome or Firefox.";
+
     if (
       outputFormat.format !== "png"
       && outputFormat.format !== "jpeg"
     ) throw "Invalid output format.";
-
-    setupPDFWorker();
 
     const mimeType = outputFormat.format === "jpeg" ? "image/jpeg" : "image/png";
     const outputFiles: FileData[] = [];
@@ -42,7 +45,6 @@ class pdftoimgHandler implements FormatHandler {
         data: inputFile.bytes,
         isEvalSupported: false,
         isOffscreenCanvasSupported: false,
-        isImageDecoderSupported: false,
       }).promise;
       const baseName = inputFile.name.split(".").slice(0, -1).join(".");
 

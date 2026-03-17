@@ -2,7 +2,9 @@ import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
 import * as pdfjsLib from 'pdfjs-dist';
-import { setupPDFWorker } from './pdfWorkerSetup.ts';
+import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
 class pdftotxtHandler implements FormatHandler {
 
@@ -29,7 +31,8 @@ class pdftotxtHandler implements FormatHandler {
     if (inputFormat.format !== "pdf") throw "Invalid input format.";
     if (outputFormat.format !== "text") throw "Invalid output format.";
 
-    setupPDFWorker();
+    if (/^((?!chrome|android).)*safari/i.test(navigator.userAgent))
+      throw "PDF conversion is not supported on Safari. Please use Chrome or Firefox.";
 
     const outputFiles: FileData[] = [];
 
@@ -37,8 +40,6 @@ class pdftotxtHandler implements FormatHandler {
       const loadingTask = pdfjsLib.getDocument({
         data: inputFile.bytes,
         isEvalSupported: false,
-        isOffscreenCanvasSupported: false,
-        isImageDecoderSupported: false,
       });
       const pdfDocument = await loadingTask.promise;
 
