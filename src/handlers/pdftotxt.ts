@@ -2,17 +2,7 @@ import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
 import * as pdfjsLib from 'pdfjs-dist';
-
-// Safari has issues loading the .mjs worker bundle — it either rejects it or hangs silently.
-// Setting workerSrc to '' explicitly triggers PDF.js's FakeWorker (inline) path on Safari.
-// Other browsers get the real worker for better performance.
-if (navigator.vendor === 'Apple Computer, Inc.') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-} else {
-  import('pdfjs-dist/build/pdf.worker.min.mjs?url').then(({ default: workerSrc }) => {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
-  });
-}
+import './pdfWorkerSetup.ts';
 
 class pdftotxtHandler implements FormatHandler {
 

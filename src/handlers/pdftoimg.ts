@@ -2,9 +2,7 @@ import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
 import * as pdfjsLib from 'pdfjs-dist';
-import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+import './pdfWorkerSetup.ts';
 
 class pdftoimgHandler implements FormatHandler {
 
@@ -38,7 +36,7 @@ class pdftoimgHandler implements FormatHandler {
     const outputFiles: FileData[] = [];
 
     for (const inputFile of inputFiles) {
-      const pdf = await pdfjsLib.getDocument({ data: inputFile.bytes }).promise;
+      const pdf = await pdfjsLib.getDocument({ data: inputFile.bytes, isEvalSupported: false }).promise;
       const baseName = inputFile.name.split(".").slice(0, -1).join(".");
 
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
