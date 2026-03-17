@@ -384,16 +384,24 @@ export class TraversionGraph {
                     if (!(this.worker as any).__isMockWorker) {
                         await new Promise(r => setTimeout(r, 0));
                     }
-                    message = await new Promise<any>((resolve) => {
-                        const timeoutId = setTimeout(() => {
-                            workerMessageResolver = null;
-                            resolve({ type: 'timeout' });
-                        }, ROUTE_SEARCH_TIMEOUT_MS);
-                        workerMessageResolver = (msg: any) => {
-                            clearTimeout(timeoutId);
-                            resolve(msg);
-                        };
-                    });
+                    // Re-check queue after the yield: if the worker responded during the setTimeout,
+                    // the message landed in workerMessageQueue (workerMessageResolver was null).
+                    // Skipping this check would set up a resolver waiting for the *next* message
+                    // while the worker is already paused — causing a guaranteed 15 s timeout.
+                    if (workerMessageQueue.length > 0) {
+                        message = workerMessageQueue.shift()!;
+                    } else {
+                        message = await new Promise<any>((resolve) => {
+                            const timeoutId = setTimeout(() => {
+                                workerMessageResolver = null;
+                                resolve({ type: 'timeout' });
+                            }, ROUTE_SEARCH_TIMEOUT_MS);
+                            workerMessageResolver = (msg: any) => {
+                                clearTimeout(timeoutId);
+                                resolve(msg);
+                            };
+                        });
+                    }
                 }
 
                 if (message.type === 'done' || message.type === 'timeout') {
