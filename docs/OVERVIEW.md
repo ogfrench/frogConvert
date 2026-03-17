@@ -1,6 +1,4 @@
-# frogConvert — How It Works (Plain English)
-
-This guide explains frogConvert for beginners and people who are new to the codebase. No prior experience required.
+# frogConvert — How It Works
 
 ---
 
@@ -37,7 +35,7 @@ Everything stays inside your browser tab. Nothing leaves your computer.
 
 ## What Happens When You Convert a File
 
-Here's the step-by-step flow, in plain terms:
+Step-by-step:
 
 ```mermaid
 flowchart TD
@@ -57,9 +55,7 @@ flowchart TD
 
 ## The Route Finder (TraversionGraph)
 
-Think of all file formats as **cities on a map**, and each conversion tool as a **road** between cities.
-
-The Route Finder uses **Dijkstra's algorithm** — the same logic a GPS uses — to find the cheapest path from your input format to your output format.
+Every file format is a node, every handler is a directed edge. The Route Finder runs **Dijkstra's algorithm** to find the lowest-cost path from the input format to the output format.
 
 ```mermaid
 flowchart LR
@@ -161,7 +157,7 @@ frogConvert/
 ├── docs/
 │   ├── AGENTS.md          ← Guide for AI agents using the MCP/REST API
 │   ├── AGENT_CONTEXT.md   ← Deep architecture guide (also for AI agents)
-│   └── OVERVIEW.md        ← This file — plain English intro
+│   └── OVERVIEW.md        ← This file — architecture overview
 ├── test/
 │   ├── e2e/               ← End-to-end browser tests (Puppeteer)
 │   └── *.test.ts          ← Unit tests (Vitest + jsdom)
@@ -187,7 +183,7 @@ Components read and write `.value` directly. It's simple on purpose — fast to 
 
 ## The Conversion Flow in Code
 
-When you hit Convert, here's what actually happens:
+When you hit Convert:
 
 ```mermaid
 sequenceDiagram
@@ -199,7 +195,7 @@ sequenceDiagram
 
     User->>UI: clicks Convert
     UI->>Worker: "find path from JPG to PDF"
-    Worker-->>UI: [FFmpeg → Pandoc]
+    Worker-->>UI: [ImageMagick → Pandoc]
     loop for each step in path
         UI->>CW: "run FFmpeg on these bytes"
         CW->>Handler: handler.doConvert(files, from, to)
@@ -245,7 +241,7 @@ Both run 100% locally. No internet needed. See [AGENTS.md](AGENTS.md) for usage.
 
 ---
 
-## How to Add a New Format (Summary for Beginners)
+## How to Add a New Format
 
 1. Create a new file in `src/handlers/myFormat.ts`
 2. Implement the `FormatHandler` interface — define which formats you accept/output

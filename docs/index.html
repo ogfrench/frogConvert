@@ -546,7 +546,8 @@
     // ── Mermaid ──
     function initMermaid() {
       if (!window.mermaid) return;
-      mermaid.initialize({ startOnLoad: false, theme: isDark() ? 'dark' : 'default' });
+      const darkVars = { edgeLabelBackground: '#4a4a5a', labelTextColor: '#e2e8f0' };
+      mermaid.initialize({ startOnLoad: false, theme: isDark() ? 'dark' : 'default', themeVariables: isDark() ? darkVars : {} });
     }
 
     // ── Theme ──

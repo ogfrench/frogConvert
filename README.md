@@ -48,6 +48,10 @@ For a semi-technical overview of the original tool, check out this video: https:
 - **Partial Downloads** — Cancelled a batch mid-way? No problem. You can still download the files that were successfully converted before you hit cancel.
 - **Performance** — frogConvert detects your device's available RAM and adjusts limits to prevent crashes on lower-end hardware.
 
+### Known Limitations
+
+- **PDF conversion on Safari** — Due to restrictions in Safari's JavaScript engine, PDF input (e.g. PDF → PNG, PDF → TXT) is not supported on Safari. Use Chrome or Firefox for PDF conversions. All other formats work normally on Safari.
+
 ## Deployment
 > _The deployment steps below are adapted from the [original README](https://github.com/p2r3/convert#readme), updated for this fork's repository URL._
 

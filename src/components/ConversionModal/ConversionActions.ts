@@ -547,7 +547,7 @@ export function initConvertButton() {
                 path.some(n => n.handler?.name === "pdftoimg" || n.handler?.name === "pdftotxt");
             const showSafariPdfPopup = () => showAlertPopup(
                 "PDF conversion on Safari",
-                "PDF conversion has limited support on Safari due to browser restrictions. For best results, use Chrome or Firefox.",
+                "PDF conversion has limited support on Safari due to browser restrictions. For best results, use Chrome or Firefox. Frogsworth is sorry ₍𝄐~𝄐₎",
             );
 
             // Find the conversion path during warming-up (cancel is now available).
