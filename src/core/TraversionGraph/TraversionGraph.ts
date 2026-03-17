@@ -13,6 +13,9 @@ interface CategoryAdaptiveCost {
 }
 
 
+// If the route-search worker stops responding, give up after this many ms rather than hanging forever.
+const ROUTE_SEARCH_TIMEOUT_MS = 15_000;
+
 // Parameters for pathfinding algorithm.
 const DEPTH_COST: number = 1; // Base cost for each conversion step. Higher values will make the algorithm prefer shorter paths more strongly.
 const DEFAULT_CATEGORY_CHANGE_COST: number = 0.6; // Default cost for category changes not specified in CATEGORY_CHANGE_COSTS
@@ -382,11 +385,18 @@ export class TraversionGraph {
                         await new Promise(r => setTimeout(r, 0));
                     }
                     message = await new Promise<any>((resolve) => {
-                        workerMessageResolver = resolve;
+                        const timeoutId = setTimeout(() => {
+                            workerMessageResolver = null;
+                            resolve({ type: 'timeout' });
+                        }, ROUTE_SEARCH_TIMEOUT_MS);
+                        workerMessageResolver = (msg: any) => {
+                            clearTimeout(timeoutId);
+                            resolve(msg);
+                        };
                     });
                 }
 
-                if (message.type === 'done') {
+                if (message.type === 'done' || message.type === 'timeout') {
                     break;
                 } else if (message.type === 'found') {
                     const path = deserializePath(message.path);

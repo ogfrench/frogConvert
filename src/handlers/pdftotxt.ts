@@ -42,7 +42,7 @@ class pdftotxtHandler implements FormatHandler {
     const outputFiles: FileData[] = [];
 
     for (const inputFile of inputFiles) {
-      const loadingTask = pdfjsLib.getDocument({ data: inputFile.bytes });
+      const loadingTask = pdfjsLib.getDocument({ data: inputFile.bytes, isEvalSupported: false });
       const pdfDocument = await loadingTask.promise;
 
       let fullText = "";
