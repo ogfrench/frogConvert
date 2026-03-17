@@ -722,6 +722,7 @@ html.scroll-lock {
     mix-blend-mode: multiply;
     filter: blur(4px) contrast(12);
     margin: var(--space-5) auto;
+    transform: translateZ(0);
   }
 
   .dark .loader-gooey {

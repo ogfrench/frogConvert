@@ -2,9 +2,15 @@ import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
 import * as pdfjsLib from 'pdfjs-dist';
-import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+// Safari (identified by navigator.vendor) has issues loading the .mjs worker bundle —
+// it either rejects it or hangs silently. Inline mode is slower but fully compatible.
+// Chrome, Firefox, and other non-Apple browsers get the worker for better performance.
+if (navigator.vendor !== 'Apple Computer, Inc.') {
+  import('pdfjs-dist/build/pdf.worker.min.mjs?url').then(({ default: workerSrc }) => {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+  });
+}
 
 class pdftotxtHandler implements FormatHandler {
 

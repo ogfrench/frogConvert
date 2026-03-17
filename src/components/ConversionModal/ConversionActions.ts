@@ -369,7 +369,13 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
 
             let outputFiles: FileData[];
             if (handler.requiresMainThread) {
-                outputFiles = await handler.doConvert(files, inputFormat, path[i + 1].format);
+                const timeoutPromise = new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error(`Conversion timed out after ${WORKER_TIMEOUT_MS / 60000} minutes.`)), WORKER_TIMEOUT_MS)
+                );
+                outputFiles = await Promise.race([
+                    handler.doConvert(files, inputFormat, path[i + 1].format),
+                    timeoutPromise,
+                ]);
             } else {
                 outputFiles = await runInWorker(handler.name, files, inputFormat, path[i + 1].format);
             }
