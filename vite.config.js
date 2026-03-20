@@ -23,6 +23,58 @@ export default defineConfig({
     'import.meta.env.VITE_APP_NAME': JSON.stringify(projectPkg.productName || "frogConvert"),
     'import.meta.env.VITE_BUILD_TIME': JSON.stringify(new Date().toISOString()),
     'import.meta.env.VITE_COMMIT_SHA': JSON.stringify(commitSha),
+    'import.meta.env.VITE_NAV_DOCS': (() => {
+      const docs = [];
+      const scanDir = (dir) => {
+        if (!fs.existsSync(dir)) return;
+        fs.readdirSync(dir).forEach(file => {
+          if (file.endsWith('.md')) {
+            const content = fs.readFileSync(resolve(dir, file), 'utf-8');
+            const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+            if (fmMatch) {
+              const fm = {};
+              fmMatch[1].split(/\r?\n/).forEach(line => {
+                const [key, ...val] = line.split(':');
+                if (key && val.length) fm[key.trim()] = val.join(':').trim();
+              });
+              if (fm.label) {
+                docs.push({ 
+                  file, 
+                  icon: fm.icon || '📝', 
+                  label: fm.label, 
+                  desc: fm.desc || '' 
+                });
+              }
+            }
+          }
+        });
+      };
+      
+      scanDir(__dirname); // Root (README.md)
+      scanDir(resolve(__dirname, 'docs'));
+      
+      // De-duplicate by filename (prioritize root version) and sort
+      const uniqueDocs = [];
+      const seen = new Set();
+      // Put README first, then others alphabetically
+      const sorted = docs.sort((a, b) => {
+        const aIsReadme = a.file === 'README.md';
+        const bIsReadme = b.file === 'README.md';
+        if (aIsReadme && bIsReadme) return 0;
+        if (aIsReadme) return -1;
+        if (bIsReadme) return 1;
+        return a.label.localeCompare(b.label);
+      });
+      
+      sorted.forEach(d => {
+        if (!seen.has(d.file)) {
+          uniqueDocs.push(d);
+          seen.add(d.file);
+        }
+      });
+
+      return JSON.stringify(uniqueDocs);
+    })(),
   },
   build: {
     sourcemap: true,
@@ -42,6 +94,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./test/setup.ts'],
+    testTimeout: 20000,
   },
   optimizeDeps: {
     exclude: [
@@ -65,15 +118,15 @@ export default defineConfig({
               const filename = urlPath.replace('docs/', '');
               const rootPath = resolve(__dirname, filename);
               const docsPath = resolve(__dirname, 'docs', filename);
-              
-              // Path traversal protection: ensure the file is within root or docs
-              if (!rootPath.startsWith(__dirname) && !docsPath.startsWith(__dirname)) {
-                next();
-                return;
-              }
 
               // Prioritize file at root (README.md, etc) if it exists, otherwise check docs/
               filePath = fs.existsSync(rootPath) ? rootPath : docsPath;
+
+              // Path traversal protection: ensure the resolved file is within the project root
+              if (!filePath.startsWith(__dirname)) {
+                next();
+                return;
+              }
             } else {
               filePath = resolve(__dirname, urlPath);
               if (!filePath.startsWith(__dirname)) {
@@ -140,7 +193,7 @@ export default defineConfig({
         },
         // Auto-sync all documentation files
         { src: "*.md", dest: "docs" },
-        { src: "docs/*.md", dest: "docs" }
+        { src: "docs/*.md", dest: "docs" },
       ]
     }),
     tsconfigPaths()

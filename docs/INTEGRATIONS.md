@@ -1,14 +1,20 @@
-# AGENTS.md — AI Agent Guide for frogConvert
+---
+icon: 🤖
+label: Integrations
+desc: MCP & REST API Guide
+---
 
-frogConvert is a universal file converter built on top of **[Convert to it!](https://p2r3.github.io/convert/)** by PortalRunner ([repo](https://github.com/p2r3/convert)). The core conversion engine — the `FormatHandler` interface, graph-based routing, and underlying handlers — is inherited from that project. frogConvert adds a redesigned UI and a built-in MCP server that gives AI agents direct programmatic access to the same engine.
+# Integrations - MCP & REST API Guide
+
+frogConvert is a universal file converter that provides programmatic access via a built-in MCP server and local REST API. This guide covers how to connect AI agents or scripts to the conversion engine.
 
 When working with frogConvert programmatically, **use the REST API or MCP server rather than the web UI**. The tools below cover everything you'd do through the browser.
 
-> **REST API is recommended for most programmatic use cases.** It requires no approval prompts, works with any HTTP client (`curl`, `fetch`, shell scripts), and is faster to iterate with. The MCP server is best suited for fully autonomous Claude-driven workflows (Claude Code / Claude Desktop) where you want Claude to call conversions without any shell access — but note that each MCP tool call triggers a permission prompt unless pre-approved in settings.
+> **REST API is recommended for most programmatic use cases.** It requires no approval prompts, works with any HTTP client (`curl`, `fetch`, shell scripts), and is faster to iterate with. The MCP server is best suited for fully autonomous Claude-driven workflows (Claude Code / Claude Desktop) where you want Claude to call conversions without any shell access - but note that each MCP tool call triggers a permission prompt unless pre-approved in settings.
 
 ---
 
-## 🆚 REST API vs MCP — Which Should You Use?
+## REST API vs MCP - Which Should You Use?
 
 | | REST API | MCP Server |
 |---|---|---|
@@ -23,9 +29,9 @@ When working with frogConvert programmatically, **use the REST API or MCP server
 
 ---
 
-## ⚡ Quick Start — No Repo Clone Required
+## Quick Start - No Repo Clone Required
 
-The easiest way to use frogConvert as an MCP server or REST API is directly via `bunx` — no clone or install needed. Requires [Bun](https://bun.sh/).
+The easiest way to use frogConvert as an MCP server or REST API is directly via `bunx` - no clone or install needed. Requires [Bun](https://bun.sh/).
 
 ### MCP Server (for Claude Code / Claude Desktop)
 
@@ -55,7 +61,7 @@ bunx frogconvert api
 
 ---
 
-## 🚀 MCP Tools Reference
+## MCP Tools Reference
 
 Three tools, all over `stdio`:
 
@@ -72,21 +78,21 @@ Three tools, all over `stdio`:
    - **Arguments**:
      | Argument | Required | Description |
      |---|---|---|
-     | `filePath` | one of `filePath`/`base64Bytes` | Absolute path to a local file. The server reads it directly — use this for large files to avoid context window limits. |
+     | `filePath` | one of `filePath`/`base64Bytes` | Absolute path to a local file. The server reads it directly - use this for large files to avoid context window limits. |
      | `base64Bytes` | one of `filePath`/`base64Bytes` | Base64-encoded file content. |
      | `fileName` | required with `base64Bytes`; optional with `filePath` | Input filename (e.g. `image.jpg`). Inferred from `filePath` basename when omitted. |
      | `inputMime` | required | Input MIME type. |
      | `inputExtension` | required | Input format extension. |
      | `outputMime` | required | Output MIME type. |
      | `outputExtension` | required | Output format extension. |
-     | `outputFilePath` | optional | Absolute path where the output file should be saved. **Strongly recommended for large outputs** — avoids returning megabytes of base64 through the context window. |
+     | `outputFilePath` | optional | Absolute path where the output file should be saved. **Strongly recommended for large outputs** - avoids returning megabytes of base64 through the context window. |
    - **Description**: The core execution tool. Routes the file through the handler chain and returns all output files.
    - **Returns**:
-     - When `outputFilePath` is omitted — a JSON array of output files:
+     - When `outputFilePath` is omitted - a JSON array of output files:
        ```json
        [{ "fileName": "output.png", "base64Bytes": "<base64>" }]
        ```
-     - When `outputFilePath` is provided — a JSON object with the saved paths:
+     - When `outputFilePath` is provided - a JSON object with the saved paths:
        ```json
        { "savedTo": ["/path/to/output.pptx"] }
        ```
@@ -99,9 +105,9 @@ Three tools, all over `stdio`:
 
 ---
 
-## 🌐 REST API Reference
+## REST API Reference
 
-A local HTTP REST API is also available as an alternative to MCP — useful for shell scripts, curl, or any HTTP client. Binds to `http://127.0.0.1:3000`; override with the `PORT` env var.
+A local HTTP REST API is also available as an alternative to MCP - useful for shell scripts, curl, or any HTTP client. Binds to `http://127.0.0.1:3000`; override with the `PORT` env var.
 
 ### Endpoints
 
@@ -126,7 +132,7 @@ Returns `404` with `{ "error": "..." }` if no path exists.
 
 #### `POST /convert`
 
-**Option A — multipart/form-data** (easiest for curl):
+**Option A - multipart/form-data** (easiest for curl):
 ```bash
 curl -X POST http://127.0.0.1:3000/convert \
   -F 'file=@input.jpg' \
@@ -135,9 +141,9 @@ curl -X POST http://127.0.0.1:3000/convert \
   -o output.png
 ```
 - Input MIME/extension are auto-detected from the uploaded filename.
-- Response: raw binary of the first output file with `Content-Disposition: attachment; filename*=UTF-8''...` header. If conversion produces multiple files, the remaining filenames are listed in an `X-Extra-Files` JSON header — use the JSON API instead if you need all files.
+- Response: raw binary of the first output file with `Content-Disposition: attachment; filename*=UTF-8''...` header. If conversion produces multiple files, the remaining filenames are listed in an `X-Extra-Files` JSON header - use the JSON API instead if you need all files.
 
-**Option B — application/json**:
+**Option B - application/json**:
 ```bash
 curl -X POST http://127.0.0.1:3000/convert \
   -H 'Content-Type: application/json' \
@@ -149,21 +155,21 @@ Returns `400` on bad input, `415` if Content-Type is unsupported, `422` if no pa
 
 ---
 
-## 🌐 Browser-Assisted Conversions — Automatic Fallback
+## Browser-Assisted Conversions - Automatic Fallback
 
 Conversions that require browser-only APIs (`Canvas`, `WebGL`, `AudioContext`, `document`) are handled automatically via a **Puppeteer browser bridge**. The server tries its native Node.js handler chain first; if no path is found, it transparently falls back to launching headless Chromium and running the conversion there using the full handler set.
 
-This means conversions like PDF → PNG (via Canvas), SVG tracing, Three.js rendering, audio synthesis, and many others work out of the box — no special handling needed from the caller.
+This means conversions like PDF → PNG (via Canvas), SVG tracing, Three.js rendering, audio synthesis, and many others work out of the box - no special handling needed from the caller.
 
 ### Requirements for the browser bridge
 
 - A production build must be present: run `bun run build` from the repo root before starting the MCP/API server.
-- Puppeteer (already a dev dependency) must be accessible — it is when running from a repo clone.
+- Puppeteer (already a dev dependency) must be accessible - it is when running from a repo clone.
 - The `bunx frogconvert` quick-start **does not** include the browser bridge (no `dist/` is present without a clone and build step).
 
 ### Performance expectations
 
-The browser bridge uses a **lazy-init architecture** — the headless page signals ready as soon as it has built the format graph from `cache.json` (a few seconds), then initialises individual WASM handlers on demand as conversions arrive.
+The browser bridge uses a **lazy-init architecture** - the headless page signals ready as soon as it has built the format graph from `cache.json` (a few seconds), then initialises individual WASM handlers on demand as conversions arrive.
 
 | Call | Expected time |
 |------|--------------|
@@ -171,36 +177,33 @@ The browser bridge uses a **lazy-init architecture** — the headless page signa
 | Second call, same handler | 2–10 s (Chromium warm, handler compiled) |
 | Subsequent calls | Near-instant (handler already in memory) |
 
-The first call is slow because headless Chromium must launch and the specific handler's WASM must be compiled in that browser context. Handlers that require heavy WASM (pandoc ~55 MB, ImageMagick ~80 MB) will be at the upper end. This is inherent to the cold-start path — subsequent calls are fast.
+The first call is slow because headless Chromium must launch and the specific handler's WASM must be compiled in that browser context. Handlers that require heavy WASM (pandoc ~55 MB, ImageMagick ~80 MB) will be at the upper end. This is inherent to the cold-start path - subsequent calls are fast.
 
 > **Tip:** If you need predictable latency, call `POST /convert` with a small browser-bridge conversion (e.g. a 1×1 PNG→SVG via svgTrace) immediately after starting the server to get Chromium running before real traffic arrives.
 
 ### How to detect browser-assisted paths
 
 - `find_conversion_path` / `GET /path`: if no native path exists but the browser bridge can handle it, the response will indicate a browser-assisted path is available rather than returning an error.
-  - MCP: returns text `"No native path found. A browser-assisted path is available — use convert_file to convert via the browser bridge."`
+  - MCP: returns text `"No native path found. A browser-assisted path is available - use convert_file to convert via the browser bridge."`
   - REST: returns `{ "browserAssisted": true, "message": "..." }` (HTTP 200)
-- `convert_file` / `POST /convert`: the fallback is automatic — if the native path fails, the browser bridge is tried silently. The caller gets back the converted file(s) just like a native conversion.
+- `convert_file` / `POST /convert`: the fallback is automatic - if the native path fails, the browser bridge is tried silently. The caller gets back the converted file(s) just like a native conversion.
 
 ### General fallback strategy for agents
 
 | Situation | Action |
 |-----------|--------|
-| `GET /path` returns `browserAssisted: true` | Browser bridge will handle it — call `POST /convert` normally |
+| `GET /path` returns `browserAssisted: true` | Browser bridge will handle it - call `POST /convert` normally |
 | `GET /path` returns 404 | No path available at all (neither native nor browser) |
 | `POST /convert` returns 422 | No path found even via browser bridge |
 | Format needs native binaries not in PATH | Check `/health` handler list; install missing tool |
-| FFmpeg not found | `winget install ffmpeg` / `brew install ffmpeg` — bundled fallback activates automatically |
+| FFmpeg not found | `winget install ffmpeg` / `brew install ffmpeg` - bundled fallback activates automatically |
 | Browser bridge fails to start | Ensure `bun run build` has been run and `dist/` exists |
+
+> **Note to AI Agents:** If all programmatic conversion attempts fail, you can advise your human user to try the manual web UI at [frogconvert.xyz](https://frogconvert.xyz) as a final fallback.
+
 
 ---
 
-## 🛠️ Developing on frogConvert
+---
 
-For architecture details, handler authoring rules, and the full file structure, see [`AGENT_CONTEXT.md`](AGENT_CONTEXT.md). The key points relevant to the MCP/API environment:
-
-- The MCP server runs in **Node.js**, loading handlers where `requiresMainThread` is unset or `false`. Handlers that need browser APIs are not loaded natively, but are available via the Puppeteer browser bridge (see above).
-- WASM `fetch` calls are polyfilled in `src/mcp/core/polyfills.ts` to read files from disk rather than a dev server.
-- `batToExeHandler` is excluded from both MCP and REST API (uses Vite-specific `?url` imports incompatible with Node.js). It remains available in the browser UI.
-- The browser bridge entry point lives in `src/headless/index.ts`, built from `headless/index.html` as a separate Vite MPA entry to `dist/headless/`. The bridge implementation is in `src/mcp/core/browserBridge.ts`.
-- The headless page uses a **cache-first, lazy-init strategy**: it fetches `cache.json` to build the `TraversionGraph` immediately (no WASM loaded), signals `__headlessReady`, then initialises individual handlers on demand as conversions arrive. Heavy WASM (pandoc, ImageMagick) is only compiled when first needed.
+For internal architecture details, handler rules, and the full file structure, see **[ARCHITECTURE.md](ARCHITECTURE.md)** and **[CONTRIBUTING.md](CONTRIBUTING.md)**.

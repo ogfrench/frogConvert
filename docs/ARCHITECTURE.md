@@ -1,14 +1,10 @@
-# frogConvert — How It Works
-
+---
+icon: 🗺️
+label: Architecture
+desc: How it works under the hood
 ---
 
-## What is frogConvert?
-
-frogConvert is a **file converter that runs entirely in your browser**. You upload a file (like a `.jpg` image), pick an output format (like `.pdf`), and it converts it — without ever sending your file to any server.
-
-Most online converters only handle obvious pairs: image-to-image, video-to-video. frogConvert can convert almost anything to almost anything — even a video to a PDF — by **chaining multiple conversion tools together automatically**.
-
-It runs at [frogconvert.xyz](https://frogconvert.xyz) and is a fork of [Convert to it!](https://github.com/p2r3/convert).
+# frogConvert - How It Works
 
 ---
 
@@ -22,11 +18,11 @@ flowchart LR
     C -->|runs tools in sequence| O[Output File]
     O -->|auto-download| U
 
-    style U fill:#6ee7b7,stroke:#059669
-    style O fill:#6ee7b7,stroke:#059669
-    style B fill:#93c5fd,stroke:#3b82f6
-    style G fill:#fcd34d,stroke:#d97706
-    style C fill:#f9a8d4,stroke:#db2777
+    style U fill:#6ee7b7,stroke:#059669,color:#000
+    style O fill:#6ee7b7,stroke:#059669,color:#000
+    style B fill:#93c5fd,stroke:#3b82f6,color:#000
+    style G fill:#fcd34d,stroke:#d97706,color:#000
+    style C fill:#f9a8d4,stroke:#db2777,color:#000
 ```
 
 Everything stays inside your browser tab. Nothing leaves your computer.
@@ -65,8 +61,8 @@ flowchart LR
     MP4 -->|FFmpeg, cheap| MP3((MP3))
     WAV((WAV)) -->|FFmpeg, cheap| MP3
 
-    style PDF fill:#fcd34d,stroke:#d97706
-    style JPG fill:#93c5fd,stroke:#3b82f6
+    style PDF fill:#fcd34d,stroke:#d97706,color:#000
+    style JPG fill:#93c5fd,stroke:#3b82f6,color:#000
 ```
 
 Costs go up when:
@@ -87,11 +83,11 @@ Each converter is called a **handler**. A handler knows:
 classDiagram
     class FormatHandler {
         +name: string
-        +supportedFormats: FileFormat[]
+        +supportedFormats?: FileFormat[]
         +ready: boolean
-        +requiresMainThread: boolean
-        +init() void
-        +doConvert(files, from, to) FileData[]
+        +requiresMainThread?: boolean
+        +init() Promise~void~
+        +doConvert(files, from, to) Promise~FileData[]~
     }
 
     FormatHandler <|-- FFmpegHandler : audio/video
@@ -101,7 +97,7 @@ classDiagram
     FormatHandler <|-- JSONHandler : text formats
 ```
 
-Some handlers are pure compute (run in a background thread). Others need browser features like `<canvas>` or `AudioContext` and must run on the main thread — that's what `requiresMainThread` controls.
+Some handlers are pure compute (run in a background thread). Others need browser features like `<canvas>` or `AudioContext` and must run on the main thread - that's what `requiresMainThread` controls.
 
 ### Handler Examples
 
@@ -120,7 +116,7 @@ Some handlers are pure compute (run in a background thread). Others need browser
 
 Converting a video can take seconds. If that ran on the browser's main thread, the whole page would lock up.
 
-frogConvert uses **Web Workers** — background threads that run heavy work without touching the UI:
+frogConvert uses **Web Workers** - background threads that run heavy work without touching the UI:
 
 ```mermaid
 flowchart TD
@@ -130,7 +126,7 @@ flowchart TD
     W2 -->|returns path| UI
 ```
 
-Handlers with `requiresMainThread: true` are the exception — they need browser APIs that only exist on the main thread, so they run there.
+Handlers with `requiresMainThread: true` are the exception - they need browser APIs that only exist on the main thread, so they run there.
 
 ---
 
@@ -155,9 +151,9 @@ frogConvert/
 │   ├── mcp/               ← MCP server for AI agents (Node.js, stdio)
 │   └── api/               ← REST API server (HTTP on localhost:3000)
 ├── docs/
-│   ├── AGENTS.md          ← Guide for AI agents using the MCP/REST API
-│   ├── AGENT_CONTEXT.md   ← Deep architecture guide (also for AI agents)
-│   └── OVERVIEW.md        ← This file — architecture overview
+│   ├── INTEGRATIONS.md    ← Guide for AI agents using the MCP/REST API
+│   ├── CONTRIBUTING.md    ← Handler authoring and codebase rules
+│   └── ARCHITECTURE.md     ← This file - architecture overview
 ├── test/
 │   ├── e2e/               ← End-to-end browser tests (Puppeteer)
 │   └── *.test.ts          ← Unit tests (Vitest + jsdom)
@@ -177,7 +173,7 @@ Shared state lives in `store.ts` as simple objects:
 export const currentFiles: { value: File[] } = { value: [] };
 ```
 
-Components read and write `.value` directly. It's simple on purpose — fast to load, easy to trace.
+Components read and write `.value` directly. It's simple on purpose - fast to load, easy to trace.
 
 ---
 
@@ -197,7 +193,7 @@ sequenceDiagram
     UI->>Worker: "find path from JPG to PDF"
     Worker-->>UI: [ImageMagick → Pandoc]
     loop for each step in path
-        UI->>CW: "run FFmpeg on these bytes"
+        UI->>CW: "run ImageMagick on these bytes"
         CW->>Handler: handler.doConvert(files, from, to)
         Handler-->>CW: converted bytes
         CW-->>UI: done, here are the bytes
@@ -209,7 +205,7 @@ sequenceDiagram
 
 ## The MCP Server & REST API
 
-frogConvert also exposes its conversion engine as a **local server** — so scripts, automation tools, and AI assistants can trigger conversions without opening a browser.
+frogConvert also exposes its conversion engine as a **local server** - so scripts, automation tools, and AI assistants can trigger conversions without opening a browser.
 
 ```mermaid
 flowchart LR
@@ -220,7 +216,7 @@ flowchart LR
     E --> O[Output File]
 ```
 
-Both run 100% locally. No internet needed. See [AGENTS.md](AGENTS.md) for usage.
+Both run 100% locally. No internet needed. See [INTEGRATIONS.md](INTEGRATIONS.md) for usage.
 
 ---
 
@@ -231,21 +227,21 @@ Both run 100% locally. No internet needed. See [AGENTS.md](AGENTS.md) for usage.
 | **Handler** | A wrapper around one conversion tool (FFmpeg, Pandoc, etc.) |
 | **FormatHandler** | The TypeScript interface every handler must follow |
 | **TraversionGraph** | The route-finding system that chains handlers together |
-| **Web Worker** | A background thread in the browser — keeps the UI responsive |
+| **Web Worker** | A background thread in the browser - keeps the UI responsive |
 | **requiresMainThread** | A flag that tells the engine "this handler needs browser APIs, don't offload it" |
 | **FileFormat** | An object describing a format: its name, MIME type, extension, category |
 | **FileData** | A wrapper for a file's bytes (`Uint8Array`) and its name |
-| **MCP** | Model Context Protocol — a standard way for AI agents to call tools |
+| **MCP** | Model Context Protocol - a standard way for AI agents to call tools |
 | **Dijkstra** | A graph algorithm that finds the cheapest path (here: fewest/cheapest conversion steps) |
-| **WASM** | WebAssembly — compiled native code (like FFmpeg) that runs inside a browser |
+| **WASM** | WebAssembly - compiled native code (like FFmpeg) that runs inside a browser |
 
 ---
 
 ## How to Add a New Format
 
 1. Create a new file in `src/handlers/myFormat.ts`
-2. Implement the `FormatHandler` interface — define which formats you accept/output
+2. Implement the `FormatHandler` interface - define which formats you accept/output
 3. Register your handler in `src/handlers/index.ts`
-4. The route finder automatically includes your handler in the graph — no other wiring needed
+4. The route finder automatically includes your handler in the graph - no other wiring needed
 
-See the full guide in the README — "Creating a Handler" section.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full handler authoring guide.
