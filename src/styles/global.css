@@ -2,6 +2,8 @@
    ShadCN-inspired Design System for frogConvert
    ============================================ */
 
+@import '@fontsource-variable/inter';
+
 /* --- Design Tokens: Light Theme --- */
 :root {
   /* Colors */
@@ -83,7 +85,7 @@
   --space-16: 4rem;
 
   /* Typography - Font Families */
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --font-mono: "SF Mono", "Fira Code", "Fira Mono", "Cascadia Code", monospace;
 
   /* Typography - Font Sizes */
@@ -829,7 +831,7 @@ html.scroll-lock {
   z-index: 9999;
   pointer-events: none;
   animation:
-    loading-bar-grow 20s linear forwards,
+    loading-bar-grow 10s linear forwards,
     loading-bar-breathe 1.5s ease-in-out infinite;
 }
 
@@ -839,7 +841,7 @@ html.scroll-lock {
   }
 
   to {
-    width: 100vw;
+    width: calc(100vw + 20px);
   }
 }
 
@@ -867,12 +869,12 @@ html.scroll-lock {
   }
 
   35% {
-    width: 100vw;
+    width: calc(100vw + 20px);
     clip-path: inset(0 0 0 0);
   }
 
   100% {
-    width: 100vw;
+    width: calc(100vw + 20px);
     clip-path: inset(0 0 0 100%);
   }
 }
@@ -885,7 +887,7 @@ html.scroll-lock {
     margin-top: calc(var(--space-16) + var(--space-2));
     margin-bottom: var(--space-4);
     width: 100%;
-    max-width: 100vw;
+    max-width: calc(100vw + 20px);
     min-width: 300px;
     text-align: center;
   }
@@ -893,7 +895,7 @@ html.scroll-lock {
   #category-tabs {
     padding: 0 var(--space-3);
     width: 100%;
-    max-width: 100vw;
+    max-width: calc(100vw + 20px);
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
