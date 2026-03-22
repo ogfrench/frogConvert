@@ -10,11 +10,9 @@ export abstract class BaseHandler implements FormatHandler {
     }
 
     protected replaceExtension(filename: string, newExt: string): string {
-        const parts = filename.split(".");
-        if (parts.length > 1) {
-            parts.pop();
-        }
-        return parts.join(".") + (newExt.startsWith(".") ? newExt : "." + newExt);
+        const dot = filename.lastIndexOf(".");
+        const base = dot !== -1 ? filename.slice(0, dot) : filename;
+        return base + (newExt.startsWith(".") ? newExt : "." + newExt);
     }
 
     abstract doConvert(

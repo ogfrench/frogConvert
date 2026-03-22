@@ -392,11 +392,16 @@ export class TraversionGraph {
                         message = workerMessageQueue.shift()!;
                     } else {
                         message = await new Promise<any>((resolve) => {
+                            let settled = false;
                             const timeoutId = setTimeout(() => {
+                                if (settled) return;
+                                settled = true;
                                 workerMessageResolver = null;
                                 resolve({ type: 'timeout' });
                             }, ROUTE_SEARCH_TIMEOUT_MS);
                             workerMessageResolver = (msg: any) => {
+                                if (settled) return;
+                                settled = true;
                                 clearTimeout(timeoutId);
                                 resolve(msg);
                             };

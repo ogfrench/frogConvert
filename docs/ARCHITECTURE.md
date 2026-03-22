@@ -1,8 +1,8 @@
----
+<!-- docs-frontmatter
 icon: 🗺️
 label: Architecture
 desc: How it works under the hood
----
+-->
 
 # frogConvert - How It Works
 

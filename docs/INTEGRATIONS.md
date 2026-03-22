@@ -1,8 +1,8 @@
----
+<!-- docs-frontmatter
 icon: 🤖
 label: Integrations
 desc: MCP & REST API Guide
----
+-->
 
 # Integrations - MCP & REST API Guide
 

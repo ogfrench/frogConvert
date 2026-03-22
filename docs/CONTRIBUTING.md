@@ -1,8 +1,8 @@
----
+<!-- docs-frontmatter
 icon: ⚙️
 label: Contributing
 desc: Code and handler guidelines
----
+-->
 
 # Contributing to frogConvert
 
@@ -38,8 +38,8 @@ export interface FormatHandler {
 
 Two abstract base classes live in `src/core/FormatHandler/`:
 
-- **`BaseHandler`** - implements `ready = true`, a no-op `init()`, and a `replaceExtension(filename, ext)` helper. Use this for handlers that don't need async initialization - `supportedFormats` must be defined at class level. **Do not use for WASM handlers** - those implement `FormatHandler` directly, start with `ready = false`, and set `supportedFormats` inside `init()`.
-- **`TextFormatHandler extends BaseHandler`** - additionally handles the `Uint8Array → string → Uint8Array` decode/encode pipeline. Instead of `doConvert()`, implement `doConvertText(inputTexts, inputFormat, outputFormat)` which receives plain strings and returns plain strings. Use this for JSON, CSV, XML, YAML, source code, and any other text-based format.
+- **`BaseHandler`** - implements `ready = true`, an `init()` that sets `ready = true`, and a `replaceExtension(filename, ext)` helper. Use this for handlers that don't need async initialization - `supportedFormats` must be defined at class level. **Do not use for WASM handlers** - those implement `FormatHandler` directly, start with `ready = false`, and set `supportedFormats` inside `init()`.
+- **`TextFormatHandler extends BaseHandler`** - additionally handles the `Uint8Array → string → Uint8Array` decode/encode pipeline. Instead of `doConvert()`, implement `doConvertText(inputTexts, inputFormat, outputFormat)` which receives `{ name: string, text: string }[]` objects and returns the same. Use this for JSON, CSV, XML, YAML, source code, and any other text-based format.
 
 ### The `requiresMainThread` Rule
 This flag governs whether a handler blocks the UI.
@@ -53,7 +53,7 @@ This flag governs whether a handler blocks the UI.
 
 Each "tool" used for conversion has to be normalized to a standard form - effectively a "wrapper" that abstracts away the internal processes. These wrappers are available in [src/handlers](src/handlers/).
 
-Below is a super barebones handler that does absolutely nothing. You can use this as a starting point for adding a new format:
+Below is a barebones handler skeleton using the raw `FormatHandler` interface (the WASM/async-init pattern). For simple, non-WASM handlers, prefer extending `BaseHandler` instead:
 
 ```ts
 // file: dummy.ts

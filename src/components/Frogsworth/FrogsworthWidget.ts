@@ -637,6 +637,7 @@ class FrogsworthWidget {
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private busy = false;
   private dragging = false;
+  private dragCount = 0;
   private lastQuip: string | null = null;
   private getContext: () => Context;
   private _mq: MediaQueryList | null = null;
@@ -663,18 +664,17 @@ class FrogsworthWidget {
         this.onClick();
       }
     });
-    let dragCount = 0;
     window.addEventListener("dragenter", (e) => {
       if (!(e.dataTransfer?.types ?? []).includes("Files")) return;
-      if (++dragCount === 1 && !this.busy) { this.dragging = true; this.setState("hungry"); }
+      if (++this.dragCount === 1 && !this.busy) { this.dragging = true; this.setState("hungry"); }
     });
     window.addEventListener("dragleave", (e) => {
       if (!(e.dataTransfer?.types ?? []).includes("Files")) return;
-      dragCount = Math.max(0, dragCount - 1);
-      if (dragCount === 0 && !this.busy) { this.dragging = false; this.setState("idle"); }
+      this.dragCount = Math.max(0, this.dragCount - 1);
+      if (this.dragCount === 0 && !this.busy) { this.dragging = false; this.setState("idle"); }
     });
     window.addEventListener("drop", () => {
-      dragCount = 0;
+      this.dragCount = 0;
       if (!this.busy) { this.dragging = false; this.setState("idle"); }
     });
     this.scheduleIdle();

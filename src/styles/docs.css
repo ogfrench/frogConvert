@@ -220,7 +220,6 @@
   flex: 1;
   margin-left: var(--sidebar-w);
   padding: var(--space-8) var(--space-12) var(--space-16);
-  max-width: 1200px;
   min-width: 0;
 }
 
@@ -236,6 +235,12 @@
 /* ── Rendered Markdown ── */
 #doc-body.doc-entering {
   animation: docs-fade-up 0.2s ease-out both;
+}
+
+#doc-body,
+#doc-placeholder {
+  max-width: 860px;
+  margin: 0 auto;
 }
 
 #doc-body {
@@ -274,10 +279,8 @@
 #doc-body p,
 #doc-body ul,
 #doc-body ol,
-#doc-body pre,
-#doc-body blockquote,
-#doc-body table {
-  max-width: 680px;
+#doc-body blockquote {
+  max-width: 720px;
 }
 
 #doc-body p {
@@ -430,6 +433,13 @@
 .toc-link[data-depth="3"] {
   padding-left: var(--space-3);
   font-size: var(--text-xs);
+}
+
+@media (min-width: 1800px) {
+  :root {
+    --sidebar-w: 300px;
+    --toc-w: 280px;
+  }
 }
 
 @media (min-width: 1300px) {
