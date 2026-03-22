@@ -85,7 +85,7 @@ export class ModalManager {
                 return;
             }
         }
-        // Not in stack yet — open normally
+        // Not in stack yet - open normally
         this.open(modal, bg, onClose, persistent, onEscape);
     }
 

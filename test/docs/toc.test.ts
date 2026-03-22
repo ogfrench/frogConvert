@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// jsdom does not implement IntersectionObserver — stub it out
+// jsdom does not implement IntersectionObserver - stub it out
 const observeMock = vi.fn();
 const disconnectMock = vi.fn();
 vi.stubGlobal('IntersectionObserver', class {
@@ -111,7 +111,7 @@ describe('buildToc', () => {
   it('disconnects the previous observer when called a second time', () => {
     const docBody = makeDocBody('<h2>First</h2>');
     mod.buildToc(docBody);
-    // Re-render with different content — should not throw or duplicate
+    // Re-render with different content - should not throw or duplicate
     docBody.innerHTML = '<h2>Second</h2>';
     mod.buildToc(docBody);
     const links = document.querySelectorAll('#toc-list .toc-link');
@@ -123,7 +123,7 @@ describe('buildToc', () => {
     // A heading with only special characters would produce an empty slug
     const docBody = makeDocBody('<h2>!!! ??? ###</h2>');
     mod.buildToc(docBody);
-    // Heading with empty slug should be skipped — no link created
+    // Heading with empty slug should be skipped - no link created
     const links = document.querySelectorAll('#toc-list .toc-link');
     expect(links).toHaveLength(0);
   });

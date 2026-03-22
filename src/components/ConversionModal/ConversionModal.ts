@@ -33,7 +33,7 @@ export async function completeCancellation(shouldHide = true) {
     }
 }
 
-// Safari's blur+contrast filter doesn't sharpen gooey edges cleanly — fall back to the plain spinner.
+// Safari's blur+contrast filter doesn't sharpen gooey edges cleanly - fall back to the plain spinner.
 const CONVERSION_SPINNER_CLASS = navigator.vendor === 'Apple Computer, Inc.' ? "loader-spinner" : "loader-gooey";
 
 export function showConversionInProgress(messageHTML: string, title: string = "Converting...") {
@@ -157,9 +157,9 @@ export function showEnginesLoadingPopup() {
 }
 
 function _updatePopupToEnginesReady() {
-    // Guard 1: popup was dismissed before engines loaded — don't update a hidden popup
+    // Guard 1: popup was dismissed before engines loaded - don't update a hidden popup
     if (!ui.popupBox.classList.contains("open")) return;
-    // Guard 2: another popup replaced our content — check for the unique marker set when this popup opened
+    // Guard 2: another popup replaced our content - check for the unique marker set when this popup opened
     if (!ui.popupBox.dataset.enginesLoading) return;
     delete ui.popupBox.dataset.enginesLoading;
     const spinner = ui.popupBox.querySelector<HTMLElement>(".loader-spinner");

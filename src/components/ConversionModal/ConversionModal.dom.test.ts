@@ -110,7 +110,7 @@ describe("ConversionModal DOM bindings", () => {
 
     it("showConversionInProgress updates spinner in-place when popup is already open", () => {
         showConversionInProgress("Step 1...", "My Title");
-        // popup is now open — next call should mutate rather than recreate
+        // popup is now open - next call should mutate rather than recreate
         showConversionInProgress("Step 2...", "My Title");
         // Still only one spinner
         expect(ui.popupBox.querySelectorAll(".loader-gooey, .loader-spinner").length).toBe(1);
@@ -141,7 +141,7 @@ describe("ConversionModal DOM bindings", () => {
             showConversionInProgress("Working...");
             triggerCancellation();
             expect(cb).toHaveBeenCalledOnce();
-            // Callback is consumed — calling triggerCancellation again must NOT call cb again
+            // Callback is consumed - calling triggerCancellation again must NOT call cb again
             triggerCancellation();
             expect(cb).toHaveBeenCalledTimes(1);
             resetCancellation();

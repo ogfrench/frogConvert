@@ -107,7 +107,7 @@ describe("updateConvertButtonState logic", () => {
 });
 
 // ---------------------------------------------------------------------------
-// updateConvertButtonState — actual DOM function with isLoadingHandlers
+// updateConvertButtonState - actual DOM function with isLoadingHandlers
 // ---------------------------------------------------------------------------
 
 describe("updateConvertButtonState (DOM)", () => {

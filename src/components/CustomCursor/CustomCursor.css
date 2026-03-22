@@ -75,7 +75,7 @@
     opacity 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Liquid glass body — no backdrop-filter (too expensive on 144hz, forces per-frame compositing) */
+/* Liquid glass body - no backdrop-filter (too expensive on 144hz, forces per-frame compositing) */
 #custom-cursor::after {
   content: "";
   position: absolute;
@@ -92,7 +92,7 @@
   z-index: 1;
 }
 
-/* Light mode glass — visible on white: dark edge + hairline ring + top gleam */
+/* Light mode glass - visible on white: dark edge + hairline ring + top gleam */
 :root #custom-cursor::after {
   background: rgba(255, 255, 255, 0.50);
   border: 1px solid rgba(0, 0, 0, 0.10);
@@ -102,7 +102,7 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.90);
 }
 
-/* Dark mode glass — softer presence, less stark */
+/* Dark mode glass - softer presence, less stark */
 .dark #custom-cursor::after {
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.13);
@@ -112,7 +112,7 @@
 }
 
 
-/* Rainbow glow animation — hue-rotates the conic-gradient colors */
+/* Rainbow glow animation - hue-rotates the conic-gradient colors */
 @keyframes rainbow-spin {
   from {
     filter: blur(var(--cursor-blur, 4px)) hue-rotate(0deg);
@@ -141,7 +141,7 @@
   z-index: 2;
 }
 
-/* Dark mode: pull glow back — colours are vivid enough on dark bg */
+/* Dark mode: pull glow back - colours are vivid enough on dark bg */
 .dark #custom-cursor.interactive::before,
 .dark #custom-cursor.interactive-small::before {
   opacity: 0.30;

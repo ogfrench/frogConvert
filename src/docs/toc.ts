@@ -36,7 +36,7 @@ export function buildToc(docBody: HTMLElement) {
     h.id = slugCounts[base] > 1 ? `${base}-${slugCounts[base]}` : base;
   });
 
-  // Build link elements — skip headings whose text had no sluggifiable content
+  // Build link elements - skip headings whose text had no sluggifiable content
   headings.forEach(h => {
     if (!h.id) return;
     const a = document.createElement('a');

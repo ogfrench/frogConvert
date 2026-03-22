@@ -214,7 +214,7 @@ describe("getFormatCategory", () => {
 });
 
 // ---------------------------------------------------------------------------
-// isLoadingHandlers — reactive state
+// isLoadingHandlers - reactive state
 // ---------------------------------------------------------------------------
 
 describe("isLoadingHandlers", () => {

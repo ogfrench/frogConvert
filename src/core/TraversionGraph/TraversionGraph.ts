@@ -387,7 +387,7 @@ export class TraversionGraph {
                     // Re-check queue after the yield: if the worker responded during the setTimeout,
                     // the message landed in workerMessageQueue (workerMessageResolver was null).
                     // Skipping this check would set up a resolver waiting for the *next* message
-                    // while the worker is already paused — causing a guaranteed 15 s timeout.
+                    // while the worker is already paused - causing a guaranteed 15 s timeout.
                     if (workerMessageQueue.length > 0) {
                         message = workerMessageQueue.shift()!;
                     } else {

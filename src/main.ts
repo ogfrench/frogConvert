@@ -3,7 +3,7 @@ import { initFrogsworth } from "./components/Frogsworth/FrogsworthWidget.ts";
 import type { FormatHandler } from "./core/FormatHandler/FormatHandler.js";
 import handlers, { loadBackgroundHandlers } from "./handlers";
 
-// Kick off TraversionGraph load immediately in the background — does not block paint.
+// Kick off TraversionGraph load immediately in the background - does not block paint.
 // refreshUI() awaits this promise before calling .init(), so it's always ready in time.
 const traversionGraphReady = import("./core/TraversionGraph/TraversionGraph.js").then(
   ({ TraversionGraph }) => { window.traversionGraph = new TraversionGraph(); }
@@ -149,7 +149,7 @@ window.printSupportedFormatCache = () => {
 
 // --- Build option list ---
 
-/** Synchronously populate allOptionsRef from already-loaded cache — no handler.init() calls. */
+/** Synchronously populate allOptionsRef from already-loaded cache - no handler.init() calls. */
 function populateFromCache(subset: FormatHandler[]) {
   for (const handler of subset) {
     const supportedFormats = window.supportedFormatCache.get(handler.name);
@@ -276,7 +276,7 @@ async function refreshUI() {
   }
 
   try {
-    // Phase 1: lightweight core handlers — completes in <1s on cold start
+    // Phase 1: lightweight core handlers - completes in <1s on cold start
     try {
       const sizeBefore = allOptionsRef.value.length;
       await initCacheMissHandlers(handlers);

@@ -18,7 +18,7 @@ function mockMatchMedia(matches: boolean) {
     return { mql, listeners };
 }
 
-describe("FrogsworthWidget — slot placement", () => {
+describe("FrogsworthWidget - slot placement", () => {
     let slot: HTMLDivElement;
 
     beforeEach(() => {

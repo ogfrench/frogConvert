@@ -19,7 +19,7 @@
 
     // Reveal on the first paint frame after CSS is applied.
     // In production, render-blocking CSS means rAF only fires after styles are loaded.
-    // In dev (Vite), CSS is injected via JS so rAF can fire before it — we poll the
+    // In dev (Vite), CSS is injected via JS so rAF can fire before it - we poll the
     // --background CSS variable as a signal that our stylesheet has been applied.
     // DOMContentLoaded is a safety-net fallback (e.g. rAF unavailable, edge cases).
     var _r = false;

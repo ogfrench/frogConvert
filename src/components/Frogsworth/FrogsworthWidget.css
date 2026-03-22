@@ -13,7 +13,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Frog face — always present, dimmed at rest */
+/* Frog face - always present, dimmed at rest */
 .frogsworth-face {
   font-size: 1.2rem;
   line-height: 1;
@@ -27,7 +27,7 @@
   color: var(--foreground);
 }
 
-/* Text output — no box, just floating monospace text */
+/* Text output - no box, just floating monospace text */
 .frogsworth-bubble {
   color: var(--muted-foreground);
   font-family: var(--font-mono);
@@ -63,7 +63,7 @@
   animation: frog-reveal 0.35s ease forwards;
 }
 
-/* Thinking pulse — gentle, slow */
+/* Thinking pulse - gentle, slow */
 .frogsworth-widget[data-state="thinking"] .frogsworth-face {
   animation: frog-pulse 1.4s ease-in-out infinite;
 }
@@ -101,7 +101,7 @@
   }
 }
 
-/* Mobile inline layout — when moved into #frogsworth-slot by JS */
+/* Mobile inline layout - when moved into #frogsworth-slot by JS */
 #frogsworth-slot .frogsworth-widget {
   position: static;
   align-items: center;

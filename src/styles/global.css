@@ -153,7 +153,7 @@
 }
 
 /* --- Theme Transition Logic --- */
-/* Omit ::before/::after — cuts style-recalc in half with no visual regression */
+/* Omit ::before/::after - cuts style-recalc in half with no visual regression */
 .theme-transition,
 .theme-transition * {
   transition-property: background-color, color, border-color, fill, stroke, box-shadow !important;

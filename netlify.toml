@@ -2,7 +2,7 @@
   command = "bun run build"
   publish = "dist"
 
-# Fallback for client-side routing — serves index.html for any path
+# Fallback for client-side routing - serves index.html for any path
 # that doesn't match a real file in dist/ (matches nginx try_files behaviour).
 [[redirects]]
   from = "/*"

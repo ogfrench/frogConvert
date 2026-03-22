@@ -135,7 +135,7 @@ function getConversionWorker(): Worker {
     if (!conversionWorker) {
         conversionWorker = new Worker(new URL("../../workers/conversion.worker.ts", import.meta.url), { type: "module" });
         conversionWorker.onerror = (err) => {
-            // Worker crashed — reject the in-flight promise with a real error, then discard the dead worker
+            // Worker crashed - reject the in-flight promise with a real error, then discard the dead worker
             const cb = workerErrorCallback;
             workerErrorCallback = null;
             setWorkerCancelCallback(null);
@@ -187,7 +187,7 @@ async function runInWorker(handlerName: string, inputFiles: FileData[], inputFor
             cleanup();
             reject(new Error(`Conversion worker crashed: ${err.message}`));
         };
-        // Copy bytes before transferring — originals must remain usable if this path fails and another is retried
+        // Copy bytes before transferring - originals must remain usable if this path fails and another is retried
         const inputCopies = inputFiles.map(f => ({ ...f, bytes: f.bytes.slice() }));
         const transferables = inputCopies.map(f => f.bytes.buffer).filter(b => b.byteLength > 0);
         worker.postMessage({ id, handlerName, inputFiles: inputCopies, inputFormat, outputFormat, args }, transferables);
@@ -210,7 +210,7 @@ async function preInitPath(path: ConvertPathNode[], onProgress?: (outputFormat: 
                 }
                 await ensureMinDuration(downloadStart, 500);
             } catch (e) {
-                // Swallow — attemptConvertPath retries init and handles failures
+                // Swallow - attemptConvertPath retries init and handles failures
             }
         }
     }
@@ -272,7 +272,7 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
 
     ensureCancelButton();
 
-    // Show status + path immediately — path is already validated by findConversionPath
+    // Show status + path immediately - path is already validated by findConversionPath
     const messageHTML = batchMsg
         ? `${batchMsg}<br><span class="muted-text">${pathString}</span>`
         : `<span class="conversion-path">${pathString}</span>`;
@@ -455,7 +455,7 @@ export function initConvertButton() {
                 if (!result) {
                     if (isCancelled) break;
                     removeCancelButton(); // Restore "no cancel during warm-up" invariant before retry search
-                    // Path failed (dead end) — find the next best path and retry once.
+                    // Path failed (dead end) - find the next best path and retry once.
                     // Preserve dead ends so the same broken path isn't rediscovered.
                     conversionPath = await findConversionPath(inputOption, outputOption, true);
                     if (!conversionPath) {

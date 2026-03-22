@@ -1,5 +1,5 @@
 /**
- * Unit tests for FrogsworthWidget.ts — pick() quip selection logic.
+ * Unit tests for FrogsworthWidget.ts - pick() quip selection logic.
  * Run with: bun run test src/components/Frogsworth/FrogsworthWidget.test.ts
  *
  * These tests verify the quip selection logic without needing a DOM.
@@ -10,7 +10,7 @@ import { pick } from "./FrogsworthWidget.ts";
 
 const VALID_FACES = new Set(["idle", "thinking", "happy", "excited", "smug", "hungry"]);
 
-describe("pick() — null/null → idle quips", () => {
+describe("pick() - null/null -> idle quips", () => {
     it("returns a string text when both from and to are null", () => {
         const result = pick(null, null);
         expect(typeof result.text).toBe("string");
@@ -23,9 +23,9 @@ describe("pick() — null/null → idle quips", () => {
     });
 });
 
-describe("pick() — known pair → PAIR_QUIPS", () => {
+describe("pick() - known pair -> PAIR_QUIPS", () => {
     it("matches pdf→docx and returns a pair quip", () => {
-        // Run multiple times to get past randomness — at least one call must hit PAIR_QUIPS
+        // Run multiple times to get past randomness - at least one call must hit PAIR_QUIPS
         const texts = new Set<string>();
         for (let i = 0; i < 20; i++) texts.add(pick("pdf", "docx").text);
         // PAIR_QUIPS["pdf→docx"] contains "attempting to undo what adobe hath wrought" and "good luck. lower your expectations first"
@@ -78,7 +78,7 @@ describe("pick() — known pair → PAIR_QUIPS", () => {
     });
 });
 
-describe("pick() — single known format → FORMAT_QUIPS", () => {
+describe("pick() - single known format -> FORMAT_QUIPS", () => {
     it("picks from FORMAT_QUIPS[pdf] when only from is 'pdf'", () => {
         const texts = new Set<string>();
         for (let i = 0; i < 30; i++) texts.add(pick("pdf", null).text);
@@ -116,7 +116,7 @@ describe("pick() — single known format → FORMAT_QUIPS", () => {
     });
 });
 
-describe("pick() — unknown formats → GENERIC_QUIPS fallback", () => {
+describe("pick() - unknown formats -> GENERIC_QUIPS fallback", () => {
     it("falls back to GENERIC_QUIPS when both formats are unknown", () => {
         const texts = new Set<string>();
         for (let i = 0; i < 30; i++) texts.add(pick("xyz123", "abc456").text);
@@ -133,7 +133,7 @@ describe("pick() — unknown formats → GENERIC_QUIPS fallback", () => {
     });
 
     it("falls back to GENERIC_QUIPS when one format is unknown and no FORMAT_QUIPS entry", () => {
-        // "xyz" is not in FORMAT_QUIPS, "json" IS — so json quips should win
+        // "xyz" is not in FORMAT_QUIPS, "json" IS - so json quips should win
         const texts = new Set<string>();
         for (let i = 0; i < 30; i++) texts.add(pick("xyz", "json").text);
         const hasJsonQuip = [...texts].some(t =>
@@ -143,7 +143,7 @@ describe("pick() — unknown formats → GENERIC_QUIPS fallback", () => {
     });
 });
 
-describe("pick() — exclude parameter", () => {
+describe("pick() - exclude parameter", () => {
     it("with a 2-item pair array, exclude avoids repeating the excluded text", () => {
         // PAIR_QUIPS["pdf→docx"] has exactly 2 items
         // Run enough times to confirm the excluded quip doesn't dominate
@@ -173,7 +173,7 @@ describe("pick() — exclude parameter", () => {
     });
 });
 
-describe("pick() — all results have valid face values", () => {
+describe("pick() - all results have valid face values", () => {
     it("all faces are one of the 5 valid values across varied inputs", () => {
         const inputs: [string | null, string | null][] = [
             [null, null], ["pdf", "docx"], ["png", "jpg"], ["mp3", null],

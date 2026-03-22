@@ -1,5 +1,5 @@
 /**
- * Unit tests for ModalManager.ts — stack-based modal management.
+ * Unit tests for ModalManager.ts - stack-based modal management.
  * Run with: bun run test src/components/utils/ModalManager.test.ts
  */
 
@@ -83,7 +83,7 @@ describe("ModalManager.close", () => {
     it("is a no-op for an unregistered modal", () => {
         const modal = makeModal("m");
         const bg = makeBg("bg");
-        // close without ever opening — should not throw
+        // close without ever opening - should not throw
         expect(() => ModalManager.close(modal, bg)).not.toThrow();
     });
 });
@@ -236,7 +236,7 @@ describe("ModalManager.replaceTop", () => {
         const bg2 = makeBg("bg2");
         ModalManager.open(m1, bg1);
         ModalManager.open(m2, bg2);
-        // Replace m1 (bottom) — should move it to top
+        // Replace m1 (bottom) - should move it to top
         ModalManager.replaceTop(m1, bg1);
         // Now closeTop closes m1
         ModalManager.closeTop();

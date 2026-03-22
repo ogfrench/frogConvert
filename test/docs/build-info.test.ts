@@ -56,7 +56,7 @@ describe('initBuildInfo', () => {
     mod.initBuildInfo({ commitSha: 'dev' });
     const link = document.getElementById('commit-link') as HTMLAnchorElement;
     expect(link.classList.contains('disabled')).toBe(true);
-    // Simulate click — should not navigate
+    // Simulate click - should not navigate
     const event = new MouseEvent('click', { bubbles: true, cancelable: true });
     link.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);
