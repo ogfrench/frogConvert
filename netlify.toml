@@ -2,19 +2,12 @@
   command = "bun run build"
   publish = "dist"
 
-# Rewrite /convert/* to the actual files in dist/
-# This is needed because Vite generates asset URLs prefixed with /convert/
-# but Netlify serves the dist folder at the root.
+# Fallback for client-side routing — serves index.html for any path
+# that doesn't match a real file in dist/ (matches nginx try_files behaviour).
 [[redirects]]
-  from = "/convert/*"
-  to = "/:splat"
+  from = "/*"
+  to = "/index.html"
   status = 200
-
-# Redirect root to /convert/
-[[redirects]]
-  from = "/"
-  to = "/convert/"
-  status = 302
 
 [[headers]]
   for = "/*"
