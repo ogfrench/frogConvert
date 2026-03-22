@@ -283,7 +283,7 @@ async function refreshUI() {
       if (allOptionsRef.value.length > sizeBefore) {
         refreshUI();
       }
-      console.log(`Phase 1: ${handlers.length} core handlers loaded.`);
+      console.debug(`Phase 1: ${handlers.length} core handlers loaded.`);
     } catch (e) {
       console.error("Phase 1 init failed:", e);
     }
@@ -315,7 +315,7 @@ async function refreshUI() {
       const entries = [...window.supportedFormatCache.entries()];
       localStorage.setItem("supportedFormatCache", JSON.stringify(entries));
     } catch (_) { }
-    console.log(`Phase 2: ${handlers.length - countBefore} background handlers loaded.`);
+    console.debug(`Phase 2: ${handlers.length - countBefore} background handlers loaded.`);
   } finally {
     showLoadingBar(false);  // always hide bar when entire loading sequence ends
     isLoadingHandlers.value = false;

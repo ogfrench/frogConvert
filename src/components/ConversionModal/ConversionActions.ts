@@ -317,7 +317,6 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
             if (files.some(c => !c.bytes.length)) throw "Output is empty.";
         } catch (e) {
             if (isCancelled) return null;
-            console.log(path.map(c => c.format.format));
             console.error(handler.name, `${path[i].format.format} \u2192 ${path[i + 1].format.format}`, e);
 
             const deadEndPath = path.slice(0, i + 2);

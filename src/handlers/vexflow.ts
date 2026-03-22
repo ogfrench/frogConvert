@@ -24,7 +24,6 @@ class VexFlowHandler implements FormatHandler {
         const { default: VexFlow } = await import('vexflow');
         await VexFlow.loadFonts('Bravura', 'Academico');
         VexFlowHandler.fontsLoaded = true;
-        console.log('VexFlow fonts loaded successfully');
       } catch (e) {
         console.warn('Error loading VexFlow fonts:', e);
         // Try to continue anyway

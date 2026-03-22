@@ -150,7 +150,7 @@ export class TraversionGraph {
             else this.handlerPairsCache.set(key, new Set([c.handler.toLowerCase()]));
         }
 
-        console.log("Initializing traversion graph...");
+        console.debug("Initializing traversion graph...");
         const startTime = performance.now();
         let handlerIndex = 0;
         supportedFormatCache.forEach((formats, handler) => {
@@ -195,7 +195,7 @@ export class TraversionGraph {
             handlerIndex++;
         });
         const endTime = performance.now();
-        console.log(`Traversion graph initialized in ${(endTime - startTime).toFixed(2)} ms with ${this.nodes.length} nodes and ${this.edges.length} edges.`);
+        console.debug(`Traversion graph initialized in ${(endTime - startTime).toFixed(2)} ms with ${this.nodes.length} nodes and ${this.edges.length} edges.`);
 
         // Initialize Web Worker
         if (!this.worker) {

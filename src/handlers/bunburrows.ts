@@ -57,7 +57,6 @@ class bunburrowsHandler implements FormatHandler {
                 // Read .level as text
                 let level_string = new TextDecoder().decode(new_file_bytes);
                 let level_data_array = level_string.split(/[\s,;:]+/);
-                console.log(String(level_data_array));
 
                 // Establish dimensions
                 const scale = 5;
@@ -92,7 +91,6 @@ class bunburrowsHandler implements FormatHandler {
                     const current_tile_data : string = level_data_array[current_tile_y*tiles_wide + current_tile_x];
 
                     // Start drawing pixels!
-                    console.log(current_tile_x + " , " + tile_pixel_y + " (" + i_x + " , " + i_y + ")");
                     let color = COLOR_BUNNY;
                     
                     // Walkable tiles

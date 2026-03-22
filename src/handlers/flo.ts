@@ -174,7 +174,7 @@ class floHandler implements FormatHandler {
         setTimeout(() => reject('flo worker init timeout'), 15000);
       });
       await this.#workerReady;
-      console.log("floHandler: reflo worker ready");
+      console.debug("floHandler: reflo worker ready");
     } catch (e) {
       console.warn("floHandler: failed to start reflo worker:", e);
       this.#worker = undefined;

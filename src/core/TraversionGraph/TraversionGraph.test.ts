@@ -40,7 +40,6 @@ for (const handler of handlers) {
   }
 }
 
-console.log("Testing...\n");
 test('should find the optimal path from image to audio\n', async () => {
   const graph = new TraversionGraph();
   graph.init(supportedFormatCache, handlers);

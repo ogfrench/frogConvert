@@ -230,7 +230,6 @@ body {
 html {
   overflow-x: hidden !important;
   overflow-y: auto;
-  scrollbar-gutter: stable;
   width: 100% !important;
   max-width: 100vw !important;
 }
@@ -841,7 +840,7 @@ html.scroll-lock {
   }
 
   to {
-    width: calc(100vw + 20px);
+    width: 100%;
   }
 }
 
@@ -869,12 +868,12 @@ html.scroll-lock {
   }
 
   35% {
-    width: calc(100vw + 20px);
+    width: 100%;
     clip-path: inset(0 0 0 0);
   }
 
   100% {
-    width: calc(100vw + 20px);
+    width: 100%;
     clip-path: inset(0 0 0 100%);
   }
 }
@@ -887,7 +886,7 @@ html.scroll-lock {
     margin-top: calc(var(--space-16) + var(--space-2));
     margin-bottom: var(--space-4);
     width: 100%;
-    max-width: calc(100vw + 20px);
+    max-width: 100%;
     min-width: 300px;
     text-align: center;
   }
@@ -895,7 +894,7 @@ html.scroll-lock {
   #category-tabs {
     padding: 0 var(--space-3);
     width: 100%;
-    max-width: calc(100vw + 20px);
+    max-width: 100%;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
