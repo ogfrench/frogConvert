@@ -183,7 +183,7 @@ class FFmpegHandler implements FormatHandler {
       const isNodeOrBun = typeof process !== 'undefined' && process.versions && (process.versions.node || process.versions.bun);
       const coreURL = isNodeOrBun
         ? new URL('../../node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js', import.meta.url).href
-        : "/convert/wasm/ffmpeg-core.js";
+        : "/wasm/ffmpeg-core.js";
       await this.#ffmpeg.load({ coreURL });
     } else {
       await this.#ffmpeg.load();

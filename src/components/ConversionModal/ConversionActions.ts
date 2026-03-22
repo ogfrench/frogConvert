@@ -10,7 +10,6 @@ import {
     selectedToIndex,
     allOptionsRef,
     escapeHTML,
-    showPopup,
     hidePopup,
     showAlertPopup,
     createPopupButton,
@@ -20,11 +19,13 @@ import {
     setWorkerCancelCallback,
     completeCancellation,
     showPartialDownloadPopup,
+    showEnginesLoadingPopup,
     ensureCancelButton,
     removeCancelButton,
     replacePopup,
     CATEGORY_LABELS
 } from "../index.ts";
+import { createDancingFrog } from "../Frogsworth/DancingFrog.ts";
 import { shortenFileName, ensureMinDuration } from "../utils.ts";
 
 // --- Helpers ---
@@ -45,75 +46,6 @@ let isConverting = false;
 export const getIsConverting = () => isConverting;
 
 let _convertingTitle = "Converting...";
-
-let _enginesLoadingPollId: ReturnType<typeof setInterval> | null = null;
-
-function _showEnginesLoadingPopup() {
-    if (_enginesLoadingPollId !== null) {
-        clearInterval(_enginesLoadingPollId);
-        _enginesLoadingPollId = null;
-    }
-
-    const popupStartTime = performance.now();
-
-    showPopup(
-        `<h2>Wow, you're fast! ⚡</h2>` +
-        `<div class="loader-spinner"></div>` +
-        `<p>Engines are starting up. This only happens on first load, so it'll be instant next time!</p>` +
-        `<div class="popup-actions">` +
-        `<button class="btn-secondary" id="engines-dismiss-btn">Dismiss</button>` +
-        `</div>`,
-    );
-    ui.popupBox.dataset.enginesLoading = "1";
-    requestAnimationFrame(() => {
-        document.getElementById("engines-dismiss-btn")?.addEventListener("click", () => {
-            delete ui.popupBox.dataset.enginesLoading;
-            hidePopup();
-        });
-    });
-    _enginesLoadingPollId = setInterval(async () => {
-        if (window.traversionGraph.nodeCount > 0) {
-            clearInterval(_enginesLoadingPollId!);
-            _enginesLoadingPollId = null;
-
-            // Enforce 1s min duration so it doesn't flicker
-            await ensureMinDuration(popupStartTime, 1000);
-            _updatePopupToEnginesReady();
-        }
-    }, 200);
-}
-
-function _updatePopupToEnginesReady() {
-    // Guard 1: popup was dismissed before engines loaded — don't update a hidden popup
-    if (!ui.popupBox.classList.contains("open")) return;
-    // Guard 2: another popup replaced our content — check for the unique marker set when this popup opened
-    if (!ui.popupBox.dataset.enginesLoading) return;
-    delete ui.popupBox.dataset.enginesLoading;
-    const spinner = ui.popupBox.querySelector<HTMLElement>(".loader-spinner");
-    if (!spinner) return;
-
-    const h2 = ui.popupBox.querySelector("h2");
-    const p = ui.popupBox.querySelector("p");
-    const actions = ui.popupBox.querySelector(".popup-actions");
-
-    const icon = document.createElement("div");
-    icon.className = "engines-ready-icon";
-    spinner.replaceWith(icon);
-
-    if (h2) h2.textContent = "Engines ready!";
-    if (p) p.textContent = "All conversion engines loaded. Ready to convert!";
-    if (actions) {
-        actions.innerHTML = "";
-        const btn = document.createElement("button");
-        btn.className = "btn-primary";
-        btn.textContent = "Convert now";
-        btn.addEventListener("click", () => {
-            hidePopup();
-            ui.convertButton.click();
-        });
-        actions.appendChild(btn);
-    }
-}
 
 /** Called once after a conversion completes, then cleared. Used to defer work that is unsafe to run mid-conversion. */
 let onConversionEnd: (() => void) | null = null;
@@ -406,55 +338,6 @@ function showConversionNotFoundPopup(fromFormat: string, toFormat: string) {
     );
 }
 
-// --- Dancing frog for success popup ---
-
-function createDancingFrog(): HTMLElement {
-    const BASE_FRAME = "ദ്ദി₍𝄐⩌𝄐₎";
-    const frogFrames = [
-        "/₍𝄐⩌𝄐₎/",
-        "ヽ₍𝄐⩌𝄐₎ﾉ",
-        "ﾉ₍𝄐⩌𝄐₎ヽ",
-        "₍𝄐⩌𝄐₎",
-        "₍𝄐-𝄐₎",
-        "\\₍𝄐⩌𝄐₎/",
-        "/₍𝄐~𝄐₎/",
-        "₍𝄐~𝄐₎",
-    ];
-    const frogDiv = document.createElement("div");
-    frogDiv.className = "dancing-frog";
-    const spanA = document.createElement("span");
-    const spanB = document.createElement("span");
-    spanA.textContent = BASE_FRAME;
-    spanB.textContent = BASE_FRAME;
-    spanA.style.opacity = "1";
-    spanB.style.opacity = "0";
-    frogDiv.appendChild(spanA);
-    frogDiv.appendChild(spanB);
-    let frameIndex = 0;
-    let curSpan = spanA, nxtSpan = spanB;
-    let frogInterval: ReturnType<typeof setInterval> | null = null;
-    const crossfadeTo = (text: string) => {
-        nxtSpan.textContent = text;
-        nxtSpan.style.opacity = "1";
-        curSpan.style.opacity = "0";
-        [curSpan, nxtSpan] = [nxtSpan, curSpan];
-    };
-    frogDiv.addEventListener("mouseenter", () => {
-        if (frogInterval) return;
-        frogInterval = setInterval(() => {
-            if (!document.contains(frogDiv)) { clearInterval(frogInterval!); frogInterval = null; return; }
-            frameIndex = (frameIndex + 1) % frogFrames.length;
-            crossfadeTo(frogFrames[frameIndex]);
-        }, 700);
-    });
-    frogDiv.addEventListener("mouseleave", () => {
-        if (frogInterval) { clearInterval(frogInterval); frogInterval = null; }
-        frameIndex = 0; // reset so next hover always starts from the first frame
-        crossfadeTo(BASE_FRAME);
-    });
-    return frogDiv;
-}
-
 // --- Main convert action ---
 
 export function initConvertButton() {
@@ -483,7 +366,7 @@ export function initConvertButton() {
             }
 
             if (window.traversionGraph.nodeCount === 0) {
-                _showEnginesLoadingPopup();
+                showEnginesLoadingPopup();
                 return;
             }
 

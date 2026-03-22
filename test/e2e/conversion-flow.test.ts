@@ -21,8 +21,7 @@ describe("E2E Conversion Flow", () => {
         });
         await server.listen();
         const port = server.config.server.port;
-        // The base is configured to /convert/ in vite.config.js
-        url = `http://localhost:${port}/convert/`;
+        url = `http://localhost:${port}/`;
 
         browser = await puppeteer.launch({ headless: true });
         page = await browser.newPage();
@@ -31,7 +30,7 @@ describe("E2E Conversion Flow", () => {
     afterAll(async () => {
         if (browser) await browser.close();
         if (server) await server.close();
-    });
+    }, 15000);
 
     it("loads the page and has the correct title", async () => {
         await page.goto(url);

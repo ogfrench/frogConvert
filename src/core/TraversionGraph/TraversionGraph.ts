@@ -65,7 +65,7 @@ export class TraversionGraph {
     ];
     // Keeps track of path segments that have failed when attempted during the last run
     private temporaryDeadEnds: ConvertPathNode[][] = [];
-    private worker: Worker | null = null;
+    private worker: (Worker & { __isMockWorker?: boolean }) | null = null;
 
 
     public addCategoryChangeCost(from: string, to: string, cost: number, handler?: string, updateIfExists: boolean = true): boolean {
@@ -381,7 +381,7 @@ export class TraversionGraph {
                     // Without this macro-task yield, microtask (Promise) queues might starve the render thread
                     // if the worker resolves extremely quickly in bursts.
                     // Note: In Vitest (Node.js), setTimeout can break the mock worker's synchronous flow, so we skip it if we detect a mock worker.
-                    if (!(this.worker as any).__isMockWorker) {
+                    if (!this.worker.__isMockWorker) {
                         await new Promise(r => setTimeout(r, 0));
                     }
                     // Re-check queue after the yield: if the worker responded during the setTimeout,

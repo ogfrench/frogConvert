@@ -119,6 +119,75 @@ export function ensureCancelButton() {
     }
 }
 
+// --- Engines loading popup ---
+
+let _enginesLoadingPollId: ReturnType<typeof setInterval> | null = null;
+
+export function showEnginesLoadingPopup() {
+    if (_enginesLoadingPollId !== null) {
+        clearInterval(_enginesLoadingPollId);
+        _enginesLoadingPollId = null;
+    }
+
+    const popupStartTime = performance.now();
+
+    showPopup(
+        `<h2>Wow, you're fast! ⚡</h2>` +
+        `<div class="loader-spinner"></div>` +
+        `<p>Engines are starting up. This only happens on first load, so it'll be instant next time!</p>` +
+        `<div class="popup-actions">` +
+        `<button class="btn-secondary" id="engines-dismiss-btn">Dismiss</button>` +
+        `</div>`,
+    );
+    ui.popupBox.dataset.enginesLoading = "1";
+    requestAnimationFrame(() => {
+        document.getElementById("engines-dismiss-btn")?.addEventListener("click", () => {
+            delete ui.popupBox.dataset.enginesLoading;
+            hidePopup();
+        });
+    });
+    _enginesLoadingPollId = setInterval(async () => {
+        if (window.traversionGraph.nodeCount > 0) {
+            clearInterval(_enginesLoadingPollId!);
+            _enginesLoadingPollId = null;
+            await ensureMinDuration(popupStartTime, 1000);
+            _updatePopupToEnginesReady();
+        }
+    }, 200);
+}
+
+function _updatePopupToEnginesReady() {
+    // Guard 1: popup was dismissed before engines loaded — don't update a hidden popup
+    if (!ui.popupBox.classList.contains("open")) return;
+    // Guard 2: another popup replaced our content — check for the unique marker set when this popup opened
+    if (!ui.popupBox.dataset.enginesLoading) return;
+    delete ui.popupBox.dataset.enginesLoading;
+    const spinner = ui.popupBox.querySelector<HTMLElement>(".loader-spinner");
+    if (!spinner) return;
+
+    const h2 = ui.popupBox.querySelector("h2");
+    const p = ui.popupBox.querySelector("p");
+    const actions = ui.popupBox.querySelector(".popup-actions");
+
+    const icon = document.createElement("div");
+    icon.className = "engines-ready-icon";
+    spinner.replaceWith(icon);
+
+    if (h2) h2.textContent = "Engines ready!";
+    if (p) p.textContent = "All conversion engines loaded. Ready to convert!";
+    if (actions) {
+        actions.innerHTML = "";
+        const btn = document.createElement("button");
+        btn.className = "btn-primary";
+        btn.textContent = "Convert now";
+        btn.addEventListener("click", () => {
+            hidePopup();
+            ui.convertButton.click();
+        });
+        actions.appendChild(btn);
+    }
+}
+
 export function showPartialDownloadPopup(count: number, onDownload: () => void) {
     const h2 = document.createElement("h2");
     h2.textContent = "Conversion cancelled";

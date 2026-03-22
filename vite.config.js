@@ -102,14 +102,14 @@ export default defineConfig({
       "@sqlite.org/sqlite-wasm",
     ]
   },
-  base: "/convert/",
+  base: "/",
   plugins: [
     {
       name: 'markdown-server',
       configureServer(server) {
         server.middlewares.use((req, res, next) => {
           if (req.url.endsWith('.md')) {
-            const urlPath = req.url.replace(/^\/convert\//, '').split('?')[0];
+            const urlPath = req.url.replace(/^\//, '').split('?')[0];
             
             // Map /docs/*.md requests to their file locations
             // If it's in /docs/, check if it's there or at project root

@@ -47,14 +47,14 @@ describe("MCP Polyfills", () => {
     });
 
     it("fetch to a localhost WASM URL is intercepted and returns 200 with content", async () => {
-        const response = await fetch("http://localhost/convert/wasm/magick.wasm");
+        const response = await fetch("http://localhost/wasm/magick.wasm");
         expect(response.status).toBe(200);
         const buffer = await response.arrayBuffer();
         expect(buffer.byteLength).toBeGreaterThan(0);
     });
 
     it("fetch to an unrecognised WASM filename returns 404", async () => {
-        const response = await fetch("http://localhost/convert/wasm/unknown.wasm");
+        const response = await fetch("http://localhost/wasm/unknown.wasm");
         expect(response.status).toBe(404);
     });
 

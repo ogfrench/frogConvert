@@ -112,7 +112,7 @@ docker compose -f docker/docker-compose.yml up -d
 
 Alternatively download the `docker-compose.yml` separately and start it by executing `docker compose up -d` in the same directory.
 
-This runs the container on `http://localhost:8080/convert/`.
+This runs the container on `http://localhost:8080/`.
 
 ### Docker (local build for development)
 

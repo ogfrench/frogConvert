@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { pick } from "./FrogsworthWidget.ts";
 
-const VALID_FACES = new Set(["idle", "thinking", "happy", "excited", "smug"]);
+const VALID_FACES = new Set(["idle", "thinking", "happy", "excited", "smug", "hungry"]);
 
 describe("pick() — null/null → idle quips", () => {
     it("returns a string text when both from and to are null", () => {

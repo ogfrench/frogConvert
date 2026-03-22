@@ -11,13 +11,13 @@ if (typeof globalThis.window === 'undefined') {
 
 if (typeof (globalThis as any).location === 'undefined') {
     (globalThis as any).location = {
-        href: 'http://localhost/convert/',
+        href: 'http://localhost/',
         origin: 'http://localhost',
         protocol: 'http:',
         host: 'localhost',
         hostname: 'localhost',
         port: '',
-        pathname: '/convert/',
+        pathname: '/',
         search: '',
         hash: ''
     };
@@ -51,7 +51,7 @@ if (typeof process !== 'undefined') {
 }
 
 // Polyfill fetch to intercept WASM requests that normally go to the dev server
-// Node's native fetch does not support relative URLs like /convert/wasm/magick.wasm
+// Node's native fetch does not support relative URLs like /wasm/magick.wasm
 const originalFetch = globalThis.fetch;
 
 Object.defineProperty(globalThis, 'fetch', {
@@ -68,7 +68,7 @@ Object.defineProperty(globalThis, 'fetch', {
             return new Response(new Uint8Array(), { status: 200 });
         }
 
-        if (normalizedUrl.startsWith('/convert/wasm/')) {
+        if (normalizedUrl.startsWith('/wasm/')) {
             const path = await import('path');
             const filename = path.basename(normalizedUrl);
             const fileMap: Record<string, string> = {

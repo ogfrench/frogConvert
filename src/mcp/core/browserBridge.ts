@@ -8,7 +8,7 @@
  * The bridge:
  * 1. Spins up a minimal static HTTP server serving the production dist/
  * 2. Launches a headless Chromium instance (lazy, singleton)
- * 3. Loads /convert/headless/ — graph built from cache.json, handlers init lazily on first use
+ * 3. Loads /headless/ — graph built from cache.json, handlers init lazily on first use
  * 4. Delegates conversions to window.__frogConvertHeadless() via page.evaluate()
  *
  * Requires a production build (bun run build) to be present in dist/.
@@ -44,6 +44,9 @@ export interface BridgeResult {
     base64Bytes: string;
 }
 
+// Maximum time a single page.evaluate() conversion may run before the queue is unblocked.
+const EVALUATE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+
 // Singleton state
 let staticServer: Server | null = null;
 let browser: import("puppeteer").Browser | null = null;
@@ -65,11 +68,8 @@ async function startStaticServer(): Promise<number> {
 
     return new Promise((resolve, reject) => {
         const server = createServer((req, res) => {
-            // Strip the /convert/ base path
             const urlPath = (req.url ?? "/").replace(/\?.*$/, "");
-            const relative = urlPath.startsWith("/convert/")
-                ? urlPath.slice("/convert/".length)
-                : urlPath.slice(1);
+            const relative = urlPath.slice(1);
 
             // Try the exact path, then index.html for directory requests
             const candidates = [
@@ -193,7 +193,7 @@ async function ensureInitialized(): Promise<void> {
 
         // domcontentloaded fires after module scripts execute — sufficient here
         // because waitForFunction(__headlessReady) handles the real readiness check.
-        await bridgePage.goto(`http://127.0.0.1:${port}/convert/headless/`, {
+        await bridgePage.goto(`http://127.0.0.1:${port}/headless/`, {
             waitUntil: "domcontentloaded",
             timeout: 120_000,
         });
@@ -238,8 +238,8 @@ export async function convertViaBrowser(
     // conversionQueue must always stay fulfilled so subsequent items aren't skipped
     // on failure — keep the queue chain alive by catching errors on the queue ref,
     // while the caller-facing result promise still rejects normally.
-    const result = conversionQueue.then(() =>
-        bridgePage!.evaluate(
+    const result = conversionQueue.then(() => {
+        const evaluatePromise = bridgePage!.evaluate(
             (fn, fm, b64, im, ie, om, oe) =>
                 (window as any)[fn](fm, b64, im, ie, om, oe),
             "__frogConvertHeadless",
@@ -249,8 +249,16 @@ export async function convertViaBrowser(
             inputExtension,
             outputMime,
             outputExtension
-        )
-    );
+        );
+        let timeoutId: ReturnType<typeof setTimeout>;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            timeoutId = setTimeout(
+                () => reject(new Error(`Browser conversion timed out after ${EVALUATE_TIMEOUT_MS / 60000} minutes`)),
+                EVALUATE_TIMEOUT_MS
+            );
+        });
+        return Promise.race([evaluatePromise, timeoutPromise]).finally(() => clearTimeout(timeoutId!));
+    });
     conversionQueue = result.catch(() => {});
 
     return result as Promise<BridgeResult[]>;

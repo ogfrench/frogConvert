@@ -6,7 +6,7 @@
  * Puppeteer browser bridge (src/mcp/core/browserBridge.ts).
  *
  * This module is built as a separate Vite MPA entry and served at
- * /convert/headless/ so that WASM assets at /convert/wasm/ are reachable
+ * /headless/ so that WASM assets at /wasm/ are reachable
  * from the same origin.
  *
  * Init strategy: fetch cache.json to build the TraversionGraph immediately
@@ -27,7 +27,7 @@ const handlerInitPromises = new Map<FormatHandler, Promise<void>>();
 async function init() {
     try {
         // Run background handler loading and cache fetch in parallel.
-        // BASE_URL is injected by Vite (e.g. "/convert/") so cache.json is
+        // BASE_URL is injected by Vite (e.g. "/") so cache.json is
         // always found relative to the deployment root regardless of page location.
         const [, cacheData] = await Promise.all([
             loadBackgroundHandlers(),

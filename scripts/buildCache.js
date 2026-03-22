@@ -15,7 +15,7 @@ if (await outputFile.exists()) {
 // Use port 0 to let the OS assign a random free port
 const server = Bun.serve({
   async fetch(req) {
-    const urlPath = new URL(req.url).pathname.replace("/convert/", "") || "index.html";
+    const urlPath = new URL(req.url).pathname.replace(/^\//, "") || "index.html";
     const filePath = path.join(distPath, urlPath);
     const file = Bun.file(filePath);
 
@@ -45,7 +45,7 @@ try {
         }
       });
     }),
-    page.goto(`${serverUrl}/convert/index.html`, { waitUntil: "networkidle0" })
+    page.goto(`${serverUrl}/index.html`, { waitUntil: "networkidle0" })
   ]);
 
   const cacheJSON = await page.evaluate((minify) => {

@@ -119,7 +119,7 @@ export default dummyHandler;
 - **NPM**: Use `bun add`.
 - **Git**: Add as a submodule to `src/handlers`.
 - **CDNs**: Avoid them. They are unstable and don't play well with the offline-first/CLI nature of the project.
-- **WASM**: Add paths to `vite.config.js` and target `/convert/wasm/`.
+- **WASM**: Add paths to `vite.config.js` and target `/wasm/`.
 
 ---
 
