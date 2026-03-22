@@ -276,7 +276,7 @@ async function refreshUI() {
   }
 
   try {
-    // Phase 1: 9 lightweight handlers — completes in <1s on cold start
+    // Phase 1: lightweight core handlers — completes in <1s on cold start
     try {
       const sizeBefore = allOptionsRef.value.length;
       await initCacheMissHandlers(handlers);

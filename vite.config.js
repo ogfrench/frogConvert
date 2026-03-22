@@ -108,14 +108,19 @@ export default defineConfig({
   plugins: [
     {
       name: 'async-css',
-      transformIndexHtml(html) {
-        // Convert render-blocking <link rel="stylesheet"> for built assets to async pattern.
-        // The FOUC prevention script polls for --background via rAF, so async CSS is safe.
-        return html.replace(
-          /<link rel="stylesheet" crossorigin href="(\/assets\/[^"]+\.css)">/g,
-          '<link rel="preload" href="$1" as="style" onload="this.onload=null;this.rel=\'stylesheet\'">' +
-          '<noscript><link rel="stylesheet" href="$1"></noscript>'
-        );
+      transformIndexHtml: {
+        order: 'post',
+        handler(html, { filename }) {
+          // Only apply to the main page — docs/headless use DOMContentLoaded and can't handle async CSS.
+          if (filename.includes('/docs/') || filename.includes('/headless/')) return html;
+          // Convert render-blocking <link rel="stylesheet"> for built assets to async pattern.
+          // The FOUC prevention script polls for --background via rAF, so async CSS is safe.
+          return html.replace(
+            /<link rel="stylesheet" crossorigin href="(\/assets\/[^"]+\.css)">/g,
+            '<link rel="preload" href="$1" as="style" onload="this.onload=null;this.rel=\'stylesheet\'">' +
+            '<noscript><link rel="stylesheet" href="$1"></noscript>'
+          );
+        }
       }
     },
     {
