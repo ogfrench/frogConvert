@@ -653,7 +653,7 @@ class FrogsworthWidget {
     this.el.setAttribute("tabindex", "0");
     this.el.innerHTML = `
       <div class="frogsworth-bubble" aria-live="polite"></div>
-      <div class="frogsworth-face">${KAOMOJI.idle}</div>
+      <div class="frogsworth-face" aria-hidden="true">${KAOMOJI.idle}</div>
     `;
     this.face = this.el.querySelector(".frogsworth-face")!;
     this.bubble = this.el.querySelector(".frogsworth-bubble")!;

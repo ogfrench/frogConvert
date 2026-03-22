@@ -31,8 +31,11 @@ async function loadDoc(filename: string) {
     const res = await fetch(`./${filename}`);
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
 
-    // Strip YAML frontmatter before parsing
-    const md = (await res.text()).replace(/^---\r?\n[\s\S]*?\r?\n---/, '').trim();
+    // Strip YAML frontmatter (---) or HTML comment frontmatter (<!-- docs-frontmatter ... -->)
+    const md = (await res.text())
+      .replace(/^---\r?\n[\s\S]*?\r?\n---/, '')
+      .replace(/^<!--\s*docs-frontmatter\r?\n[\s\S]*?\r?\n-->/, '')
+      .trim();
     docBody.innerHTML = DOMPurify.sanitize(await marked.parse(md));
 
     // Open external links in new tab

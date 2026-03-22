@@ -30,7 +30,9 @@ export default defineConfig({
         fs.readdirSync(dir).forEach(file => {
           if (file.endsWith('.md')) {
             const content = fs.readFileSync(resolve(dir, file), 'utf-8');
-            const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+            // Support both YAML frontmatter (---) and HTML comment frontmatter (<!-- docs-frontmatter ... -->)
+            const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/) ||
+              content.match(/^<!--\s*docs-frontmatter\r?\n([\s\S]*?)\r?\n-->/);
             if (fmMatch) {
               const fm = {};
               fmMatch[1].split(/\r?\n/).forEach(line => {
@@ -104,6 +106,18 @@ export default defineConfig({
   },
   base: "/",
   plugins: [
+    {
+      name: 'async-css',
+      transformIndexHtml(html) {
+        // Convert render-blocking <link rel="stylesheet"> for built assets to async pattern.
+        // The FOUC prevention script polls for --background via rAF, so async CSS is safe.
+        return html.replace(
+          /<link rel="stylesheet" crossorigin href="(\/assets\/[^"]+\.css)">/g,
+          '<link rel="preload" href="$1" as="style" onload="this.onload=null;this.rel=\'stylesheet\'">' +
+          '<noscript><link rel="stylesheet" href="$1"></noscript>'
+        );
+      }
+    },
     {
       name: 'markdown-server',
       configureServer(server) {

@@ -2,30 +2,27 @@ import type { FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
 // --- Core handlers (statically imported, included in main bundle) ---
 import canvasToBlobHandler from "./canvasToBlob.ts";
-import pdftoimgHandler from "./pdftoimg.ts";
-import pdftotxtHandler from "./pdftotxt.ts";
 import svgTraceHandler from "./svgTrace.ts";
 import envelopeHandler from "./envelope.ts";
 import jszipHandler from "./jszip.ts";
 import { fromJsonHandler, toJsonHandler } from "./json.ts";
-import fontHandler from "./font.ts";
 import textEncodingHandler from "./textEncoding.ts";
 
 const handlers: FormatHandler[] = [];
 try { handlers.push(new svgTraceHandler()) } catch (_) { };
 try { handlers.push(new canvasToBlobHandler()) } catch (_) { };
-try { handlers.push(new pdftoimgHandler()) } catch (_) { };
-try { handlers.push(new pdftotxtHandler()) } catch (_) { };
 try { handlers.push(new envelopeHandler()) } catch (_) { };
 try { handlers.push(new jszipHandler()) } catch (_) { };
 try { handlers.push(new fromJsonHandler()) } catch (_) { };
 try { handlers.push(new toJsonHandler()) } catch (_) { };
-try { handlers.push(new fontHandler()) } catch (_) { };
 try { handlers.push(new textEncodingHandler()) } catch (_) { };
 
 /** Dynamically load all non-core handlers. Appends to the handlers array. */
 export async function loadBackgroundHandlers() {
   const loaders: Array<() => Promise<void>> = [
+    async () => { const m = await import("./pdftoimg.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./pdftotxt.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./font.ts"); handlers.push(new m.default()); },
     async () => { const m = await import("./FFmpeg.ts"); handlers.push(new m.default()); },
     async () => { const m = await import("./ImageMagick.ts"); handlers.push(new m.default()); },
     async () => { const m = await import("./pandoc.ts"); handlers.push(new m.default()); },

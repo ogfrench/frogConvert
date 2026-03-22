@@ -2,7 +2,12 @@ import './styles/global.css';
 import { initFrogsworth } from "./components/Frogsworth/FrogsworthWidget.ts";
 import type { FormatHandler } from "./core/FormatHandler/FormatHandler.js";
 import handlers, { loadBackgroundHandlers } from "./handlers";
-import { TraversionGraph } from "./core/TraversionGraph/TraversionGraph.js";
+
+// Kick off TraversionGraph load immediately in the background — does not block paint.
+// refreshUI() awaits this promise before calling .init(), so it's always ready in time.
+const traversionGraphReady = import("./core/TraversionGraph/TraversionGraph.js").then(
+  ({ TraversionGraph }) => { window.traversionGraph = new TraversionGraph(); }
+);
 
 import {
   initTheme,
@@ -132,7 +137,6 @@ window.hidePopup = hidePopup;
 // --- Format cache ---
 
 window.supportedFormatCache = new Map();
-window.traversionGraph = new TraversionGraph();
 
 window.printSupportedFormatCache = () => {
   localStorage.removeItem("supportedFormatCache");
@@ -205,7 +209,8 @@ function showLoadingBar(show: boolean) {
   }
 }
 
-function refreshUI() {
+async function refreshUI() {
+  await traversionGraphReady;
   window.traversionGraph.init(window.supportedFormatCache, handlers);
   renderFormatOptions(allOptionsRef.value, activeCategory.value);
   if (ui.formatModal.classList.contains("open")) {
