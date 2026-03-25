@@ -15,7 +15,8 @@ class threejsHandler implements FormatHandler {
       from: true,
       to: false,
       internal: "glb",
-      category: "model"
+      category: "model",
+      lossless: false
     },
     {
       name: "GL Transmission Format",
@@ -25,10 +26,11 @@ class threejsHandler implements FormatHandler {
       from: true,
       to: false,
       internal: "glb",
-      category: "model"
+      category: "model",
+      lossless: false
     },
     {
-      name: "Waveform OBJ",
+      name: "Wavefront OBJ",
       format: "obj",
       extension: "obj",
       mime: "model/obj",
@@ -36,6 +38,7 @@ class threejsHandler implements FormatHandler {
       to: false,
       internal: "obj",
       category: "model",
+      lossless: false,
     },
     CommonFormats.PNG.supported("png", false, true),
     CommonFormats.JPEG.supported("jpeg", false, true),
@@ -116,7 +119,7 @@ class threejsHandler implements FormatHandler {
           blob.arrayBuffer().then((buf: ArrayBuffer) => resolve(new Uint8Array(buf)));
         }, outputFormat.mime);
       });
-      const name = inputFile.name.split(".")[0] + "." + outputFormat.extension;
+      const name = inputFile.name.split(".").slice(0, -1).join(".") + "." + outputFormat.extension;
       outputFiles.push({ bytes, name });
 
     }

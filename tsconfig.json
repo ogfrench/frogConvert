@@ -56,6 +56,7 @@
     "src/handlers/espeakng.js/**/*",
     "src/handlers/image-to-txt/src/app.ts",
     "src/handlers/image-to-txt/src/generate.ts",
-    "src/api/**/*"
+    "src/api/**/*",
+    "src/handlers/terraria-wld-parser/**/*"
   ]
 }

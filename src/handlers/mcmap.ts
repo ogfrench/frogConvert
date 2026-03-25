@@ -89,7 +89,7 @@ class mcMapHandler implements FormatHandler {
         this.supportedFormats = [
             CommonFormats.PNG.supported("png", true, true, false),
             {
-                name: "RGB",
+                name: "Raw red, green, and blue samples",
                 format: "rgb",
                 extension: "rgb",
                 mime: "image/x-rgb",
@@ -107,6 +107,8 @@ class mcMapHandler implements FormatHandler {
                 from: true,
                 to: true,
                 internal: "mcmap",
+                category: "data",
+                lossless: false
             },
             {
                 name: "Minecraft Map File (Grid)",
@@ -116,6 +118,7 @@ class mcMapHandler implements FormatHandler {
                 from: false,
                 to: true,
                 internal: "mcmap_grid",
+                category: "data",
                 lossless: false
             }
         ];
@@ -137,11 +140,11 @@ class mcMapHandler implements FormatHandler {
             throw "Handler not initialized.";
         }
 
-        if (inputFormat.mime == CommonFormats.PNG.mime) {
+        if (inputFormat.mime === CommonFormats.PNG.mime) {
 
             for (const file of inputFiles) {
 
-                const fileName = file.name.split('.')[0]
+                const fileName = file.name.split(".").slice(0, -1).join(".")
 
                 let startDigit = 0
 
@@ -166,7 +169,7 @@ class mcMapHandler implements FormatHandler {
                     image.src = URL.createObjectURL(blob);
                 });
 
-                if (outputFormat.internal == 'mcmap_grid') {
+                if (outputFormat.internal === 'mcmap_grid') {
 
                     const zip = new JSZip();
 
@@ -210,7 +213,7 @@ class mcMapHandler implements FormatHandler {
 
                     outputFiles.push({ bytes: output, name: "output.zip" });
                 }
-                else if (outputFormat.internal == 'mcmap') {
+                else if (outputFormat.internal === 'mcmap') {
 
                     this.#canvas.width = 128;
                     this.#canvas.height = 128;
@@ -230,7 +233,7 @@ class mcMapHandler implements FormatHandler {
             }
         }
 
-        if (inputFormat.internal == 'mcmap' && outputFormat.mime == CommonFormats.PNG.mime) {
+        else if (inputFormat.internal === 'mcmap' && outputFormat.mime === CommonFormats.PNG.mime) {
 
             for (const file of inputFiles) {
 
@@ -268,7 +271,7 @@ class mcMapHandler implements FormatHandler {
             }
         }
 
-        if (inputFormat.internal == "mcmap" && outputFormat.internal == "rgb") {
+        else if (inputFormat.internal === "mcmap" && outputFormat.internal === "rgb") {
             for (const file of inputFiles) {
                 try {
                     const result = pako.ungzip(file.bytes);
@@ -292,7 +295,7 @@ class mcMapHandler implements FormatHandler {
                 }
             }
         }
-        if (inputFormat.internal == "rgb" && outputFormat.internal == "mcmap") {
+        else {
             throw new Error("Not Implemented")
         }
         return outputFiles;
@@ -360,10 +363,10 @@ function color_id_to_rgb(id: number): number[] | null {
     let [r, g, b, _] = base_colours[base_id]
 
     let shade_mul = 0;
-    if (shade_id == 0) shade_mul = 180
-    else if (shade_id == 1) shade_mul = 220
-    else if (shade_id == 2) shade_mul = 255
-    else if (shade_id == 3) shade_mul = 135
+    if (shade_id === 0) shade_mul = 180
+    else if (shade_id === 1) shade_mul = 220
+    else if (shade_id === 2) shade_mul = 255
+    else if (shade_id === 3) shade_mul = 135
 
     return [Math.floor((r * shade_mul) / 255), Math.floor((g * shade_mul) / 255), Math.floor((b * shade_mul) / 255)];
 }

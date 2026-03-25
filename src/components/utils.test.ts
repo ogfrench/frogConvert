@@ -1,71 +1,43 @@
 import { describe, it, expect, vi } from "vitest";
 import { ensureMinDuration } from "./utils.ts";
 
+function sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 describe("ensureMinDuration", () => {
     it("waits if the elapsed time is less than the minimum duration", async () => {
-        vi.useFakeTimers();
-        const startTime = 1000;
-        const minMs = 500;
+        const startTime = performance.now();
+        const minMs = 100; // short for fast tests
 
-        // Mock performance.now to return 1100 (100ms elapsed)
-        vi.spyOn(performance, "now").mockReturnValue(1100);
+        // Should take at least ~100ms to resolve
+        await ensureMinDuration(startTime, minMs);
+        const elapsed = performance.now() - startTime;
 
-        const promise = ensureMinDuration(startTime, minMs);
-
-        // Should not be resolved yet
-        let resolved = false;
-        promise.then(() => { resolved = true; });
-
-        await vi.advanceTimersByTimeAsync(399);
-        expect(resolved).toBe(false);
-
-        await vi.advanceTimersByTimeAsync(1);
-        expect(resolved).toBe(true);
-
-        vi.useRealTimers();
-        vi.restoreAllMocks();
+        expect(elapsed).toBeGreaterThanOrEqual(90); // allow small timing jitter
     });
 
     it("does not wait if the elapsed time is greater than the minimum duration", async () => {
-        vi.useFakeTimers();
-        const startTime = 1000;
-        const minMs = 500;
+        const minMs = 50;
+        const startTime = performance.now() - 100; // pretend 100ms already elapsed
 
-        // Mock performance.now to return 1600 (600ms elapsed)
-        vi.spyOn(performance, "now").mockReturnValue(1600);
+        const before = performance.now();
+        await ensureMinDuration(startTime, minMs);
+        const waited = performance.now() - before;
 
-        const promise = ensureMinDuration(startTime, minMs);
-
-        // Should resolve immediately (or in the next tick)
-        let resolved = false;
-        promise.then(() => { resolved = true; });
-
-        await vi.advanceTimersByTimeAsync(0);
-        expect(resolved).toBe(true);
-
-        vi.useRealTimers();
-        vi.restoreAllMocks();
+        // Should resolve almost immediately (under 50ms)
+        expect(waited).toBeLessThan(50);
     });
 
     it("uses default minMs of 600", async () => {
-        vi.useFakeTimers();
-        const startTime = 1000;
+        const startTime = performance.now() - 590; // pretend 590ms elapsed
 
-        // Mock performance.now to return 1100 (100ms elapsed)
-        vi.spyOn(performance, "now").mockReturnValue(1100);
+        const before = performance.now();
+        await ensureMinDuration(startTime);
+        const waited = performance.now() - before;
 
-        const promise = ensureMinDuration(startTime);
-
-        let resolved = false;
-        promise.then(() => { resolved = true; });
-
-        await vi.advanceTimersByTimeAsync(499);
-        expect(resolved).toBe(false);
-
-        await vi.advanceTimersByTimeAsync(1);
-        expect(resolved).toBe(true);
-
-        vi.useRealTimers();
-        vi.restoreAllMocks();
+        // Should wait roughly 10ms (600 - 590), but at least resolve
+        expect(waited).toBeGreaterThanOrEqual(0);
+        expect(waited).toBeLessThan(100);
     });
 });

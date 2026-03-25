@@ -41,6 +41,20 @@ const CommonFormats = {
         "image/webp",
         Category.IMAGE
     ),
+    TIFF: new FormatDefinition(
+        "Tagged Image File Format",
+        "tiff",
+        "tiff",
+        "image/tiff",
+        Category.IMAGE
+    ),
+    BMP: new FormatDefinition(
+        "Microsoft Windows bitmap image",
+        "bmp",
+        "bmp",
+        "image/bmp",
+        Category.IMAGE
+    ),
     GIF: new FormatDefinition(
         "CompuServe Graphics Interchange Format (GIF)",
         "gif",
@@ -163,6 +177,13 @@ const CommonFormats = {
         "video/mp4",
         Category.VIDEO
     ),
+    WMV: new FormatDefinition(
+        "Windows Media Video",
+        "wmv",
+        "wmv",
+        "video/x-ms-asf",
+        Category.VIDEO
+    ),
     // archive
     ZIP: new FormatDefinition(
         "ZIP Archive",
@@ -188,21 +209,21 @@ const CommonFormats = {
     ),
     // documents - Microsoft Office
     DOCX: new FormatDefinition(
-        "Microsoft Office 365 Word Document",
+        "Microsoft Word (DOCX)",
         "docx",
         "docx",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         Category.DOCUMENT
     ),
     XLSX: new FormatDefinition(
-        "Microsoft Office 365 Workbook",
+        "Microsoft Excel (XLSX)",
         "xlsx",
         "xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         [Category.SPREADSHEET, Category.DOCUMENT]
     ),
     PPTX: new FormatDefinition(
-        "Microsoft Office 365 Presentation",
+        "Microsoft PowerPoint (PPTX)",
         "pptx",
         "pptx",
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -251,6 +272,20 @@ const CommonFormats = {
         "mxl",
         "application/vnd.recordare.musicxml",
         Category.DOCUMENT
+    ),
+    EXE: new FormatDefinition(
+        "Windows Portable Executable",
+        "exe",
+        "exe",
+        "application/vnd.microsoft.portable-executable",
+        Category.CODE
+    ),
+    TMX: new FormatDefinition(
+        "Translation Memory eXchange",
+        "tmx",
+        "tmx",
+        "application/x-tmx+xml",
+        [Category.DOCUMENT, Category.DATA]
     )
 }
 

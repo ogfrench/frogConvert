@@ -196,7 +196,7 @@ export const PLUS_FORMATS = new Set([
   // Video
   "avi", "mkv",
   // Document
-  "xlsx", "csv", "markdown", "html",
+  "xlsx", "csv", "markdown", "html", "tmx",
   // Data
   "json", "xml", "yaml",
   // Font

@@ -30,33 +30,59 @@ vi.mock('three-bvh-csg', () => {
 });
 
 // qoa-fu mocks
-vi.mock('qoa-fu', async (importOriginal) => {
-    const actual = await importOriginal<any>();
+vi.mock('qoa-fu', () => {
     class MockQOAEncoder {
         writeHeader = () => true;
         writeFrame = () => true;
         getData = () => new Uint8Array([1, 2, 3]);
     }
-    return { ...actual, QOAEncoder: MockQOAEncoder };
+    class MockQOADecoder {
+        getChannels = () => 1;
+        getSampleRate = () => 44100;
+    }
+    class MockQOABase {}
+    return { QOAEncoder: MockQOAEncoder, QOADecoder: MockQOADecoder, QOABase: MockQOABase };
 });
-
-vi.spyOn(window.HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('probably');
 
 // meyda mocks
-vi.spyOn(Image.prototype, 'addEventListener').mockImplementation(function (this: HTMLImageElement, event: unknown, cb: any) {
-    if (event === 'load') {
-        Object.defineProperty(this, 'naturalWidth', { value: 100 });
-        Object.defineProperty(this, 'naturalHeight', { value: 100 });
-        setTimeout(cb, 0);
-    }
-});
+if (typeof Image !== 'undefined') {
+    vi.spyOn(Image.prototype, 'addEventListener').mockImplementation(function (this: HTMLImageElement, event: unknown, cb: any) {
+        if (event === 'load') {
+            Object.defineProperty(this, 'naturalWidth', { value: 100 });
+            Object.defineProperty(this, 'naturalHeight', { value: 100 });
+            setTimeout(cb, 0);
+        }
+    });
+} else {
+    (globalThis as any).Image = class MockImage {
+        naturalWidth = 100;
+        naturalHeight = 100;
+        addEventListener(event: string, cb: any) {
+            if (event === 'load') setTimeout(cb, 0);
+        }
+    };
+}
 
-vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
-    getImageData: () => ({ data: new Uint8ClampedArray(100 * 100 * 4) }),
-    drawImage: vi.fn(),
-    clearRect: vi.fn(),
-    putImageData: vi.fn()
-} as any);
+if (typeof HTMLCanvasElement !== 'undefined') {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+        getImageData: () => ({ data: new Uint8ClampedArray(100 * 100 * 4) }),
+        drawImage: vi.fn(),
+        clearRect: vi.fn(),
+        putImageData: vi.fn()
+    } as any);
+} else {
+    (globalThis as any).HTMLCanvasElement = class MockCanvas {
+        getContext() {
+            return {
+                getImageData: () => ({ data: new Uint8ClampedArray(100 * 100 * 4) }),
+                drawImage: () => {},
+                clearRect: () => {},
+                putImageData: () => {}
+            };
+        }
+        toBlob(cb: any) { cb(new Blob()); }
+    };
+}
 
 if (typeof globalThis.ImageData === 'undefined') {
     (globalThis as any).ImageData = class {
@@ -75,6 +101,9 @@ import sppdHandler from './sppd.ts';
 describe('Conversion Handlers Yielding', () => {
     beforeEach(() => {
         vi.useFakeTimers({ toFake: ['setTimeout'] });
+        if (typeof window !== 'undefined' && typeof window.HTMLMediaElement !== 'undefined') {
+            vi.spyOn(window.HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('probably');
+        }
     });
 
     afterEach(() => {

@@ -111,24 +111,22 @@ describe("E2E Conversion Flow", () => {
 
     it("hamburger menu is visible when opened on mobile viewport", async () => {
         await page.setViewport({ width: 375, height: 667 });
-        await page.goto(url);
+        await page.goto(url, { waitUntil: "domcontentloaded" });
         await page.waitForSelector("#hamburger-btn", { visible: true });
 
         await page.click("#hamburger-btn");
 
-        // Wait for the menu-open class to be applied and transition to complete
-        await page.waitForFunction(() => {
+        // Wait for the transition to complete and capture styles atomically to
+        // avoid a race between waitForFunction and a follow-up $eval call.
+        const handle = await page.waitForFunction(() => {
             const menu = document.querySelector("#top-controls-menu") as HTMLElement;
-            if (!menu) return false;
+            if (!menu) return null;
             const styles = window.getComputedStyle(menu);
-            return styles.opacity === "1" && styles.visibility === "visible";
+            if (styles.opacity !== "1" || styles.visibility !== "visible") return null;
+            return { opacity: styles.opacity, visibility: styles.visibility };
         }, { timeout: 5000 });
 
-        const menuStyles = await page.$eval("#top-controls-menu", el => {
-            const styles = window.getComputedStyle(el);
-            return { opacity: styles.opacity, visibility: styles.visibility };
-        });
-
+        const menuStyles = await handle.jsonValue() as { opacity: string, visibility: string };
         expect(menuStyles.opacity).toBe("1");
         expect(menuStyles.visibility).toBe("visible");
 

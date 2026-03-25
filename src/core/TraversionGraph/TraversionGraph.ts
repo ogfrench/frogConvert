@@ -152,6 +152,8 @@ export class TraversionGraph {
 
         console.debug("Initializing traversion graph...");
         const startTime = performance.now();
+        // Maps node index → first FileFormat that created that node (used for supportAnyInput edges)
+        const nodeFormats = new Map<number, FileFormat>();
         let handlerIndex = 0;
         supportedFormatCache.forEach((formats, handler) => {
             // Skip handlers that are in the cache but not registered in this graph instance.
@@ -170,6 +172,7 @@ export class TraversionGraph {
                         identifier: formatIdentifier,
                         edges: []
                     });
+                    nodeFormats.set(index, format);
                 }
                 if (format.from) fromIndices.push({ format, index });
                 if (format.to) toIndices.push({ format, index });
@@ -194,6 +197,43 @@ export class TraversionGraph {
             });
             handlerIndex++;
         });
+
+        // Handle supportAnyInput handlers: connect every known format node to their outputs
+        handlers.forEach((handler, idx) => {
+            if (!handler.supportAnyInput) return;
+            const formats = supportedFormatCache.get(handler.name);
+            if (!formats || !this.handlersByName.has(handler.name)) return;
+
+            const toIndices: Array<{ format: FileFormat, index: number }> = [];
+            formats.forEach(format => {
+                if (!format.to) return;
+                const identifier = format.mime + `(${format.format})`;
+                const index = this.nodes.findIndex(n => n.identifier === identifier);
+                if (index !== -1) toIndices.push({ format, index });
+            });
+
+            if (toIndices.length === 0) return;
+
+            nodeFormats.forEach((fromFormat, fromIndex) => {
+                toIndices.forEach(to => {
+                    if (fromIndex === to.index) return;
+                    this.edges.push({
+                        from: { format: fromFormat, index: fromIndex },
+                        to,
+                        handler: handler.name,
+                        cost: this.costFunction(
+                            { format: fromFormat, index: fromIndex },
+                            to,
+                            strictCategories,
+                            handler.name,
+                            idx
+                        )
+                    });
+                    this.nodes[fromIndex].edges.push(this.edges.length - 1);
+                });
+            });
+        });
+
         const endTime = performance.now();
         console.debug(`Traversion graph initialized in ${(endTime - startTime).toFixed(2)} ms with ${this.nodes.length} nodes and ${this.edges.length} edges.`);
 

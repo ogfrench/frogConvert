@@ -1,5 +1,6 @@
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import { parse } from "papaparse";
 class sqlite3Handler implements FormatHandler {
 
   public name: string = "sqlite3";
@@ -14,19 +15,10 @@ class sqlite3Handler implements FormatHandler {
         extension: "db",
         mime: "application/vnd.sqlite3",
         from: true,
-        to: false,
+        to: true,
         internal: "sqlite3",
-        category: "database"
-      },
-      {
-        name: "Magic: The Gathering Arena Database",
-        format: "mtga",
-        extension: "mtga",
-        mime: "application/vnd.sqlite3",
-        from: true,
-        to: false,
-        internal: "sqlite3",
-        category: "database"
+        category: "database",
+        lossless: false
       },
       {
         name: "iTunes Database",
@@ -36,10 +28,11 @@ class sqlite3Handler implements FormatHandler {
         from: true,
         to: false,
         internal: "sqlite3",
-        category: "database"
+        category: "database",
+        lossless: false
       },
       // Lossy because extracts only tables  
-      CommonFormats.CSV.builder("csv").allowTo()
+      CommonFormats.CSV.builder("csv").allowTo().allowFrom()
     ];
     this.ready = true;
   }
@@ -67,7 +60,7 @@ class sqlite3Handler implements FormatHandler {
     const { default: sqlite3InitModule } = await import("@sqlite.org/sqlite-wasm");
     const sqlite3 = await sqlite3InitModule();
 
-    if (inputFormat.internal == "sqlite3" && outputFormat.internal == "csv") {
+    if (inputFormat.internal === "sqlite3" && outputFormat.internal === "csv") {
       for (const file of inputFiles) {
         const p = sqlite3.wasm.allocFromTypedArray(file.bytes);
 
@@ -101,7 +94,7 @@ class sqlite3Handler implements FormatHandler {
 
             const encoder = new TextEncoder()
             outputFiles.push({
-              name: table,
+              name: `${table}.csv`,
               bytes: new Uint8Array(encoder.encode(csvStr))
             })
           }
@@ -110,12 +103,66 @@ class sqlite3Handler implements FormatHandler {
         }
       }
     }
+    if (inputFormat.internal === "csv" && outputFormat.internal === "sqlite3") {
+        const db = new sqlite3.oo1.DB();
+        if (!db.pointer) {
+            throw new Error("Database pointer is undefined")
+        }
+
+        
+        for (const file of inputFiles) {
+          const decoder = new TextDecoder('utf-8'); // decode as UTF-8
+          parse(decoder.decode(file.bytes), { 
+            header: false,
+            skipEmptyLines: true,
+            complete: function(result) {
+              const tableName = file.name.replace(".csv", "")
+              const header = result.data[0] as string[];
+              const firstRow = result.data[1] as string[];
+
+              const schema = inferSchema(header, firstRow);
+                        console.log(schema);
+              db.exec(`CREATE TABLE ${tableName} (${schema.map(v => v.join(" ")).join(", ")})`)
+
+              for (const row of result.data.slice(1) as string[][]) {
+                db.exec(`INSERT INTO ${tableName} (${header}) VALUES (${row.map((v, i) => formatValue(v, schema[i][1]))})`)
+              } 
+            }
+          });
+        }
+        let bfr = sqlite3.capi.sqlite3_js_db_export(db);
+        outputFiles.push({
+            name: "database.db",
+            bytes: bfr
+        });
+      }
+
 
 
 
     return outputFiles;
   }
-
 }
 
 export default sqlite3Handler;
+
+function formatValue(value: string, type: string) {
+    value = value.substring(1); // Strip of space from left
+    if (value == "") return "NULL";
+    if (type === "TEXT") return `'${value.replace(/'/g, "''")}'`;
+    return value;
+}
+function inferType(value: string): string {
+if (!isNaN(Number(value))) {
+  if (Number.isInteger(Number(value))) return "INTEGER"
+  return "REAL"
+}
+return "TEXT";
+}
+
+function inferSchema(header: string[], row: string[]): string[][] {
+  return header.map((h, i) => {
+    const type = inferType(row[i]);
+    return [h, type];
+  })
+}

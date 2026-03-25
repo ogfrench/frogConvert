@@ -22,6 +22,9 @@ const handlers: FormatHandler[] = [
     CommonFormats.WAV.supported("wav", true, true, true),
     CommonFormats.MP4.supported("mp4", true, true, true)
   ], false),
+  new MockedHandler("archiver", [
+    CommonFormats.ZIP.supported("zip", false, true, true),
+  ], true),
 ]
 
 let supportedFormatCache = new Map<string, FileFormat[]>();
@@ -320,4 +323,22 @@ test('should handle circular conversions without entering an infinite loop\n', a
   for await (const path of paths)
     extractedPaths.push(path);
   expect(extractedPaths.length).toBeGreaterThanOrEqual(0);
+});
+
+test('should find path from image to archive via anyinput\n', async () => {
+  const graph = new TraversionGraph();
+  graph.init(supportedFormatCache, handlers);
+
+  const paths = graph.searchPath(
+    new ConvertPathNode(handlers.find(h => h.name === "canvasToBlob")!, CommonFormats.PNG.supported("png", true, true, true)),
+    new ConvertPathNode(handlers.find(h => h.name === "archiver")!, CommonFormats.ZIP.supported("zip", false, true, true)),
+    true
+  );
+  let extractedPaths = [];
+  for await (const path of paths)
+    extractedPaths.push(path);
+  expect(extractedPaths.length).toBeGreaterThan(0);
+  expect(extractedPaths[0][0].format.format).toBe("png");
+  expect(extractedPaths[0][extractedPaths[0].length - 1].format.format).toBe("zip");
+  expect(extractedPaths[0][extractedPaths[0].length - 1].handler.name).toBe("archiver");
 });
