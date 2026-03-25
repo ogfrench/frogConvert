@@ -1,4 +1,5 @@
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
 
 class alsHandler implements FormatHandler {
 
@@ -12,17 +13,11 @@ class alsHandler implements FormatHandler {
       mime: "application/gzip",
       from: true,
       to: false,
-      internal: "als"
+      internal: "als",
+      category: "data",
+      lossless: true
     },
-    {
-      name: "XML Document",
-      format: "xml",
-      extension: "xml",
-      mime: "application/xml",
-      from: false,
-      to: true,
-      internal: "xml"
-    }
+    CommonFormats.XML.builder("xml").allowTo(),
   ];
 
   public ready: boolean = false;

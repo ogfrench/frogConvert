@@ -809,7 +809,8 @@ class vtfHandler implements FormatHandler {
       from: true,
       to: false,
       internal: "vtf",
-      category: "image"
+      category: "image",
+      lossless: false
     },
     CommonFormats.PNG.supported("png", false, true, true),
     CommonFormats.JPEG.supported("jpeg", false, true),
@@ -849,7 +850,7 @@ class vtfHandler implements FormatHandler {
           blob.arrayBuffer().then(buf => resolve(new Uint8Array(buf)));
         }, outputFormat.mime);
       });
-      const name = inputFile.name.split(".")[0] + "." + outputFormat.extension;
+      const name = inputFile.name.split(".").slice(0, -1).join(".") + "." + outputFormat.extension;
       outputFiles.push({ bytes, name });
     }
     return outputFiles;

@@ -23,7 +23,8 @@ class envelopeHandler implements FormatHandler {
       from: true,
       to: false,
       internal: "odt",
-      category: "document"
+      category: "document",
+      lossless: false
     },
     {
       name: "OpenDocument Presentation",
@@ -33,7 +34,8 @@ class envelopeHandler implements FormatHandler {
       from: true,
       to: false,
       internal: "odp",
-      category: "presentation"
+      category: "presentation",
+      lossless: false
     },
     {
       name: "OpenDocument Spreadsheet",
@@ -43,7 +45,8 @@ class envelopeHandler implements FormatHandler {
       from: true,
       to: false,
       internal: "ods",
-      category: "spreadsheet"
+      category: "spreadsheet",
+      lossless: false
     },
     // Technically not "lossless", but it's about as close as we'll ever get
     CommonFormats.HTML.supported("html", false, true, true)
@@ -83,7 +86,7 @@ class envelopeHandler implements FormatHandler {
         ${await parser(inputFile.bytes)}
       </div>`;
       const bytes = encoder.encode(html);
-      const baseName = inputFile.name.split(".")[0];
+      const baseName = inputFile.name.split(".").slice(0, -1).join(".");
       const name = baseName + "." + outputFormat.extension;
       outputFiles.push({ bytes, name });
     }

@@ -33,6 +33,7 @@ class flptojsonHandler implements FormatHandler {
       to: false,
       internal: "flp",
       category: "audio",
+      lossless: false,
     },
     // Unsure about this, it might be lossless
     CommonFormats.JSON.supported("json", false, true)
@@ -107,7 +108,7 @@ class flptojsonHandler implements FormatHandler {
         const encoder = new TextEncoder();
         const outputBytes = encoder.encode(jsonString);
 
-        const baseName = inputFile.name.split(".")[0];
+        const baseName = inputFile.name.split(".").slice(0, -1).join(".");
         const newName = `${baseName}.json`;
 
         outputFiles.push({

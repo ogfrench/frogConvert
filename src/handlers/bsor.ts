@@ -13,7 +13,9 @@ class bsorHandler implements FormatHandler {
       mime: "application/x-bsor",
       from: true,
       to: false,
-      internal: "bsor"
+      internal: "bsor",
+      category: "data",
+      lossless: false
     },
     CommonFormats.PNG.supported("png", false, true),
     CommonFormats.JPEG.supported("jpeg", false, true),
@@ -35,9 +37,9 @@ class bsorHandler implements FormatHandler {
     let frameIndex = 0;
     return (await Promise.all(inputFiles.map(async(file) => {
       const replay = new Replay(file.bytes);
-      if(outputFormat.internal == "json") {
+      if(outputFormat.internal === "json") {
         return [{
-          name: file.name.split(".")[0] + ".json",
+          name: file.name.split(".").slice(0, -1).join(".") + ".json",
           bytes: new TextEncoder().encode(JSON.stringify(replay))
         }];
       }

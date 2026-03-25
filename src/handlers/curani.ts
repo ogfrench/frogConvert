@@ -3,6 +3,10 @@
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 
+function read_lendian(x : number, y: number): number {
+    return x + (y * 16 * 16);
+}
+
 class curaniHandler implements FormatHandler {
 
     public name: string = "curani";
@@ -67,7 +71,7 @@ class curaniHandler implements FormatHandler {
 
                     // Finds where the first ICO header is
                     while (true) {
-                        if (new_file_bytes[i] == 0x69 && new_file_bytes[i+1] == 0x63 && new_file_bytes[i+2] == 0x6F && new_file_bytes[i+3] == 0x6E && new_file_bytes[i+4] == 0xBE) {
+                        if (new_file_bytes[i] === 0x69 && new_file_bytes[i+1] === 0x63 && new_file_bytes[i+2] === 0x6F && new_file_bytes[i+3] === 0x6E && new_file_bytes[i+4] === 0xBE) {
                             header_hook = i;
                             break;
                         }
@@ -88,7 +92,7 @@ class curaniHandler implements FormatHandler {
                     i = header_hook+1;
 
                     while (true) {
-                        if (new_file_bytes[i] == 0x69 && new_file_bytes[i+1] == 0x63 && new_file_bytes[i+2] == 0x6F && new_file_bytes[i+3] == 0x6E && new_file_bytes[i+4] == 0xBE) {
+                        if (new_file_bytes[i] === 0x69 && new_file_bytes[i+1] === 0x63 && new_file_bytes[i+2] === 0x6F && new_file_bytes[i+3] === 0x6E && new_file_bytes[i+4] === 0xBE) {
                             header_hook_2 = i;
                             ico_distance = header_hook_2 - header_hook - ico_start_offset;
                             break;
@@ -102,7 +106,7 @@ class curaniHandler implements FormatHandler {
                     }
 
                     // The code could not find another header. Simply read until the end of the file.
-                    if (ico_distance == 0x00) {
+                    if (ico_distance === 0x00) {
                         new_file_bytes = new_file_bytes.subarray(ico_start,-1);
                     }
                     // The code could find another header, use the distance.
@@ -142,10 +146,10 @@ class curaniHandler implements FormatHandler {
 
                     // Editing fields of all ICONDIRECTORYs
                     while (counter < images_present) {
-                        // color planes
+                        // horizontal coordinate of hotspot becomes color planes field
                         new_file_bytes[10+(counter*16)] = 1;
                         new_file_bytes[11+(counter*16)] = 0;
-                        // bits per pixel
+                        // vertical coordinate of hotspot becomes bits per pixel field
                         new_file_bytes[12+(counter*16)] = 0;
                         new_file_bytes[13+(counter*16)] = 0;
                         counter += 1;
@@ -164,15 +168,15 @@ class curaniHandler implements FormatHandler {
                     // 1 for ICO, 2 for CUR
                     new_file_bytes[2] = 2;
 
-                    const images_present = new_file_bytes[4];
+                    const images_present = read_lendian(new_file_bytes[4],new_file_bytes[5]);
                     let counter = 0;
 
                     // Editing fields of all ICONDIRECTORYs
                     while (counter < images_present) {
-                        // color planes
+                        // color planes field becomes horizontal coordinate of hotspot
                         new_file_bytes[10+(counter*16)] = 0;
                         new_file_bytes[11+(counter*16)] = 0;
-                        // bits per pixel
+                        // bits per pixel field becomes vertical coordinate of hotspot
                         new_file_bytes[12+(counter*16)] = 0;
                         new_file_bytes[13+(counter*16)] = 0;
                         counter += 1;

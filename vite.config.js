@@ -78,6 +78,10 @@ export default defineConfig({
       return JSON.stringify(uniqueDocs);
     })(),
   },
+  resolve: {
+    // Force top-level copies; d3-sankey nests d3-array which nests internmap without exports field
+    dedupe: ['internmap'],
+  },
   build: {
     sourcemap: true,
     target: "esnext",
@@ -95,6 +99,13 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      // Submodule tests — run by the submodule's own test suite, not ours
+      'src/handlers/terraria-wld-parser/**',
+      'src/handlers/gimper/**',
+    ],
     setupFiles: ['./test/setup.ts'],
     testTimeout: 20000,
   },
@@ -102,6 +113,11 @@ export default defineConfig({
     exclude: [
       "@ffmpeg/ffmpeg",
       "@sqlite.org/sqlite-wasm",
+      "@bokuweb/zstd-wasm",
+      "d3-sankey"
+    ],
+    include: [
+      "internmap"
     ]
   },
   base: "/",
@@ -213,6 +229,22 @@ export default defineConfig({
         // Auto-sync all documentation files
         { src: "*.md", dest: "docs" },
         { src: "docs/*.md", dest: "docs" },
+        {
+          src: "node_modules/pdf-parse/dist/pdf-parse/web/pdf.worker.mjs",
+          dest: "js"
+        },
+        {
+          src: "src/handlers/tarCompressed/liblzma.wasm",
+          dest: "wasm"
+        },
+        {
+          src: "node_modules/turbowarp-packager-browser/dist/scaffolding/*",
+          dest: "js/turbowarp-scaffolding"
+        },
+        {
+          src: "node_modules/7z-wasm/7zz.wasm",
+          dest: "wasm"
+        }
       ]
     }),
     tsconfigPaths()

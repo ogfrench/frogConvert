@@ -35,7 +35,7 @@ class svgTraceHandler implements FormatHandler {
       const url = URL.createObjectURL(blob);
       const traced = await imageTracer.imageToSVG(url); // return the full svg string
       URL.revokeObjectURL(url);
-      const name = inputFile.name.split(".")[0] + ".svg";
+      const name = inputFile.name.split(".").slice(0, -1).join(".") + ".svg";
       const bytes = encoder.encode(traced);
 
 
