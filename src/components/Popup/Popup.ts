@@ -6,6 +6,11 @@ import { ModalManager } from "../utils/ModalManager.ts";
 
 // --- Popup ---
 
+/**
+ * SECURITY: When content is a string it is injected via innerHTML.
+ * Only pass hardcoded HTML strings — never pass user-supplied content.
+ * Prefer the Node | Node[] overload to avoid innerHTML entirely.
+ */
 export function showPopup(content: string | Node | Node[], persistent = false, onEscape?: () => void) {
   if (typeof content === "string") {
     ui.popupBox.innerHTML = content;
@@ -45,7 +50,11 @@ export function createPopupButton(
   return btn;
 }
 
-/** Show a simple alert popup with a title, message, and dismiss button */
+/**
+ * Show a simple alert popup with a title, message, and dismiss button.
+ * SECURITY: messageHTML is injected via innerHTML. Any user-supplied content
+ * must be escaped with escapeHTML() before being passed as messageHTML.
+ */
 export function showAlertPopup(
   title: string,
   messageHTML: string,
@@ -149,7 +158,13 @@ export function showUnsupportedFilePopup(files: File[]) {
     p.innerHTML = `These formats aren't supported yet.<br><br>Stay tuned, they might be on the way!`;
   } else {
     const ext = files[0].name.split(".").pop()?.toUpperCase() || "this";
-    p.innerHTML = `<b>.${ext}</b> isn't supported yet.<br><br>Stay tuned, this format might be on the way!`;
+    const bold = document.createElement("b");
+    bold.textContent = `.${ext}`;
+    p.appendChild(bold);
+    p.appendChild(document.createTextNode(" isn't supported yet."));
+    p.appendChild(document.createElement("br"));
+    p.appendChild(document.createElement("br"));
+    p.appendChild(document.createTextNode("Stay tuned, this format might be on the way!"));
   }
 
   const actions = document.createElement("div");

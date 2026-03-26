@@ -1,4 +1,4 @@
-import { resolve } from "path";
+import { resolve, relative } from "path";
 import fs from "fs";
 import { defineConfig } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
@@ -150,21 +150,24 @@ export default defineConfig({
             // If it's in /docs/, check if it's there or at project root
             let filePath;
             if (urlPath.startsWith('docs/')) {
-              const filename = urlPath.replace('docs/', '');
+              const filename = urlPath.slice('docs/'.length);
               const rootPath = resolve(__dirname, filename);
               const docsPath = resolve(__dirname, 'docs', filename);
 
               // Prioritize file at root (README.md, etc) if it exists, otherwise check docs/
               filePath = fs.existsSync(rootPath) ? rootPath : docsPath;
 
-              // Path traversal protection: ensure the resolved file is within the project root
-              if (!filePath.startsWith(__dirname)) {
+              // Path traversal protection: ensure the resolved file is within the project root.
+              // Uses relative() rather than startsWith() to handle case-insensitive filesystems (Windows).
+              const rel = relative(__dirname, filePath);
+              if (rel.startsWith('..')) {
                 next();
                 return;
               }
             } else {
               filePath = resolve(__dirname, urlPath);
-              if (!filePath.startsWith(__dirname)) {
+              const rel = relative(__dirname, filePath);
+              if (rel.startsWith('..')) {
                 next();
                 return;
               }

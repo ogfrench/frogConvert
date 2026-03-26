@@ -47,6 +47,9 @@ export const getIsConverting = () => isConverting;
 
 let _convertingTitle = "Converting...";
 
+// Tracks the last runtime error from a handler (distinct from "no path exists")
+let _lastConversionError: string | null = null;
+
 /** Called once after a conversion completes, then cleared. Used to defer work that is unsafe to run mid-conversion. */
 let onConversionEnd: (() => void) | null = null;
 export function setOnConversionEnd(fn: (() => void) | null) {
@@ -270,6 +273,7 @@ async function findConversionPath(
 async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], batchMsg?: string) {
     const pathString = path.map(c => c.format.format).join(" \u2192 ");
 
+    _lastConversionError = null;
     ensureCancelButton();
 
     // Show status + path immediately - path is already validated by findConversionPath
@@ -319,6 +323,7 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
             if (isCancelled) return null;
             console.error(handler.name, `${path[i].format.format} \u2192 ${path[i + 1].format.format}`, e);
 
+            _lastConversionError = String(e);
             const deadEndPath = path.slice(0, i + 2);
             window.traversionGraph.addDeadEndPath(deadEndPath);
 
@@ -334,6 +339,42 @@ function showConversionNotFoundPopup(fromFormat: string, toFormat: string) {
     showAlertPopup(
         "You found a missing feature 🔎",
         `<b>${fromFormat}</b> to <b>${toFormat}</b> isn't available right now, but more formats are on the way!`,
+    );
+}
+
+/** Starts a slow-conversion notice after 10s, alternating with path info every 10s. Returns a cleanup fn. */
+function startSlowConversionTimer(batchMsg: string, pathStr: string): () => void {
+    let showingSlowNotice = false;
+    let alternateTimer: ReturnType<typeof setInterval> | null = null;
+    const slowTimer = setTimeout(() => {
+        if (isCancelled) return;
+        showingSlowNotice = true;
+        showConversionInProgress(
+            `${batchMsg}<br><span class="muted-text">Large file — this may take a while...</span>`,
+            _convertingTitle,
+        );
+        alternateTimer = setInterval(() => {
+            if (isCancelled) { clearInterval(alternateTimer!); return; }
+            showingSlowNotice = !showingSlowNotice;
+            showConversionInProgress(
+                showingSlowNotice
+                    ? `${batchMsg}<br><span class="muted-text">Large file — this may take a while...</span>`
+                    : `${batchMsg}<br><span class="muted-text">${pathStr}</span>`,
+                _convertingTitle,
+            );
+        }, 10000);
+    }, 10000);
+    return () => {
+        clearTimeout(slowTimer);
+        if (alternateTimer) clearInterval(alternateTimer);
+    };
+}
+
+function showConversionFailedPopup(fromFormat: string, toFormat: string, error: string) {
+    const detail = error.length > 0 ? `<span class="muted-text error-detail">${escapeHTML(error.slice(0, 300))}</span>` : "";
+    showAlertPopup(
+        "Conversion failed",
+        `Something went wrong converting <b>${fromFormat}</b> to <b>${toFormat}</b>. The file may be corrupted, password-protected, or too complex for the converter.${detail}`,
     );
 }
 
@@ -450,10 +491,17 @@ export function initConvertButton() {
                 const fileNum = i + 1 + (fileCount - inputFileData.length);
                 const batchMsg = `Converting file ${fileNum} of ${fileCount}...`;
 
+                // After 10s, alternate between path info and a "taking a while" notice every 10s
+                const pathStr = conversionPath.map(c => c.format.format).join(" → ");
+                const stopSlowTimer = startSlowConversionTimer(batchMsg, pathStr);
+
                 let result = await attemptConvertPath([inputFileData[i]], conversionPath, batchMsg);
+
+                stopSlowTimer();
 
                 if (!result) {
                     if (isCancelled) break;
+                    const failedError = _lastConversionError;
                     removeCancelButton(); // Restore "no cancel during warm-up" invariant before retry search
                     // Path failed (dead end) - find the next best path and retry once.
                     // Preserve dead ends so the same broken path isn't rediscovered.
@@ -461,18 +509,33 @@ export function initConvertButton() {
                     if (!conversionPath) {
                         if (isCancelled) break;
                         removeCancelButton();
-                        showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
+                        if (failedError !== null) {
+                            showConversionFailedPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase(), failedError);
+                        } else {
+                            showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
+                        }
                         return;
                     }
                     if (isSafariBrowser && pathUsesPdfHandler(conversionPath)) {
                         showSafariPdfPopup();
                         return;
                     }
+                    const retryPathStr = conversionPath.map(c => c.format.format).join(" → ");
+                    const stopRetrySlowTimer = startSlowConversionTimer(batchMsg, retryPathStr);
+
                     result = await attemptConvertPath([inputFileData[i]], conversionPath, batchMsg);
+
+                    stopRetrySlowTimer();
+
                     if (!result) {
                         if (isCancelled) break;
                         removeCancelButton();
-                        showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
+                        const retryError = _lastConversionError ?? failedError;
+                        if (retryError !== null) {
+                            showConversionFailedPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase(), retryError);
+                        } else {
+                            showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
+                        }
                         return;
                     }
                 }

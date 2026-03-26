@@ -55,3 +55,10 @@
   display: block;
   margin-top: var(--space-1);
 }
+
+.error-detail {
+  font-size: var(--text-sm);
+  display: block;
+  margin-top: var(--space-2);
+  word-break: break-word;
+}

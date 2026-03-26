@@ -4,7 +4,7 @@ import {
   DEFAULT_UPLOAD_LABEL,
   onFilesChanged, onClearFiles, sortFilesByName, bindDragAndDropVisuals
 } from "../store/store.ts";
-import { showPopup, hidePopup, showSizeWarningPopup, showFileTypeMismatchPopup } from "../Popup/Popup.ts";
+import { showPopup, hidePopup, createPopupButton, showSizeWarningPopup, showFileTypeMismatchPopup } from "../Popup/Popup.ts";
 import { shortenFileName } from "../utils.ts";
 import { openFilesModal } from "../FilesModal/FilesModal.ts";
 
@@ -63,13 +63,14 @@ export function initUploadZone(
 
     // File count hard cap
     if (files.length > MAX_FILES) {
-      showPopup(
-        `<h2>Too many files</h2>` +
-        `<p>You selected ${files.length} files, but the limit is ${MAX_FILES}. Please select fewer files.</p>` +
-        `<div class="popup-actions">` +
-        `<button class="popup-primary" onclick="window.hidePopup()">OK</button>` +
-        `</div>`,
-      );
+      const h2 = document.createElement("h2");
+      h2.textContent = "Too many files";
+      const p = document.createElement("p");
+      p.textContent = `You selected ${files.length} files, but the limit is ${MAX_FILES}. Please select fewer files.`;
+      const actions = document.createElement("div");
+      actions.className = "popup-actions";
+      actions.appendChild(createPopupButton("OK", "popup-primary", () => hidePopup()));
+      showPopup([h2, p, actions]);
       return;
     }
 
