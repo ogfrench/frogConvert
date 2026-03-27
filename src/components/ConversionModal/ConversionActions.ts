@@ -358,7 +358,7 @@ function startSlowConversionTimer(batchMsg: string, pathStr: string): () => void
             showingSlowNotice = !showingSlowNotice;
             showConversionInProgress(
                 showingSlowNotice
-                    ? `${batchMsg}<br><span class="muted-text">Large file — this may take a while...</span>`
+                    ? `${batchMsg}<br><span class="muted-text">Large file - this may take a while...</span>`
                     : `${batchMsg}<br><span class="muted-text">${pathStr}</span>`,
                 _convertingTitle,
             );

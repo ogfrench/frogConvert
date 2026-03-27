@@ -7,7 +7,7 @@ if (cmd === 'mcp') {
 } else if (cmd === 'api') {
     await import('../src/api/index.ts');
 } else {
-    const usage = `frogConvert — universal file converter
+    const usage = `frogConvert - universal file converter
 
 Usage:
   bunx frogconvert mcp    Start the MCP server (stdio, for use with Claude / AI agents)
@@ -20,7 +20,7 @@ Examples:
   # REST API:
   # PORT=8080 bunx frogconvert api
 
-All file processing is local — no files are sent to any remote server.
+All file processing is local - no files are sent to any remote server.
 Requires Bun: https://bun.sh
 `;
     process.stderr.write(usage);
