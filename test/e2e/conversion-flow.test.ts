@@ -111,7 +111,9 @@ describe("E2E Conversion Flow", () => {
 
     it("hamburger menu is visible when opened on mobile viewport", async () => {
         await page.setViewport({ width: 375, height: 667 });
-        await page.goto(url, { waitUntil: "domcontentloaded" });
+        // Use networkidle0 to wait for Vite dependency re-optimization to finish
+        // before interacting — otherwise a mid-test page reload loses the click state.
+        await page.goto(url, { waitUntil: "networkidle0", timeout: 30000 });
         await page.waitForSelector("#hamburger-btn", { visible: true });
 
         await page.click("#hamburger-btn");
