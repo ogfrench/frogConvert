@@ -5,6 +5,21 @@ import { createServer, ViteDevServer } from "vite";
 import path from "path";
 import fs from "fs";
 
+/** Navigate with a single retry to handle transient ERR_ABORTED from Vite dep re-optimization. */
+async function safeGoto(page: Page, url: string, options?: Parameters<Page["goto"]>[1]) {
+    try {
+        await page.goto(url, options);
+    } catch (err: any) {
+        if (err.message?.includes("ERR_ABORTED")) {
+            // Vite likely triggered a page reload — wait briefly and retry once
+            await new Promise(r => setTimeout(r, 1000));
+            await page.goto(url, options);
+        } else {
+            throw err;
+        }
+    }
+}
+
 describe("E2E Conversion Flow", () => {
     let server: ViteDevServer;
     let browser: Browser;
@@ -21,8 +36,8 @@ describe("E2E Conversion Flow", () => {
             }
         });
         await server.listen();
-        const port = server.config.server.port;
-        url = `http://localhost:${port}/`;
+        // resolvedUrls gives the actual listening address (port: 0 picks a random port)
+        url = server.resolvedUrls?.local?.[0] ?? `http://localhost:${server.config.server.port}/`;
 
         try {
             browser = await puppeteer.launch({
@@ -46,14 +61,14 @@ describe("E2E Conversion Flow", () => {
     });
 
     it("loads the page and has the correct title", async () => {
-        await page.goto(url);
+        await safeGoto(page, url);
         await page.waitForSelector("#upload-zone", { timeout: 10000 });
         const title = await page.title();
         expect(title).toContain("frogConvert");
     }, 20000);
 
     it("has a file input available in the upload zone", async () => {
-        await page.goto(url);
+        await safeGoto(page, url);
         await page.waitForSelector("#upload-zone");
 
         const fileUploadTrigger = await page.$("#file-input");
@@ -61,7 +76,7 @@ describe("E2E Conversion Flow", () => {
     });
 
     it("can upload a mock file, run conversion off main thread, and update UI", async () => {
-        await page.goto(url);
+        await safeGoto(page, url);
         await page.waitForSelector("#file-input");
 
         const dummyPath = path.join(__dirname, "dummy.png");
@@ -126,7 +141,7 @@ describe("E2E Conversion Flow", () => {
         await page.setViewport({ width: 375, height: 667 });
         // Use networkidle0 to wait for Vite dependency re-optimization to finish
         // before interacting — otherwise a mid-test page reload loses the click state.
-        await page.goto(url, { waitUntil: "networkidle0", timeout: 30000 });
+        await safeGoto(page, url, { waitUntil: "networkidle0", timeout: 30000 });
         await page.waitForSelector("#hamburger-btn", { visible: true });
 
         await page.click("#hamburger-btn");
