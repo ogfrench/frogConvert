@@ -1,17 +1,12 @@
-name: Publish to GitHub Pages
+name: CI
 
 on:
   push:
     branches: ["master"]
   pull_request:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
 concurrency:
-  group: "pages"
+  group: "ci-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:
@@ -43,22 +38,3 @@ jobs:
 
       - name: Run tests
         run: bun run test
-
-      - name: Upload Pages artifact
-        if: github.event_name == 'push'
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
