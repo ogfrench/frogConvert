@@ -16,7 +16,7 @@
 
 import { createServer, type Server } from "http";
 import { stat, readFile, mkdir } from "fs/promises";
-import { join, extname } from "path";
+import { join, extname, relative as relPath, resolve as resolvePath } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -80,6 +80,8 @@ async function startStaticServer(): Promise<number> {
             (async () => {
                 let filePath: string | null = null;
                 for (const candidate of candidates) {
+                    // Prevent path traversal outside DIST_DIR
+                    if (relPath(DIST_DIR, resolvePath(candidate)).startsWith('..')) continue;
                     try {
                         const s = await stat(candidate);
                         if (s.isFile()) { filePath = candidate; break; }
@@ -207,6 +209,8 @@ async function ensureInitialized(): Promise<void> {
 
     // Cache the promise; on failure clean up all resources so the next caller
     // gets a completely fresh attempt rather than a half-initialised state.
+    // Safe from races: JS is single-threaded, so the cleanup below runs
+    // atomically (no await points) before any new ensureInitialized() call.
     initPromise = attempt.catch(err => {
         initPromise = null;
         browser?.close().catch(() => {});

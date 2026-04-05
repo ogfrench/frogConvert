@@ -18,7 +18,7 @@ async function serializeResults(files: FileData[], outputFilePath?: string) {
         paths.push(outputFilePath);
 
         for (let i = 1; i < files.length; i++) {
-            const extra = join(outDir, files[i].name);
+            const extra = join(outDir, basename(files[i].name));
             await writeFile(extra, files[i].bytes);
             paths.push(extra);
         }

@@ -175,7 +175,7 @@ export function isCategoryVisible(category: string, mode: FormatMode): boolean {
 
 export const CORE_FORMATS = new Set([
   // Image
-  "png", "jpeg", "gif",
+  "png", "jpeg", "gif", "webp", "svg",
   // Audio
   "mp3", "wav", "flac",
   // Video
@@ -190,7 +190,7 @@ export const PLUS_FORMATS = new Set([
   ...CORE_FORMATS,
   "lzh", "tar", "gz",
   // Image
-  "webp", "svg", "ico",
+  "ico",
   // Audio
   "ogg", "aac",
   // Video

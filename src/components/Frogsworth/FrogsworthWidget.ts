@@ -642,6 +642,9 @@ class FrogsworthWidget {
   private getContext: () => Context;
   private _mq: MediaQueryList | null = null;
   private _mqListener: ((e: MediaQueryListEvent) => void) | null = null;
+  private _onDragEnter: (e: DragEvent) => void;
+  private _onDragLeave: (e: DragEvent) => void;
+  private _onDrop: () => void;
 
   constructor(getContext: () => Context) {
     this.getContext = getContext;
@@ -664,19 +667,22 @@ class FrogsworthWidget {
         this.onClick();
       }
     });
-    window.addEventListener("dragenter", (e) => {
+    this._onDragEnter = (e) => {
       if (!(e.dataTransfer?.types ?? []).includes("Files")) return;
       if (++this.dragCount === 1 && !this.busy) { this.dragging = true; this.setState("hungry"); }
-    });
-    window.addEventListener("dragleave", (e) => {
+    };
+    this._onDragLeave = (e) => {
       if (!(e.dataTransfer?.types ?? []).includes("Files")) return;
       this.dragCount = Math.max(0, this.dragCount - 1);
       if (this.dragCount === 0 && !this.busy) { this.dragging = false; this.setState("idle"); }
-    });
-    window.addEventListener("drop", () => {
+    };
+    this._onDrop = () => {
       this.dragCount = 0;
       if (!this.busy) { this.dragging = false; this.setState("idle"); }
-    });
+    };
+    window.addEventListener("dragenter", this._onDragEnter);
+    window.addEventListener("dragleave", this._onDragLeave);
+    window.addEventListener("drop", this._onDrop);
     this.scheduleIdle();
     const slot = document.getElementById("frogsworth-slot");
     this._mq = window.matchMedia("(max-width: 1000px), (max-height: 350px)");
@@ -748,6 +754,10 @@ class FrogsworthWidget {
       this._mq.removeEventListener("change", this._mqListener);
     }
     if (this.idleTimer) clearTimeout(this.idleTimer);
+    if (this.dismissTimer) clearTimeout(this.dismissTimer);
+    window.removeEventListener("dragenter", this._onDragEnter);
+    window.removeEventListener("dragleave", this._onDragLeave);
+    window.removeEventListener("drop", this._onDrop);
     this.el.remove();
   }
 

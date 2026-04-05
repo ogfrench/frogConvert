@@ -87,7 +87,7 @@ class xcursorHandler implements FormatHandler {
 
         const pixels = new Uint8ClampedArray(inputFile.bytes.slice(offset + 36, offset + 36 + width * height * 4));
 
-        this.#ctx.clearRect(0, 0, this.#canvas.width, this.#canvas.width);
+        this.#ctx.clearRect(0, 0, this.#canvas.width, this.#canvas.height);
         this.#canvas.width = width;
         this.#canvas.height = height;
 

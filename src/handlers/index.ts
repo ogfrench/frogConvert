@@ -9,13 +9,13 @@ import { fromJsonHandler, toJsonHandler } from "./json.ts";
 import textEncodingHandler from "./textEncoding.ts";
 
 const handlers: FormatHandler[] = [];
-try { handlers.push(new svgTraceHandler()) } catch (_) { };
-try { handlers.push(new canvasToBlobHandler()) } catch (_) { };
-try { handlers.push(new envelopeHandler()) } catch (_) { };
-try { handlers.push(new jszipHandler()) } catch (_) { };
-try { handlers.push(new fromJsonHandler()) } catch (_) { };
-try { handlers.push(new toJsonHandler()) } catch (_) { };
-try { handlers.push(new textEncodingHandler()) } catch (_) { };
+try { handlers.push(new svgTraceHandler()) } catch (e) { console.warn('[handlers] Failed to load svgTrace:', e); }
+try { handlers.push(new canvasToBlobHandler()) } catch (e) { console.warn('[handlers] Failed to load canvasToBlob:', e); }
+try { handlers.push(new envelopeHandler()) } catch (e) { console.warn('[handlers] Failed to load envelope:', e); }
+try { handlers.push(new jszipHandler()) } catch (e) { console.warn('[handlers] Failed to load jszip:', e); }
+try { handlers.push(new fromJsonHandler()) } catch (e) { console.warn('[handlers] Failed to load fromJson:', e); }
+try { handlers.push(new toJsonHandler()) } catch (e) { console.warn('[handlers] Failed to load toJson:', e); }
+try { handlers.push(new textEncodingHandler()) } catch (e) { console.warn('[handlers] Failed to load textEncoding:', e); }
 
 /** Dynamically load all non-core handlers. Appends to the handlers array. */
 export async function loadBackgroundHandlers() {
@@ -90,7 +90,9 @@ export async function loadBackgroundHandlers() {
     async () => { const m = await import("./tmx.ts"); handlers.push(new m.default()); },
   ];
 
-  await Promise.all(loaders.map(loader => loader().catch(() => {})));
+  await Promise.all(loaders.map(loader => loader().catch(e => {
+    console.warn('[handlers] Failed to load handler:', e);
+  })));
 }
 
 export default handlers;

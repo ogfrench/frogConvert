@@ -64,13 +64,15 @@ class rgbaHandler implements FormatHandler {
                 if (outputFormat.internal === "rgba") {
                     // Some code copied from mcmap.ts
                     const blob = new Blob([file.bytes as BlobPart], { type: inputFormat.mime });
+                    const url = URL.createObjectURL(blob);
 
                     const image = new Image();
                     await new Promise((resolve, reject) => {
                         image.addEventListener("load", resolve);
                         image.addEventListener("error", reject);
-                        image.src = URL.createObjectURL(blob);
+                        image.src = url;
                     });
+                    URL.revokeObjectURL(url);
 
                     this.#canvas.width = image.width;
                     this.#canvas.height = image.height;

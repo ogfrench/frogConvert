@@ -196,12 +196,14 @@ class n64romHandler implements FormatHandler {
     if (!this.#canvas || !this.#ctx) throw "Handler not initialized.";
 
     const blob = new Blob([bytes as BlobPart], { type: "image/png" });
+    const url = URL.createObjectURL(blob);
     const image = new Image();
     await new Promise((resolve, reject) => {
       image.addEventListener("load", resolve);
       image.addEventListener("error", reject);
-      image.src = URL.createObjectURL(blob);
+      image.src = url;
     });
+    URL.revokeObjectURL(url);
 
     this.#canvas.width = image.naturalWidth;
     this.#canvas.height = image.naturalHeight;

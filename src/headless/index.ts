@@ -21,6 +21,8 @@ import handlers, { loadBackgroundHandlers } from "../handlers/index.ts";
 let graph: TraversionGraph | null = null;
 let supportedFormatCache: Map<string, FileFormat[]> | null = null;
 
+const HEADLESS_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes, matching browserBridge's EVALUATE_TIMEOUT_MS
+
 // Module-level map so the same handler is never inited twice across calls
 const handlerInitPromises = new Map<FormatHandler, Promise<void>>();
 
@@ -48,9 +50,10 @@ async function init() {
         console.log("frogConvert headless ready");
     } catch (e) {
         console.error("frogConvert headless init failed:", e);
+        (window as any).__headlessInitError = String(e);
     } finally {
         // Always signal readiness so the bridge doesn't hang on init failure.
-        // If graph is null, subsequent conversion calls will throw a clear error.
+        // If graph is null, subsequent conversion calls will throw with the stored init error.
         (window as any).__headlessReady = true;
     }
 
@@ -121,7 +124,10 @@ async function ensureHandlerReady(handler: FormatHandler): Promise<void> {
     outputMime: string,
     outputExt: string
 ): Promise<Array<{ fileName: string; base64Bytes: string }>> => {
-    if (!graph) throw new Error("Headless not yet initialized");
+    if (!graph) {
+        const initErr = (window as any).__headlessInitError;
+        throw new Error(initErr ? `Headless initialization failed: ${initErr}` : "Headless not yet initialized");
+    }
 
     // Resolve formats from cache — handler.supportedFormats may be empty for
     // heavy handlers (FFmpeg, pandoc) until their init() has run.
@@ -151,22 +157,30 @@ async function ensureHandlerReady(handler: FormatHandler): Promise<void> {
 
     let currentFiles: FileData[] = [{ name: fileName, bytes }];
 
-    for (let i = 1; i < path.length; i++) {
-        const stepHandler = path[i].handler;
-        const prevFormat  = path[i - 1].format;
-        const nextFormat  = path[i].format;
+    const conversionPromise = (async () => {
+        for (let i = 1; i < path.length; i++) {
+            const stepHandler = path[i].handler;
+            const prevFormat  = path[i - 1].format;
+            const nextFormat  = path[i].format;
 
-        // Lazy init: only initialise the handler when we actually need it.
-        // Throws clearly if init fails rather than silently continuing.
-        await ensureHandlerReady(stepHandler);
+            // Lazy init: only initialise the handler when we actually need it.
+            // Throws clearly if init fails rather than silently continuing.
+            await ensureHandlerReady(stepHandler);
 
-        currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat);
-    }
+            currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat);
+        }
 
-    return currentFiles.map(f => ({
-        fileName:    f.name,
-        base64Bytes: uint8ToBase64(f.bytes),
-    }));
+        return currentFiles.map(f => ({
+            fileName:    f.name,
+            base64Bytes: uint8ToBase64(f.bytes),
+        }));
+    })();
+
+    const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Headless conversion timed out")), HEADLESS_TIMEOUT_MS)
+    );
+
+    return Promise.race([conversionPromise, timeoutPromise]);
 };
 
 (window as any).__frogConvertCanConvert = async (

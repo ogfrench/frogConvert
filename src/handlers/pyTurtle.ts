@@ -7,6 +7,18 @@ const MAX_POINTS_PER_PATH = 150;
 const MAX_TOTAL_POINTS = 20000;
 // note those are good for the browser,and python limits, not your editor/lsp. this might generate a 25,000 line python code :)
 
+/** Strip on* event handler attributes from all elements in an SVG/HTML string. */
+function sanitizeMarkup(markup: string): string {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(markup, "image/svg+xml");
+    for (const el of doc.querySelectorAll("*")) {
+        for (const attr of [...el.attributes]) {
+            if (attr.name.startsWith("on")) el.removeAttribute(attr.name);
+        }
+    }
+    return new XMLSerializer().serializeToString(doc.documentElement);
+}
+
 function createContainer(svg:string){
     // stolen from svg Foreign object convert. we need the browser to render the svg:
     const dummy = document.createElement("div");
@@ -21,7 +33,7 @@ function createContainer(svg:string){
     // Create a div within the shadow DOM to act as
     // a container for our HTML payload.
     const container = document.createElement("div");
-    container.innerHTML = svg;
+    container.innerHTML = sanitizeMarkup(svg);
     shadow.appendChild(container);
     return container
 }
@@ -55,7 +67,7 @@ class pyTurtleHandler implements FormatHandler {
     // Create a div within the shadow DOM to act as
     // a container for our HTML payload.
     const container = document.createElement("div");
-    container.innerHTML = svg;
+    container.innerHTML = sanitizeMarkup(svg);
     shadow.appendChild(container);
     return container
 }

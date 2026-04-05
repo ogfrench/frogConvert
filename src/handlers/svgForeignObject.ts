@@ -1,6 +1,18 @@
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
+/** Strip on* event handler attributes from all elements in an HTML string. */
+function sanitizeHTML(html: string): string {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    for (const el of doc.querySelectorAll("*")) {
+        for (const attr of [...el.attributes]) {
+            if (attr.name.startsWith("on")) el.removeAttribute(attr.name);
+        }
+    }
+    return doc.body.innerHTML;
+}
+
 class svgForeignObjectHandler implements FormatHandler {
 
   public name: string = "svgForeignObject";
@@ -37,7 +49,7 @@ class svgForeignObjectHandler implements FormatHandler {
     // Create a div within the shadow DOM to act as
     // a container for our HTML payload.
     const container = document.createElement("div");
-    container.innerHTML = html;
+    container.innerHTML = sanitizeHTML(html);
     shadow.appendChild(container);
 
     // Wait for all images to finish loading. This is required for layout

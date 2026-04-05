@@ -11,7 +11,7 @@ describe("store visibility logic", () => {
         format,
         name: "Mock",
         extension: format,
-        mime: mime || (format === "png" || format === "webp" || format === "tiff" ? `image/${format}` :
+        mime: mime || (format === "png" || format === "webp" || format === "tiff" || format === "svg" || format === "ico" ? `image/${format}` :
             format === "pdf" ? "application/pdf" :
                 format === "xml" ? "application/xml" :
                     "application/octet-stream"),
@@ -50,13 +50,15 @@ describe("store visibility logic", () => {
 
         it("only shows CORE_FORMATS in 'core' mode", () => {
             expect(isFormatVisible(mockFormat("png"), "core")).toBe(true);
-            expect(isFormatVisible(mockFormat("webp"), "core")).toBe(false);
+            expect(isFormatVisible(mockFormat("webp"), "core")).toBe(true);
+            expect(isFormatVisible(mockFormat("svg"), "core")).toBe(true);
+            expect(isFormatVisible(mockFormat("ico"), "core")).toBe(false);
             expect(isFormatVisible(mockFormat("pdf"), "core")).toBe(true);
         });
 
         it("shows PLUS_FORMATS in 'plus' mode", () => {
             expect(isFormatVisible(mockFormat("png"), "plus")).toBe(true);
-            expect(isFormatVisible(mockFormat("webp"), "plus")).toBe(true);
+            expect(isFormatVisible(mockFormat("ico"), "plus")).toBe(true);
             expect(isFormatVisible(mockFormat("tiff"), "plus")).toBe(false);
         });
 

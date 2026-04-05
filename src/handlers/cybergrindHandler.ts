@@ -50,13 +50,15 @@ class cybergrindHandler implements FormatHandler {
         for (const file of inputFiles) {
             // take img and load 
             const blob = new Blob([file.bytes as BlobPart], { type: inputFormat.mime });
+            const url = URL.createObjectURL(blob);
             const image = new Image();
             await new Promise((resolve, reject) => {
                 image.addEventListener("load", resolve);
                 image.addEventListener("error", reject);
-                image.src = URL.createObjectURL(blob);
+                image.src = url;
             });
-            
+            URL.revokeObjectURL(url);
+
             // make canvas with 16x16
             this.#canvas.width = 16;
             this.#canvas.height = 16;

@@ -100,13 +100,15 @@ class otaHandler implements FormatHandler {
                 
                 // Some code copied from mcmap.ts
                 const blob = new Blob([file.bytes as BlobPart], { type: inputFormat.mime });
+                const url = URL.createObjectURL(blob);
 
                 const image = new Image();
                 await new Promise((resolve, reject) => {
                     image.addEventListener("load", resolve);
                     image.addEventListener("error", reject);
-                    image.src = URL.createObjectURL(blob);
+                    image.src = url;
                 });
+                URL.revokeObjectURL(url);
 
                 if (image.naturalWidth > 255) {
                     this.#canvas.width = 255;

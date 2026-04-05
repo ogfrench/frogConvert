@@ -77,7 +77,7 @@ class meydaHandler implements FormatHandler {
     if (inputIsImage) {
       for (const inputFile of inputFiles) {
 
-        this.#ctx.clearRect(0, 0, this.#canvas.width, this.#canvas.width);
+        this.#ctx.clearRect(0, 0, this.#canvas.width, this.#canvas.height);
 
         const blob = new Blob([inputFile.bytes as BlobPart], { type: inputFormat.mime });
         const url = URL.createObjectURL(blob);
