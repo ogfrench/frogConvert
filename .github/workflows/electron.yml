@@ -18,10 +18,13 @@ jobs:
         include:
           - os: ubuntu-24.04
             platform: linux
+            dist_cmd: bun run desktop:dist:linux
           - os: windows-2025
             platform: win
+            dist_cmd: bun run desktop:dist:win
           - os: macos-15
             platform: mac
+            dist_cmd: bun run desktop:build && bun x electron-builder --mac zip --publish never
 
     steps:
       - name: Checkout
@@ -39,12 +42,7 @@ jobs:
         run: bun i --frozen-lockfile
 
       - name: Build Distribution for ${{ matrix.platform }}
-        run: |
-          if [ "${{ matrix.platform }}" = "mac" ]; then
-            bun run desktop:build && bun x electron-builder --mac zip --publish never
-          else
-            bun run desktop:dist:${{ matrix.platform }}
-          fi
+        run: ${{ matrix.dist_cmd }}
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v6
