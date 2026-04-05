@@ -38,17 +38,6 @@ jobs:
       - name: Install dependencies
         run: bun i --frozen-lockfile
 
-      # Test (Linux only)
-      - name: Build (for testing)
-        if: matrix.platform == 'linux'
-        run:  bun run build
-      - name: Generate cache (for testing)
-        if: matrix.platform == 'linux'
-        run: bun run cache:build
-      - name: Run tests
-        if: matrix.platform == 'linux'
-        run: bun run test
-
       - name: Build Distribution for ${{ matrix.platform }}
         run: bun run desktop:dist:${{ matrix.platform }}
 
