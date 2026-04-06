@@ -69,20 +69,20 @@ class dummyHandler implements FormatHandler {
 
   async init () {
     this.supportedFormats = [
-      // Example PNG format, with both input and output disabled
+      // Use a CommonFormats entry with the builder pattern:
       CommonFormats.PNG.builder("png")
         .markLossless()
-        .allowFrom(false)
-        .allowTo(false),
+        .allowFrom(true)
+        .allowTo(true),
 
-      // Alternatively, if you need a custom format, define it like so:
+      // Alternatively, if you need a custom format not in CommonFormats:
       {
         name: "CompuServe Graphics Interchange Format (GIF)",
         format: "gif",
         extension: "gif",
         mime: "image/gif",
-        from: false,
-        to: false,
+        from: true,
+        to: true,
         internal: "gif",
         category: ["image", "video"],
         lossless: false
@@ -113,6 +113,53 @@ export default dummyHandler;
 - **MIME Normalization**: Use `normalizeMimeType.ts` to ensure consistency.
 - **Main Thread**: If the handler uses DOM APIs (Canvas, AudioContext), set `requiresMainThread: true`.
 - **Initialization**: Keep `init()` lazy - do not load WASM blobs until it is called.
+
+### Builder API Reference
+
+The `FormatDefinition.builder(ref)` method returns a chainable builder for creating `FileFormat` objects. All methods return `this` for chaining:
+
+| Method | Description |
+|---|---|
+| `.allowFrom(value?)` | Enable/disable conversion **from** this format. Default: `true` when called without args. |
+| `.allowTo(value?)` | Enable/disable conversion **to** this format. Default: `true` when called without args. |
+| `.markLossless(value?)` | Mark the format as lossless in this handler's context. Default: `true` when called without args. |
+| `.named(name)` | Override the display name (long description shown to the user). |
+| `.withFormat(format)` | Override the short format identifier. |
+| `.withExt(ext)` | Override the file extension. |
+| `.withMime(mime)` | Override the MIME type. |
+| `.withCategory(category)` | Replace the format's category (string or string array). |
+| `.override(values)` | Bulk override any `IFormatDefinition` fields. |
+
+Example - reusing a CommonFormats entry but overriding the display name:
+```ts
+CommonFormats.PNG.builder("png-hd")
+  .named("PNG (High-Density)")
+  .allowFrom(true)
+  .allowTo(true)
+  .markLossless()
+```
+
+### Registering Your Handler
+
+After creating your handler file in `src/handlers/`, you need to register it in `src/handlers/index.ts`. There are two patterns:
+
+**Dynamic import (preferred for most handlers)** - the handler is loaded asynchronously after the page starts. This keeps the initial bundle small:
+```ts
+// In the loaders array inside loadBackgroundHandlers()
+async () => { const m = await import("./myHandler.ts"); handlers.push(new m.default()); },
+```
+
+**Static import (core handlers only)** - used for handlers that must be available immediately at startup (e.g., `canvasToBlob`, `jszip`). These are bundled into the main chunk:
+```ts
+import myHandler from "./myHandler.ts";
+// ...
+try { handlers.push(new myHandler()) } catch (e) { console.warn('[handlers] Failed to load myHandler:', e); }
+```
+
+Use dynamic import unless your handler is needed for the initial format graph or is a dependency of other core components. If your file exports multiple handler instances (like `midi.ts` or `rename.ts`), push them all in a single loader:
+```ts
+async () => { const m = await import("./midi.ts"); handlers.push(new m.midiCodecHandler(), new m.midiSynthHandler()); },
+```
 
 ### Adding Dependencies
 
@@ -162,14 +209,79 @@ Avoid `document.querySelector` inside components. Use the centralized `ui` objec
 
 ---
 
-## 5. Testing
+## 5. Format Mode System (Core / Plus / All)
 
-- **Unit Tests**: `bun run test` (Vitest + jsdom).
-- **E2E Tests**: `test/e2e/` (Puppeteer). Verifies that workers mount and the UI flows work correctly.
+The format picker exposes three visibility tiers that filter which output formats users see. This is configured in `src/components/store/store.ts`:
+
+- **Core** - common everyday formats only. Formats must appear in the `CORE_FORMATS` whitelist **and** their category must not be in `CORE_HIDDEN_CATEGORIES` (hidden: `data`, `font`, `code`, `other`).
+- **Plus** - adds data, font, and extra media formats. Uses the `PLUS_FORMATS` whitelist (superset of `CORE_FORMATS`) and `PLUS_HIDDEN_CATEGORIES` (hidden: `code`, `other`).
+- **All** - shows every registered format with no filtering.
+
+If your new handler's formats don't appear in Core or Plus mode, you need to add the format's `format` string (the short identifier, e.g. `"png"`, `"csv"`) to the relevant `Set` in `store.ts`. The user's selected mode is persisted in `localStorage`.
 
 ---
 
-## 6. Mandatory Agent Workflow & Rules
+## 6. Cache System
+
+frogConvert uses a pre-computed format cache (`public/cache.json`) to avoid calling every handler's `init()` at startup. Without it, the first page load is slow because each WASM handler must be loaded to discover its supported formats.
+
+### How it works
+1. **Build time**: `bun run cache:build` launches Puppeteer, loads the built site, waits for all handlers to initialize, then calls `window.printSupportedFormatCache()` to serialize the handler→formats mapping.
+2. **Runtime**: The app loads `cache.json` and builds the `TraversionGraph` immediately from cached format data, without calling `init()` on any handler.
+3. **On demand**: When a conversion is actually requested, only the handlers in the chosen path call `init()` (lazy initialization).
+
+### When to regenerate the cache
+- After adding, removing, or renaming a handler
+- After changing a handler's `supportedFormats`
+- After a production build: `bun run build && bun run cache:build`
+
+For development, the cache is optional - the app falls back to initializing all handlers at startup and shows a loading screen.
+
+---
+
+## 7. Testing
+
+### Commands
+- **`bun run test`** - runs all unit/integration tests (Vitest + jsdom). **Do NOT use `bun test`** - that invokes Bun's native runner which lacks the jsdom environment.
+- **`bun run test:watch`** - runs tests in watch mode (re-runs on file changes). Useful during development.
+- **E2E Tests**: `test/e2e/` (Puppeteer). Verifies that workers mount and the UI flows work correctly.
+
+### Writing handler tests
+Handler tests live in `test/handlers/`. A minimal handler test:
+
+```ts
+import { expect, test } from 'vitest';
+import CommonFormats from '../../src/core/CommonFormats/CommonFormats.ts';
+import myHandler from '../../src/handlers/myHandler.ts';
+
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+test('myHandler converts X to Y', async () => {
+  const handler = new myHandler();
+  await handler.init();
+
+  const inputFormat = CommonFormats.PNG.supported('png', true, true, true);
+  const outputFormat = CommonFormats.JPEG.supported('jpeg', true, true);
+
+  const [output] = await handler.doConvert(
+    [{ name: 'test.png', bytes: encoder.encode('...') }],
+    inputFormat,
+    outputFormat,
+  );
+
+  expect(output.name).toBe('test.jpeg');
+});
+```
+
+### Test infrastructure
+- **`test/setup.ts`** - Vitest preload script. Mocks `navigator.deviceMemory` and provides a `MockWorker` class that routes messages through the route-search worker handler (needed because jsdom has no real Web Worker support).
+- **`test/MockedHandler.ts`** - A stub `FormatHandler` for graph/pathfinding tests.
+- **`test/resources/`** - Test fixture files (sample inputs for conversion tests).
+
+---
+
+## 8. Mandatory Agent Workflow & Rules
 
 1. **Verify Worker Compatibility**: 
    If you add a new handler, check if it uses `window`, `document`, or `Canvas`. If it does, set `requiresMainThread = true`. Otherwise, ensure it is Worker-safe.

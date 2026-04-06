@@ -124,6 +124,19 @@ docker compose -f docker/docker-compose.yml -f docker/docker-compose.override.ym
 
 The first Docker build is expected to be slow because Chromium and related system packages are installed in the build stage (needed for puppeteer in `scripts/buildCache.js`). Later builds are usually much faster due to Docker layer caching.
 
+### Desktop App (Electron)
+
+frogConvert can also run as a standalone desktop application via Electron:
+
+```bash
+bun run desktop:start        # Build and launch locally
+bun run desktop:dist:win     # Package for Windows
+bun run desktop:dist:mac     # Package for macOS
+bun run desktop:dist:linux   # Package for Linux
+```
+
+Native single-binary builds (no Electron) are also available via `bun run compile:win`, `compile:mac`, or `compile:linux`.
+
 ## Contributing
 > _The contributing guidelines below are adapted from the [original README](https://github.com/p2r3/convert#readme)._
 

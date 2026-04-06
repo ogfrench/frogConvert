@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>frogConvert - Slide Deck</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #0a0a0a;
+    color: #e8e8e8;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* ── Slides ── */
+  .slide {
+    display: none;
+    height: 100vh;
+    width: 100vw;
+    padding: 6vh 8vw;
+    animation: fadeIn 0.35s ease;
+  }
+  .slide.active { display: grid; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Layout helpers ── */
+  .layout-center {
+    place-items: center;
+    place-content: center;
+    text-align: center;
+  }
+
+  .layout-left {
+    align-content: center;
+    align-items: center;
+  }
+
+  .layout-split {
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    align-content: center;
+    gap: 6vw;
+  }
+
+  .layout-top-heavy {
+    grid-template-rows: auto auto 1fr;
+    align-content: center;
+    gap: 1.5em;
+  }
+
+  /* ── Typography ── */
+  h1 {
+    font-size: clamp(2.8rem, 6vw, 5.5rem);
+    font-weight: 900;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  h2 {
+    font-size: clamp(1.8rem, 3.8vw, 3rem);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+
+  p {
+    font-size: clamp(1rem, 1.8vw, 1.35rem);
+    line-height: 1.65;
+    color: #999;
+    max-width: 600px;
+  }
+
+  .green { color: #4cdf6b; }
+  .dim { color: #888; }
+  .bright { color: #eee; }
+
+  .tag {
+    display: inline-block;
+    background: #4cdf6b18;
+    color: #4cdf6b;
+    padding: 0.25em 0.75em;
+    border-radius: 100px;
+    font-size: clamp(0.7rem, 1.2vw, 0.9rem);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    width: fit-content;
+  }
+
+  .tip-badge {
+    background: #4cdf6b;
+    color: #0a0a0a;
+    padding: 0.2em 0.65em;
+    border-radius: 5px;
+    font-size: clamp(0.65rem, 1vw, 0.8rem);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    width: fit-content;
+  }
+
+  /* ── Kaomoji frog ── */
+  .kaomoji {
+    font-size: clamp(2rem, 5vw, 4rem);
+    line-height: 1;
+  }
+
+  /* ── Quote block ── */
+  .prompt-block {
+    background: #111;
+    border: 1px solid #222;
+    border-radius: 10px;
+    padding: 1.2em 1.5em;
+    font-family: monospace;
+    font-size: clamp(0.85rem, 1.4vw, 1.1rem);
+    color: #888;
+    max-width: 500px;
+    line-height: 1.5;
+  }
+  .prompt-block .cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    background: #4cdf6b;
+    margin-left: 2px;
+    animation: blink 1s steps(1) infinite;
+    vertical-align: text-bottom;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ── Feature cards ── */
+  .features {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1em;
+    max-width: 560px;
+  }
+  .feat {
+    background: #111;
+    border: 1px solid #1a1a1a;
+    border-radius: 10px;
+    padding: 1.2em;
+  }
+  .feat-title {
+    font-weight: 700;
+    font-size: clamp(0.9rem, 1.4vw, 1.1rem);
+    color: #eee;
+    margin-bottom: 0.3em;
+  }
+  .feat-desc {
+    font-size: clamp(0.75rem, 1.1vw, 0.9rem);
+    color: #999;
+    line-height: 1.4;
+  }
+
+  /* ── Frogsworth quote ── */
+  .frogsworth-quote {
+    display: flex;
+    align-items: center;
+    gap: 1em;
+    background: #0f1a10;
+    border: 1px solid #1a2e1a;
+    border-radius: 12px;
+    padding: 1em 1.5em;
+    max-width: 480px;
+  }
+  .frogsworth-quote .kaomoji { font-size: 1.8rem; flex-shrink: 0; }
+  .frogsworth-quote p {
+    font-style: italic;
+    color: #7cba9a;
+    font-size: clamp(0.85rem, 1.2vw, 1rem);
+    margin: 0;
+  }
+
+  /* ── Links ── */
+  .links {
+    display: flex;
+    gap: 1.5em;
+    flex-wrap: wrap;
+    margin-top: 1em;
+  }
+  .links a {
+    color: #4cdf6b;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: clamp(0.9rem, 1.4vw, 1.1rem);
+    transition: opacity 0.2s;
+  }
+  .links a:hover { opacity: 0.7; }
+
+  .link {
+    color: #4cdf6b;
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .link:hover { text-decoration: underline; }
+
+  .credit {
+    font-size: clamp(0.7rem, 1vw, 0.85rem);
+    color: #999;
+    margin-top: 1em;
+  }
+  .credit a { color: #999; text-decoration: none; }
+
+  /* ── Big number ── */
+  .big-num {
+    font-size: clamp(4rem, 10vw, 8rem);
+    font-weight: 900;
+    color: #4cdf6b;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+
+  /* ── Navigation ── */
+  .nav {
+    position: fixed;
+    bottom: 2em;
+    right: 3em;
+    display: flex;
+    align-items: center;
+    gap: 0.8em;
+    z-index: 100;
+  }
+
+  .nav button {
+    background: #141414;
+    border: 1px solid #252525;
+    color: #999;
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .nav button:hover {
+    background: #1a1a1a;
+    color: #4cdf6b;
+    border-color: #4cdf6b33;
+  }
+
+  .slide-count {
+    font-size: 0.75rem;
+    color: #888;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Progress ── */
+  .progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 2px;
+    background: #4cdf6b;
+    transition: width 0.35s ease;
+    z-index: 100;
+  }
+
+  /* ── Glow orbs ── */
+  .glow {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .glow-1 {
+    width: 80vw; height: 80vw;
+    background: radial-gradient(circle, rgba(76,223,107,0.1) 0%, transparent 70%);
+    animation: breathe1 20s ease-in-out infinite alternate;
+  }
+  .glow-2 {
+    width: 70vw; height: 70vw;
+    background: radial-gradient(circle, rgba(76,223,107,0.07) 0%, transparent 70%);
+    animation: breathe2 26s ease-in-out infinite alternate;
+  }
+  .glow-3 {
+    width: 60vw; height: 60vw;
+    background: radial-gradient(circle, rgba(50,200,120,0.08) 0%, transparent 70%);
+    animation: breathe3 18s ease-in-out infinite alternate;
+  }
+  @keyframes breathe1 {
+    0%   { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(1.08); opacity: 1; }
+  }
+  @keyframes breathe2 {
+    0%   { transform: scale(1); opacity: 0.5; }
+    100% { transform: scale(1.06); opacity: 0.9; }
+  }
+  @keyframes breathe3 {
+    0%   { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(1.1); opacity: 1; }
+  }
+  .slide { position: relative; z-index: 1; overflow: hidden; }
+  .slide > *:not(.glow) { position: relative; z-index: 1; }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<!-- ─── Slide 1: Title ─── -->
+<div class="slide layout-split active">
+  <div class="glow glow-1" style="top:-20%;right:-15%;"></div>
+  <div class="glow glow-2" style="bottom:-25%;left:-10%;"></div>
+  <div>
+    <h1><span class="green">frog</span>Convert</h1>
+    <p style="margin-top:0.8em;">A file converter born from frustration&nbsp;&amp;&nbsp;AI</p>
+    <div class="links" style="margin-top:2em;">
+      <a href="https://frogconvert.xyz">frogconvert.xyz</a>
+    </div>
+  </div>
+  <div style="text-align:right;">
+    <span class="kaomoji">(^ o ^)</span>
+  </div>
+</div>
+
+<!-- ─── Slide 2: Problem & Spark ─── -->
+<div class="slide layout-left">
+  <div class="glow glow-2" style="top:-15%;left:50%;"></div>
+  <div class="glow glow-3" style="bottom:-20%;right:-5%;"></div>
+  <div>
+    <div class="tag">the spark</div>
+    <h2 style="margin-top:0.8em;">Online converters are <span class="green">insecure</span>.<br>On enterprise networks, most are <span class="green">blocked</span>.</h2>
+    <p style="margin-top:0.8em;">
+      Your files get uploaded to unknown servers. Not great when you work with confidential data.
+    </p>
+    <p style="margin-top:0.8em;">
+      Then I found a <a href="https://youtu.be/btUbcsTbVA8" class="link">YouTube video</a> about
+      <a href="https://github.com/p2r3/convert" class="link">"Convert to it!"</a>,
+      an open-source converter where everything runs in the browser.
+      Great concept. Rough&nbsp;UI. <span class="green">Perfect&nbsp;opportunity.</span>
+    </p>
+  </div>
+</div>
+
+<!-- ─── Slide 3: The Challenge ─── -->
+<div class="slide layout-split">
+  <div class="glow glow-1" style="top:10%;left:-20%;"></div>
+  <div class="glow glow-3" style="bottom:-10%;right:20%;"></div>
+  <div>
+    <div class="tag">the challenge</div>
+    <h2 style="margin-top:0.8em;">The AI&nbsp;Challenge</h2>
+    <p style="margin-top:0.8em;">
+      A challenge to explore what's possible with AI tools.
+    </p>
+    <p style="margin-top:0.8em;">
+      My pitch: take this rough project and use AI to turn it into
+      <span class="bright">a real product.</span>
+    </p>
+  </div>
+  <div style="text-align:center;">
+    <span class="kaomoji" style="font-size:clamp(2.5rem,6vw,5rem);">ദ്ദി(^ o ^)</span>
+  </div>
+</div>
+
+<!-- ─── Slide 4: Claude Code ─── -->
+<div class="slide layout-left">
+  <div class="glow glow-2" style="top:-25%;right:10%;"></div>
+  <div class="glow glow-1" style="bottom:-15%;left:-15%;"></div>
+  <div>
+    <div class="tag">the tool</div>
+    <h2 style="margin-top:0.8em;">Meet <span class="green">Claude Code</span></h2>
+    <p style="margin-top:0.8em;">
+      An AI coding assistant you talk to in plain English.
+      Like having a developer on speed dial.
+      I focused on <span class="bright">vision&nbsp;&amp;&nbsp;design,</span> it handled the code.
+    </p>
+    <div class="prompt-block" style="margin-top:0.8em;">
+      <span class="dim">$</span> Make the file list sortable, add drag&nbsp;&amp;&nbsp;drop, clean&nbsp;on&nbsp;mobile<span class="cursor"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Slide 5: Tip 1 ─── -->
+<div class="slide layout-split">
+  <div class="glow glow-3" style="top:-10%;right:-10%;"></div>
+  <div class="glow glow-1" style="bottom:-20%;left:30%;"></div>
+  <div>
+    <div class="tip-badge">tip #1</div>
+    <h2 style="margin-top:0.8em;">Start with a brief,<br>not code</h2>
+    <p style="margin-top:0.8em;">
+      Before building, I asked Claude to brainstorm the file structure,
+      plan the architecture, and document what the project is about.
+    </p>
+    <p style="margin-top:0.8em;">
+      That documentation becomes a <span class="bright">shared reference</span>,
+      so Claude always has context instead of re-reading every file each time.
+    </p>
+  </div>
+  <div style="display:grid; gap:0.8em;">
+    <div class="prompt-block" style="max-width:100%;">
+      <span class="dim">&gt;</span> What's the best way to structure this project?
+    </div>
+    <div class="prompt-block" style="max-width:100%;">
+      <span class="dim">&gt;</span> Document the architecture so we have a reference
+    </div>
+    <div class="prompt-block" style="max-width:100%;">
+      <span class="dim">&gt;</span> The better the brief, the better the output
+    </div>
+  </div>
+</div>
+
+<!-- ─── Slide 6: Tip 2 ─── -->
+<div class="slide layout-split">
+  <div class="glow glow-2" style="top:20%;left:-15%;"></div>
+  <div class="glow glow-3" style="bottom:-15%;right:-10%;"></div>
+  <div>
+    <div class="tip-badge">tip #2</div>
+    <h2 style="margin-top:0.8em;">Make AI your<br><span class="green">QA team</span></h2>
+    <p style="margin-top:0.8em;">
+      I asked Claude to write tests for every feature, then run them to verify its own changes.
+    </p>
+    <p style="margin-top:0.8em;">
+      You set the quality bar.<br>
+      <span class="bright">AI enforces it.</span>
+    </p>
+  </div>
+  <div style="text-align:center;">
+    <span class="kaomoji">(~ _ ~)</span>
+    <p style="margin-top:0.8em; text-align:center; color:#999; max-width:100%;">
+      creative director, not QA department
+    </p>
+  </div>
+</div>
+
+<!-- ─── Slide 7: Tip 3 ─── -->
+<div class="slide layout-split">
+  <div class="glow glow-1" style="top:-15%;right:30%;"></div>
+  <div class="glow glow-2" style="bottom:-10%;left:-20%;"></div>
+  <div>
+    <div class="tip-badge">tip #3</div>
+    <h2 style="margin-top:0.8em;">Don't reinvent<br><span class="green">the wheel</span></h2>
+    <p style="margin-top:0.8em;">
+      Use what's already out there. Browse GitHub repos, grab components from shadcn,
+      lean on existing libraries.
+    </p>
+    <p style="margin-top:0.8em;">
+      AI is great at <span class="bright">wiring things together.</span>
+      You don't need to build everything from scratch.
+    </p>
+  </div>
+  <div style="display:grid; gap:0.8em;">
+    <div class="prompt-block" style="max-width:100%;">
+      <span class="dim">&gt;</span> Use shadcn for the UI components
+    </div>
+    <div class="prompt-block" style="max-width:100%;">
+      <span class="dim">&gt;</span> Find a library that handles drag and drop
+    </div>
+    <div class="prompt-block" style="max-width:100%;">
+      <span class="dim">&gt;</span> Look at how this repo solves it
+    </div>
+  </div>
+</div>
+
+<!-- ─── Slide 8: The Result ─── -->
+<div class="slide layout-split">
+  <div class="glow glow-3" style="top:5%;left:-10%;"></div>
+  <div class="glow glow-1" style="bottom:-25%;right:-5%;"></div>
+  <div>
+    <div class="tag">the result</div>
+    <div class="big-num" style="margin-top:0.3em;">70+</div>
+    <p style="color:#999;">format conversions</p>
+  </div>
+  <div style="display:grid; gap:1em;">
+    <div class="features">
+      <div class="feat">
+        <div class="feat-title">In-browser</div>
+        <div class="feat-desc">No files leave your machine</div>
+      </div>
+      <div class="feat">
+        <div class="feat-title">Any device</div>
+        <div class="feat-desc">Fully responsive</div>
+      </div>
+      <div class="feat">
+        <div class="feat-title">Chain formats</div>
+        <div class="feat-desc">WAV &rarr; PDF? Sure.</div>
+      </div>
+      <div class="feat">
+        <div class="feat-title">AI-ready</div>
+        <div class="feat-desc">Built-in MCP &amp; REST API</div>
+      </div>
+    </div>
+    <div class="frogsworth-quote">
+      <span class="kaomoji">(~ _ ~)</span>
+      <p>"pdf to docx? attempting to undo what adobe hath wrought."</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Slide 9: Demo ─── -->
+<div class="slide layout-center">
+  <div class="glow glow-1" style="top:-10%;left:20%;"></div>
+  <div class="glow glow-2" style="bottom:-20%;right:15%;"></div>
+  <div class="glow glow-3" style="top:40%;left:-15%;"></div>
+  <div>
+    <div class="tag">live demo</div>
+    <h2 style="margin-top:0.8em;"><span class="green">frog</span>Convert in action</h2>
+    <p style="margin: 1em auto 0; text-align:center;">
+      Let's try it.
+    </p>
+    <div class="links" style="justify-content:center; margin-top:2em;">
+      <a href="https://frogconvert.xyz" style="font-size:clamp(1.2rem,2vw,1.6rem);">frogconvert.xyz</a>
+    </div>
+    <p style="margin: 2em auto 0; text-align:center; color:#999; font-size:clamp(0.8rem,1.2vw,1rem);">
+      (- _ -) &nbsp;drop a file, pick a format
+    </p>
+  </div>
+</div>
+
+<!-- ─── Slide 10: Takeaway ─── -->
+<div class="slide layout-center">
+  <div class="glow glow-1" style="top:-15%;right:-10%;"></div>
+  <div class="glow glow-2" style="bottom:-15%;left:-10%;"></div>
+  <div class="glow glow-3" style="top:30%;left:60%;"></div>
+  <div>
+    <h2 style="max-width:900px; margin: 0 auto;">
+      The gap between <span class="green">idea</span> and <span class="green">product</span>
+      has never been smaller.
+    </h2>
+    <p style="margin: 1.2em auto 0; text-align:center; max-width:700px;">
+      Start small. Pick a fun side project and build it with AI.
+      That's how you learn. It's also still super valuable to do a basic HTML/CSS/JS course
+      so you understand the fundamentals of what you're building.
+    </p>
+    <div class="links" style="justify-content:center; margin-top:2.5em;">
+      <a href="https://frogconvert.xyz">frogconvert.xyz</a>
+      <a href="https://github.com/ogfrench/frogConvert">GitHub</a>
+    </div>
+    <div class="credit">
+      Built on <a href="https://github.com/p2r3/convert">Convert to it!</a> by p2r3
+    </div>
+  </div>
+</div>
+
+<!-- ─── Nav ─── -->
+<div class="nav">
+  <span class="slide-count" id="slideCount">1/10</span>
+  <button id="prev" aria-label="Previous">&#8592;</button>
+  <button id="next" aria-label="Next">&#8594;</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+
+  function show(n) {
+    slides[current].classList.remove('active');
+    current = (n + total) % total;
+    slides[current].classList.add('active');
+    document.getElementById('slideCount').textContent = (current + 1) + '/' + total;
+    document.getElementById('progress').style.width = ((current + 1) / total * 100) + '%';
+  }
+
+  document.getElementById('prev').addEventListener('click', () => show(current - 1));
+  document.getElementById('next').addEventListener('click', () => show(current + 1));
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); show(current + 1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); show(current - 1); }
+    if (e.key === 'Home') { e.preventDefault(); show(0); }
+    if (e.key === 'End') { e.preventDefault(); show(total - 1); }
+  });
+
+  // Parallax: glows follow mouse via margin offset (won't fight CSS transform animations)
+  document.addEventListener('mousemove', (e) => {
+    const x = (e.clientX / window.innerWidth - 0.5) * 2;
+    const y = (e.clientY / window.innerHeight - 0.5) * 2;
+    const active = slides[current];
+    const glows = active.querySelectorAll('.glow');
+    glows.forEach((g, i) => {
+      const depth = [40, 25, 15][i] || 20;
+      g.style.marginLeft = (x * depth) + 'px';
+      g.style.marginTop = (y * depth) + 'px';
+    });
+  });
+
+  let touchX = 0;
+  document.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; });
+  document.addEventListener('touchend', e => {
+    const d = touchX - e.changedTouches[0].clientX;
+    if (Math.abs(d) > 50) d > 0 ? show(current + 1) : show(current - 1);
+  });
+
+  document.getElementById('progress').style.width = (1 / total * 100) + '%';
+</script>
+
+</body>
+</html>

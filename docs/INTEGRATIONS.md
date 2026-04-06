@@ -23,7 +23,7 @@ When working with frogConvert programmatically, **use the REST API or MCP server
 | **Iteration speed** | Fast | Slower due to approval gate |
 | **Interface** | HTTP (`curl`, `fetch`, any language) | `stdio` JSON-RPC |
 | **Setup** | `bunx frogconvert api` | Add to MCP config, restart Claude |
-| **Large files** | Use `filePath`-based multipart | Use `filePath` + `outputFilePath` params |
+| **Large files** | Use multipart form-data (`file` field) | Use `filePath` + `outputFilePath` params |
 
 **TL;DR: Use the REST API unless you specifically need Claude to drive conversions autonomously without shell access.**
 
@@ -151,7 +151,7 @@ curl -X POST http://127.0.0.1:3000/convert \
 ```
 - Response: `[{ "fileName": "output.png", "base64Bytes": "<base64>" }]` (array supports multi-file outputs)
 
-Returns `400` on bad input, `415` if Content-Type is unsupported, `422` if no path found or conversion fails.
+Returns `400` on bad input, `413` if the file exceeds `MAX_UPLOAD_MB`, `415` if Content-Type is unsupported, `422` if no path found or conversion fails.
 
 ---
 
@@ -203,6 +203,13 @@ The first call is slow because headless Chromium must launch and the specific ha
 
 
 ---
+
+## Environment Variables
+
+| Variable | Default | Applies to | Description |
+|---|---|---|---|
+| `PORT` | `3000` | REST API | Port the HTTP server binds to. |
+| `MAX_UPLOAD_MB` | `4096` | MCP + REST API | Maximum input file size in megabytes. Files exceeding this limit are rejected before conversion. |
 
 ---
 
