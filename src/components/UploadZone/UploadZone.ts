@@ -1,6 +1,6 @@
 import "./UploadZone.css";
 import {
-  ui, currentFiles, MAX_FILES, checkFileSizeLimits,
+  ui, currentFiles, getMaxFiles, checkFileSizeLimits,
   DEFAULT_UPLOAD_LABEL,
   onFilesChanged, onClearFiles, sortFilesByName, bindDragAndDropVisuals
 } from "../store/store.ts";
@@ -72,12 +72,13 @@ export function initUploadZone(
     const files = Array.from(inputFiles);
     if (files.length === 0) return;
 
-    // File count hard cap
-    if (files.length > MAX_FILES) {
+    // Dynamic file count cap based on device memory + file weight
+    const maxFiles = getMaxFiles(files);
+    if (files.length > maxFiles) {
       const h2 = document.createElement("h2");
       h2.textContent = "Too many files";
       const p = document.createElement("p");
-      p.textContent = `You selected ${files.length} files, but the limit is ${MAX_FILES}. Please select fewer files.`;
+      p.textContent = `You selected ${files.length} files, but the limit for these files is ${maxFiles}. Try selecting fewer or smaller files.`;
       const actions = document.createElement("div");
       actions.className = "popup-actions";
       actions.appendChild(createPopupButton("OK", "popup-primary", () => hidePopup()));

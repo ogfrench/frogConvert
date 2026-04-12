@@ -124,7 +124,7 @@ export const PARALLAX_STRENGTH = 15;
 export const MOBILE_BREAKPOINT = 800;
 
 // --- File upload safeguards ---
-export const MAX_FILES = 100;
+export const ABSOLUTE_MAX_FILES = 200;
 const SIZE_WARNING_THRESHOLD = 3.6 * 1024 * 1024 * 1024; // 3.6 GB
 
 type SizeCheckLevel = "ok" | "warning";
@@ -133,6 +133,41 @@ export function checkFileSizeLimits(files: File[]): { level: SizeCheckLevel; tot
   const totalSize = files.reduce((sum, f) => sum + f.size, 0);
   if (totalSize > SIZE_WARNING_THRESHOLD) return { level: "warning", totalSize };
   return { level: "ok", totalSize };
+}
+
+// --- Dynamic file count limit based on device memory + file weight ---
+
+const FALLBACK_DEVICE_MEMORY_GB = 4;
+const USABLE_MEMORY_FRACTION = 0.5;
+
+const PROCESSING_MULTIPLIERS: Record<string, number> = {
+  video: 2,
+  image: 1.5,
+  document: 1.5,
+  audio: 1.5,
+};
+
+function getMemoryBudget(): number {
+  const deviceGB = (navigator as any).deviceMemory ?? FALLBACK_DEVICE_MEMORY_GB;
+  return deviceGB * USABLE_MEMORY_FRACTION * 1024 * 1024 * 1024;
+}
+
+function getMimeMultiplier(mime: string): number {
+  if (mime.startsWith("video/")) return PROCESSING_MULTIPLIERS.video;
+  if (mime.startsWith("image/")) return PROCESSING_MULTIPLIERS.image;
+  if (mime.startsWith("audio/")) return PROCESSING_MULTIPLIERS.audio;
+  if (mime.startsWith("text/") || mime.startsWith("application/vnd.") || mime === "application/pdf")
+    return PROCESSING_MULTIPLIERS.document;
+  return 1;
+}
+
+export function getMaxFiles(files: File[]): number {
+  if (files.length === 0) return ABSOLUTE_MAX_FILES;
+  const avgSize = files.reduce((sum, f) => sum + f.size, 0) / files.length;
+  if (avgSize === 0) return ABSOLUTE_MAX_FILES;
+  const multiplier = getMimeMultiplier(files[0].type);
+  const budget = getMemoryBudget();
+  return Math.max(1, Math.min(ABSOLUTE_MAX_FILES, Math.floor(budget / (avgSize * multiplier))));
 }
 
 

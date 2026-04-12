@@ -1,3 +1,7 @@
+/**
+ * @vitest-environment jsdom
+ */
+
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { initUploadZone, showFileInUploadZone, resetUploadZone } from "./UploadZone.ts";
 import { ui, currentFiles } from "../store/store.ts";

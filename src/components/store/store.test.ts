@@ -1,8 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import {
     isCategoryVisible, isFormatVisible, type FormatMode,
     checkFileSizeLimits, sortFilesByName, formatDisplayName, getFormatCategory,
-    isLoadingHandlers,
+    isLoadingHandlers, getMaxFiles, ABSOLUTE_MAX_FILES,
 } from "./store.ts";
 import type { FileFormat } from "../../core/FormatHandler/FormatHandler.ts";
 
@@ -231,5 +231,79 @@ describe("isLoadingHandlers", () => {
         expect(isLoadingHandlers.value).toBe(true);
         isLoadingHandlers.value = false;
         expect(isLoadingHandlers.value).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getMaxFiles - dynamic file count limit
+// ---------------------------------------------------------------------------
+
+describe("getMaxFiles", () => {
+    // test/setup.ts mocks navigator.deviceMemory = 4
+    // budget = 4 * 0.5 * 1024^3 = 2 GB
+
+    it("returns ABSOLUTE_MAX_FILES for an empty array", () => {
+        expect(getMaxFiles([])).toBe(ABSOLUTE_MAX_FILES);
+    });
+
+    it("returns ABSOLUTE_MAX_FILES for zero-size files", () => {
+        const files = Array.from({ length: 5 }, (_, i) => makeFile(`empty_${i}.png`, 0));
+        // Override type to image
+        for (const f of files) Object.defineProperty(f, "type", { value: "image/png" });
+        expect(getMaxFiles(files)).toBe(ABSOLUTE_MAX_FILES);
+    });
+
+    it("caps at ABSOLUTE_MAX_FILES for tiny images", () => {
+        const files = Array.from({ length: 10 }, (_, i) => {
+            const f = makeFile(`img_${i}.png`, 50 * 1024); // 50 KB
+            Object.defineProperty(f, "type", { value: "image/png" });
+            return f;
+        });
+        expect(getMaxFiles(files)).toBe(ABSOLUTE_MAX_FILES);
+    });
+
+    it("returns a low limit for large videos", () => {
+        const files = Array.from({ length: 10 }, (_, i) => {
+            const f = makeFile(`vid_${i}.mp4`, 200 * 1024 * 1024); // 200 MB
+            Object.defineProperty(f, "type", { value: "video/mp4" });
+            return f;
+        });
+        const max = getMaxFiles(files);
+        // budget 2GB / (200MB * 2) = 5
+        expect(max).toBe(5);
+    });
+
+    it("returns a moderate limit for medium audio files", () => {
+        const files = Array.from({ length: 10 }, (_, i) => {
+            const f = makeFile(`audio_${i}.mp3`, 50 * 1024 * 1024); // 50 MB
+            Object.defineProperty(f, "type", { value: "audio/mpeg" });
+            return f;
+        });
+        const max = getMaxFiles(files);
+        // budget 2GB / (50MB * 1.5) = ~27
+        expect(max).toBe(27);
+    });
+
+    it("never returns less than 1", () => {
+        const f = makeFile("huge.mp4", 10 * 1024 * 1024 * 1024); // 10 GB
+        Object.defineProperty(f, "type", { value: "video/mp4" });
+        expect(getMaxFiles([f])).toBe(1);
+    });
+
+    it("never exceeds ABSOLUTE_MAX_FILES", () => {
+        const f = makeFile("tiny.txt", 1); // 1 byte
+        Object.defineProperty(f, "type", { value: "text/plain" });
+        expect(getMaxFiles([f])).toBe(ABSOLUTE_MAX_FILES);
+    });
+
+    it("treats documents with multiplier 1.5", () => {
+        const files = Array.from({ length: 5 }, (_, i) => {
+            const f = makeFile(`doc_${i}.pdf`, 100 * 1024 * 1024); // 100 MB
+            Object.defineProperty(f, "type", { value: "application/pdf" });
+            return f;
+        });
+        const max = getMaxFiles(files);
+        // budget 2GB / (100MB * 1.5) = ~13
+        expect(max).toBe(13);
     });
 });

@@ -70,11 +70,11 @@ describe("friendlyMimeLabel", () => {
 // ---------------------------------------------------------------------------
 
 describe("addMoreFiles error copy", () => {
-    it("renders 'Too many files' error with projected and limit count", () => {
-        const projectedCount = 105;
-        const MAX_FILES = 100;
-        const msg = `Too many files (${projectedCount}). The limit is ${MAX_FILES}.`;
-        expect(msg).toBe("Too many files (105). The limit is 100.");
+    it("renders 'Too many files' error with projected and dynamic limit count", () => {
+        const combinedCount = 105;
+        const maxFiles = 50;
+        const msg = `Too many files (${combinedCount}). The limit for these files is ${maxFiles}.`;
+        expect(msg).toBe("Too many files (105). The limit for these files is 50.");
     });
 
     it("renders singular mismatch skip message with MIME labels", () => {

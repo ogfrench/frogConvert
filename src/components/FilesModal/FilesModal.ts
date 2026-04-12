@@ -1,7 +1,7 @@
 import "./FilesModal.css";
 import {
   ui, currentFiles, FILES_PER_PAGE, filesModalPage,
-  filesModalResizeHandler, onClearFiles, onFilesChanged, MAX_FILES,
+  filesModalResizeHandler, onClearFiles, onFilesChanged, getMaxFiles,
   checkFileSizeLimits, sortFilesByName, bindDragAndDropVisuals, updateScrollLock
 } from "../store/store.ts";
 import { showFileInUploadZone } from "../UploadZone/UploadZone.ts";
@@ -245,10 +245,11 @@ function addMoreFiles(newFiles: File[]) {
   if (newFiles.length === 0) return;
   hideFilesModalError();
 
-  // File count hard cap
-  const projectedCount = currentFiles.value.length + newFiles.length;
-  if (projectedCount > MAX_FILES) {
-    showFilesModalError(`Too many files (${projectedCount}). The limit is ${MAX_FILES}.`);
+  // Dynamic file count cap based on device memory + file weight
+  const projectedFiles = currentFiles.value.concat(newFiles);
+  const maxFiles = getMaxFiles(projectedFiles);
+  if (projectedFiles.length > maxFiles) {
+    showFilesModalError(`Too many files (${projectedFiles.length}). The limit for these files is ${maxFiles}.`);
     return;
   }
 
