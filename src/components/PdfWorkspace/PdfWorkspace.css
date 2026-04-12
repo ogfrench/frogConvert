@@ -1,0 +1,913 @@
+/* ===================================================================
+   App Mode Switcher — fixed bottom-left, like Frogsworth is bottom-right
+   Active tab: icon + label. Inactive tab: icon only.
+   =================================================================== */
+
+#app-mode-switcher {
+  position: fixed;
+  bottom: var(--space-6);
+  left: var(--space-6);
+  display: flex;
+  gap: var(--space-1-5);
+  z-index: 100;
+  pointer-events: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 3px;
+}
+
+.mode-switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-size);
+  height: var(--control-size);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.mode-switch:hover {
+  color: var(--foreground);
+}
+
+.mode-switch svg {
+  flex-shrink: 0;
+}
+
+.mode-switch.active {
+  background: var(--secondary);
+  color: var(--foreground);
+}
+
+@media only screen and (max-width: 800px) {
+  #app-mode-switcher {
+    display: none;
+  }
+}
+
+/* ===================================================================
+   PDF Workspace — mirrors converter layout exactly
+   =================================================================== */
+
+/* Hero title — identical to #hero-title */
+#pdf-hero-title {
+  text-align: center;
+  font-size: var(--text-4xl);
+  font-weight: var(--font-semibold);
+  letter-spacing: var(--tracking-tighter);
+  color: var(--foreground);
+  margin: calc(var(--space-16) + var(--space-10)) auto var(--space-6);
+  padding: 0 var(--space-4);
+  line-height: var(--leading-snug);
+  max-width: var(--tabs-max-width);
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Sub-tabs — same as #category-tabs */
+#pdf-editor-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  row-gap: var(--space-1-5);
+  padding: 0 var(--space-4);
+  width: 100%;
+  max-width: var(--tabs-max-width);
+  margin: 0 auto;
+  position: relative;
+  z-index: 2;
+}
+
+/* --- Layout modes --- */
+
+/* Empty state: single centered dropzone card */
+.ws-empty-layout {
+  max-width: var(--card-max-width);
+  margin: var(--space-10) auto 0;
+  position: relative;
+  z-index: 2;
+}
+
+/* Dropzone card: override min-height from .card-base */
+.ws-dropzone-card {
+  padding: var(--space-6);
+  min-height: auto;
+}
+
+/* Field label — matches .field-label from UploadZone */
+.ws-field-label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--muted-foreground);
+  margin-bottom: var(--space-2);
+  padding-left: var(--space-1);
+}
+
+/* Split layout: two cards side by side */
+.ws-split-layout {
+  display: flex;
+  gap: var(--space-4);
+  max-width: var(--tabs-max-width);
+  margin: var(--space-10) auto 0;
+  position: relative;
+  z-index: 2;
+}
+
+/* Left card: scrollable page grid */
+.ws-grid-card {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-5);
+  overflow: hidden auto;
+  max-height: calc(100vh - 14rem);
+  min-height: auto;
+  border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+}
+
+/* Right card: sidebar */
+.ws-sidebar-card {
+  width: 16rem;
+  flex-shrink: 0;
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: auto;
+  max-height: calc(100vh - 14rem);
+  position: relative;
+  z-index: 3;
+  border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+}
+
+/* Sidebar sections */
+.ws-sidebar-top {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-1);
+}
+
+.ws-sidebar-bottom {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.ws-sidebar-file {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  padding-right: var(--space-5);
+}
+
+/* Shared: reveal child on parent hover */
+.ws-hover-reveal {
+  opacity: 0;
+  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+.ws-file-card:hover .ws-hover-reveal,
+.ws-sidebar-file:hover .ws-hover-reveal,
+.ws-page-card:hover .ws-hover-reveal {
+  opacity: 1;
+}
+
+/* Shared: small overlay button on page thumbnails */
+.ws-overlay-btn {
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  z-index: 2;
+}
+
+.ws-file-list-remove {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+.ws-file-list-remove:hover {
+  color: var(--destructive);
+}
+
+.ws-sidebar-filename {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-sidebar-meta {
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+}
+
+.ws-sidebar-count {
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
+.ws-sidebar-btn-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* Full-width action button in sidebar */
+.ws-action-full {
+  width: 100%;
+  text-align: center;
+}
+
+/* Description — same as #description */
+#pdf-description {
+  text-align: center;
+  max-width: var(--card-max-width);
+  margin: var(--space-3) auto 0;
+  padding: 0 var(--space-6);
+  font-size: var(--text-base);
+  color: var(--muted-foreground);
+  line-height: var(--leading-relaxed);
+}
+
+/* ===================================================================
+   Error & Safari warning
+   =================================================================== */
+
+#workspace-error {
+  max-width: 50rem;
+  margin: var(--space-3) auto 0;
+  padding: var(--space-3) var(--space-4);
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius);
+  color: #b91c1c;
+  font-size: var(--text-sm);
+  position: relative;
+  z-index: 2;
+}
+
+.dark #workspace-error {
+  background-color: #450a0a;
+  border-color: #7f1d1d;
+  color: #fca5a5;
+}
+
+#workspace-safari-warning {
+  text-align: center;
+  margin: var(--space-10) auto;
+  padding: var(--space-6);
+  color: var(--muted-foreground);
+  font-size: var(--text-lg);
+}
+
+/* ===================================================================
+   Dropzone — matches #upload-zone
+   =================================================================== */
+
+.ws-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: calc(var(--space-16) * 2.5);
+  padding: 0 var(--space-4);
+  border: 2px dashed var(--border);
+  border-radius: inherit;
+  background-color: var(--secondary);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.ws-dropzone:hover {
+  border-color: var(--muted-foreground);
+}
+
+.ws-dropzone.drag-over {
+  border-color: var(--primary);
+  background-color: var(--accent);
+}
+
+.ws-dropzone .upload-text {
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  color: var(--foreground);
+  margin: 0 0 var(--space-0-5);
+}
+
+.ws-dropzone .upload-hint {
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
+/* ===================================================================
+   File Cards — Merge view
+   =================================================================== */
+
+.ws-file-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.ws-file-card {
+  position: relative;
+  width: 10rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  cursor: grab;
+  background: var(--secondary);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ws-file-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.ws-file-thumb {
+  width: 100%;
+  aspect-ratio: 0.707;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: var(--space-2);
+}
+
+.ws-file-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ws-file-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+}
+
+.ws-file-name {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-file-meta {
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+}
+
+.ws-file-remove {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+.ws-file-remove:hover {
+  color: var(--destructive);
+}
+
+/* ===================================================================
+   Add More Zone
+   =================================================================== */
+
+.ws-add-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.ws-add-zone:hover {
+  border-color: var(--muted-foreground);
+  color: var(--foreground);
+}
+
+/* ===================================================================
+   Page Cards — Split + Organize views
+   =================================================================== */
+
+.ws-page-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 8rem);
+  gap: var(--space-4) var(--space-6);
+  padding-bottom: var(--space-3);
+  align-items: start;
+}
+
+.ws-page-slot {
+  position: relative;
+}
+
+.ws-page-card {
+  position: relative;
+  width: 100%;
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: visible;
+  cursor: pointer;
+  background: var(--secondary);
+  transition: border-color 0.15s ease, opacity 0.2s ease, filter 0.2s ease;
+}
+
+.ws-page-card:hover {
+  border-color: var(--muted-foreground);
+}
+
+.ws-page-card.ws-page-selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.ws-page-card.ws-page-deleted {
+  opacity: var(--opacity-disabled);
+  filter: grayscale(0.8);
+  cursor: default;
+}
+
+.ws-page-card.ws-page-deleted:hover {
+  border-color: var(--border);
+}
+
+.ws-page-thumb {
+  width: 100%;
+  aspect-ratio: 0.707;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+}
+
+.ws-page-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform 0.2s ease;
+}
+
+.ws-page-badge {
+  position: absolute;
+  bottom: calc(var(--space-2) * -1);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  z-index: 1;
+}
+
+.ws-page-delete {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+}
+.ws-page-delete:hover {
+  background: var(--destructive);
+}
+
+.ws-page-undo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: var(--space-1-5) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  z-index: 2;
+  pointer-events: auto;
+  transition: background-color 0.15s ease;
+}
+
+.ws-page-undo:hover {
+  background: var(--accent);
+}
+
+.ws-page-rotate {
+  position: absolute;
+  top: var(--space-1);
+  left: var(--space-1);
+}
+.ws-page-rotate:hover {
+  background: var(--primary);
+}
+
+/* Blank page insert button — straddles left edge of each slot */
+.ws-page-insert {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--space-5);
+  height: var(--space-10);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--muted-foreground);
+  font-size: var(--text-md);
+  opacity: 0;
+  transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  z-index: 3;
+}
+
+.ws-page-cards:hover .ws-page-insert {
+  opacity: 0.4;
+}
+
+.ws-page-insert:hover {
+  opacity: 1;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* Trailing insert — grid item after last page */
+.ws-page-insert-trailing {
+  width: 100%;
+  aspect-ratio: 0.707;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--muted-foreground);
+  font-size: var(--text-xl);
+  opacity: 0.5;
+  transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.ws-page-insert-trailing:hover {
+  opacity: 1;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* ===================================================================
+   Select Controls — Split view
+   =================================================================== */
+
+.ws-select-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.ws-range-input {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  background: var(--secondary);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.ws-range-input:focus {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.ws-range-input.ws-input-error {
+  border-color: var(--destructive);
+}
+
+/* ===================================================================
+   Skeleton shimmer
+   =================================================================== */
+
+.ws-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--secondary) 25%,
+    var(--accent) 50%,
+    var(--secondary) 75%
+  );
+  background-size: 200% 100%;
+  animation: ws-shimmer 1.5s infinite;
+}
+
+@keyframes ws-shimmer {
+  to { background-position: -200% 0; }
+}
+
+/* ===================================================================
+   Card entrance animation (for dynamically created cards)
+   =================================================================== */
+
+.ws-card-enter {
+  opacity: 0;
+  animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ===================================================================
+   SortableJS
+   =================================================================== */
+
+.ws-ghost {
+  opacity: var(--opacity-disabled);
+}
+
+/* ===================================================================
+   Buttons
+   =================================================================== */
+
+.ws-btn {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--secondary);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.ws-btn:hover {
+  background: var(--accent);
+}
+
+.ws-btn-small {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+}
+
+.ws-btn-text {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.ws-btn-text:hover {
+  color: var(--foreground);
+}
+
+.ws-action-btn {
+  padding: var(--space-3) var(--space-5);
+}
+
+/* ===================================================================
+   Processing popup
+   =================================================================== */
+
+.ws-processing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-6);
+}
+
+.ws-processing p {
+  margin: 0;
+  font-size: var(--text-md);
+  color: var(--foreground);
+}
+
+.ws-spinner {
+  width: var(--space-8);
+  height: var(--space-8);
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: var(--radius-full);
+  animation: ws-spin 0.8s linear infinite;
+}
+
+@keyframes ws-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ===================================================================
+   Mobile FAB + Slide-in Sidebar
+   Hidden on desktop, visible on mobile only.
+   =================================================================== */
+
+/* Floating action button — mobile only */
+.ws-fab {
+  display: none;
+}
+
+/* Sidebar toggle — mobile only */
+.ws-sidebar-toggle {
+  display: none;
+}
+
+/* Sidebar overlay — mobile only */
+.ws-sidebar-overlay {
+  display: none;
+}
+
+/* Sidebar close button — mobile only */
+.ws-sidebar-close {
+  display: none;
+}
+
+/* ===================================================================
+   Responsive
+   =================================================================== */
+
+@media (max-width: 800px) {
+  .ws-empty-layout {
+    margin: var(--space-6) auto 0;
+    width: var(--modal-width);
+    max-width: var(--mobile-content-width);
+    min-width: 300px;
+  }
+
+  .ws-split-layout {
+    margin: var(--space-6) auto 0;
+  }
+}
+
+@media (max-height: 600px) {
+  .ws-grid-card,
+  .ws-sidebar-card {
+    max-height: calc(100vh - 8rem);
+  }
+}
+
+@media (max-width: 600px) {
+  .ws-split-layout {
+    flex-direction: column;
+  }
+
+  /* Grid takes full space, no max-height — scroll the card itself */
+  .ws-grid-card {
+    max-height: none;
+    width: 100%;
+    /* Leave room for FAB at bottom */
+    padding-bottom: calc(var(--space-16) + var(--space-4));
+  }
+
+  /* Sidebar slides in from right */
+  .ws-sidebar-card {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 18rem;
+    max-width: 80vw;
+    z-index: 400;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    border-radius: 0;
+    border: none;
+    border-left: 1px solid var(--border);
+    max-height: 100vh;
+    overflow-y: auto;
+  }
+
+  .ws-sidebar-card.ws-sidebar-open {
+    transform: translateX(0);
+  }
+
+  /* Overlay behind sidebar */
+  .ws-sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: var(--overlay-bg);
+    z-index: 399;
+  }
+
+  .ws-sidebar-overlay.ws-sidebar-open {
+    display: block;
+  }
+
+  /* FAB visible on mobile */
+  .ws-fab {
+    display: block;
+    position: fixed;
+    bottom: var(--space-6);
+    left: var(--space-6);
+    right: var(--space-6);
+    z-index: 200;
+  }
+
+  .ws-fab .btn-primary {
+    width: 100%;
+    display: block;
+    text-align: center;
+  }
+
+  /* Sidebar toggle button — fixed top right */
+  .ws-sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    bottom: calc(var(--space-6) + var(--space-12) + var(--space-2));
+    right: var(--space-4);
+    width: var(--control-size);
+    height: var(--control-size);
+    z-index: 200;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    background: var(--card);
+    color: var(--muted-foreground);
+    cursor: pointer;
+    box-shadow: var(--shadow-md);
+    transition: color 0.15s ease;
+  }
+
+  .ws-sidebar-toggle:hover {
+    color: var(--foreground);
+  }
+
+  /* Show sidebar close button on mobile */
+  .ws-sidebar-close {
+    display: flex;
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    background: var(--secondary);
+    color: var(--foreground);
+    font-size: var(--text-xl);
+    z-index: 1;
+  }
+
+  .ws-file-card {
+    width: 100%;
+  }
+
+  /* 3 per row on medium phones */
+  .ws-page-cards {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-3);
+  }
+
+  .ws-page-insert {
+    display: none;
+  }
+
+  .ws-range-input {
+    width: 100%;
+  }
+}
+
+@media (max-width: 400px) {
+  #pdf-hero-title {
+    font-size: var(--text-3xl);
+  }
+
+  /* 2 per row on small phones */
+  .ws-page-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
