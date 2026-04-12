@@ -213,7 +213,7 @@ async function handleFiles(files: File[]) {
 
 function renderEmptyState(text: string, multi: boolean) {
   toolContent.className = 'ws-empty-layout';
-  toolContent.appendChild(createDropzoneCard(text, multi, 'Your file'));
+  toolContent.appendChild(createDropzoneCard(text, multi));
 }
 
 // ---------------------------------------------------------------------------
@@ -506,7 +506,7 @@ async function handleSplit() {
     hidePopup();
     if (results.length === 1) downloadFile(results[0].bytes, results[0].name);
     else await downloadAsZip(results, `${baseName}_pages.zip`);
-  } catch (e: any) { hidePopup(); showError(e?.message || 'Split failed'); }
+  } catch (e: any) { hidePopup(); showError(e?.message || 'Extract failed'); }
 }
 
 // ---------------------------------------------------------------------------

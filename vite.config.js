@@ -184,6 +184,22 @@ export default defineConfig({
     }
   },
   plugins: [
+    {
+      name: 'spa-fallback',
+      configureServer(server) {
+        // Returning a function runs this AFTER Vite's built-in static file serving,
+        // so real files (JS, CSS, WASM, etc.) are still served normally.
+        return () => {
+          server.middlewares.use((req, res, next) => {
+            const url = (req.url || '').split('?')[0];
+            if (!url.includes('.') && !url.startsWith('/docs/') && !url.startsWith('/headless/')) {
+              req.url = '/index.html';
+            }
+            next();
+          });
+        };
+      }
+    },
     apiServerPlugin(),
     {
       name: 'async-css',

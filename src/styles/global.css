@@ -520,31 +520,51 @@ html.scroll-lock {
   letter-spacing: var(--tracking-tight);
 }
 
+/* --- Close / Dismiss Button --- */
+.close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  line-height: var(--leading-none);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.close-btn:hover {
+  color: var(--foreground);
+}
+
+.close-btn-sm {
+  width: var(--space-5);
+  height: var(--space-5);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-full);
+}
+.close-btn-md {
+  width: var(--space-6);
+  height: var(--space-6);
+  font-size: var(--text-base);
+  border-radius: var(--radius-full);
+}
+.close-btn-lg {
+  width: var(--space-8);
+  height: var(--space-8);
+  font-size: var(--text-2xl);
+  border-radius: var(--radius);
+}
+
 /* --- Modal Close Button --- */
 .modal-close-btn {
   position: absolute;
   top: var(--space-6);
   right: var(--space-6);
   z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--space-8);
-  height: var(--space-8);
-  padding: 0;
-  border: none;
-  border-radius: var(--radius);
-  background: none;
-  color: var(--muted-foreground);
-  font-size: var(--text-2xl);
-  cursor: pointer;
-  line-height: var(--leading-none);
-  transition: background-color 0.15s ease, color 0.15s ease;
 }
-
 .modal-close-btn:hover {
   background-color: var(--accent);
-  color: var(--foreground);
 }
 
 /* --- Small Icon Button --- */

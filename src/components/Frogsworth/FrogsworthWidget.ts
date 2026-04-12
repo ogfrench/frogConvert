@@ -1,6 +1,6 @@
 import "./FrogsworthWidget.css";
 
-type Context = { from: string | null; to: string | null };
+type Context = { from: string | null; to: string | null; page?: "convert" | "pdf-editor" };
 type Face = "idle" | "thinking" | "happy" | "excited" | "smug" | "hungry";
 
 const KAOMOJI: Record<Face, string> = {
@@ -57,6 +57,25 @@ const IDLE_QUIPS: Quip[] = [
   q("no file yet. that's okay. frogsworth is coping.", "happy"),
   q("i am not an ai. i am a frog with a very fast conversion pipeline.", "excited"),
   q("ribbit (this is a file converter)", "happy"),
+];
+
+const PDF_IDLE_QUIPS: Quip[] = [
+  "drop a pdf. let's get to work.",
+  q("merge, split, organize. the pdf trifecta.", "happy"),
+  q("i rearrange pages now. career pivot.", "smug"),
+  q("your pdf, your rules", "happy"),
+  q("pages in, pages out. simple as that.", "idle"),
+  q("got a pdf that needs surgery?", "excited"),
+  q("pdf editing without adobe. rebellious.", "smug"),
+  q("drag the pages around. i won't judge the order.", "happy"),
+  q("splitting a pdf is cheaper than therapy", "smug"),
+  q("merge two pdfs into one. a love story.", "happy"),
+  q("every page in the right place. that's the dream.", "happy"),
+  q("i used to just convert files. now i also rearrange them.", "smug"),
+  q("your pages. your sequence. your call.", "idle"),
+  q("need fewer pages? split. more pages? merge. same pages but different? organize.", "excited"),
+  q("frogsworth: pdf surgeon", "excited"),
+  q("pdfs don't edit themselves. well, not yet.", "smug"),
 ];
 
 const PAIR_QUIPS: Record<string, Quip[]> = {
@@ -614,11 +633,11 @@ const GENERIC_QUIPS: Quip[] = [
   "it's giving 'creative format decision'",
 ];
 
-export function pick(from: string | null, to: string | null, exclude: string | null = null): { text: string; face: Face } {
+export function pick(from: string | null, to: string | null, exclude: string | null = null, page?: string): { text: string; face: Face } {
   const f = from?.toLowerCase();
   const t = to?.toLowerCase();
 
-  if (!f && !t) return resolve(pickFrom(IDLE_QUIPS, exclude));
+  if (!f && !t) return resolve(pickFrom(page === "pdf-editor" ? PDF_IDLE_QUIPS : IDLE_QUIPS, exclude));
 
   if (f && t) {
     const pair = PAIR_QUIPS[`${f}→${t}`] ?? PAIR_QUIPS[`${t}→${f}`];
@@ -700,19 +719,19 @@ class FrogsworthWidget {
     this.idleTimer = setTimeout(() => {
       this.idleTimer = null;
       if (this.busy || this.dragging) { this.scheduleIdle(); return; }
-      const { from, to } = this.getContext();
-      this.run(from, to);
+      const { from, to, page } = this.getContext();
+      this.run(from, to, page);
     }, 30_000);
   }
 
   private onClick(): void {
     if (this.busy) return;
     this.scheduleIdle();
-    const { from, to } = this.getContext();
-    this.run(from, to);
+    const { from, to, page } = this.getContext();
+    this.run(from, to, page);
   }
 
-  private async run(from: string | null, to: string | null): Promise<void> {
+  private async run(from: string | null, to: string | null, page?: string): Promise<void> {
     if (this.dismissTimer) { clearTimeout(this.dismissTimer); this.dismissTimer = null; }
     this.busy = true;
 
@@ -722,7 +741,7 @@ class FrogsworthWidget {
 
     await delay(900);
 
-    const { text, face } = pick(from, to, this.lastQuip);
+    const { text, face } = pick(from, to, this.lastQuip, page);
     this.lastQuip = text;
     this.bubble.classList.remove("frogsworth-reveal");
     void this.bubble.offsetWidth;

@@ -116,7 +116,7 @@ export const ui = new Proxy({} as any, {
 // --- Constants ---
 
 export const DEFAULT_UPLOAD_TEXT = "Drop your files";
-export const DEFAULT_UPLOAD_LABEL = "Your file";
+export const DEFAULT_UPLOAD_LABEL = "";
 export const FILES_PER_PAGE = 20;
 
 export const PARALLAX_MAX_DIST = 600;

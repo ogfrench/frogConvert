@@ -134,7 +134,7 @@ export function showFileInUploadZone(files: File[]) {
   if (files.length > 1) {
     ui.uploadLabel.textContent = `${files.length} files selected`;
   } else {
-    ui.uploadLabel.textContent = "Your file";
+    ui.uploadLabel.textContent = "";
   }
 }
 

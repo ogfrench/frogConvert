@@ -228,6 +228,11 @@
           <button class="segmented-option" data-value="light" aria-pressed="false">Light</button>
           <button class="segmented-option active" data-value="dark" aria-pressed="true">Dark</button>
         </div>
+        <span class="menu-label" id="label-app-mode">Mode</span>
+        <div class="segmented-control" id="app-mode-segmented" role="group" aria-labelledby="label-app-mode">
+          <button class="segmented-option active" data-value="converter">Converter</button>
+          <button class="segmented-option" data-value="pdf-editor">PDF Editor</button>
+        </div>
       </div>
     </div>
   </header>
@@ -275,7 +280,7 @@
   <main id="convert-card" class="card-base entrance d5" aria-label="File converter">
 
     <div class="convert-field" id="from-field">
-      <span id="upload-label" class="field-label">Your file</span>
+      <span id="upload-label" class="field-label"></span>
       <div id="upload-zone" role="button" tabindex="0" aria-labelledby="upload-label upload-text upload-hint">
         <p class="upload-text" id="upload-text">Drop your files</p>
         <p class="upload-hint" id="upload-hint">or click to browse</p>
@@ -287,7 +292,7 @@
             <button class="upload-action-btn icon-btn" id="replace-file-btn" title="Replace file"
               aria-label="Replace file">&#8635;</button>
             <button class="upload-action-btn icon-btn" id="remove-file-btn" title="Remove file"
-              aria-label="Remove file">&#10005;</button>
+              aria-label="Remove file">&times;</button>
           </div>
         </div>
       </div>
@@ -307,7 +312,7 @@
     </div>
 
     <div id="libreoffice-notice" class="convert-notice" hidden>
-      <button class="convert-notice-dismiss" id="libreoffice-notice-dismiss" type="button" aria-label="Dismiss">&times;</button>
+      <button class="close-btn close-btn-md convert-notice-dismiss" id="libreoffice-notice-dismiss" type="button" aria-label="Dismiss">&times;</button>
       <div class="convert-notice-body">
         <strong class="convert-notice-title">Install LibreOffice for higher-quality PDFs</strong>
         <p class="convert-notice-text">
@@ -330,6 +335,36 @@
     Convert between 50+ formats, right here in your browser. Your files never leave your device.
   </p>
 
+  <section id="pdf-workspace" style="display:none" aria-label="PDF Editor">
+    <h1 id="pdf-hero-title" class="entrance d3" aria-label="How will you organize your PDF today?">
+      <span class="word-entrance" style="animation-delay: 0.1s" aria-hidden="true">How</span>
+      <span class="word-entrance" style="animation-delay: 0.15s" aria-hidden="true">will</span>
+      <span class="word-entrance" style="animation-delay: 0.2s" aria-hidden="true">you</span>
+      <span class="word-entrance" style="animation-delay: 0.25s" aria-hidden="true">organize</span>
+      <span class="word-entrance" style="animation-delay: 0.3s" aria-hidden="true">your</span>
+      <span class="word-entrance" style="animation-delay: 0.35s" aria-hidden="true">PDF</span>
+      <span class="word-entrance" style="animation-delay: 0.4s" aria-hidden="true">today?</span>
+    </h1>
+
+    <nav id="pdf-editor-tabs" class="entrance d4" aria-label="PDF tools">
+      <button class="cat-tab active" data-tool="merge">Merge</button>
+      <button class="cat-tab" data-tool="split">Extract</button>
+      <button class="cat-tab" data-tool="organize">Organize</button>
+    </nav>
+
+    <div id="pdf-tool-content" class="entrance d5"></div>
+
+    <p id="pdf-description" class="entrance d6">
+      Merge, extract, and organize your PDFs locally. Nothing leaves your device.
+    </p>
+
+    <div id="workspace-error" style="display:none" role="alert"></div>
+    <div id="workspace-safari-warning" style="display:none">
+      PDF tools aren't supported on Safari — try Chrome or Firefox
+    </div>
+    <input id="workspace-file-input" type="file" multiple accept=".pdf,application/pdf" style="display:none">
+  </section>
+
   <div id="frogsworth-slot"></div>
 
   <footer id="page-footer" class="entrance d7">
@@ -345,8 +380,8 @@
     aria-labelledby="format-modal-title" aria-hidden="true">
     <div class="format-modal-header modal-header">
       <h2 id="format-modal-title">Choose format</h2>
-      <button class="format-modal-close modal-close-btn" id="format-modal-close" title="Close"
-        aria-label="Close format picker">&#10005;</button>
+      <button class="close-btn close-btn-lg format-modal-close modal-close-btn" id="format-modal-close" title="Close"
+        aria-label="Close format picker">&times;</button>
     </div>
     <input type="text" id="format-search" name="format-search" class="format-search" placeholder="Search formats..."
       aria-label="Search output formats">
@@ -358,8 +393,8 @@
     aria-labelledby="files-modal-title" aria-hidden="true">
     <div class="files-modal-header modal-header">
       <h2 id="files-modal-title">Your files</h2>
-      <button class="files-modal-close modal-close-btn" id="files-modal-close" title="Close"
-        aria-label="Close file manager">&#10005;</button>
+      <button class="close-btn close-btn-lg files-modal-close modal-close-btn" id="files-modal-close" title="Close"
+        aria-label="Close file manager">&times;</button>
     </div>
     <div class="files-modal-top-actions">
       <button id="files-replace-all">Replace all</button>
@@ -373,7 +408,7 @@
     </div>
     <div id="files-modal-error" class="files-error" style="display:none" role="alert" aria-live="assertive">
       <span id="files-modal-error-text"></span>
-      <button id="files-modal-error-close" class="files-error-close" title="Dismiss"
+      <button id="files-modal-error-close" class="close-btn close-btn-md files-error-close" title="Dismiss"
         aria-label="Dismiss error">&times;</button>
     </div>
   </div>
@@ -381,6 +416,15 @@
   <div id="popup-bg" class="modal-overlay" aria-hidden="true"></div>
   <div id="popup" class="card-base modal-container popup-size" role="status" aria-live="polite" aria-atomic="true">
   </div>
+
+  <nav id="app-mode-switcher" aria-label="App mode">
+    <button class="mode-switch active" data-mode="converter" title="Converter" aria-label="Converter">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+    </button>
+    <button class="mode-switch" data-mode="pdf-editor" title="PDF Editor" aria-label="PDF Editor">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    </button>
+  </nav>
 
   <script type="module" src="src/main.ts"></script>
 

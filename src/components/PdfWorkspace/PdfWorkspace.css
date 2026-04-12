@@ -127,7 +127,7 @@
   min-width: 0;
   padding: var(--space-5);
   overflow: hidden auto;
-  max-height: calc(100vh - 14rem);
+  max-height: calc(100vh - 22rem);
   min-height: auto;
   border-radius: var(--radius-xl) 0 0 var(--radius-xl);
 }
@@ -141,7 +141,7 @@
   flex-direction: column;
   justify-content: space-between;
   min-height: auto;
-  max-height: calc(100vh - 14rem);
+  max-height: calc(100vh - 22rem);
   position: relative;
   z-index: 3;
   border-radius: 0 var(--radius-xl) var(--radius-xl) 0;

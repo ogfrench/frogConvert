@@ -16,7 +16,7 @@ describe("UploadZone DOM bindings", () => {
                 <div class="upload-file-info">
                     <span class="upload-file-name"></span>
                 </div>
-                <label id="upload-label">Your file</label>
+                <label id="upload-label"></label>
                 <button id="remove-file-btn">Remove</button>
                 <button id="replace-file-btn">Replace</button>
                 <button id="expand-files-btn">Expand</button>
@@ -65,7 +65,7 @@ describe("UploadZone DOM bindings", () => {
             expect(ui.uploadText.style.display).toBe("none");
             expect(ui.uploadHint.style.display).toBe("none");
             expect(ui.uploadFileName.textContent).toBe("dummy.png");
-            expect(ui.uploadLabel.textContent).toBe("Your file");
+            expect(ui.uploadLabel.textContent).toBe("");
             expect(ui.uploadFileInfo.classList.contains("visible")).toBe(true);
             expect(ui.uploadZone.classList.contains("has-file")).toBe(true);
         });

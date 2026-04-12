@@ -2,21 +2,21 @@ import "./TopBar.css";
 import { ui, formatMode, updateScrollLock, isCategoryVisible, type FormatMode } from "../store/store.ts";
 
 
-export function initModeToggle(onModeChanged: () => void) {
-  function applyMode(mode: FormatMode) {
-    formatMode.value = mode;
-    const label = mode === "core" ? "Core Formats" : mode === "plus" ? "Core+ Formats" : "All Formats";
-    ui.modeToggleButton.textContent = label;
-    localStorage.setItem("formatMode", mode);
+export function applyMode(mode: FormatMode) {
+  formatMode.value = mode;
+  const label = mode === "core" ? "Core Formats" : mode === "plus" ? "Core+ Formats" : "All Formats";
+  ui.modeToggleButton.textContent = label;
+  localStorage.setItem("formatMode", mode);
 
-    // Show/hide category tabs with animation
-    for (const tab of Array.from(ui.categoryTabs.children) as HTMLElement[]) {
-      const categoryName = tab.getAttribute("data-category") || "";
-      if (categoryName === "") continue; // Always show "Any"
-      tab.classList.toggle("tab-hidden", !isCategoryVisible(categoryName, mode));
-    }
+  // Show/hide category tabs with animation
+  for (const tab of Array.from(ui.categoryTabs.children) as HTMLElement[]) {
+    const categoryName = tab.getAttribute("data-category") || "";
+    if (categoryName === "") continue; // Always show "Any"
+    tab.classList.toggle("tab-hidden", !isCategoryVisible(categoryName, mode));
   }
+}
 
+export function initModeToggle(onModeChanged: () => void) {
   applyMode(formatMode.value);
 
   window.addEventListener("scroll", () => {

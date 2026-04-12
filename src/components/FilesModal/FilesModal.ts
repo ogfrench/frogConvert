@@ -111,7 +111,7 @@ function renderFilesModalList() {
 
     const removeBtn = document.createElement("button");
     removeBtn.className = "file-row-btn icon-btn";
-    removeBtn.innerHTML = "&#10005;";
+    removeBtn.innerHTML = "&times;";
     removeBtn.title = "Remove this file";
     removeBtn.addEventListener("click", () => removeFileAtIndex(i));
 

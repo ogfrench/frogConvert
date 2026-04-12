@@ -49,10 +49,14 @@ app.whenReady().then(() => {
         return new Response('Invalid Request', { status: 400 });
       }
 
-      // Strip everything uneeded
+      // Strip everything unneeded
       let urlPath = parsedUrl.pathname;
       if (urlPath.startsWith('/')) {
         urlPath = urlPath.slice(1);
+      }
+      // SPA fallback: route paths like convert, convert/image, pdf, pdf/split → index.html
+      if (urlPath === '' || /^(convert|pdf)(\/[^.]*)?$/.test(urlPath)) {
+        urlPath = 'index.html';
       }
       if (urlPath.startsWith('convert/')) {
         urlPath = urlPath.replace('convert/', '');

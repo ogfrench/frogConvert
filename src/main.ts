@@ -2,6 +2,8 @@ import './styles/global.css';
 import { initFrogsworth } from "./components/Frogsworth/FrogsworthWidget.ts";
 import type { FormatHandler } from "./core/FormatHandler/FormatHandler.js";
 import handlers, { loadBackgroundHandlers } from "./handlers";
+import { initPdfWorkspace, selectPdfTool } from "./components/PdfWorkspace/PdfWorkspace.ts";
+import { initRouter, navigateTo, type RouteState } from "./router.ts";
 
 // Kick off TraversionGraph load immediately in the background - does not block paint.
 // refreshUI() awaits this promise before calling .init(), so it's always ready in time.
@@ -28,6 +30,7 @@ import {
   updateCategoryText,
   findMatchingFormat,
   initModeToggle,
+  applyMode,
   clearFormatSelection,
   initConvertButton,
   getIsConverting,
@@ -84,7 +87,97 @@ initCategoryTabs((category) => {
     clearFormatSelection(activeCategory.value);
   }
   updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
+  navigateTo('converter', category);
 });
+
+// --- App Mode Navigation (Converter ↔ PDF Editor) ---
+
+const switcher = document.getElementById("app-mode-switcher")!;
+const mobileSegmented = document.getElementById("app-mode-segmented")!;
+const converterEls = ["hero-title", "category-tabs", "convert-card", "description"].map(id => document.getElementById(id)!);
+const pdfWorkspaceEl = document.getElementById("pdf-workspace")!;
+
+function setAppMode(mode: string) {
+  // Update fixed switcher
+  for (const b of switcher.querySelectorAll(".mode-switch")) {
+    b.classList.toggle("active", (b as HTMLElement).dataset.mode === mode);
+  }
+  // Update mobile segmented
+  for (const b of mobileSegmented.querySelectorAll(".segmented-option")) {
+    const isActive = (b as HTMLElement).dataset.value === mode;
+    b.classList.toggle("active", isActive);
+    (b as HTMLElement).setAttribute("aria-pressed", String(isActive));
+  }
+
+  if (mode === "pdf-editor") {
+    for (const el of converterEls) el.style.display = "none";
+    pdfWorkspaceEl.style.display = "";
+    // Re-trigger entrance animations
+    for (const child of pdfWorkspaceEl.querySelectorAll('.entrance')) {
+      child.classList.remove('entrance');
+      void (child as HTMLElement).offsetHeight;
+      child.classList.add('entrance');
+    }
+    initPdfWorkspace();
+  } else {
+    pdfWorkspaceEl.style.display = "none";
+    for (const el of converterEls) el.style.display = "";
+  }
+}
+
+function subForMode(mode: string): string {
+  if (mode === 'converter') return activeCategory.value;
+  return document.querySelector('#pdf-editor-tabs .cat-tab.active')?.getAttribute('data-tool') || '';
+}
+
+// Fixed bottom-left switcher
+switcher.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest(".mode-switch") as HTMLButtonElement | null;
+  if (!btn || btn.classList.contains("active")) return;
+  setAppMode(btn.dataset.mode!);
+  navigateTo(btn.dataset.mode!, subForMode(btn.dataset.mode!));
+});
+
+// Mobile hamburger segmented control
+mobileSegmented.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest(".segmented-option") as HTMLButtonElement | null;
+  if (!btn || btn.classList.contains("active")) return;
+  setAppMode(btn.dataset.value!);
+  navigateTo(btn.dataset.value!, subForMode(btn.dataset.value!));
+});
+
+// PDF tool tabs → update URL
+document.getElementById("pdf-editor-tabs")!.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest(".cat-tab") as HTMLButtonElement | null;
+  if (!btn || btn.classList.contains("active")) return;
+  navigateTo('pdf-editor', btn.dataset.tool || '');
+});
+
+// --- Router (URL ↔ state sync) ---
+
+function minModeForCategory(category: string) {
+  if (isCategoryVisible(category, 'core')) return 'core' as const;
+  if (isCategoryVisible(category, 'plus')) return 'plus' as const;
+  return 'all' as const;
+}
+
+function applyRoute(route: RouteState) {
+  setAppMode(route.mode);
+  if (route.mode === 'converter') {
+    if (route.sub && !isCategoryVisible(route.sub, formatMode.value)) {
+      applyMode(minModeForCategory(route.sub));
+    }
+    selectCategoryTab(route.sub || '');
+  } else {
+    selectPdfTool(route.sub || 'merge');
+  }
+}
+
+const initialRoute = initRouter(applyRoute);
+// Apply initial route from URL (only if non-default to avoid redundant work)
+if (initialRoute.mode !== 'converter' || initialRoute.sub !== '') {
+  applyRoute(initialRoute);
+}
 
 initUploadZone(
   (files) => {
@@ -336,6 +429,9 @@ initFrogsworth(() => ({
   to: selectedToIndex.value !== null
     ? allOptionsRef.value[selectedToIndex.value].format.format
     : null,
+  page: document.getElementById("pdf-workspace")?.style.display !== "none"
+    ? "pdf-editor" as const
+    : "convert" as const,
 }));
 
 // --- Footer Confetti ---
