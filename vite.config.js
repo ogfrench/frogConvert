@@ -158,12 +158,9 @@ export default defineConfig({
     ],
     setupFiles: ['./test/setup.ts'],
     testTimeout: 20000,
-    // WASM modules (7z-wasm, ImageMagick, etc.) accumulate memory in test
-    // worker forks, eventually OOM-ing the process. Tests whose results are
-    // lost to the OOM are run in a separate invocation via the test script.
-    // dangerouslyIgnoreUnhandledErrors prevents the OOM from flipping the
-    // exit code after all tests in this invocation have passed.
-    dangerouslyIgnoreUnhandledErrors: true,
+    // WASM modules (7z-wasm, ImageMagick, etc.) accumulate memory in fork
+    // workers that V8 cannot reclaim.  Recycle workers before they OOM.
+    vmMemoryLimit: '1gb',
   },
   optimizeDeps: {
     exclude: [
