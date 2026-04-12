@@ -20,6 +20,8 @@ let mergeFiles: SourceFile[] = [];
 let splitFile: SourceFile | null = null;
 let splitPages: PageEntry[] = [];
 let splitSelected = new Set<number>();
+let splitCountEl: HTMLElement | null = null;
+let splitExtractBtn: HTMLElement | null = null;
 let orgFiles: SourceFile[] = [];
 let orgPages: PageEntry[] = [];
 
@@ -121,6 +123,8 @@ function cleanup() {
   thumbnailObserver?.disconnect();
   thumbnailObserver = null;
   renderQueue.length = 0;
+  splitCountEl = null;
+  splitExtractBtn = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -277,7 +281,7 @@ function updateMergeSidebarContent(sidebar: HTMLElement) {
       fileItem.appendChild(el('span', { className: 'ws-sidebar-meta', textContent: `${sf.pageCount} pages · ${formatSize(sf.size)}` }));
     }
 
-    const delFileBtn = el('button', { className: 'ws-file-list-remove', innerHTML: '&times;', ariaLabel: `Remove ${sf.name}` });
+    const delFileBtn = el('button', { className: 'close-btn close-btn-sm ws-hover-reveal ws-file-list-remove', innerHTML: '&times;', ariaLabel: `Remove ${sf.name}` });
     delFileBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       mergeFiles = mergeFiles.filter(f => f.id !== sf.id);
@@ -330,7 +334,7 @@ function createFileCard(sf: SourceFile): HTMLElement {
   info.appendChild(el('span', { className: 'ws-file-meta', textContent: `${sf.pageCount} pages · ${formatSize(sf.size)}` }));
   card.appendChild(info);
 
-  const removeBtn = el('button', { className: 'ws-file-remove', innerHTML: '&times;', ariaLabel: 'Remove' });
+  const removeBtn = el('button', { className: 'close-btn close-btn-md ws-hover-reveal ws-file-remove', innerHTML: '&times;', ariaLabel: 'Remove' });
   removeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     mergeFiles = mergeFiles.filter(f => f.id !== sf.id);
@@ -418,8 +422,13 @@ function renderSplitView() {
 }
 
 function updateSplitSidebar() {
-  const sidebar = document.getElementById('split-sidebar');
-  if (sidebar) updateSplitSidebarContent(sidebar);
+  if (splitCountEl) splitCountEl.textContent = `${splitSelected.size} of ${splitPages.length} selected`;
+  if (splitExtractBtn) {
+    splitExtractBtn.textContent = `Extract ${splitSelected.size} page${splitSelected.size !== 1 ? 's' : ''}`;
+    splitExtractBtn.classList.toggle('disabled', splitSelected.size === 0);
+    if (splitSelected.size === 0) splitExtractBtn.setAttribute('aria-disabled', 'true');
+    else splitExtractBtn.removeAttribute('aria-disabled');
+  }
 }
 
 function updateSplitSidebarContent(sidebar: HTMLElement) {
@@ -459,7 +468,8 @@ function updateSplitSidebarContent(sidebar: HTMLElement) {
   btnRow.appendChild(deselectBtn);
   top.appendChild(btnRow);
 
-  top.appendChild(el('p', { className: 'ws-sidebar-count', textContent: `${splitSelected.size} of ${splitPages.length} selected` }));
+  splitCountEl = el('p', { className: 'ws-sidebar-count', textContent: `${splitSelected.size} of ${splitPages.length} selected` });
+  top.appendChild(splitCountEl);
 
   sidebar.appendChild(top);
 
@@ -468,15 +478,15 @@ function updateSplitSidebarContent(sidebar: HTMLElement) {
   const resetBtn = el('button', { className: 'ws-btn-text', textContent: 'Reset' });
   resetBtn.addEventListener('click', () => { splitFile = null; splitPages = []; splitSelected.clear(); clearThumbnailCache(); renderSplitView(); });
 
-  const extractBtn = el('button', {
+  splitExtractBtn = el('button', {
     className: 'btn-primary ws-action-btn ws-action-full',
     textContent: `Extract ${splitSelected.size} page${splitSelected.size !== 1 ? 's' : ''}`
   });
-  if (splitSelected.size === 0) { extractBtn.classList.add('disabled'); extractBtn.setAttribute('aria-disabled', 'true'); }
-  extractBtn.addEventListener('click', handleSplit);
+  if (splitSelected.size === 0) { splitExtractBtn.classList.add('disabled'); splitExtractBtn.setAttribute('aria-disabled', 'true'); }
+  splitExtractBtn.addEventListener('click', handleSplit);
 
   bottom.appendChild(resetBtn);
-  bottom.appendChild(extractBtn);
+  bottom.appendChild(splitExtractBtn);
   sidebar.appendChild(bottom);
 }
 
@@ -635,7 +645,7 @@ function updateOrgSidebarContent(sidebar: HTMLElement) {
     }
 
     // Per-file delete button
-    const delFileBtn = el('button', { className: 'ws-file-list-remove', innerHTML: '&times;', ariaLabel: `Remove ${sf.name}` });
+    const delFileBtn = el('button', { className: 'close-btn close-btn-sm ws-hover-reveal ws-file-list-remove', innerHTML: '&times;', ariaLabel: `Remove ${sf.name}` });
     delFileBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       orgPages = orgPages.filter(p => p.sourceFileId !== fid);
@@ -703,7 +713,7 @@ function appendMobileControls(sidebarCard: HTMLElement, onAction: () => void, ac
   toolContent.appendChild(overlay);
 
   // Close button inside sidebar
-  const closeBtn = el('button', { className: 'ws-sidebar-close', innerHTML: '&times;', ariaLabel: 'Close' });
+  const closeBtn = el('button', { className: 'close-btn close-btn-lg ws-sidebar-close', innerHTML: '&times;', ariaLabel: 'Close' });
   sidebarCard.prepend(closeBtn);
 
   // Toggle logic
@@ -734,7 +744,7 @@ function getPageBadgeText(page: PageEntry): string {
 }
 
 function addDeleteButton(card: HTMLElement, idx: number) {
-  const delBtn = el('button', { className: 'ws-page-delete', innerHTML: '&times;', ariaLabel: 'Delete' });
+  const delBtn = el('button', { className: 'close-btn close-btn-sm ws-overlay-btn ws-hover-reveal ws-page-delete', innerHTML: '&times;', ariaLabel: 'Delete' });
   delBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     orgPages[idx].deleted = true;
@@ -750,7 +760,7 @@ function addDeleteButton(card: HTMLElement, idx: number) {
 
 function addRotateButton(card: HTMLElement, page: PageEntry, badge: HTMLElement) {
   let visualAngle = page.rotation || 0;
-  const rotBtn = el('button', { className: 'ws-page-rotate', innerHTML: '&#x21bb;', ariaLabel: 'Rotate' });
+  const rotBtn = el('button', { className: 'close-btn close-btn-sm ws-overlay-btn ws-hover-reveal ws-page-rotate', innerHTML: '&#x21bb;', ariaLabel: 'Rotate' });
   rotBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     page.rotation = ((page.rotation + 90) % 360) as 0 | 90 | 180 | 270;
