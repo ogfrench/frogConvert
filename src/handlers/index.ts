@@ -25,6 +25,7 @@ export async function loadBackgroundHandlers() {
     async () => { const m = await import("./font.ts"); handlers.push(new m.default()); },
     async () => { const m = await import("./FFmpeg.ts"); handlers.push(new m.default()); },
     async () => { const m = await import("./ImageMagick.ts"); handlers.push(new m.default()); },
+    async () => { const m = await import("./libreoffice.ts"); handlers.push(new m.default()); },
     async () => { const m = await import("./pandoc.ts"); handlers.push(new m.default()); },
     async () => { const m = await import("./meyda.ts"); handlers.push(new m.default()); },
     async () => { const m = await import("./htmlEmbed.ts"); handlers.push(new m.default()); },

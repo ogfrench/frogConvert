@@ -3,5 +3,7 @@ import type { TraversionGraph } from '../../core/TraversionGraph/TraversionGraph
 
 export interface McpContext {
     handlers: FormatHandler[];
+    /** All loaded handlers, including those that failed to become ready (e.g. libreoffice without soffice). */
+    allHandlers: FormatHandler[];
     graph: TraversionGraph;
 }

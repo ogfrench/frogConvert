@@ -5,10 +5,13 @@ import { basename, dirname, join } from "path";
 import type { FileData } from "../../core/FormatHandler/FormatHandler.ts";
 import type { McpContext } from "../core/types.ts";
 
-import { findFormatAndHandler } from "../core/utils.ts";
+import { findFormatAndHandler, libreofficeHint } from "../core/utils.ts";
 import { convertViaBrowser } from "../core/browserBridge.ts";
 
 async function serializeResults(files: FileData[], outputFilePath?: string) {
+    // Collect warnings from all files (deduped).
+    const warnings = Array.from(new Set(files.flatMap(f => f.warnings ?? [])));
+
     if (outputFilePath && files.length > 0) {
         const firstFile = files[0];
         const outDir = dirname(outputFilePath);
@@ -23,12 +26,15 @@ async function serializeResults(files: FileData[], outputFilePath?: string) {
             paths.push(extra);
         }
 
-        return { content: [{ type: "text" as const, text: JSON.stringify({ savedTo: paths }) }] };
+        const payload: Record<string, unknown> = { savedTo: paths };
+        if (warnings.length > 0) payload.warnings = warnings;
+        return { content: [{ type: "text" as const, text: JSON.stringify(payload) }] };
     }
 
     const results = files.map(f => ({
         fileName: f.name,
-        base64Bytes: Buffer.from(f.bytes).toString('base64')
+        base64Bytes: Buffer.from(f.bytes).toString('base64'),
+        ...(f.warnings?.length ? { warnings: f.warnings } : {}),
     }));
     return { content: [{ type: "text" as const, text: JSON.stringify(results) }] };
 }
@@ -84,7 +90,7 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
                 };
             }
 
-            const { handlers, graph } = await initPromise;
+            const { handlers, allHandlers, graph } = await initPromise;
 
             const inputMatch = findFormatAndHandler(handlers, inputMime, inputExtension, 'from');
             const outputMatch = findFormatAndHandler(handlers, outputMime, outputExtension, 'to');
@@ -138,8 +144,11 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
                 }
                 return { content: [{ type: "text", text: JSON.stringify(bridgeResults) }] };
             } catch (bridgeErr: any) {
+                let msg = `Error: ${bridgeErr?.message ?? `No conversion path found between ${inputMime} and ${outputMime}`}`;
+                const hint = libreofficeHint(allHandlers, inputExtension, outputExtension);
+                if (hint) msg += `\n${hint}`;
                 return {
-                    content: [{ type: "text", text: `Error: ${bridgeErr?.message ?? `No conversion path found between ${inputMime} and ${outputMime}`}` }],
+                    content: [{ type: "text", text: msg }],
                     isError: true
                 };
             }

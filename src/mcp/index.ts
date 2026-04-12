@@ -26,7 +26,7 @@ async function main() {
     // waiting here would make the MCP client time out before the server is ready.
     // Each tool call awaits this promise before processing.
     const initPromise: Promise<McpContext> = (async () => {
-        const handlers = await loadMcpHandlers();
+        const { ready: handlers, all: allHandlers } = await loadMcpHandlers();
 
         const supportedFormatCache = new Map<string, FileFormat[]>();
         handlers.forEach(h => supportedFormatCache.set(h.name, h.supportedFormats || []));
@@ -34,7 +34,7 @@ async function main() {
         const graph = new TraversionGraph();
         graph.init(supportedFormatCache, handlers, false);
 
-        return { handlers, graph };
+        return { handlers, allHandlers, graph };
     })();
 
     initPromise.catch(err => {

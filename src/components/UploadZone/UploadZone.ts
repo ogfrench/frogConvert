@@ -25,6 +25,17 @@ export function initUploadZone(
     ui.fileInput.click();
   });
 
+  // The upload zone has role="button" tabindex="0" but is a <div>, so it
+  // doesn't get Enter/Space activation for free. Forward keyboard activation
+  // to the same path as a click.
+  ui.uploadZone.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const target = e.target as HTMLElement;
+    if (target.closest(".upload-file-actions")) return;
+    e.preventDefault();
+    ui.fileInput.click();
+  });
+
   bindDragAndDropVisuals(ui.uploadZone);
 
   ui.removeFileBtn.addEventListener("click", (e) => {

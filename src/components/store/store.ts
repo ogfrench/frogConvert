@@ -16,6 +16,7 @@ const SELECTORS: Record<string, string> = {
   replaceFileBtn: "#replace-file-btn",
   removeFileBtn: "#remove-file-btn",
   convertButton: "#convert-button",
+  libreofficeNotice: "#libreoffice-notice",
   themeToggleButton: "#theme-toggle",
   modeToggleButton: "#mode-toggle",
   formatSelector: "#format-selector",
@@ -47,7 +48,7 @@ const SELECTORS: Record<string, string> = {
 
 export const ui = new Proxy({} as any, {
   get(_, prop: string) {
-    if (uiInternal[prop]) return uiInternal[prop];
+    if (prop in uiInternal) return uiInternal[prop];
 
     const selector = SELECTORS[prop];
     if (selector) {
@@ -82,6 +83,7 @@ export const ui = new Proxy({} as any, {
   replaceFileBtn: HTMLButtonElement;
   removeFileBtn: HTMLButtonElement;
   convertButton: HTMLButtonElement;
+  libreofficeNotice: HTMLDivElement;
   themeToggleButton: HTMLButtonElement;
   modeToggleButton: HTMLButtonElement;
   formatSelector: HTMLButtonElement;

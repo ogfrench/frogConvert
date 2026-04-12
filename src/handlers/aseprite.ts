@@ -26,10 +26,16 @@ interface CelImage {
   pixels: Uint8Array;
 }
 
-interface ParsedAseprite {
+interface ParsedAsepriteFrame {
   width: number;
   height: number;
   pixels: Uint8ClampedArray;
+}
+
+interface ParsedAseprite {
+  width: number;
+  height: number;
+  frames: ParsedAsepriteFrame[];
 }
 
 function clamp01(value: number): number {
@@ -272,28 +278,16 @@ function decodeAseprite(bytes: Uint8Array): ParsedAseprite {
     offset = frameEnd;
   }
 
-  let targetFrame = frameCels.get(0);
-  if (!targetFrame || targetFrame.size === 0) {
-    for (let i = 0; i < frameCount; i++) {
-      const frame = frameCels.get(i);
-      if (frame && frame.size > 0) {
-        targetFrame = frame;
-        break;
-      }
-    }
-  }
-  if (!targetFrame) throw "Failed to read first frame.";
-  if (targetFrame.size === 0) {
-    if (unsupportedCelTypes.size > 0) {
-      throw `Unsupported Aseprite cel type(s): ${Array.from(unsupportedCelTypes).join(", ")}.`;
-    }
-    throw "Aseprite frame has no drawable cels.";
-  }
+  const renderedFrames: ParsedAsepriteFrame[] = [];
 
-  const output = new Uint8ClampedArray(width * height * 4);
+  for (let frameIdx = 0; frameIdx < frameCount; frameIdx++) {
+    const currentFrame = frameCels.get(frameIdx);
+    if (!currentFrame || currentFrame.size === 0) continue;
 
-  const layerEntries = Array.from(targetFrame.values()).sort((a, b) => a.layerIndex - b.layerIndex);
-  for (const cel of layerEntries) {
+    const output = new Uint8ClampedArray(width * height * 4);
+
+    const layerEntries = Array.from(currentFrame.values()).sort((a, b) => a.layerIndex - b.layerIndex);
+    for (const cel of layerEntries) {
     const layer = layers[cel.layerIndex];
     if (layer && !layer.visible) continue;
     const layerOpacity = (layer?.opacity ?? 255) / 255;
@@ -404,7 +398,17 @@ function decodeAseprite(bytes: Uint8Array): ParsedAseprite {
     }
   }
 
-  return { width, height, pixels: output };
+    renderedFrames.push({ width, height, pixels: output });
+  }
+
+  if (renderedFrames.length === 0) {
+    if (unsupportedCelTypes.size > 0) {
+      throw new Error(`Unsupported Aseprite cel type(s): ${Array.from(unsupportedCelTypes).join(", ")}`);
+    }
+    throw new Error("This Aseprite file has no drawable frames");
+  }
+
+  return { width, height, frames: renderedFrames };
 }
 
 class asepriteHandler implements FormatHandler {
@@ -450,25 +454,31 @@ class asepriteHandler implements FormatHandler {
       this.#canvas.width = decoded.width;
       this.#canvas.height = decoded.height;
 
-      const imagePixels = new Uint8ClampedArray(decoded.pixels.length);
-      imagePixels.set(decoded.pixels);
-      const imageData = new ImageData(imagePixels, decoded.width, decoded.height);
-      this.#ctx.putImageData(imageData, 0, 0);
-
-      const bytes = await new Promise<Uint8Array>((resolve, reject) => {
-        this.#canvas!.toBlob(blob => {
-          if (!blob) return reject("Canvas failed to encode output image.");
-          blob.arrayBuffer().then(buf => resolve(new Uint8Array(buf)));
-        }, outputFormat.mime);
-      });
-
       const baseName = inputFile.name.includes(".")
         ? inputFile.name.slice(0, inputFile.name.lastIndexOf("."))
         : inputFile.name;
-      outputs.push({
-        bytes,
-        name: `${baseName}.${outputFormat.extension}`
-      });
+
+      const multiFrame = decoded.frames.length > 1;
+
+      for (let i = 0; i < decoded.frames.length; i++) {
+        const frame = decoded.frames[i];
+        const imagePixels = new Uint8ClampedArray(frame.pixels.length);
+        imagePixels.set(frame.pixels);
+        const imageData = new ImageData(imagePixels, frame.width, frame.height);
+        this.#ctx.putImageData(imageData, 0, 0);
+
+        const bytes = await new Promise<Uint8Array>((resolve, reject) => {
+          this.#canvas!.toBlob(blob => {
+            if (!blob) return reject("Canvas failed to encode output image.");
+            blob.arrayBuffer().then(buf => resolve(new Uint8Array(buf)));
+          }, outputFormat.mime);
+        });
+
+        const name = multiFrame
+          ? `${baseName}_frame_${i + 1}.${outputFormat.extension}`
+          : `${baseName}.${outputFormat.extension}`;
+        outputs.push({ bytes, name });
+      }
     }
 
     return outputs;

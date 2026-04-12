@@ -23,7 +23,13 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: "latest"
-          cache: true
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
 
       - name: Install dependencies
         run: bun i --frozen-lockfile
@@ -35,6 +41,9 @@ jobs:
 
       - name: Generate cache
         run: bun run cache:build
+
+      - name: Unused exports & dependencies
+        run: bun x knip --no-exit-code
 
       - name: Run tests
         run: bun run test

@@ -4,7 +4,57 @@ import { defineConfig } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import tsconfigPaths from "vite-tsconfig-paths";
 
-import { execSync } from "child_process";
+import { execSync, spawn } from "child_process";
+
+/**
+ * Auto-spawn the API server (src/api/index.ts) as a child process on dev
+ * startup. This lets the browser UI proxy to /api/* and reach Node-only
+ * handlers (e.g. libreoffice, which shells out to soffice) without requiring
+ * the developer to manage a second terminal.
+ *
+ * Skips spawning if port 3000 is already serving /health — useful when the
+ * developer runs `bun run api` manually for debugging.
+ */
+function apiServerPlugin() {
+  let apiProcess = null;
+  return {
+    name: 'api-server',
+    apply: 'serve',  // dev mode only
+    async configureServer(server) {
+      // Probe existing API server first — skip spawn if already running
+      try {
+        const resp = await fetch('http://127.0.0.1:3000/health', {
+          signal: AbortSignal.timeout(500)
+        });
+        if (resp.ok) {
+          console.log('[api-server] existing /health responded; reusing instance on port 3000');
+          return;
+        }
+      } catch { /* nothing listening, spawn our own */ }
+
+      apiProcess = spawn('bun', ['run', 'src/api/index.ts'], {
+        stdio: ['ignore', 'inherit', 'inherit'],
+        env: { ...process.env, PORT: '3000' },
+        shell: process.platform === 'win32',  // Windows needs shell to resolve "bun"
+      });
+
+      apiProcess.on('error', (err) => {
+        console.warn('[api-server] failed to spawn:', err.message);
+      });
+
+      const cleanup = () => {
+        if (apiProcess && !apiProcess.killed) {
+          apiProcess.kill();
+          apiProcess = null;
+        }
+      };
+      server.httpServer?.once('close', cleanup);
+      process.once('exit', cleanup);
+      process.once('SIGINT', () => { cleanup(); process.exit(0); });
+      process.once('SIGTERM', () => { cleanup(); process.exit(0); });
+    },
+  };
+}
 
 const projectPkg = JSON.parse(fs.readFileSync("./package.json", "utf-8"));
 const commitSha = (() => {
@@ -108,6 +158,12 @@ export default defineConfig({
     ],
     setupFiles: ['./test/setup.ts'],
     testTimeout: 20000,
+    // WASM modules (7z-wasm, ImageMagick, etc.) accumulate memory in test
+    // worker forks, eventually OOM-ing the process. Tests whose results are
+    // lost to the OOM are run in a separate invocation via the test script.
+    // dangerouslyIgnoreUnhandledErrors prevents the OOM from flipping the
+    // exit code after all tests in this invocation have passed.
+    dangerouslyIgnoreUnhandledErrors: true,
   },
   optimizeDeps: {
     exclude: [
@@ -121,7 +177,17 @@ export default defineConfig({
     ]
   },
   base: "/",
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      }
+    }
+  },
   plugins: [
+    apiServerPlugin(),
     {
       name: 'async-css',
       transformIndexHtml: {

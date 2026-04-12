@@ -4,13 +4,32 @@ import {
   MagickFormat,
   MagickImageCollection,
   MagickReadSettings,
-  MagickGeometry
+  MagickGeometry,
+  type IMagickImage,
 } from "@imagemagick/magick-wasm";
 
 import mime from "mime";
 import normalizeMimeType from "../core/utils/normalizeMimeType.ts";
 import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
-import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import type { FileData, FileFormat, FormatHandler, QualityPreset } from "../core/FormatHandler/FormatHandler.ts";
+import { extractQualityPreset } from "../core/FormatHandler/FormatHandler.ts";
+
+/** Map a quality preset to ImageMagick's 0–100 quality value. */
+function magickQuality(preset: QualityPreset, format: string): number | undefined {
+  // Lossless formats (PNG, BMP, TIFF) don't use quality.
+  if (["png", "bmp", "tiff"].includes(format)) return undefined;
+  if (preset === "low") return 60;
+  if (preset === "high") return 95;
+  if (preset === "lossless") return 100;
+  return 82; // medium — same ballpark as Magick default
+}
+
+/** Apply quality preset to an image if relevant. */
+function applyQuality(image: IMagickImage, preset: QualityPreset | undefined, format: string) {
+  if (!preset) return;
+  const q = magickQuality(preset, format);
+  if (q !== undefined) image.quality = q;
+}
 
 class ImageMagickHandler implements FormatHandler {
 
@@ -82,16 +101,61 @@ class ImageMagickHandler implements FormatHandler {
   async doConvert (
     inputFiles: FileData[],
     inputFormat: FileFormat,
-    outputFormat: FileFormat
+    outputFormat: FileFormat,
+    args?: string[]
   ): Promise<FileData[]> {
 
     const inputMagickFormat = inputFormat.internal as MagickFormat;
     const outputMagickFormat = outputFormat.internal as MagickFormat;
+    const qualityPreset = extractQualityPreset(args);
 
     const inputSettings = new MagickReadSettings();
     inputSettings.format = inputMagickFormat;
 
+    // Detect animated-input → static-image conversion. In this case each
+    // frame must be written to its own output file, otherwise ImageMagick
+    // would silently drop all frames except the first.
+    const animatedFormats = new Set(["gif", "webp", "apng"]);
+    const inputIsAnimated = animatedFormats.has(inputFormat.format);
+    const outputIsStaticImage = outputFormat.mime?.startsWith("image/")
+      && !animatedFormats.has(outputFormat.format);
+    const extractFrames = inputIsAnimated && outputIsStaticImage;
 
+    if (extractFrames) {
+      const outputs: FileData[] = [];
+      for (const inputFile of inputFiles) {
+        const baseName = inputFile.name.split(".").slice(0, -1).join(".");
+        const frameBytesList: Uint8Array[] = await new Promise(resolve => {
+          MagickImageCollection.use(fileCollection => {
+            fileCollection.read(inputFile.bytes, inputSettings);
+            const list: Uint8Array[] = [];
+            for (const image of fileCollection) {
+              image.autoOrient();
+              applyQuality(image, qualityPreset, outputFormat.format);
+              if (outputFormat.format === "ico" && (image.width > 256 || image.height > 256)) {
+                const geometry = new MagickGeometry(256, 256);
+                image.resize(geometry);
+              }
+              image.write(outputMagickFormat, (data) => {
+                list.push(new Uint8Array(data));
+              });
+            }
+            resolve(list);
+          });
+        });
+
+        const multi = frameBytesList.length > 1;
+        for (let i = 0; i < frameBytesList.length; i++) {
+          const name = multi
+            ? `${baseName}_frame_${i + 1}.${outputFormat.extension}`
+            : `${baseName}.${outputFormat.extension}`;
+          outputs.push({ bytes: frameBytesList[i], name });
+        }
+      }
+      return outputs;
+    }
+
+    const warnings: string[] = [];
     const bytes: Uint8Array = await new Promise(resolve => {
       MagickImageCollection.use(outputCollection => {
         for (const inputFile of inputFiles) {
@@ -100,17 +164,53 @@ class ImageMagickHandler implements FormatHandler {
              inputSettings.width = Math.round(Math.sqrt(inputFile.bytes.length / 3));
              inputSettings.height = inputSettings.width;
            }
+
+          if (outputFormat.format === "ico") {
+            // Build a multi-size ICO bundle (Windows convention).
+            // Peek the source dimensions once, then re-read the source
+            // into the output collection N times and resize each copy.
+            // clone() has a scoped callback lifetime that doesn't survive
+            // outside the callback — re-reading is the reliable pattern.
+            let sourceMax = 0;
+            MagickImageCollection.use(probeCollection => {
+              probeCollection.read(inputFile.bytes, inputSettings);
+              const probe = probeCollection[0];
+              if (probe) sourceMax = Math.max(probe.width, probe.height);
+            });
+            const targetSizes = [16, 32, 48, 64, 128, 256].filter(s => s <= sourceMax);
+            if (targetSizes.length === 0) targetSizes.push(Math.min(256, sourceMax || 256));
+            if (targetSizes.length < 6 && sourceMax > 0) {
+              warnings.push(`Source image (${sourceMax}px) is smaller than 256px - some ICO sizes were skipped to avoid upscaling`);
+            }
+
+            for (const size of targetSizes) {
+              MagickImageCollection.use(tmpCollection => {
+                tmpCollection.read(inputFile.bytes, inputSettings);
+                while (tmpCollection.length > 0) {
+                  const image = tmpCollection.shift();
+                  if (!image) break;
+                  image.autoOrient();
+                  // ICO entries must be square. MagickGeometry preserves
+                  // aspect ratio by default, so force it off — otherwise
+                  // a 100×200 source would produce a 128×256 entry and
+                  // Windows would render it stretched.
+                  const geom = new MagickGeometry(size, size);
+                  geom.ignoreAspectRatio = true;
+                  image.resize(geom);
+                  outputCollection.push(image);
+                }
+              });
+            }
+            continue;
+          }
+
           MagickImageCollection.use(fileCollection => {
             fileCollection.read(inputFile.bytes, inputSettings);
             while (fileCollection.length > 0) {
               const image = fileCollection.shift();
               if (!image) break;
-
-              if(outputFormat.format === "ico" && (image.width > 256 || image.height > 256)) {
-                const geometry = new MagickGeometry(256, 256);
-                image.resize(geometry);
-              }
-
+              image.autoOrient();
+              applyQuality(image, qualityPreset, outputFormat.format);
               outputCollection.push(image);
             }
           });
@@ -123,7 +223,7 @@ class ImageMagickHandler implements FormatHandler {
 
     const baseName = inputFiles[0].name.split(".").slice(0, -1).join(".");
     const name = baseName + "." + outputFormat.extension;
-    return [{ bytes, name }];
+    return [{ bytes, name, ...(warnings.length > 0 && { warnings }) }];
 
   }
 

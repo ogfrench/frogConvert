@@ -105,6 +105,18 @@ class dummyHandler implements FormatHandler {
 export default dummyHandler;
 ```
 
+#### Quality Presets
+
+Handlers that support variable output quality should check for a `--quality` flag in the `args` parameter. The `extractQualityPreset(args)` utility (from `FormatHandler.ts`) returns one of `"low" | "medium" | "high" | "lossless"` or `undefined`. Map these to your tool's specific encoding settings (e.g. FFmpeg maps to CRF/bitrate, ImageMagick maps to quality 60-100, pdftoimg maps to DPI and JPEG quality).
+
+#### Multi-File Output
+
+Some conversions produce multiple output files (e.g. frame extraction from animated GIF, video→PNG sequence, multi-size ICO bundles). Return all files from `doConvert()` as separate `FileData` entries. When there are multiple outputs, name them with an index suffix (e.g. `frame_1.png`, `frame_2.png`). The UI automatically zips multi-file results for download.
+
+#### Conversion Warnings
+
+If a handler silently adjusts the output (padding dimensions, coercing sample rates, upscaling), add human-readable warning strings to `FileData.warnings`. These surface in the UI success popup and in MCP/API responses.
+
 #### Important Implementation Rules:
 
 - **Naming**: If your tool is called `dummy`, the class must be `dummyHandler` and the file `dummy.ts`.

@@ -3,8 +3,11 @@ import { ui } from "../store/store.ts";
 import { hidePopup } from "../Popup/Popup.ts";
 import {
     isCancelled,
+    isSoftCancelRequested,
+    setActiveBatchSize,
     showConversionInProgress,
     ensureCancelButton,
+    removeCancelButton,
     resetCancellation,
     setCancelled,
     setWorkerCancelCallback,
@@ -127,31 +130,107 @@ describe("ConversionModal DOM bindings", () => {
         expect(cancelBtn).not.toBeNull();
     });
 
-    describe("triggerCancellation", () => {
-        it("sets isCancelled to true", () => {
+    describe("triggerCancellation — single-file (immediate hard cancel)", () => {
+        it("one click hard-cancels immediately: sets isCancelled, fires worker callback", () => {
+            const cb = vi.fn();
+            setWorkerCancelCallback(cb);
+            setActiveBatchSize(1);
             showConversionInProgress("Working...");
+            ensureCancelButton();
             triggerCancellation();
             expect(isCancelled).toBe(true);
+            expect(isSoftCancelRequested()).toBe(false);
+            expect(cb).toHaveBeenCalledOnce();
+            expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Cancelling conversion");
             resetCancellation();
         });
 
-        it("invokes and clears the registered workerCancelCallback", () => {
+        it("does not show the soft-cancel subtitle on single-file runs", () => {
+            setActiveBatchSize(1);
+            showConversionInProgress("Working...");
+            ensureCancelButton();
+            triggerCancellation();
+            expect(ui.popupBox.querySelector(".conversion-wrap-up")).toBeNull();
+            resetCancellation();
+        });
+    });
+
+    describe("triggerCancellation — batch (two-stage)", () => {
+        it("first call is a soft cancel: isCancelled stays false, isSoftCancelRequested becomes true", () => {
+            setActiveBatchSize(3);
+            showConversionInProgress("Working...");
+            ensureCancelButton();
+            triggerCancellation();
+            expect(isSoftCancelRequested()).toBe(true);
+            expect(isCancelled).toBe(false);
+            resetCancellation();
+        });
+
+        it("first click relabels the cancel button to 'Stop now' and shows the wrap-up subtitle", () => {
+            setActiveBatchSize(3);
+            showConversionInProgress("Converting file 2 of 5...");
+            ensureCancelButton();
+            triggerCancellation();
+            const btn = ui.popupBox.querySelector("#cancel-conversion-btn") as HTMLButtonElement;
+            expect(btn.textContent).toBe("Stop now");
+            expect(ui.popupBox.querySelector(".conversion-wrap-up")).not.toBeNull();
+            resetCancellation();
+        });
+
+        it("soft-cancel subtitle survives subsequent showConversionInProgress updates", () => {
+            setActiveBatchSize(3);
+            showConversionInProgress("Converting file 2 of 5...");
+            ensureCancelButton();
+            triggerCancellation();
+            expect(ui.popupBox.querySelector(".conversion-wrap-up")).not.toBeNull();
+            showConversionInProgress("Converting file 2 of 5...<br><span class=\"muted-text\">path</span>");
+            expect(ui.popupBox.querySelector(".conversion-wrap-up")).not.toBeNull();
+            resetCancellation();
+        });
+
+        it("second call escalates to hard cancel: sets isCancelled, fires worker callback, shows Cancelling popup", () => {
             const cb = vi.fn();
             setWorkerCancelCallback(cb);
+            setActiveBatchSize(3);
             showConversionInProgress("Working...");
-            triggerCancellation();
+            ensureCancelButton();
+            triggerCancellation();               // soft
+            expect(cb).not.toHaveBeenCalled();
+            triggerCancellation();               // hard
+            expect(isCancelled).toBe(true);
             expect(cb).toHaveBeenCalledOnce();
-            // Callback is consumed - calling triggerCancellation again must NOT call cb again
+            expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Cancelling conversion");
+            // Callback is consumed - further calls must NOT re-fire it
             triggerCancellation();
             expect(cb).toHaveBeenCalledTimes(1);
             resetCancellation();
         });
 
-        it("shows the Cancelling popup", () => {
+        it("resetCancellation clears softCancelRequested and activeBatchSize", () => {
+            setActiveBatchSize(3);
             showConversionInProgress("Working...");
+            ensureCancelButton();
             triggerCancellation();
-            expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Cancelling conversion");
+            expect(isSoftCancelRequested()).toBe(true);
             resetCancellation();
+            expect(isSoftCancelRequested()).toBe(false);
+        });
+
+        it("resetCancellation removes DOM artifacts from a previous soft-cancel", () => {
+            setActiveBatchSize(3);
+            showConversionInProgress("Working...");
+            ensureCancelButton();
+            triggerCancellation(); // soft — adds wrap-up subtitle + relabels button
+
+            // Verify artifacts exist before reset
+            expect(ui.popupBox.querySelector(".conversion-wrap-up")).not.toBeNull();
+            expect(ui.popupBox.querySelector("#cancel-conversion-btn")?.textContent).toBe("Stop now");
+
+            resetCancellation();
+
+            // All artifacts should be cleaned up
+            expect(ui.popupBox.querySelector(".conversion-wrap-up")).toBeNull();
+            expect(ui.popupBox.querySelector("#cancel-conversion-btn")?.textContent).toBe("Cancel conversion");
         });
     });
 
@@ -164,18 +243,24 @@ describe("ConversionModal DOM bindings", () => {
         });
 
         it("is a no-op after resetCancellation()", async () => {
+            setActiveBatchSize(3);
             showConversionInProgress("Working...");
-            triggerCancellation();
+            ensureCancelButton();
+            triggerCancellation(); // soft
+            triggerCancellation(); // hard
             resetCancellation(); // clears cancelStartTime
             ui.popupBox.classList.add("open");
             await completeCancellation(); // must be a true no-op now
             expect(ui.popupBox.classList.contains("open")).toBe(true);
         });
 
-        it("hides the popup after the minimum cancel duration", async () => {
+        it("hides the popup after the minimum cancel duration (two-stage cancel)", async () => {
             vi.useFakeTimers();
+            setActiveBatchSize(3);
             showConversionInProgress("Working...");
-            triggerCancellation();
+            ensureCancelButton();
+            triggerCancellation(); // soft
+            triggerCancellation(); // hard — this is what arms cancelStartTime
 
             const completion = completeCancellation();
             await vi.advanceTimersByTimeAsync(1100);
@@ -223,5 +308,12 @@ describe("ConversionModal DOM bindings", () => {
 
             expect(ui.popupBox.classList.contains("open")).toBe(false);
         });
+    });
+
+    it("removeCancelButton tears down the empty footer if no other items remain", () => {
+        showConversionInProgress("Working...");
+        ensureCancelButton();
+        removeCancelButton();
+        expect(ui.popupBox.querySelector(".popup-actions-footer")).toBeNull();
     });
 });

@@ -121,6 +121,41 @@ export interface FileData {
    * won't modify it, wrap it in `new Uint8Array()`.
    */
   readonly bytes: Uint8Array;
+  /**
+   * Optional warnings about silent quality mutations applied during the
+   * conversion (e.g. dimensions padded for codec constraints, sample rate
+   * coerced). Surfaced to the UI as a yellow banner so the user knows the
+   * output isn't a literal-faithful conversion.
+   */
+  warnings?: string[];
+}
+
+/**
+ * Progress update emitted by a handler during a conversion.
+ * Kept deliberately minimal: a single ratio is enough to drive a progress bar
+ * without introducing technical readouts that would clash with the friendly UI.
+ */
+export type ProgressEvent = {
+  /** 0..1 when known. Omit for indeterminate — caller falls back to spinner. */
+  ratio?: number;
+};
+
+/**
+ * User-facing quality preset. Threaded through `doConvert` as the args flag
+ * `--quality <preset>`. Each handler interprets it in its own native units —
+ * FFmpeg maps to CRF / bitrate, ImageMagick to `-quality` / lossless WebP,
+ * pdftoimg to DPI. Handlers that don't care simply ignore the flag.
+ */
+export type QualityPreset = "low" | "medium" | "high" | "lossless";
+
+/** Parse `--quality <preset>` from a handler's args array. */
+export function extractQualityPreset(args?: string[]): QualityPreset | undefined {
+  if (!args) return undefined;
+  const idx = args.indexOf("--quality");
+  if (idx < 0 || idx + 1 >= args.length) return undefined;
+  const val = args[idx + 1];
+  if (val === "low" || val === "medium" || val === "high" || val === "lossless") return val;
+  return undefined;
 }
 
 /**
@@ -160,13 +195,16 @@ export interface FormatHandler {
    * @param outputFormat Output {@link FileFormat}, the same for all outputs.
    * @param args Optional arguments as a string array.
    * Can be used to perform recursion with different settings.
+   * @param onProgress Optional progress callback. Handlers that can't report
+   * progress simply ignore it; the UI falls back to the indeterminate spinner.
    * @returns Array of {@link FileData} entries, one per generated output file.
    */
   doConvert: (
     inputFiles: FileData[],
     inputFormat: FileFormat,
     outputFormat: FileFormat,
-    args?: string[]
+    args?: string[],
+    onProgress?: (p: ProgressEvent) => void
   ) => Promise<FileData[]>;
 }
 

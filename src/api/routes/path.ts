@@ -29,7 +29,7 @@ export async function handlePath(url: URL, handlers: FormatHandler[], graph: Tra
     const pathsGenerator = graph.searchPath(
         { format: inputMatch.format, handler: inputMatch.handler },
         { format: outputMatch.format, handler: outputMatch.handler },
-        false
+        true
     );
 
     const pathResult = await pathsGenerator.next();

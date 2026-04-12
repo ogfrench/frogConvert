@@ -28,7 +28,7 @@ interface QueueNode {
     index: number;
     cost: number;
     path: SerializableConvertPathNode[];
-    visitedBorder: number;
+    adaptiveCost: number;
 }
 
 export function createWorkerHandler(postMessage: (msg: any) => void) {
@@ -38,13 +38,22 @@ export function createWorkerHandler(postMessage: (msg: any) => void) {
     let categoryAdaptiveCosts: CategoryAdaptiveCost[] = [];
 
     // Search state
-    const MAX_ITERATIONS = 50000;
+    const SEARCH_TIMEOUT_MS = 12_000; // Slightly under the main-thread 15s timeout
 
     let queue: PriorityQueue<QueueNode> | null = null;
-    let minCosts = new Map<number, number>();
+    // Cost-based pruning: tracks the cheapest known cost to reach each node.
+    // Cleared on resume so nodes previously settled via now-dead-ended routes
+    // can be re-explored through alternative paths.
+    //
+    // NOTE: Because adaptive costs are path-dependent (not purely edge-additive),
+    // node-level pruning is a pragmatic trade-off. In rare cases, a costlier path
+    // TO a node could produce a cheaper path THROUGH it. For the small conversion
+    // graphs used in practice, this trade-off is acceptable.
+    let bestCost = new Map<number, number>();
     let temporaryDeadEnds: SerializableConvertPathNode[][] = [];
     let iterations = 0;
     let pathsFound = 0;
+    let searchStartTime = 0;
 
     let toIndex = -1;
     let simpleMode = false;
@@ -65,10 +74,14 @@ export function createWorkerHandler(postMessage: (msg: any) => void) {
         }
         let cost = 0;
         const categoriesInPath = path.map(p => p.format.category || p.format.mime.split("/")[0]);
+        const matches = (formatCat: string | string[] | undefined, patternCat: string): boolean => {
+            if (formatCat === undefined) return false;
+            return Array.isArray(formatCat) ? formatCat.includes(patternCat) : formatCat === patternCat;
+        };
         categoryAdaptiveCosts.forEach(c => {
             let pathPtr = categoriesInPath.length - 1, categoryPtr = c.categories.length - 1;
             while (true) {
-                if (categoriesInPath[pathPtr] === c.categories[categoryPtr]) {
+                if (matches(categoriesInPath[pathPtr], c.categories[categoryPtr])) {
                     categoryPtr--;
                     pathPtr--;
 
@@ -78,7 +91,7 @@ export function createWorkerHandler(postMessage: (msg: any) => void) {
                     }
                     if (pathPtr < 0) break;
                 }
-                else if (categoryPtr + 1 < c.categories.length && categoriesInPath[pathPtr] === c.categories[categoryPtr + 1]) {
+                else if (categoryPtr + 1 < c.categories.length && matches(categoriesInPath[pathPtr], c.categories[categoryPtr + 1])) {
                     pathPtr--;
                     if (pathPtr < 0) break;
                 }
@@ -93,16 +106,15 @@ export function createWorkerHandler(postMessage: (msg: any) => void) {
 
         while (queue.size() > 0) {
             iterations++;
-            if (iterations > MAX_ITERATIONS) {
-                console.warn(`Path search aborted after ${MAX_ITERATIONS} iterations. Queue size: ${queue.size()}, Paths found: ${pathsFound}`);
+            if (iterations % 1000 === 0 && performance.now() - searchStartTime > SEARCH_TIMEOUT_MS) {
+                console.warn(`Path search timed out after ${iterations} iterations. Queue size: ${queue.size()}, Paths found: ${pathsFound}`);
                 postMessage({ type: 'done' });
                 return;
             }
 
             let current = queue.poll()!;
-            const recordedCost = minCosts.get(current.index);
-
-            if (recordedCost !== undefined && recordedCost < current.cost) {
+            const best = bestCost.get(current.index);
+            if (best !== undefined && current.cost > best) {
                 continue;
             }
 
@@ -118,9 +130,8 @@ export function createWorkerHandler(postMessage: (msg: any) => void) {
                 continue;
             }
 
-            if (recordedCost === undefined || current.cost < recordedCost) {
-                minCosts.set(current.index, current.cost);
-            }
+            bestCost.set(current.index, current.cost);
+
 
             if (iterations % 500 === 0) {
                 postMessage({ type: 'searching', path: current.path });
@@ -128,19 +139,26 @@ export function createWorkerHandler(postMessage: (msg: any) => void) {
 
             nodes[current.index].edges.forEach(edgeIndex => {
                 let edge = edges[edgeIndex];
-
                 let path = current.path.concat({ handlerName: edge.handler, format: edge.to.format });
-                const nextCost = current.cost + edge.cost + calculateAdaptiveCost(path);
-                if (nextCost === Infinity) return;
+                const newAdaptiveCost = calculateAdaptiveCost(path);
+                if (newAdaptiveCost === Infinity) return; // Dead-end path
+                // Use max(0, delta) to avoid double-counting when the pattern continues to match,
+                // while preserving previously-paid penalties when the pattern stops matching.
+                const nextCost = current.cost + edge.cost + Math.max(0, newAdaptiveCost - current.adaptiveCost);
 
-                const neighborCost = minCosts.get(edge.to.index);
-                if (neighborCost !== undefined && neighborCost < nextCost) return;
+                // Don't prune paths to the destination — it's never settled (the
+                // found-handler returns before settling) and we need multiple paths.
+                if (edge.to.index !== toIndex) {
+                    const existingBest = bestCost.get(edge.to.index);
+                    if (existingBest !== undefined && nextCost >= existingBest) return;
+                    bestCost.set(edge.to.index, nextCost);
+                }
 
                 queue!.add({
                     index: edge.to.index,
                     cost: nextCost,
                     path: path,
-                    visitedBorder: 0
+                    adaptiveCost: newAdaptiveCost
                 });
             });
 
@@ -163,10 +181,11 @@ export function createWorkerHandler(postMessage: (msg: any) => void) {
                 const { fromIdentifier, toIdentifier, isSimpleMode, targetHandlerName, initialDeadEnds, initialPath } = data;
 
                 queue = new PriorityQueue<QueueNode>(1000, (a: QueueNode, b: QueueNode) => a.cost - b.cost);
-                minCosts.clear();
+                bestCost = new Map();
                 temporaryDeadEnds = initialDeadEnds || [];
                 iterations = 0;
                 pathsFound = 0;
+                searchStartTime = performance.now();
                 simpleMode = isSimpleMode;
                 toHandlerName = targetHandlerName;
 
@@ -178,7 +197,8 @@ export function createWorkerHandler(postMessage: (msg: any) => void) {
                     return;
                 }
 
-                queue.add({ index: fromIndex, cost: 0, path: initialPath, visitedBorder: 0 });
+                bestCost.set(fromIndex, 0);
+                queue.add({ index: fromIndex, cost: 0, path: initialPath, adaptiveCost: 0 });
 
                 processSearch();
                 break;
@@ -187,6 +207,13 @@ export function createWorkerHandler(postMessage: (msg: any) => void) {
                 if (data.deadEnds) {
                     temporaryDeadEnds = data.deadEnds;
                 }
+                // Clear settled costs so nodes reached via now-dead-ended routes
+                // can be re-explored through alternative paths remaining in the queue.
+                bestCost = new Map();
+                // Reset the timer for the new chunk. The main thread waits at most
+                // ROUTE_SEARCH_TIMEOUT_MS (15s) per worker message, so each chunk
+                // between yields gets a fresh budget rather than a cumulative one.
+                searchStartTime = performance.now();
                 processSearch();
                 break;
 

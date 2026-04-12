@@ -18,6 +18,12 @@ Compared to the original `Convert to it!`, frogConvert focuses on frontend impro
 - **File Management & Uploads:** Introduced a new file management feature and set limits on maximum file uploads to prevent crashes and improve stability.
 - **Format Mode (Core / Plus / All):** Three-tier filter for the format picker - Core shows common everyday formats, Plus adds data, font, and extra media formats, All shows every supported format.
 - **Partial Download support:** If you cancel a large batch conversion, frogConvert now offers to download the files that have already finished processing.
+- **Soft Cancel for Batches:** Batch conversions use a two-stage cancel - first click finishes the current file and stops, second click hard-cancels immediately. Single-file conversions cancel in one click.
+- **LibreOffice Handler:** Convert office documents (DOCX, PPTX, XLSX, ODT, ODP, ODS) to PDF. Requires [LibreOffice](https://www.libreoffice.org/) installed locally; the UI shows a notice with install link when needed.
+- **Quality Presets:** Handlers like FFmpeg, ImageMagick, and pdftoimg accept quality presets (low / medium / high / lossless) to control output fidelity vs file size.
+- **Frame Extraction:** Extract individual frames from animated files (GIF, WebP, APNG) and videos to image formats.
+- **ICO Multi-Size Bundles:** Converting to ICO automatically generates a multi-size bundle (16px through 256px) following Windows conventions.
+- **Conversion Warnings:** Handlers can surface warnings when output was silently adjusted (dimension padding, sample-rate coercion, upscaling). Warnings appear in the success popup and in MCP/API responses.
 - **MCP + REST API for AI Agents:** Built-in MCP server and local HTTP REST API exposing the full conversion engine to AI agents and scripts - all processing is local, no external network calls. Run without cloning: `bunx frogconvert mcp` / `bunx frogconvert api`. See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for full usage.
 - **Web Worker Performance:** Heavy conversion tasks and pathfinding run in background Web Workers, keeping the UI fully responsive even during complex, multi-step conversions.
 - **Robust Engineering Foundation:** Refactored the codebase with centralized modal management, base handler classes, and a full vitest + Puppeteer E2E test suite.

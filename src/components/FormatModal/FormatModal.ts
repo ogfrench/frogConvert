@@ -91,6 +91,11 @@ export function initFormatModal(
 
   ui.formatModalBg.addEventListener("click", () => closeFormatModal());
   ui.formatModalClose.addEventListener("click", () => closeFormatModal());
+
+  document.getElementById("libreoffice-notice-dismiss")?.addEventListener("click", () => {
+    libreofficeNoticeDismissed = true;
+    ui.libreofficeNotice.hidden = true;
+  });
 }
 
 export function setSelectedFormat(index: number, allOptions: Array<{ format: FileFormat; handler: FormatHandler }>) {
@@ -121,6 +126,63 @@ export function updateConvertButtonState(selectedFromIndex: number | null, selec
     ui.convertButton.classList.add("disabled");
     ui.convertButton.textContent = isLoadingHandlers.value ? "Loading formats…" : "Convert";
   }
+  updateLibreofficeNoticeVisibility(selectedFromIndex, selectedToIndex);
+}
+
+/**
+ * Office formats that LibreOffice can convert to PDF with high fidelity.
+ * Must match the input formats declared in src/handlers/libreoffice.ts.
+ */
+const LIBREOFFICE_INPUT_EXTS = new Set([
+  "pptx", "docx", "xlsx", "ppt", "odt", "odp", "ods"
+]);
+
+/**
+ * Show the "install LibreOffice for best results" notice when the user is
+ * about to convert an office document to PDF but the libreoffice handler
+ * isn't available (either no local binary AND no localhost API server with
+ * libreoffice enabled). Otherwise hide it.
+ */
+let libreofficeNoticeDismissed = false;
+
+function updateLibreofficeNoticeVisibility(fromIdx: number | null, toIdx: number | null) {
+  const notice = ui.libreofficeNotice;
+  if (!notice) return;
+
+  if (libreofficeNoticeDismissed) {
+    notice.hidden = true;
+    return;
+  }
+
+  // Need both formats selected to decide
+  if (fromIdx === null || toIdx === null) {
+    notice.hidden = true;
+    return;
+  }
+
+  const fromOpt = allOptionsRef.value[fromIdx];
+  const toOpt = allOptionsRef.value[toIdx];
+  if (!fromOpt || !toOpt) {
+    notice.hidden = true;
+    return;
+  }
+
+  // Only applies to office-doc → PDF conversions
+  const inputExt = (fromOpt.format.extension || "").toLowerCase();
+  const outputExt = (toOpt.format.extension || "").toLowerCase();
+  const isOfficeToPdf = LIBREOFFICE_INPUT_EXTS.has(inputExt) && outputExt === "pdf";
+  if (!isOfficeToPdf) {
+    notice.hidden = true;
+    return;
+  }
+
+  // Check if libreoffice is available. The handler populates its formats
+  // only when it has a working mode (native or remote). An empty entry (or
+  // missing entry) means the handler is disabled.
+  const lofmts = window.supportedFormatCache?.get("libreoffice");
+  const libreofficeAvailable = Array.isArray(lofmts) && lofmts.length > 0;
+
+  notice.hidden = libreofficeAvailable;
 }
 
 // --- Format list rendering ---

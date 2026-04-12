@@ -281,5 +281,58 @@ describe('route-search worker — createWorkerHandler', () => {
         send({ type: 'resume', deadEnds: [] });
         expect(messages.filter(m => m.type === 'done').length).toBe(1);
     });
+    it("resume with dead ends allows re-exploration of previously settled intermediate nodes", () => {
+        const { send, messages } = createSyncWorker();
+
+        // Graph: A --[cost1]--> B --[cost1]--> D (destination)
+        //        A --[cost3]--> C --[cost1]--> D
+        // First search finds A→B→D (cost 2). After blocking that path, A→C→D (cost 4) must still be found.
+        const fmtA = { ...fmtPng, category: 'other' };
+        const fmtB = { ...fmtPng, mime: 'image/bmp', format: 'bmp', extension: 'bmp', name: 'BMP', internal: 'bmp', category: 'image' };
+        const fmtC = { ...fmtPng, mime: 'image/tiff', format: 'tiff', extension: 'tiff', name: 'TIFF', internal: 'tiff', category: 'image' };
+        const fmtD = { ...fmtMp3 };
+
+        const nodes: Node[] = [
+            { identifier: 'A:image/png:png',   edges: [0, 1] },
+            { identifier: 'B:image/bmp:bmp',   edges: [2] },
+            { identifier: 'C:image/tiff:tiff', edges: [3] },
+            { identifier: 'D:audio/mpeg:mp3',  edges: [] },
+        ];
+        const edges: Edge[] = [
+            { from: { format: fmtA, index: 0 }, to: { format: fmtB, index: 1 }, handler: 'hAB', cost: 1 },
+            { from: { format: fmtA, index: 0 }, to: { format: fmtC, index: 2 }, handler: 'hAC', cost: 3 },
+            { from: { format: fmtB, index: 1 }, to: { format: fmtD, index: 3 }, handler: 'hBD', cost: 1 },
+            { from: { format: fmtC, index: 2 }, to: { format: fmtD, index: 3 }, handler: 'hCD', cost: 1 },
+        ];
+
+        send({ type: 'init', nodes, edges, categoryAdaptiveCosts: [] });
+        send({
+            type: 'start',
+            fromIdentifier: 'A:image/png:png',
+            toIdentifier: 'D:audio/mpeg:mp3',
+            isSimpleMode: true,
+            targetHandlerName: undefined,
+            initialDeadEnds: [],
+            initialPath: [{ handlerName: 'hStart', format: fmtA }],
+        });
+
+        // Cheapest path found first: A→B→D (cost 2)
+        const found1 = messages.filter(m => m.type === 'found');
+        expect(found1.length).toBe(1);
+        expect(found1[0].path.at(-1)?.handlerName).toBe('hBD');
+
+        // Block the A→B→D path and resume
+        send({ type: 'resume', deadEnds: [found1[0].path] });
+
+        // Alternative A→C→D (cost 4) must be found despite C potentially being
+        // settled during the first search pass
+        const found2 = messages.filter(m => m.type === 'found');
+        expect(found2.length).toBe(2);
+        expect(found2[1].path.at(-1)?.handlerName).toBe('hCD');
+
+        // Drain queue
+        send({ type: 'resume', deadEnds: [found1[0].path] });
+        expect(messages.filter(m => m.type === 'done').length).toBe(1);
+    });
 
 });

@@ -1,6 +1,6 @@
 import type { FormatHandler, FileData } from "../../core/FormatHandler/FormatHandler.ts";
 import type { TraversionGraph } from "../../core/TraversionGraph/TraversionGraph.ts";
-import { findFormatAndHandler } from "../../mcp/core/utils.ts";
+import { findFormatAndHandler, libreofficeHint } from "../../mcp/core/utils.ts";
 import { convertViaBrowser } from "../../mcp/core/browserBridge.ts";
 import mime from "mime";
 
@@ -12,17 +12,23 @@ async function runConversion(
     inputMime: string,
     inputExt: string,
     outputMime: string,
-    outputExt: string
+    outputExt: string,
+    allHandlers?: FormatHandler[]
 ): Promise<{ files: FileData[]; error?: never } | { error: string; status: number }> {
     const inputMatch = findFormatAndHandler(handlers, inputMime, inputExt, 'from');
     const outputMatch = findFormatAndHandler(handlers, outputMime, outputExt, 'to');
 
     // Try native path when both formats are known to native handlers
     if (inputMatch && outputMatch) {
+        // simpleMode=true: accept any handler for the final step.
+        // Without this, findFormatAndHandler might pick e.g. ImageMagick for PDF
+        // output while libreoffice provides the actual pptx→pdf edge, and the
+        // handler-name constraint would reject the libreoffice path — causing a
+        // 15s timeout search for a non-existent ImageMagick-terminated path.
         const pathsGenerator = graph.searchPath(
             { format: inputMatch.format, handler: inputMatch.handler },
             { format: outputMatch.format, handler: outputMatch.handler },
-            false
+            true
         );
         const pathResult = await pathsGenerator.next();
         if (!pathResult.done && pathResult.value) {
@@ -53,7 +59,10 @@ async function runConversion(
         }));
         return { files };
     } catch (bridgeErr: any) {
-        return { error: bridgeErr?.message ?? `No conversion path found between ${inputMime} and ${outputMime}`, status: 422 };
+        let msg = bridgeErr?.message ?? `No conversion path found between ${inputMime} and ${outputMime}`;
+        const hint = allHandlers && libreofficeHint(allHandlers, inputExt, outputExt);
+        if (hint) msg += ` ${hint}`;
+        return { error: msg, status: 422 };
     }
 }
 
@@ -63,7 +72,8 @@ const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 export async function handleConvert(
     req: Request,
     handlers: FormatHandler[],
-    graph: TraversionGraph
+    graph: TraversionGraph,
+    allHandlers?: FormatHandler[]
 ): Promise<Response> {
     const contentLength = Number(req.headers.get("content-length") ?? 0);
     if (contentLength > MAX_UPLOAD_BYTES) {
@@ -100,7 +110,7 @@ export async function handleConvert(
         const detectedMime = mime.getType(fileName) || "application/octet-stream";
         const bytes = new Uint8Array(await file.arrayBuffer());
 
-        const result = await runConversion(handlers, graph, fileName, bytes, detectedMime, ext, outputMime, outputExt);
+        const result = await runConversion(handlers, graph, fileName, bytes, detectedMime, ext, outputMime, outputExt, allHandlers);
         if ("error" in result) {
             return Response.json({ error: result.error }, { status: result.status });
         }
@@ -142,7 +152,7 @@ export async function handleConvert(
         const buffer = Buffer.from(base64Bytes, "base64");
         const bytes = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
 
-        const result = await runConversion(handlers, graph, fileName, bytes, inputMime, inputExt, outputMime, outputExt);
+        const result = await runConversion(handlers, graph, fileName, bytes, inputMime, inputExt, outputMime, outputExt, allHandlers);
         if ("error" in result) {
             return Response.json({ error: result.error }, { status: result.status });
         }

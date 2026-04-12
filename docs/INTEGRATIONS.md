@@ -97,6 +97,8 @@ Three tools, all over `stdio`:
        { "savedTo": ["/path/to/output.pptx"] }
        ```
      The array contains multiple entries when a conversion produces multiple output files (e.g. a multi-page PDF split into individual images).
+     Both response shapes may include an optional `warnings` array of strings when the conversion required silent adjustments (e.g. dimension padding, sample-rate coercion, upscaling). Example: `{ "savedTo": [...], "warnings": ["Padded to 1920x1080 (multiple of 2 required)"] }`.
+   - **LibreOffice hint**: If conversion fails for office formats (DOCX, PPTX, XLSX, ODT, etc.) and LibreOffice is not installed, the error message includes a hint to install it from [libreoffice.org](https://www.libreoffice.org/).
    - **Large file guidance**: For files that are too large to embed in the context window, always use `filePath` (input) and `outputFilePath` (output) together:
      ```
      filePath: "/absolute/path/to/input.png"

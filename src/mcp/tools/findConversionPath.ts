@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { McpContext } from "../core/types.ts";
 
-import { findFormatAndHandler } from "../core/utils.ts";
+import { findFormatAndHandler, libreofficeHint } from "../core/utils.ts";
 import { canConvertViaBrowser } from "../core/browserBridge.ts";
 
 export function registerFindConversionPathTool(server: McpServer, initPromise: Promise<McpContext>) {
@@ -16,7 +16,7 @@ export function registerFindConversionPathTool(server: McpServer, initPromise: P
             outputExtension: z.string().describe("Output file extension (e.g. png)")
         },
         async ({ inputMime, inputExtension, outputMime, outputExtension }) => {
-            const { handlers, graph } = await initPromise;
+            const { handlers, allHandlers, graph } = await initPromise;
 
             const inputMatch = findFormatAndHandler(handlers, inputMime, inputExtension, 'from');
             const outputMatch = findFormatAndHandler(handlers, outputMime, outputExtension, 'to');
@@ -45,10 +45,13 @@ export function registerFindConversionPathTool(server: McpServer, initPromise: P
                 ).catch(() => false);
                 if (browserAvailable) {
                     return {
-                        content: [{ type: "text", text: `No native path found. A browser-assisted path is available — use convert_file to convert via the browser bridge.` }]
+                        content: [{ type: "text", text: `No native path found. A browser-assisted path is available - use convert_file to convert via the browser bridge.` }]
                     };
                 }
-                return { content: [{ type: "text", text: `No path found between ${inputMime} and ${outputMime}` }], isError: true };
+                let msg = `No path found between ${inputMime} and ${outputMime}`;
+                const hint = libreofficeHint(allHandlers, inputExtension, outputExtension);
+                if (hint) msg += `\n${hint}`;
+                return { content: [{ type: "text", text: msg }], isError: true };
             }
 
             const pathText = pathResult.value.map((p: any) => `${p.handler.name} (${p.format.mime})`).join(" -> ");

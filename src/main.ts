@@ -86,35 +86,35 @@ initCategoryTabs((category) => {
   updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
 });
 
-  initUploadZone(
-    (files) => {
-      const matchIndex = findMatchingFormat(files, allOptionsRef.value);
+initUploadZone(
+  (files) => {
+    const matchIndex = findMatchingFormat(files, allOptionsRef.value);
 
-      // If no match found and we're not in the middle of a "cold start" loading phase,
-      // block the upload and show an unsupported file popup.
-      if (matchIndex < 0 && !isLoadingHandlers.value && !isLoadingPhase2.value) {
-        showUnsupportedFilePopup(files);
-        return;
-      }
+    // If no match found and we're not in the middle of a "cold start" loading phase,
+    // block the upload and show an unsupported file popup.
+    if (matchIndex < 0 && !isLoadingHandlers.value && !isLoadingPhase2.value) {
+      showUnsupportedFilePopup(files);
+      return;
+    }
 
-      showFileInUploadZone(files);
+    showFileInUploadZone(files);
 
-      if (matchIndex >= 0) {
-        selectedFromIndex.value = matchIndex;
-        showDetectedFormat(allOptionsRef.value[matchIndex].format.format, files.length);
+    if (matchIndex >= 0) {
+      selectedFromIndex.value = matchIndex;
+      showDetectedFormat(allOptionsRef.value[matchIndex].format.format, files.length);
 
-        // Dynamically select the tab related to the uploaded file
-        const category = getFormatCategory(allOptionsRef.value[matchIndex].format);
-        if (category && category !== activeCategory.value && selectedToIndex.value === null) {
-          if (isCategoryVisible(category, formatMode.value)) {
-            selectCategoryTab(category);
-          }
+      // Dynamically select the tab related to the uploaded file
+      const category = getFormatCategory(allOptionsRef.value[matchIndex].format);
+      if (category && category !== activeCategory.value && selectedToIndex.value === null) {
+        if (isCategoryVisible(category, formatMode.value)) {
+          selectCategoryTab(category);
         }
-      } else {
-        selectedFromIndex.value = null;
       }
-      updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
-    },
+    } else {
+      selectedFromIndex.value = null;
+    }
+    updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
+  },
   () => {
     selectedFromIndex.value = null;
     resetUploadZone();
@@ -139,7 +139,6 @@ window.hidePopup = hidePopup;
 window.supportedFormatCache = new Map();
 
 window.printSupportedFormatCache = () => {
-  localStorage.removeItem("supportedFormatCache");
   const entries = [];
   for (const entry of window.supportedFormatCache) {
     entries.push(entry);
@@ -216,6 +215,9 @@ async function refreshUI() {
   if (ui.formatModal.classList.contains("open")) {
     filterFormats(ui.formatSearch.value);
   }
+
+  // Refresh convert button + notice banner (handler availability may have changed)
+  updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
 
   // Re-attempt format detection if a file is loaded but wasn't matched when uploaded
   if (currentFiles.value.length > 0 && selectedFromIndex.value === null) {
@@ -326,7 +328,6 @@ async function refreshUI() {
 // --- Conversion logic ---
 
 initConvertButton();
-
 
 initFrogsworth(() => ({
   from: selectedFromIndex.value !== null

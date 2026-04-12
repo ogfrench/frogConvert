@@ -17,6 +17,7 @@ import type { FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 
 import FFmpegHandler from "../../handlers/FFmpeg.ts";
 import ImageMagickHandler from "../../handlers/ImageMagick.ts";
+import libreofficeHandler from "../../handlers/libreoffice.ts";
 import pandocHandler from "../../handlers/pandoc.ts";
 import jszipHandler from "../../handlers/jszip.ts";
 import { fromJsonHandler, toJsonHandler } from "../../handlers/json.ts";
@@ -54,11 +55,12 @@ import chessjsHandler from "../../handlers/chessjs.ts";
 import fenToJsonHandler from "../../handlers/fenToJson.ts";
 import harHandler from "../../handlers/har.ts";
 
-export const loadMcpHandlers = async (): Promise<FormatHandler[]> => {
+export const loadMcpHandlers = async (): Promise<{ ready: FormatHandler[]; all: FormatHandler[] }> => {
     const handlers: FormatHandler[] = [];
 
     try { handlers.push(new FFmpegHandler()); } catch (e: any) { console.error("[MCP] Failed to load FFmpeg:", e?.message || e); }
     try { handlers.push(new ImageMagickHandler()); } catch (e) { console.error("[MCP] Failed to load ImageMagick:", e); }
+    try { handlers.push(new libreofficeHandler()); } catch (e: any) { console.error("[MCP] Failed to load libreoffice:", e?.message || e); }
     try { handlers.push(new pandocHandler()); } catch (e) { console.error("[MCP] Failed to load pandoc:", e); }
     try { handlers.push(new jszipHandler()); } catch (e) { console.error("[MCP] Failed to load jszip:", e); }
     try { handlers.push(new fromJsonHandler()); } catch (e) { console.error("[MCP] Failed to load fromJson:", e); }
@@ -106,6 +108,8 @@ export const loadMcpHandlers = async (): Promise<FormatHandler[]> => {
             : Promise.resolve()
     ));
 
-    // Filter out those that failed to become ready
-    return handlers.filter(h => h.ready);
+    return {
+        ready: handlers.filter(h => h.ready),
+        all: handlers,
+    };
 };

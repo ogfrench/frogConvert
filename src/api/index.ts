@@ -10,7 +10,7 @@ import { handleConvert } from './routes/convert.ts';
 import { warmUpBridge } from '../mcp/core/browserBridge.ts';
 
 async function main() {
-    const handlers = await loadMcpHandlers();
+    const { ready: handlers, all: allHandlers } = await loadMcpHandlers();
 
     const supportedFormatCache = new Map<string, FileFormat[]>();
     handlers.forEach(h => supportedFormatCache.set(h.name, h.supportedFormats || []));
@@ -42,7 +42,7 @@ async function main() {
             }
 
             if (req.method === "POST" && url.pathname === "/convert") {
-                return handleConvert(req, handlers, graph);
+                return handleConvert(req, handlers, graph, allHandlers);
             }
 
             return Response.json({ error: "Not found" }, { status: 404 });

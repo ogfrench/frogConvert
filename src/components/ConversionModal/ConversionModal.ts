@@ -5,14 +5,37 @@ import { ModalManager } from "../utils/ModalManager.ts";
 import { ensureMinDuration } from "../utils.ts";
 
 export let isCancelled = false;
+let softCancelRequested = false;
+let _activeBatchSize = 0;
 
 export function resetCancellation() {
     isCancelled = false;
+    softCancelRequested = false;
+    _activeBatchSize = 0;
     cancelStartTime = null;
+    // Clear DOM artifacts from a previous soft-cancel so they don't leak
+    // into the next conversion if the popup is reused without a full rebuild.
+    ui.popupBox.querySelector(".conversion-wrap-up")?.remove();
+    const cancelBtn = ui.popupBox.querySelector<HTMLButtonElement>("#cancel-conversion-btn");
+    if (cancelBtn) cancelBtn.textContent = "Cancel conversion";
+}
+
+/** Tell the cancel system how many files are in the current batch. */
+export function setActiveBatchSize(n: number) {
+    _activeBatchSize = n;
 }
 
 export function setCancelled(val: boolean) {
     isCancelled = val;
+}
+
+/**
+ * True once the user has clicked Cancel once. The batch loop stops starting
+ * new files but lets the current one finish. A second click (or Escape)
+ * escalates to a hard cancel that terminates the worker.
+ */
+export function isSoftCancelRequested() {
+    return softCancelRequested;
 }
 
 let workerCancelCallback: (() => void) | null = null;
@@ -62,6 +85,9 @@ export function showConversionInProgress(messageHTML: string, title: string = "C
             if (p.classList.contains("muted-text")) {
                 p.classList.remove("muted-text");
             }
+            // Re-append the soft-cancel subtitle if the user has already clicked
+            // Cancel once — otherwise it would be wiped on every status update.
+            if (softCancelRequested) _appendWrapUpSubtitle();
         }
 
         // Ensure visibility is handled by ModalManager/classes
@@ -79,8 +105,33 @@ export function showConversionInProgress(messageHTML: string, title: string = "C
     }
 }
 
+/**
+ * Cancel button handler. Behavior depends on batch size:
+ *
+ * **Single-file runs (`_activeBatchSize <= 1`):** one click = immediate hard
+ * cancel. There's no "next file" to protect, so soft cancel is meaningless —
+ * skipping the two-stage avoids a confusing no-op.
+ *
+ * **Batch runs (`_activeBatchSize > 1`):** two-stage:
+ *   1st call → soft cancel. Current file finishes; batch loop breaks.
+ *   2nd call → hard cancel. Worker terminated, in-progress file discarded.
+ *
+ * Escape also routes here, same rules apply.
+ */
 export function triggerCancellation() {
     if (isCancelled) return;  // guard against double-calls overwriting cancelStartTime
+
+    const isBatch = _activeBatchSize > 1;
+
+    if (isBatch && !softCancelRequested) {
+        // First click on a batch: soft cancel. Leave the worker running.
+        softCancelRequested = true;
+        _updateCancelButtonForSoftCancel();
+        _appendWrapUpSubtitle();
+        return;
+    }
+
+    // Hard cancel: single-file (any click) OR batch second click.
     isCancelled = true;
     workerCancelCallback?.();
     workerCancelCallback = null;
@@ -98,8 +149,34 @@ export function triggerCancellation() {
     replacePopup([h2, spinner, p], true);
 }
 
+/** Swaps the cancel button label to "Stop now" in-place, without rebuilding the footer. */
+function _updateCancelButtonForSoftCancel() {
+    const btn = ui.popupBox.querySelector<HTMLButtonElement>("#cancel-conversion-btn");
+    if (btn) btn.textContent = "Stop now";
+}
+
+/** Adds a muted "Wrapping up the current file..." subtitle under the existing status line. */
+function _appendWrapUpSubtitle() {
+    const existingSpinner = ui.popupBox.classList.contains("open")
+        ? ui.popupBox.querySelector(".loader-gooey, .loader-spinner")
+        : null;
+    if (!existingSpinner) return;
+    const p = existingSpinner.nextElementSibling as HTMLElement | null;
+    if (!p || p.tagName !== "P") return;
+    // Only append once even if triggerCancellation is called twice in quick succession.
+    if (p.querySelector(".conversion-wrap-up")) return;
+    const sub = document.createElement("span");
+    sub.className = "conversion-wrap-up muted-text";
+    sub.innerHTML = `<br>Wrapping up the current file. You'll be able to download what's been converted so far`;
+    p.appendChild(sub);
+}
+
 export function removeCancelButton() {
-    ui.popupBox.querySelector(".popup-actions-footer")?.remove();
+    const actions = ui.popupBox.querySelector(".popup-actions-footer");
+    if (actions) {
+        actions.querySelector("#cancel-conversion-btn")?.remove();
+        if (!actions.children.length) actions.remove();
+    }
     ModalManager.updateTop({ onEscape: undefined });
 }
 

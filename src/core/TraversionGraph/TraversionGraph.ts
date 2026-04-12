@@ -22,6 +22,7 @@ const DEFAULT_CATEGORY_CHANGE_COST: number = 0.6; // Default cost for category c
 const LOSSY_COST_MULTIPLIER: number = 1.4; // Cost multiplier for lossy conversions. Higher values will make the algorithm prefer lossless conversions more strongly.
 const HANDLER_PRIORITY_COST: number = 0.02; // Cost multiplier for handler priority. Higher values will make the algorithm prefer handlers with higher priority more strongly.
 const FORMAT_PRIORITY_COST: number = 0.05; // Cost multiplier for format priority. Higher values will make the algorithm prefer formats with higher priority more strongly.
+const ANY_INPUT_COST: number = 2; // Extra cost for edges created via supportAnyInput. Discourages generic "pack" conversions so the algorithm prefers more specific conversion paths.
 
 
 export interface Node {
@@ -215,8 +216,16 @@ export class TraversionGraph {
             if (toIndices.length === 0) return;
 
             nodeFormats.forEach((fromFormat, fromIndex) => {
+                const fromNode = this.nodes[fromIndex];
                 toIndices.forEach(to => {
                     if (fromIndex === to.index) return;
+                    // Skip if a regular edge already exists from this node to this target via this handler.
+                    // Without this dedupe, handlers like sevenZip (which has both explicit `from` formats
+                    // AND supportAnyInput) would produce duplicate, more expensive edges that pollute the graph.
+                    const alreadyExists = fromNode.edges.some(eIdx =>
+                        this.edges[eIdx].to.index === to.index && this.edges[eIdx].handler === handler.name
+                    );
+                    if (alreadyExists) return;
                     this.edges.push({
                         from: { format: fromFormat, index: fromIndex },
                         to,
@@ -227,7 +236,7 @@ export class TraversionGraph {
                             strictCategories,
                             handler.name,
                             idx
-                        )
+                        ) + ANY_INPUT_COST
                     });
                     this.nodes[fromIndex].edges.push(this.edges.length - 1);
                 });
@@ -303,7 +312,8 @@ export class TraversionGraph {
 
         // Add cost based on format priority
         const handlerObj = this.handlersByName.get(handler);
-        cost += FORMAT_PRIORITY_COST * (handlerObj?.supportedFormats?.findIndex(f => f.mime === to.format.mime) ?? 0);
+        const formatIdx = handlerObj?.supportedFormats?.findIndex(f => f.mime === to.format.mime) ?? 0;
+        cost += FORMAT_PRIORITY_COST * Math.max(0, formatIdx);
 
         // Add cost multiplier for lossy conversions
         if (!to.format.lossless) cost *= LOSSY_COST_MULTIPLIER;

@@ -109,6 +109,7 @@ Some handlers are pure compute (run in a background thread). Others need browser
 | `canvasToBlob.ts` | Encodes images using the browser's canvas | Main thread |
 | `json.ts` | JSON ↔ other data formats | Background worker |
 | `font.ts` | Font file conversion | Background worker |
+| `libreoffice.ts` | Office docs → PDF (DOCX, PPTX, XLSX, ODT…) | Main thread (native binary or remote API) |
 
 ---
 

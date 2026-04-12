@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import normalizeMimeType from "../../core/utils/normalizeMimeType.ts";
-import type { FileFormat, FormatHandler, FileData, ConvertPathNode } from "../../core/FormatHandler/FormatHandler.ts";
+import type { FileFormat, FormatHandler, FileData, ConvertPathNode, ProgressEvent, QualityPreset } from "../../core/FormatHandler/FormatHandler.ts";
 import { triggerConfetti } from "../../effects/Confetti/Confetti.ts";
 import {
     ui,
@@ -14,6 +14,8 @@ import {
     showAlertPopup,
     createPopupButton,
     isCancelled,
+    isSoftCancelRequested,
+    setActiveBatchSize,
     resetCancellation,
     showConversionInProgress,
     setWorkerCancelCallback,
@@ -23,7 +25,7 @@ import {
     ensureCancelButton,
     removeCancelButton,
     replacePopup,
-    CATEGORY_LABELS
+    CATEGORY_LABELS,
 } from "../index.ts";
 import { createDancingFrog } from "../Frogsworth/DancingFrog.ts";
 import { shortenFileName, ensureMinDuration } from "../utils.ts";
@@ -149,7 +151,7 @@ function getConversionWorker(): Worker {
     return conversionWorker;
 }
 
-async function runInWorker(handlerName: string, inputFiles: FileData[], inputFormat: FileFormat, outputFormat: FileFormat, args?: string[]): Promise<FileData[]> {
+async function runInWorker(handlerName: string, inputFiles: FileData[], inputFormat: FileFormat, outputFormat: FileFormat, args?: string[], onProgress?: (p: ProgressEvent) => void): Promise<FileData[]> {
     const worker = getConversionWorker();
     const id = ++workerMsgId;
     return new Promise((resolve, reject) => {
@@ -164,13 +166,16 @@ async function runInWorker(handlerName: string, inputFiles: FileData[], inputFor
 
         const onMessage = (ev: MessageEvent) => {
             const msg = ev.data;
-            if (msg.id === id) {
-                cleanup();
-                if (msg.type === "success") {
-                    resolve(msg.outputFiles);
-                } else {
-                    reject(msg.error);
-                }
+            if (msg.id !== id) return;
+            if (msg.type === "progress") {
+                if (onProgress && typeof msg.ratio === "number") onProgress({ ratio: msg.ratio });
+                return;
+            }
+            cleanup();
+            if (msg.type === "success") {
+                resolve(msg.outputFiles);
+            } else {
+                reject(msg.error);
             }
         };
 
@@ -270,7 +275,7 @@ async function findConversionPath(
     }
 }
 
-async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], batchMsg?: string) {
+async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], batchMsg?: string, onProgress?: (p: ProgressEvent) => void) {
     const pathString = path.map(c => c.format.format).join(" \u2192 ");
 
     _lastConversionError = null;
@@ -303,17 +308,29 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
             );
             if (!inputFormat) throw `Handler "${handler.name}" doesn't support input format "${path[i].format.format}" (${path[i].format.mime}).`;
 
+            // Only forward progress on the last hop (the one that actually produces the
+            // user-visible output). Intermediate hops would double-fill the bar.
+            const isLastHop = i === path.length - 2;
+            const hopProgress = isLastHop ? onProgress : undefined;
+
+            let hopArgs: string[] | undefined;
+            if (isLastHop) {
+                const target = path[i + 1].format;
+                const quality: QualityPreset = target.lossless ? "lossless" : "high";
+                hopArgs = ["--quality", quality];
+            }
+
             let outputFiles: FileData[];
             if (handler.requiresMainThread) {
                 const timeoutPromise = new Promise<never>((_, reject) =>
                     setTimeout(() => reject(new Error(`Conversion timed out after ${WORKER_TIMEOUT_MS / 60000} minutes.`)), WORKER_TIMEOUT_MS)
                 );
                 outputFiles = await Promise.race([
-                    handler.doConvert(files, inputFormat, path[i + 1].format),
+                    handler.doConvert(files, inputFormat, path[i + 1].format, hopArgs, hopProgress),
                     timeoutPromise,
                 ]);
             } else {
-                outputFiles = await runInWorker(handler.name, files, inputFormat, path[i + 1].format);
+                outputFiles = await runInWorker(handler.name, files, inputFormat, path[i + 1].format, hopArgs, hopProgress);
             }
 
             await waitForPaint();
@@ -342,19 +359,26 @@ function showConversionNotFoundPopup(fromFormat: string, toFormat: string) {
     );
 }
 
-/** Starts a slow-conversion notice after 10s, alternating with path info every 10s. Returns a cleanup fn. */
-function startSlowConversionTimer(batchMsg: string, pathStr: string): () => void {
+/**
+ * Starts a slow-conversion notice after 10s, alternating with path info every 10s.
+ * The returned handle exposes `cancel()` to stop the timer, and `suppress()` which
+ * the caller invokes once a real progress bar has appeared — the "may take a while"
+ * fallback is only useful when we have no determinate signal.
+ */
+type SlowTimerHandle = { cancel: () => void; suppress: () => void };
+function startSlowConversionTimer(batchMsg: string, pathStr: string): SlowTimerHandle {
     let showingSlowNotice = false;
     let alternateTimer: ReturnType<typeof setInterval> | null = null;
+    let suppressed = false;
     const slowTimer = setTimeout(() => {
-        if (isCancelled) return;
+        if (isCancelled || suppressed) return;
         showingSlowNotice = true;
         showConversionInProgress(
-            `${batchMsg}<br><span class="muted-text">Large file — this may take a while...</span>`,
+            `${batchMsg}<br><span class="muted-text">Large file - this may take a while...</span>`,
             _convertingTitle,
         );
         alternateTimer = setInterval(() => {
-            if (isCancelled) { clearInterval(alternateTimer!); return; }
+            if (isCancelled || suppressed) { clearInterval(alternateTimer!); alternateTimer = null; return; }
             showingSlowNotice = !showingSlowNotice;
             showConversionInProgress(
                 showingSlowNotice
@@ -364,9 +388,16 @@ function startSlowConversionTimer(batchMsg: string, pathStr: string): () => void
             );
         }, 10000);
     }, 10000);
-    return () => {
+    const cancel = () => {
         clearTimeout(slowTimer);
-        if (alternateTimer) clearInterval(alternateTimer);
+        if (alternateTimer) { clearInterval(alternateTimer); alternateTimer = null; }
+    };
+    return {
+        cancel,
+        suppress: () => {
+            suppressed = true;
+            cancel();
+        },
     };
 }
 
@@ -385,7 +416,7 @@ export function initConvertButton() {
         if (isConverting) return;
         isConverting = true;
 
-        const allOutputFiles: { name: string; bytes: Uint8Array }[] = [];
+        const allOutputFiles: FileData[] = [];
 
         try {
             const inputFiles = currentFiles.value;
@@ -485,19 +516,37 @@ export function initConvertButton() {
                 return;
             }
 
+            // Suppress the "may take a while" fallback once a handler reports
+            // real progress. Ratio 0 is a reset hint and must NOT suppress.
+            const makeProgressSink = (slowHandle: SlowTimerHandle) => (p: ProgressEvent) => {
+                if (typeof p.ratio === "number" && p.ratio > 0) slowHandle.suppress();
+            };
+
+            // Tell the cancel system whether this is a batch or single-file run,
+            // so it knows whether to use two-stage (batch) or one-click (single) cancel.
+            setActiveBatchSize(inputFileData.length);
+
             const conversionLoopStartTime = performance.now();
             for (let i = 0; i < inputFileData.length; i++) {
                 if (isCancelled) break;
+                // Soft cancel: finish what we have, stop before starting the next file.
+                if (isSoftCancelRequested()) break;
                 const fileNum = i + 1 + (fileCount - inputFileData.length);
                 const batchMsg = `Converting file ${fileNum} of ${fileCount}...`;
 
-                // After 10s, alternate between path info and a "taking a while" notice every 10s
+                // After 10s, alternate between path info and a "taking a while" notice every 10s.
+                // Suppressed automatically once determinate progress arrives.
                 const pathStr = conversionPath.map(c => c.format.format).join(" → ");
-                const stopSlowTimer = startSlowConversionTimer(batchMsg, pathStr);
+                const slowHandle = startSlowConversionTimer(batchMsg, pathStr);
 
-                let result = await attemptConvertPath([inputFileData[i]], conversionPath, batchMsg);
+                let result = await attemptConvertPath(
+                    [inputFileData[i]],
+                    conversionPath,
+                    batchMsg,
+                    makeProgressSink(slowHandle),
+                );
 
-                stopSlowTimer();
+                slowHandle.cancel();
 
                 if (!result) {
                     if (isCancelled) break;
@@ -521,11 +570,16 @@ export function initConvertButton() {
                         return;
                     }
                     const retryPathStr = conversionPath.map(c => c.format.format).join(" → ");
-                    const stopRetrySlowTimer = startSlowConversionTimer(batchMsg, retryPathStr);
+                    const retrySlowHandle = startSlowConversionTimer(batchMsg, retryPathStr);
 
-                    result = await attemptConvertPath([inputFileData[i]], conversionPath, batchMsg);
+                    result = await attemptConvertPath(
+                        [inputFileData[i]],
+                        conversionPath,
+                        batchMsg,
+                        makeProgressSink(retrySlowHandle),
+                    );
 
-                    stopRetrySlowTimer();
+                    retrySlowHandle.cancel();
 
                     if (!result) {
                         if (isCancelled) break;
@@ -548,6 +602,21 @@ export function initConvertButton() {
             await ensureMinDuration(conversionLoopStartTime, 1000);
 
             if (isCancelled) return;
+
+            // Soft cancel: batch stopped early but finished cleanly. Route to
+            // the partial-download popup instead of claiming "all done! 🎉".
+            if (isSoftCancelRequested() && allOutputFiles.length < inputFileData.length) {
+                setLastConvertedFiles(allOutputFiles);
+                removeCancelButton();
+                if (allOutputFiles.length > 0) {
+                    showPartialDownloadPopup(allOutputFiles.length, () => {
+                        downloadAllConvertedFiles();
+                    });
+                } else {
+                    hidePopup();
+                }
+                return;
+            }
 
             setLastConvertedFiles(allOutputFiles);
 
@@ -579,11 +648,33 @@ export function initConvertButton() {
             const frogDiv = createDancingFrog();
             const p = document.createElement("p");
             p.innerHTML = resultText;
+
+            // Aggregate dedupe warnings emitted by handlers (e.g. FFmpeg
+            // recovery padding the output, sample-rate coercion). Surface
+            // them so the user knows the result isn't a literal-faithful
+            // conversion.
+            const allWarnings = Array.from(new Set(
+                allOutputFiles.flatMap(f => f.warnings ?? [])
+            ));
+            const warningNode = allWarnings.length > 0
+                ? (() => {
+                    const div = document.createElement("div");
+                    div.className = "conversion-warnings";
+                    div.innerHTML = `<strong>Heads up:</strong><ul>${
+                        allWarnings.map(w => `<li>${escapeHTML(w)}</li>`).join("")
+                    }</ul>`;
+                    return div;
+                })()
+                : null;
+
             const actions = document.createElement("div");
             actions.className = "popup-actions-footer";
             actions.appendChild(createPopupButton("Download again", "btn-primary", () => downloadAllConvertedFiles()));
             actions.appendChild(createPopupButton("Done", "btn-secondary", () => hidePopup()));
-            replacePopup([h2, frogDiv, p, actions]);
+            const popupChildren: HTMLElement[] = [h2, frogDiv, p];
+            if (warningNode) popupChildren.push(warningNode);
+            popupChildren.push(actions);
+            replacePopup(popupChildren);
             // Show confetti faster for immediate celebration
             setTimeout(() => {
                 if (ui.popupBox.classList.contains("open")) triggerConfetti();
@@ -601,6 +692,8 @@ export function initConvertButton() {
             const hasConvertedFiles = allOutputFiles.length > 0;
             const shouldHide = !isCancelled || !hasConvertedFiles;
 
+            // Clean up progress / download-finished UI regardless of outcome —
+            // they're only meaningful while a batch is running.
             await completeCancellation(shouldHide);
 
             if (isCancelled && hasConvertedFiles) {

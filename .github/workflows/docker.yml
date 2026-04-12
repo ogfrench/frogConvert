@@ -42,7 +42,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          arguments: |
+          build-args: |
             VITE_COMMIT_SHA=${{ github.sha }}
           file: docker/Dockerfile
           push: true

@@ -170,9 +170,11 @@ async function ensureHandlerReady(handler: FormatHandler): Promise<void> {
             currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat);
         }
 
+        const allWarnings = Array.from(new Set(currentFiles.flatMap(f => f.warnings ?? [])));
         return currentFiles.map(f => ({
             fileName:    f.name,
             base64Bytes: uint8ToBase64(f.bytes),
+            ...(allWarnings.length > 0 ? { warnings: allWarnings } : {}),
         }));
     })();
 
