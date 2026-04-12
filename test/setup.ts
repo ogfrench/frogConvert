@@ -8,7 +8,7 @@ if (typeof navigator !== 'undefined' && !(navigator as any).deviceMemory) {
 
 import { createWorkerHandler } from '../src/workers/route-search.worker.ts';
 
-if (typeof window !== 'undefined' && !window.Worker) {
+if (typeof Worker === 'undefined') {
     class MockWorker {
         __isMockWorker = true;
         onmessage: ((ev: MessageEvent) => any) | null = null;
@@ -46,5 +46,8 @@ if (typeof window !== 'undefined' && !window.Worker) {
         terminate() { }
     }
 
-    (window as any).Worker = MockWorker;
+    (globalThis as any).Worker = MockWorker;
+    if (typeof window !== 'undefined') {
+        (window as any).Worker = MockWorker;
+    }
 }
