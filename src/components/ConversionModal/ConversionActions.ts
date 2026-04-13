@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import normalizeMimeType from "../../core/utils/normalizeMimeType.ts";
+import { isSafari } from "../../tools/pdfThumbnails.ts";
 import type { FileFormat, FormatHandler, FileData, ConvertPathNode, ProgressEvent, QualityPreset } from "../../core/FormatHandler/FormatHandler.ts";
 import { triggerConfetti } from "../../effects/Confetti/Confetti.ts";
 import {
@@ -496,7 +497,7 @@ export function initConvertButton() {
 
             ensureCancelButton();
 
-            const isSafariBrowser = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            const isSafariBrowser = isSafari();
             const pathUsesPdfHandler = (path: ConvertPathNode[]) =>
                 path.some(n => n.handler?.name === "pdftoimg" || n.handler?.name === "pdftotxt");
             const showSafariPdfPopup = () => showAlertPopup(

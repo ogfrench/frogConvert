@@ -252,8 +252,8 @@ html.scroll-lock {
   display: none;
 }
 
-/* --- Hero Title --- */
-#hero-title {
+/* --- Page Title (shared: converter + PDF workspace) --- */
+.page-title {
   text-align: center;
   font-size: var(--text-4xl);
   font-weight: var(--font-semibold);
@@ -266,7 +266,6 @@ html.scroll-lock {
   position: relative;
   z-index: 2;
   pointer-events: none;
-  /* Let emojis behind be hoverable */
 }
 
 
@@ -342,7 +341,8 @@ html.scroll-lock {
 }
 
 /* --- Description Blurb --- */
-#description {
+/* --- Page Description (shared: converter + PDF workspace) --- */
+.page-description {
   text-align: center;
   max-width: var(--card-max-width);
   margin: var(--space-3) auto 0;
@@ -351,12 +351,10 @@ html.scroll-lock {
   color: var(--muted-foreground);
   line-height: var(--leading-relaxed);
   pointer-events: none;
-  /* Let emojis behind be hoverable */
 }
 
 #description a {
   pointer-events: auto;
-  /* Re-enable for links */
 }
 
 #popup p {
@@ -901,26 +899,20 @@ html.scroll-lock {
 /* --- Responsive --- */
 
 @media only screen and (max-width: 800px) {
-  #hero-title {
+  .page-title {
     font-size: var(--text-3xl);
     margin-top: calc(var(--space-16) + var(--space-2));
     margin-bottom: var(--space-4);
     width: 100%;
     max-width: 100%;
     min-width: 300px;
-    text-align: center;
   }
 
-  #category-tabs {
+  .tab-bar {
     padding: 0 var(--space-3);
-    width: 100%;
-    max-width: 100%;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
   }
 
-  #description {
+  .page-description {
     max-width: 400px;
     width: calc(100% - var(--space-8));
     margin-left: auto;

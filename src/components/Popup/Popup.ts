@@ -78,7 +78,7 @@ export function showSizeWarningPopup(
   fileCount: number,
   onProceed: () => void,
 ): void {
-  const sizeStr = formatBytes(totalSize);
+  const sizeStr = `~${formatBytes(totalSize)}`;
   const title = fileCount > 1 ? "Large files detected" : "Large file detected";
   const body = fileCount > 1
     ? `These files are ${sizeStr} total. Browsers can struggle with large files and may slow down or crash.`

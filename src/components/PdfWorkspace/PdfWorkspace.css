@@ -1,89 +1,8 @@
 /* ===================================================================
-   App Mode Switcher — fixed bottom-left, like Frogsworth is bottom-right
-   Active tab: icon + label. Inactive tab: icon only.
-   =================================================================== */
-
-#app-mode-switcher {
-  position: fixed;
-  bottom: var(--space-6);
-  left: var(--space-6);
-  display: flex;
-  gap: var(--space-1-5);
-  z-index: 100;
-  pointer-events: auto;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  padding: 3px;
-}
-
-.mode-switch {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--control-size);
-  height: var(--control-size);
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--muted-foreground);
-  cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-.mode-switch:hover {
-  color: var(--foreground);
-}
-
-.mode-switch svg {
-  flex-shrink: 0;
-}
-
-.mode-switch.active {
-  background: var(--secondary);
-  color: var(--foreground);
-}
-
-@media only screen and (max-width: 800px) {
-  #app-mode-switcher {
-    display: none;
-  }
-}
-
-/* ===================================================================
    PDF Workspace — mirrors converter layout exactly
    =================================================================== */
 
-/* Hero title — identical to #hero-title */
-#pdf-hero-title {
-  text-align: center;
-  font-size: var(--text-4xl);
-  font-weight: var(--font-semibold);
-  letter-spacing: var(--tracking-tighter);
-  color: var(--foreground);
-  margin: calc(var(--space-16) + var(--space-10)) auto var(--space-6);
-  padding: 0 var(--space-4);
-  line-height: var(--leading-snug);
-  max-width: var(--tabs-max-width);
-  position: relative;
-  z-index: 2;
-  pointer-events: none;
-}
-
-/* Sub-tabs — same as #category-tabs */
-#pdf-editor-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  row-gap: var(--space-1-5);
-  padding: 0 var(--space-4);
-  width: 100%;
-  max-width: var(--tabs-max-width);
-  margin: 0 auto;
-  position: relative;
-  z-index: 2;
-}
+/* Hero title + tabs: styled via shared .page-title and .tab-bar classes in global.css / CategoryTabs.css */
 
 /* --- Layout modes --- */
 
@@ -111,12 +30,13 @@
   padding-left: var(--space-1);
 }
 
-/* Split layout: two cards side by side */
-.ws-split-layout {
+/* Extract layout: two cards side by side */
+.ws-extract-layout {
   display: flex;
   gap: var(--space-4);
-  max-width: var(--tabs-max-width);
+  max-width: calc(var(--tabs-max-width) + var(--space-3));
   margin: var(--space-10) auto 0;
+  padding: 0 var(--space-4);
   position: relative;
   z-index: 2;
 }
@@ -125,7 +45,7 @@
 .ws-grid-card {
   flex: 1;
   min-width: 0;
-  padding: var(--space-5);
+  padding: var(--space-5) var(--space-8) var(--space-5) var(--space-5);
   overflow: hidden auto;
   max-height: calc(100vh - 22rem);
   min-height: auto;
@@ -142,6 +62,7 @@
   justify-content: space-between;
   min-height: auto;
   max-height: calc(100vh - 22rem);
+  overflow: hidden auto;
   position: relative;
   z-index: 3;
   border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
@@ -166,6 +87,20 @@
   margin-top: var(--space-4);
 }
 
+.ws-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  user-select: none;
+}
+.ws-checkbox-row input[type="checkbox"] {
+  accent-color: var(--primary);
+  margin: 0;
+}
+
 .ws-sidebar-file {
   position: relative;
   display: flex;
@@ -177,7 +112,7 @@
 /* Shared: reveal child on parent hover */
 .ws-hover-reveal {
   opacity: 0;
-  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 .ws-file-card:hover .ws-hover-reveal,
 .ws-sidebar-file:hover .ws-hover-reveal,
@@ -185,20 +120,10 @@
   opacity: 1;
 }
 
-/* Shared: small overlay button on page thumbnails */
-.ws-overlay-btn {
-  background: rgba(0, 0, 0, 0.5);
-  color: #fff;
-  z-index: 2;
-}
-
 .ws-file-list-remove {
   position: absolute;
-  top: 0;
-  right: 0;
-}
-.ws-file-list-remove:hover {
-  color: var(--destructive);
+  top: calc(var(--space-1) * -1);
+  right: calc(var(--space-1) * -1);
 }
 
 .ws-sidebar-filename {
@@ -208,6 +133,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding-right: var(--space-5);
 }
 
 .ws-sidebar-meta {
@@ -226,22 +152,19 @@
   gap: var(--space-2);
 }
 
+.ws-sidebar-hint {
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
 /* Full-width action button in sidebar */
 .ws-action-full {
   width: 100%;
   text-align: center;
 }
 
-/* Description — same as #description */
-#pdf-description {
-  text-align: center;
-  max-width: var(--card-max-width);
-  margin: var(--space-3) auto 0;
-  padding: 0 var(--space-6);
-  font-size: var(--text-base);
-  color: var(--muted-foreground);
-  line-height: var(--leading-relaxed);
-}
+/* Description: styled via shared .page-description class in global.css */
 
 /* ===================================================================
    Error & Safari warning
@@ -251,28 +174,15 @@
   max-width: 50rem;
   margin: var(--space-3) auto 0;
   padding: var(--space-3) var(--space-4);
-  background-color: #fef2f2;
-  border: 1px solid #fecaca;
+  background-color: color-mix(in srgb, var(--destructive) 10%, var(--background));
+  border: 1px solid color-mix(in srgb, var(--destructive) 30%, var(--background));
   border-radius: var(--radius);
-  color: #b91c1c;
+  color: var(--destructive);
   font-size: var(--text-sm);
   position: relative;
   z-index: 2;
 }
 
-.dark #workspace-error {
-  background-color: #450a0a;
-  border-color: #7f1d1d;
-  color: #fca5a5;
-}
-
-#workspace-safari-warning {
-  text-align: center;
-  margin: var(--space-10) auto;
-  padding: var(--space-6);
-  color: var(--muted-foreground);
-  font-size: var(--text-lg);
-}
 
 /* ===================================================================
    Dropzone — matches #upload-zone
@@ -286,7 +196,7 @@
   width: 100%;
   min-height: calc(var(--space-16) * 2.5);
   padding: 0 var(--space-4);
-  border: 2px dashed var(--border);
+  border: 1px dashed var(--border);
   border-radius: inherit;
   background-color: var(--secondary);
   cursor: pointer;
@@ -320,14 +230,16 @@
    =================================================================== */
 
 .ws-file-cards {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 8rem);
+  gap: var(--space-4) var(--space-6);
+  padding-bottom: var(--space-3);
+  align-items: stretch;
 }
 
 .ws-file-card {
   position: relative;
-  width: 10rem;
+  width: 100%;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: var(--space-3);
@@ -368,6 +280,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding-right: var(--space-5);
 }
 
 .ws-file-meta {
@@ -379,39 +292,58 @@
   position: absolute;
   top: var(--space-1);
   right: var(--space-1);
-  border: 1px solid var(--border);
-  background: var(--card);
-}
-.ws-file-remove:hover {
-  color: var(--destructive);
 }
 
 /* ===================================================================
-   Add More Zone
+   Add-file card in merge grid — same size as file cards, dashed border
    =================================================================== */
 
-.ws-add-zone {
+.ws-file-add {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  margin-top: var(--space-4);
-  padding: var(--space-3);
-  border: 2px dashed var(--border);
-  border-radius: var(--radius);
+  border-style: dashed;
+  background: none;
   cursor: pointer;
-  color: var(--muted-foreground);
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  transition: border-color 0.15s ease, color 0.15s ease;
+  min-height: auto;
+  padding: var(--space-3);
 }
 
-.ws-add-zone:hover {
+.ws-file-add:hover {
+  transform: none;
+  box-shadow: none;
   border-color: var(--muted-foreground);
-  color: var(--foreground);
+}
+
+.ws-file-add .upload-text {
+  font-size: var(--text-xs);
+}
+
+.ws-file-add .upload-hint {
+  font-size: var(--text-xs);
 }
 
 /* ===================================================================
-   Page Cards — Split + Organize views
+   Compact dropzone for sidebars
+   =================================================================== */
+
+.ws-sidebar-dropzone {
+  min-height: auto;
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius);
+}
+
+.ws-sidebar-dropzone .upload-text {
+  font-size: var(--text-xs);
+}
+
+.ws-sidebar-dropzone .upload-hint {
+  font-size: var(--text-xs);
+}
+
+/* ===================================================================
+   Page Cards — Extract + Organize views
    =================================================================== */
 
 .ws-page-cards {
@@ -435,25 +367,36 @@
   overflow: visible;
   cursor: pointer;
   background: var(--secondary);
-  transition: border-color 0.15s ease, opacity 0.2s ease, filter 0.2s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, opacity 0.2s ease, filter 0.2s ease;
 }
 
 .ws-page-card:hover {
-  border-color: var(--muted-foreground);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .ws-page-card.ws-page-selected {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 1px var(--primary);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.ws-page-card.ws-page-selected:hover {
+  box-shadow: 0 0 0 1px var(--ring), var(--shadow-md);
 }
 
 .ws-page-card.ws-page-deleted {
-  opacity: var(--opacity-disabled);
-  filter: grayscale(0.8);
   cursor: default;
 }
 
+.ws-page-card.ws-page-deleted .ws-page-thumb,
+.ws-page-card.ws-page-deleted .ws-page-badge {
+  opacity: var(--opacity-disabled);
+  filter: grayscale(0.8);
+}
+
 .ws-page-card.ws-page-deleted:hover {
+  transform: none;
+  box-shadow: none;
   border-color: var(--border);
 }
 
@@ -492,29 +435,14 @@
   top: var(--space-1);
   right: var(--space-1);
 }
-.ws-page-delete:hover {
-  background: var(--destructive);
-}
 
 .ws-page-undo {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  padding: var(--space-1-5) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--card);
-  color: var(--foreground);
-  font-size: var(--text-sm);
-  cursor: pointer;
   z-index: 2;
   pointer-events: auto;
-  transition: background-color 0.15s ease;
-}
-
-.ws-page-undo:hover {
-  background: var(--accent);
 }
 
 .ws-page-rotate {
@@ -522,14 +450,11 @@
   top: var(--space-1);
   left: var(--space-1);
 }
-.ws-page-rotate:hover {
-  background: var(--primary);
-}
 
-/* Blank page insert button — straddles left edge of each slot */
+/* Blank page insert button — centered in the column gap */
 .ws-page-insert {
   position: absolute;
-  left: 0;
+  left: calc(100% + var(--space-6) / 2);
   top: 50%;
   transform: translate(-50%, -50%);
   width: var(--space-5);
@@ -537,7 +462,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px dashed transparent;
+  border: 1px dashed var(--muted-foreground);
   border-radius: var(--radius-sm);
   background: none;
   padding: 0;
@@ -559,22 +484,32 @@
   color: var(--primary);
 }
 
-/* Trailing insert — grid item after last page */
+/* Hide the between-page insert on the last slot — trailing button covers it */
+.ws-page-slot:last-of-type .ws-page-insert {
+  display: none;
+}
+
+/* Trailing insert — small + after last page, matches between-page style */
 .ws-page-insert-trailing {
-  width: 100%;
-  aspect-ratio: 0.707;
+  width: var(--space-5);
+  height: var(--space-10);
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px dashed var(--border);
-  border-radius: var(--radius);
+  align-self: center;
+  border: 1px dashed var(--muted-foreground);
+  border-radius: var(--radius-sm);
   background: none;
   padding: 0;
   cursor: pointer;
   color: var(--muted-foreground);
-  font-size: var(--text-xl);
-  opacity: 0.5;
+  font-size: var(--text-md);
+  opacity: 0;
   transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.ws-page-cards:hover .ws-page-insert-trailing {
+  opacity: 0.4;
 }
 
 .ws-page-insert-trailing:hover {
@@ -584,7 +519,7 @@
 }
 
 /* ===================================================================
-   Select Controls — Split view
+   Select Controls — Extract view
    =================================================================== */
 
 .ws-select-controls {
@@ -597,7 +532,7 @@
 
 .ws-range-input {
   padding: var(--space-1-5) var(--space-3);
-  border: 1px solid var(--input);
+  border: none;
   border-radius: var(--radius);
   background: var(--secondary);
   color: var(--foreground);
@@ -605,17 +540,17 @@
   font-size: var(--text-sm);
   width: 100%;
   box-sizing: border-box;
-  transition: border-color 0.15s ease;
+  transition: box-shadow 0.15s ease;
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .ws-range-input:focus {
   outline: none;
-  border-color: var(--ring);
   box-shadow: inset 0 0 0 1px var(--ring);
 }
 
 .ws-range-input.ws-input-error {
-  border-color: var(--destructive);
+  box-shadow: inset 0 0 0 1px var(--destructive);
 }
 
 /* ===================================================================
@@ -736,31 +671,18 @@
    Hidden on desktop, visible on mobile only.
    =================================================================== */
 
-/* Floating action button — mobile only */
-.ws-fab {
-  display: none;
-}
-
-/* Sidebar toggle — mobile only */
-.ws-sidebar-toggle {
-  display: none;
-}
-
-/* Sidebar overlay — mobile only */
-.ws-sidebar-overlay {
-  display: none;
-}
-
-/* Sidebar close button — mobile only */
-.ws-sidebar-close {
-  display: none;
-}
+/* New mobile toolbar + tray — hidden on desktop */
+.ws-toolbar { display: none; }
+.ws-tray { display: none; }
+.ws-tray-overlay { display: none; }
 
 /* ===================================================================
    Responsive
    =================================================================== */
 
 @media (max-width: 800px) {
+  /* Hero title + description responsive: handled by shared .page-title / .page-description in global.css */
+
   .ws-empty-layout {
     margin: var(--space-6) auto 0;
     width: var(--modal-width);
@@ -768,8 +690,123 @@
     min-width: 300px;
   }
 
-  .ws-split-layout {
+  .ws-extract-layout {
     margin: var(--space-6) auto 0;
+    flex-direction: column;
+  }
+
+  /* Grid card: full width, full radius, sticky toolbar lives inside */
+  .ws-grid-card {
+    max-height: none;
+    width: 100%;
+    border-radius: var(--radius-xl);
+    animation: none;
+    opacity: 1;
+    overflow: visible;
+    padding-bottom: var(--space-2);
+  }
+
+  /* Hide desktop sidebar on mobile */
+  .ws-sidebar-card {
+    display: none !important;
+  }
+
+  /* --- Mobile toolbar: sticky inside grid card --- */
+  .ws-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    position: sticky;
+    bottom: var(--space-4);
+    width: fit-content;
+    margin: var(--space-3) auto 0;
+    padding: var(--space-1-5);
+    padding-bottom: calc(var(--space-1-5) + env(safe-area-inset-bottom, 0px));
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    z-index: 200;
+  }
+
+  .ws-toolbar-icon {
+    width: var(--space-10);
+    height: var(--space-10);
+  }
+
+  .ws-toolbar-action {
+    flex: 0 1 auto;
+    min-width: 0;
+    text-align: center;
+    padding: var(--space-2-5) var(--space-6);
+    font-size: var(--text-base);
+  }
+
+  /* --- Mobile tray: slides up from bottom --- */
+  .ws-tray {
+    display: block;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 50vh;
+    overflow-y: auto;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    z-index: 199;
+    transform: translateY(100%);
+    transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+    padding: var(--space-4);
+    padding-bottom: calc(var(--space-16) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .ws-tray.ws-tray-open {
+    transform: translateY(0);
+  }
+
+  /* Hide sidebar action buttons inside tray (toolbar has the action button) */
+  .ws-tray .ws-sidebar-bottom {
+    display: none;
+  }
+
+  /* Overlay behind tray */
+  .ws-tray-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: var(--overlay-bg);
+    z-index: 198;
+  }
+
+  .ws-tray-overlay.ws-tray-open {
+    display: block;
+  }
+
+  .ws-file-cards {
+    grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+    gap: var(--space-3);
+  }
+
+  .ws-page-cards {
+    grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+    gap: var(--space-3);
+  }
+
+  .ws-page-insert {
+    display: none;
+  }
+
+  .ws-range-input {
+    width: 100%;
+    padding: var(--space-2-5) var(--space-3);
+    font-size: var(--text-base);
+  }
+
+  .ws-btn-small {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-sm);
   }
 }
 
@@ -780,134 +817,8 @@
   }
 }
 
-@media (max-width: 600px) {
-  .ws-split-layout {
-    flex-direction: column;
-  }
-
-  /* Grid takes full space, no max-height — scroll the card itself */
-  .ws-grid-card {
-    max-height: none;
-    width: 100%;
-    /* Leave room for FAB at bottom */
-    padding-bottom: calc(var(--space-16) + var(--space-4));
-  }
-
-  /* Sidebar slides in from right */
-  .ws-sidebar-card {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 18rem;
-    max-width: 80vw;
-    z-index: 400;
-    transform: translateX(100%);
-    transition: transform 0.3s ease;
-    border-radius: 0;
-    border: none;
-    border-left: 1px solid var(--border);
-    max-height: 100vh;
-    overflow-y: auto;
-  }
-
-  .ws-sidebar-card.ws-sidebar-open {
-    transform: translateX(0);
-  }
-
-  /* Overlay behind sidebar */
-  .ws-sidebar-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: var(--overlay-bg);
-    z-index: 399;
-  }
-
-  .ws-sidebar-overlay.ws-sidebar-open {
-    display: block;
-  }
-
-  /* FAB visible on mobile */
-  .ws-fab {
-    display: block;
-    position: fixed;
-    bottom: var(--space-6);
-    left: var(--space-6);
-    right: var(--space-6);
-    z-index: 200;
-  }
-
-  .ws-fab .btn-primary {
-    width: 100%;
-    display: block;
-    text-align: center;
-  }
-
-  /* Sidebar toggle button — fixed top right */
-  .ws-sidebar-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: fixed;
-    bottom: calc(var(--space-6) + var(--space-12) + var(--space-2));
-    right: var(--space-4);
-    width: var(--control-size);
-    height: var(--control-size);
-    z-index: 200;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-full);
-    background: var(--card);
-    color: var(--muted-foreground);
-    cursor: pointer;
-    box-shadow: var(--shadow-md);
-    transition: color 0.15s ease;
-  }
-
-  .ws-sidebar-toggle:hover {
-    color: var(--foreground);
-  }
-
-  /* Show sidebar close button on mobile */
-  .ws-sidebar-close {
-    display: flex;
-    position: absolute;
-    top: var(--space-3);
-    right: var(--space-3);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-full);
-    background: var(--secondary);
-    color: var(--foreground);
-    font-size: var(--text-xl);
-    z-index: 1;
-  }
-
-  .ws-file-card {
-    width: 100%;
-  }
-
-  /* 3 per row on medium phones */
-  .ws-page-cards {
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-3);
-  }
-
-  .ws-page-insert {
-    display: none;
-  }
-
-  .ws-range-input {
-    width: 100%;
-  }
-}
-
 @media (max-width: 400px) {
-  #pdf-hero-title {
-    font-size: var(--text-3xl);
-  }
-
-  /* 2 per row on small phones */
   .ws-page-cards {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr));
   }
 }

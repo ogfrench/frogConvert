@@ -60,7 +60,6 @@ import { triggerConfetti } from "./effects/Confetti/Confetti.ts";
 
 initTheme();
 initResponsiveMenu();
-initSegmentedControls();
 initParallax();
 initCustomCursor();
 initFilesModal();
@@ -73,9 +72,9 @@ for (const el of document.querySelectorAll<HTMLElement>(".upload-hint")) {
   el.textContent = browseHint;
 }
 
-initModeToggle(() => {
-  renderFormatOptions(allOptionsRef.value, activeCategory.value);
-});
+const onModeChanged = () => renderFormatOptions(allOptionsRef.value, activeCategory.value);
+initModeToggle(onModeChanged);
+initSegmentedControls(onModeChanged);
 
 initFormatModal(allOptionsRef.value, selectToFormat);
 
@@ -92,22 +91,61 @@ initCategoryTabs((category) => {
 
 // --- App Mode Navigation (Converter ↔ PDF Editor) ---
 
-const switcher = document.getElementById("app-mode-switcher")!;
-const mobileSegmented = document.getElementById("app-mode-segmented")!;
+const modeToggleBtn = document.getElementById("app-mode-toggle")!;
+const modeIconConverter = document.getElementById("mode-icon-converter")!;
+const modeIconPdf = document.getElementById("mode-icon-pdf")!;
+const topControlsMenu = document.getElementById("top-controls-menu")!;
 const converterEls = ["hero-title", "category-tabs", "convert-card", "description"].map(id => document.getElementById(id)!);
 const pdfWorkspaceEl = document.getElementById("pdf-workspace")!;
 
+let currentAppMode = "converter";
+
+const bgEmojis = {
+  converter: ["🖼️", "📝", "🎵", "🎥", "📖", "📊", "🔠", "💻", "⚡"],
+  "pdf-editor": ["📄", "✂️", "🔒", "🖊️", "📑", "🗂️", "🔗", "🖨️", "📐"],
+};
+const bgEmojiSpans = document.querySelectorAll<HTMLSpanElement>("#bg-visuals .bg-pop span");
+
 function setAppMode(mode: string) {
-  // Update fixed switcher
-  for (const b of switcher.querySelectorAll(".mode-switch")) {
-    b.classList.toggle("active", (b as HTMLElement).dataset.mode === mode);
+  currentAppMode = mode;
+
+  // Swap background emojis with pop animation
+  const set = bgEmojis[mode as keyof typeof bgEmojis] ?? bgEmojis.converter;
+  bgEmojiSpans.forEach((span, i) => {
+    if (!set[i]) return;
+    span.style.animationPlayState = "paused";
+    span.style.transition = "scale 0.2s ease-in";
+    span.style.scale = "0";
+  });
+  setTimeout(() => {
+    bgEmojiSpans.forEach((span, i) => {
+      if (!set[i]) return;
+      span.textContent = set[i];
+      span.style.transition = "scale 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)";
+      span.style.scale = "1";
+      setTimeout(() => { span.style.animationPlayState = ""; }, 350);
+    });
+  }, 200);
+
+  // Update button icon and tooltip
+  const isConverter = mode === "converter";
+  modeIconConverter.style.display = isConverter ? "" : "none";
+  modeIconPdf.style.display = isConverter ? "none" : "";
+  modeToggleBtn.title = isConverter ? "Converter" : "PDF Editor";
+  modeToggleBtn.setAttribute("aria-label", `Switch app mode: ${isConverter ? "Converter" : "PDF Editor"}`);
+
+  // Update mobile pill group
+  const mobilePill = document.getElementById("app-mode-segmented");
+  if (mobilePill) {
+    for (const b of mobilePill.querySelectorAll(".pill-option")) {
+      const isActive = (b as HTMLElement).dataset.value === mode;
+      b.classList.toggle("active", isActive);
+      (b as HTMLElement).setAttribute("aria-pressed", String(isActive));
+    }
   }
-  // Update mobile segmented
-  for (const b of mobileSegmented.querySelectorAll(".segmented-option")) {
-    const isActive = (b as HTMLElement).dataset.value === mode;
-    b.classList.toggle("active", isActive);
-    (b as HTMLElement).setAttribute("aria-pressed", String(isActive));
-  }
+
+  // Toggle pdf-mode class on menu to hide formats section
+  topControlsMenu.classList.toggle("pdf-mode", mode === "pdf-editor");
 
   if (mode === "pdf-editor") {
     for (const el of converterEls) el.style.display = "none";
@@ -130,17 +168,17 @@ function subForMode(mode: string): string {
   return document.querySelector('#pdf-editor-tabs .cat-tab.active')?.getAttribute('data-tool') || '';
 }
 
-// Fixed bottom-left switcher
-switcher.addEventListener("click", (e) => {
-  const btn = (e.target as HTMLElement).closest(".mode-switch") as HTMLButtonElement | null;
-  if (!btn || btn.classList.contains("active")) return;
-  setAppMode(btn.dataset.mode!);
-  navigateTo(btn.dataset.mode!, subForMode(btn.dataset.mode!));
+// Desktop mode toggle button
+modeToggleBtn.addEventListener("click", () => {
+  const next = currentAppMode === "converter" ? "pdf-editor" : "converter";
+  setAppMode(next);
+  navigateTo(next, subForMode(next));
 });
 
-// Mobile hamburger segmented control
-mobileSegmented.addEventListener("click", (e) => {
-  const btn = (e.target as HTMLElement).closest(".segmented-option") as HTMLButtonElement | null;
+// Mobile hamburger pill control
+const mobileModePill = document.getElementById("app-mode-segmented");
+mobileModePill?.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest(".pill-option") as HTMLButtonElement | null;
   if (!btn || btn.classList.contains("active")) return;
   setAppMode(btn.dataset.value!);
   navigateTo(btn.dataset.value!, subForMode(btn.dataset.value!));

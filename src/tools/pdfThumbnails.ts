@@ -1,23 +1,35 @@
-import * as pdfjsLib from 'pdfjs-dist';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+const _isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+// Lazy-load pdfjs-dist only on non-Safari browsers
+let pdfjsLib: typeof import('pdfjs-dist') | null = null;
+const pdfjsReady: Promise<void> = _isSafari
+  ? Promise.resolve()
+  : import('pdfjs-dist').then(async (lib) => {
+      pdfjsLib = lib;
+      const { default: workerSrc } = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
+      lib.GlobalWorkerOptions.workerSrc = workerSrc;
+    });
 
 // Cache loaded PDF documents so we don't reload the same PDF for every page.
 const docCache = new Map<Uint8Array, PDFDocumentProxy>();
+// Reuse a single canvas for all thumbnail renders to avoid repeated allocation/GC.
+let sharedCanvas: HTMLCanvasElement | null = null;
 
 /**
  * Render a single page of a PDF as a thumbnail image.
- * Caches the PDF document so subsequent pages render from memory.
- * Must run on the main thread (uses canvas).
- * @returns data:image/png URL
+ * On Safari, returns an empty string (thumbnails unsupported).
+ * @returns data:image/png URL, or '' on Safari
  */
 export async function renderPageThumbnail(
   pdfBytes: Uint8Array,
   pageNum: number,
   maxWidth = 150
 ): Promise<string> {
+  await pdfjsReady;
+  if (!pdfjsLib) return '';
+
   let pdf = docCache.get(pdfBytes);
   if (!pdf) {
     pdf = await pdfjsLib.getDocument({
@@ -33,12 +45,12 @@ export async function renderPageThumbnail(
   const scale = maxWidth / unscaled.width;
   const viewport = page.getViewport({ scale });
 
-  const canvas = document.createElement('canvas');
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
+  if (!sharedCanvas) sharedCanvas = document.createElement('canvas');
+  sharedCanvas.width = viewport.width;
+  sharedCanvas.height = viewport.height;
 
-  await page.render({ canvas, viewport }).promise;
-  const url = canvas.toDataURL('image/png');
+  await page.render({ canvas: sharedCanvas, viewport }).promise;
+  const url = sharedCanvas.toDataURL('image/png');
 
   page.cleanup();
   return url;
@@ -58,5 +70,5 @@ export function clearThumbnailCache() {
  * Check if the current browser is Safari (where pdfjs-dist doesn't work).
  */
 export function isSafari(): boolean {
-  return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  return _isSafari;
 }

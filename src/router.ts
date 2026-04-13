@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 const CONVERT_CATEGORIES = ['image', 'audio', 'video', 'document', 'archive', 'data', 'font', 'code', 'other'];
-const PDF_TOOLS = ['merge', 'split', 'organize'];
+const PDF_TOOLS = ['merge', 'extract', 'organize'];
 
 export interface RouteState {
   mode: 'converter' | 'pdf-editor';

@@ -4,24 +4,28 @@ import { PDFDocument } from 'pdf-lib';
 import type { PageEntry, SourceFile } from '../../tools/types.ts';
 import { getNextFileId } from '../../tools/types.ts';
 import { merge } from '../../tools/pdfMerge.ts';
-import { split } from '../../tools/pdfSplit.ts';
+import { extract } from '../../tools/pdfExtract.ts';
 import { organize } from '../../tools/pdfOrganize.ts';
-import { renderPageThumbnail, clearThumbnailCache, isSafari } from '../../tools/pdfThumbnails.ts';
+import { renderPageThumbnail, clearThumbnailCache } from '../../tools/pdfThumbnails.ts';
 import { downloadFile, downloadAsZip } from '../ConversionModal/ConversionActions.ts';
 import { showPopup, hidePopup } from '../Popup/Popup.ts';
+import { formatBytes } from '../utils.ts';
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 
-type Tool = 'merge' | 'split' | 'organize';
+type Tool = 'merge' | 'extract' | 'organize';
 
 let mergeFiles: SourceFile[] = [];
-let splitFile: SourceFile | null = null;
-let splitPages: PageEntry[] = [];
-let splitSelected = new Set<number>();
-let splitCountEl: HTMLElement | null = null;
-let splitExtractBtn: HTMLElement | null = null;
+let extractFile: SourceFile | null = null;
+let extractPages: PageEntry[] = [];
+let extractSelected = new Set<number>();
+let extractCountEl: HTMLElement | null = null;
+let extractBtn: HTMLElement | null = null;
+let mobileActionBtn: HTMLElement | null = null;
+let extractRangeInput: HTMLInputElement | null = null;
+let extractGroupAsOne = false;
 let orgFiles: SourceFile[] = [];
 let orgPages: PageEntry[] = [];
 
@@ -47,7 +51,7 @@ const EAGER_LIMIT = 50;
 /** Programmatically switch the active PDF tool tab. Safe to call before init. */
 export function selectPdfTool(tool: string) {
   const t = tool as Tool;
-  if (!['merge', 'split', 'organize'].includes(t)) return;
+  if (!['merge', 'extract', 'organize'].includes(t)) return;
 
   if (!initialized) {
     // Store for when initPdfWorkspace runs
@@ -75,11 +79,6 @@ export function initPdfWorkspace() {
   fileInput = document.getElementById('workspace-file-input') as HTMLInputElement;
   errorEl = document.getElementById('workspace-error')!;
 
-  if (isSafari()) {
-    document.getElementById('workspace-safari-warning')!.style.display = '';
-    toolContent.style.display = 'none';
-    return;
-  }
 
   // Apply pending tool set before init
   if (pendingTool) {
@@ -113,7 +112,7 @@ function renderActiveTool() {
   hideError();
   toolContent.className = ''; // reset layout classes
   if (activeTool === 'merge') renderMergeView();
-  else if (activeTool === 'split') renderSplitView();
+  else if (activeTool === 'extract') renderExtractView();
   else renderOrganizeView();
 }
 
@@ -123,8 +122,10 @@ function cleanup() {
   thumbnailObserver?.disconnect();
   thumbnailObserver = null;
   renderQueue.length = 0;
-  splitCountEl = null;
-  splitExtractBtn = null;
+  extractCountEl = null;
+  extractBtn = null;
+  extractRangeInput = null;
+  mobileActionBtn = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -166,9 +167,15 @@ function createDropzoneCard(text: string, multi: boolean, label?: string): HTMLE
 // File handling
 // ---------------------------------------------------------------------------
 
+const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200 MB
+
 async function handleFiles(files: File[]) {
   const parsed: SourceFile[] = [];
   for (const file of files) {
+    if (file.size > MAX_FILE_SIZE) {
+      showError(`"${file.name}" is too large (max 200 MB).`);
+      continue;
+    }
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const pdf = await PDFDocument.load(bytes, { ignoreEncryption: true });
@@ -189,14 +196,14 @@ async function handleFiles(files: File[]) {
     mergeFiles.push(...parsed);
     renderMergeView();
     kickMergeThumbs();
-  } else if (activeTool === 'split') {
-    splitFile = parsed[0];
-    splitPages = [];
-    splitSelected.clear();
-    for (let p = 1; p <= splitFile.pageCount; p++)
-      splitPages.push({ type: 'source', sourceFileId: splitFile.id, sourcePageNum: p, thumbnail: null, deleted: false, rotation: 0 });
-    renderSplitView();
-    kickPageThumbs(splitPages);
+  } else if (activeTool === 'extract') {
+    extractFile = parsed[0];
+    extractPages = [];
+    extractSelected.clear();
+    for (let p = 1; p <= extractFile.pageCount; p++)
+      extractPages.push({ type: 'source', sourceFileId: extractFile.id, sourcePageNum: p, thumbnail: null, deleted: false, rotation: 0 });
+    renderExtractView();
+    kickPageThumbs(extractPages);
   } else {
     orgFiles.push(...parsed);
     for (const sf of parsed)
@@ -229,7 +236,7 @@ function renderMergeView() {
     return;
   }
 
-  toolContent.className = 'ws-split-layout';
+  toolContent.className = 'ws-extract-layout';
 
   // Left card: file cards grid
   const leftCard = el('div', { className: 'card-base ws-grid-card ws-card-enter' });
@@ -237,8 +244,14 @@ function renderMergeView() {
   for (const sf of mergeFiles) container.appendChild(createFileCard(sf));
   leftCard.appendChild(container);
 
+  // Add-file card in grid (not draggable)
+  const addCard = createDropzone('Drop more PDFs', true);
+  addCard.className = 'ws-file-card ws-file-add';
+  container.appendChild(addCard);
+
   sortableInstance = new Sortable(container, {
     animation: 200, delay: 150, delayOnTouchOnly: true, ghostClass: 'ws-ghost',
+    draggable: '.ws-file-card:not(.ws-file-add)',
     onEnd: (evt) => {
       if (evt.oldIndex != null && evt.newIndex != null && evt.oldIndex !== evt.newIndex) {
         const [moved] = mergeFiles.splice(evt.oldIndex, 1);
@@ -246,11 +259,6 @@ function renderMergeView() {
       }
     },
   });
-
-  const addZone = el('div', { className: 'ws-add-zone' });
-  addZone.textContent = '+ Add more files';
-  addZone.addEventListener('click', () => { fileInput.multiple = true; fileInput.click(); });
-  leftCard.appendChild(addZone);
 
   // Right card: sidebar
   const rightCard = el('div', { className: 'card-base ws-sidebar-card ws-card-enter' });
@@ -260,13 +268,14 @@ function renderMergeView() {
   toolContent.appendChild(leftCard);
   toolContent.appendChild(rightCard);
 
-  // Mobile controls
-  appendMobileControls(rightCard, async () => {
-    if (mergeFiles.length < 2) return;
-    showPopup('<div class="ws-processing"><div class="ws-spinner"></div><p>Merging...</p></div>', true);
-    try { const r = await merge(mergeFiles); hidePopup(); downloadFile(r.bytes, r.name); }
-    catch (e: any) { hidePopup(); showError(e?.message || 'Merge failed'); }
-  }, 'Merge PDF', mergeFiles.length < 2);
+  // Mobile toolbar + tray
+  appendMobileToolbar({
+    gridCard: leftCard,
+    actionText: 'Merge PDF',
+    actionDisabled: mergeFiles.length < 2,
+    onAction: handleMerge,
+    buildTrayContent: (tray) => { updateMergeSidebarContent(tray); },
+  });
 }
 
 function updateMergeSidebarContent(sidebar: HTMLElement) {
@@ -278,10 +287,10 @@ function updateMergeSidebarContent(sidebar: HTMLElement) {
     const fileItem = el('div', { className: 'ws-sidebar-file' });
     fileItem.appendChild(el('span', { className: 'ws-sidebar-filename', textContent: sf.name, title: sf.name }));
     if (mergeFiles.length > 1) {
-      fileItem.appendChild(el('span', { className: 'ws-sidebar-meta', textContent: `${sf.pageCount} pages · ${formatSize(sf.size)}` }));
+      fileItem.appendChild(el('span', { className: 'ws-sidebar-meta', textContent: `${sf.pageCount} pages · ${formatBytes(sf.size)}` }));
     }
 
-    const delFileBtn = el('button', { className: 'close-btn close-btn-sm ws-hover-reveal ws-file-list-remove', innerHTML: '&times;', ariaLabel: `Remove ${sf.name}` });
+    const delFileBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-list-remove', innerHTML: '&times;', ariaLabel: `Remove ${sf.name}` });
     delFileBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       mergeFiles = mergeFiles.filter(f => f.id !== sf.id);
@@ -292,9 +301,9 @@ function updateMergeSidebarContent(sidebar: HTMLElement) {
     top.appendChild(fileItem);
   }
 
-  const addBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: '+ Add files' });
-  addBtn.addEventListener('click', () => { fileInput.multiple = true; fileInput.click(); });
-  top.appendChild(addBtn);
+  const addZone = createDropzone('Drop more PDFs', true);
+  addZone.classList.add('ws-sidebar-dropzone');
+  top.appendChild(addZone);
 
   const total = mergeFiles.reduce((s, f) => s + f.pageCount, 0);
   top.appendChild(el('p', { className: 'ws-sidebar-count', textContent: `${mergeFiles.length} files · ${total} pages` }));
@@ -302,21 +311,21 @@ function updateMergeSidebarContent(sidebar: HTMLElement) {
   sidebar.appendChild(top);
 
   const bottom = el('div', { className: 'ws-sidebar-bottom' });
-  const resetBtn = el('button', { className: 'ws-btn-text', textContent: 'Reset' });
-  resetBtn.addEventListener('click', () => { mergeFiles = []; clearThumbnailCache(); renderMergeView(); });
 
   const mergeBtn = el('button', { className: 'btn-primary ws-action-btn ws-action-full', textContent: 'Merge PDF' });
   if (mergeFiles.length < 2) { mergeBtn.classList.add('disabled'); mergeBtn.setAttribute('aria-disabled', 'true'); }
-  mergeBtn.addEventListener('click', async () => {
-    if (mergeFiles.length < 2) return;
-    showPopup('<div class="ws-processing"><div class="ws-spinner"></div><p>Merging...</p></div>', true);
-    try { const r = await merge(mergeFiles); hidePopup(); downloadFile(r.bytes, r.name); }
-    catch (e: any) { hidePopup(); showError(e?.message || 'Merge failed'); }
-  });
+  mergeBtn.addEventListener('click', handleMerge);
 
-  bottom.appendChild(resetBtn);
   bottom.appendChild(mergeBtn);
   sidebar.appendChild(bottom);
+}
+
+async function handleMerge() {
+  if (mergeFiles.length < 2) return;
+  await runWithPopup('Merging', 'Merge failed. Try removing a file and re-adding it.', async () => {
+    const r = await merge(mergeFiles);
+    downloadFile(r.bytes, r.name);
+  });
 }
 
 function createFileCard(sf: SourceFile): HTMLElement {
@@ -331,10 +340,10 @@ function createFileCard(sf: SourceFile): HTMLElement {
 
   const info = el('div', { className: 'ws-file-info' });
   info.appendChild(el('span', { className: 'ws-file-name', textContent: sf.name, title: sf.name }));
-  info.appendChild(el('span', { className: 'ws-file-meta', textContent: `${sf.pageCount} pages · ${formatSize(sf.size)}` }));
+  info.appendChild(el('span', { className: 'ws-file-meta', textContent: `${sf.pageCount} pages · ${formatBytes(sf.size)}` }));
   card.appendChild(info);
 
-  const removeBtn = el('button', { className: 'close-btn close-btn-md ws-hover-reveal ws-file-remove', innerHTML: '&times;', ariaLabel: 'Remove' });
+  const removeBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-remove', innerHTML: '&times;', ariaLabel: 'Remove' });
   removeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     mergeFiles = mergeFiles.filter(f => f.id !== sf.id);
@@ -368,145 +377,171 @@ function kickMergeThumbs() {
 }
 
 // ---------------------------------------------------------------------------
-// SPLIT VIEW — two cards: page grid (left) + sidebar (right)
+// EXTRACT VIEW — two cards: page grid (left) + sidebar (right)
 // ---------------------------------------------------------------------------
 
-function renderSplitView() {
+function renderExtractView() {
   cleanup();
   toolContent.innerHTML = '';
 
-  if (!splitFile) {
-    renderEmptyState('Drop a PDF to split', false);
+  if (!extractFile) {
+    renderEmptyState('Drop a PDF to extract pages', false);
     return;
   }
 
-  toolContent.className = 'ws-split-layout';
+  toolContent.className = 'ws-extract-layout';
 
   // Left card: page grid
   const leftCard = el('div', { className: 'card-base ws-grid-card ws-card-enter' });
   const grid = el('div', { className: 'ws-page-cards' });
-  splitPages.forEach((page, idx) => {
+  extractPages.forEach((page, idx) => {
     const card = createPageCard(page, idx, false);
-    card.addEventListener('click', (e) => {
-      if (e.shiftKey && lastClickedIdx >= 0) {
-        // Shift-select range
+    card.setAttribute('role', 'checkbox');
+    card.setAttribute('aria-checked', String(extractSelected.has(idx)));
+    card.setAttribute('aria-label', `Page ${page.sourcePageNum}`);
+    card.tabIndex = 0;
+    const togglePage = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent && e.key !== ' ' && e.key !== 'Enter') return;
+      if (e instanceof KeyboardEvent) e.preventDefault();
+      if (e instanceof MouseEvent && e.shiftKey && lastClickedIdx >= 0) {
         const start = Math.min(lastClickedIdx, idx);
         const end = Math.max(lastClickedIdx, idx);
-        for (let i = start; i <= end; i++) splitSelected.add(i);
+        for (let i = start; i <= end; i++) extractSelected.add(i);
       } else {
-        if (splitSelected.has(idx)) splitSelected.delete(idx);
-        else splitSelected.add(idx);
+        if (extractSelected.has(idx)) extractSelected.delete(idx);
+        else extractSelected.add(idx);
       }
       lastClickedIdx = idx;
-      updateSplitVisuals();
-      updateSplitSidebar();
-    });
+      updateExtractVisuals();
+      updateExtractSidebar();
+      syncRangeInput();
+    };
+    card.addEventListener('click', togglePage);
+    card.addEventListener('keydown', togglePage);
     grid.appendChild(card);
   });
   leftCard.appendChild(grid);
-  setupThumbnailObserver(leftCard, splitPages);
+  setupThumbnailObserver(leftCard, extractPages);
 
   // Right card: sidebar
   const rightCard = el('div', { className: 'card-base ws-sidebar-card ws-card-enter' });
-  rightCard.id = 'split-sidebar';
-  updateSplitSidebarContent(rightCard);
+  rightCard.id = 'extract-sidebar';
+  updateExtractSidebarContent(rightCard);
 
   toolContent.appendChild(leftCard);
   toolContent.appendChild(rightCard);
 
-  // Mobile: FAB + sidebar toggle
-  appendMobileControls(rightCard, () => {
-    if (splitSelected.size === 0) return;
-    handleSplit();
-  }, `Extract ${splitSelected.size} page${splitSelected.size !== 1 ? 's' : ''}`, splitSelected.size === 0);
+  // Mobile toolbar + tray
+  appendMobileToolbar({
+    gridCard: leftCard,
+    actionText: extractSelected.size === 0 ? 'Select pages to extract' : `Extract ${extractSelected.size} page${extractSelected.size !== 1 ? 's' : ''}`,
+    actionDisabled: extractSelected.size === 0,
+    onAction: handleExtract,
+    buildTrayContent: (tray) => { updateExtractSidebarContent(tray); },
+  });
 }
 
-function updateSplitSidebar() {
-  if (splitCountEl) splitCountEl.textContent = `${splitSelected.size} of ${splitPages.length} selected`;
-  if (splitExtractBtn) {
-    splitExtractBtn.textContent = `Extract ${splitSelected.size} page${splitSelected.size !== 1 ? 's' : ''}`;
-    splitExtractBtn.classList.toggle('disabled', splitSelected.size === 0);
-    if (splitSelected.size === 0) splitExtractBtn.setAttribute('aria-disabled', 'true');
-    else splitExtractBtn.removeAttribute('aria-disabled');
+function updateExtractSidebar() {
+  const text = extractSelected.size === 0 ? 'Select pages to extract' : `Extract ${extractSelected.size} page${extractSelected.size !== 1 ? 's' : ''}`;
+  if (extractCountEl) extractCountEl.textContent = `${extractSelected.size} of ${extractPages.length} selected`;
+  if (extractBtn) {
+    extractBtn.textContent = text;
+    extractBtn.classList.toggle('disabled', extractSelected.size === 0);
+    if (extractSelected.size === 0) extractBtn.setAttribute('aria-disabled', 'true');
+    else extractBtn.removeAttribute('aria-disabled');
+  }
+  // Update mobile toolbar action button
+  if (mobileActionBtn) {
+    mobileActionBtn.textContent = text;
+    mobileActionBtn.classList.toggle('disabled', extractSelected.size === 0);
+    if (extractSelected.size === 0) mobileActionBtn.setAttribute('aria-disabled', 'true');
+    else mobileActionBtn.removeAttribute('aria-disabled');
   }
 }
 
-function updateSplitSidebarContent(sidebar: HTMLElement) {
+function updateExtractSidebarContent(sidebar: HTMLElement) {
   sidebar.innerHTML = '';
 
   // Top section: file info + controls
   const top = el('div', { className: 'ws-sidebar-top' });
 
   const fileInfo = el('div', { className: 'ws-sidebar-file' });
-  fileInfo.appendChild(el('span', { className: 'ws-sidebar-filename', textContent: splitFile!.name, title: splitFile!.name }));
-  fileInfo.appendChild(el('span', { className: 'ws-sidebar-meta', textContent: `${splitFile!.pageCount} pages · ${formatSize(splitFile!.size)}` }));
+  fileInfo.appendChild(el('span', { className: 'ws-sidebar-filename', textContent: extractFile!.name, title: extractFile!.name }));
   top.appendChild(fileInfo);
 
   // Select controls
   const rangeInput = el('input', {
-    type: 'text', className: 'ws-range-input', placeholder: 'e.g. 1-5, 8, 12-20',
+    type: 'text', className: 'ws-range-input', placeholder: 'e.g. 1-5, 8, 12-20', ariaLabel: 'Page range',
   }) as HTMLInputElement;
+  rangeInput.value = setToRangeString(extractSelected, extractPages.length);
   rangeInput.addEventListener('input', () => {
     const text = rangeInput.value.trim();
     if (!text) { rangeInput.classList.remove('ws-input-error'); return; }
-    const parsed = parsePageRange(text, splitPages.length);
+    const parsed = parsePageRange(text, extractPages.length);
     if (!parsed) { rangeInput.classList.add('ws-input-error'); return; }
     rangeInput.classList.remove('ws-input-error');
-    splitSelected.clear();
-    for (const n of parsed) splitSelected.add(n - 1);
-    updateSplitVisuals();
-    updateSplitSidebar();
+    extractSelected.clear();
+    for (const n of parsed) extractSelected.add(n - 1);
+    updateExtractVisuals();
+    updateExtractSidebar();
   });
+  extractRangeInput = rangeInput;
   top.appendChild(rangeInput);
 
   const btnRow = el('div', { className: 'ws-sidebar-btn-row' });
   const selectAllBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Select all' });
-  selectAllBtn.addEventListener('click', () => { splitPages.forEach((_, i) => splitSelected.add(i)); updateSplitVisuals(); updateSplitSidebar(); });
+  selectAllBtn.addEventListener('click', () => { extractPages.forEach((_, i) => extractSelected.add(i)); updateExtractVisuals(); updateExtractSidebar(); syncRangeInput(); });
   const deselectBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Deselect all' });
-  deselectBtn.addEventListener('click', () => { splitSelected.clear(); updateSplitVisuals(); updateSplitSidebar(); });
+  deselectBtn.addEventListener('click', () => { extractSelected.clear(); updateExtractVisuals(); updateExtractSidebar(); syncRangeInput(); });
   btnRow.appendChild(selectAllBtn);
   btnRow.appendChild(deselectBtn);
   top.appendChild(btnRow);
+  const isTouch = window.matchMedia("(pointer: coarse)").matches;
+  if (!isTouch) top.appendChild(el('p', { className: 'ws-sidebar-hint', textContent: 'Tip: Shift-click to select a range' }));
 
-  splitCountEl = el('p', { className: 'ws-sidebar-count', textContent: `${splitSelected.size} of ${splitPages.length} selected` });
-  top.appendChild(splitCountEl);
+  extractCountEl = el('p', { className: 'ws-sidebar-count', textContent: `${extractSelected.size} of ${extractPages.length} selected` });
+  extractCountEl.setAttribute('aria-live', 'polite');
+  top.appendChild(extractCountEl);
 
   sidebar.appendChild(top);
 
   // Bottom section: action buttons
   const bottom = el('div', { className: 'ws-sidebar-bottom' });
-  const resetBtn = el('button', { className: 'ws-btn-text', textContent: 'Reset' });
-  resetBtn.addEventListener('click', () => { splitFile = null; splitPages = []; splitSelected.clear(); clearThumbnailCache(); renderSplitView(); });
-
-  splitExtractBtn = el('button', {
+  extractBtn = el('button', {
     className: 'btn-primary ws-action-btn ws-action-full',
-    textContent: `Extract ${splitSelected.size} page${splitSelected.size !== 1 ? 's' : ''}`
+    textContent: extractSelected.size === 0 ? 'Select pages to extract' : `Extract ${extractSelected.size} page${extractSelected.size !== 1 ? 's' : ''}`
   });
-  if (splitSelected.size === 0) { splitExtractBtn.classList.add('disabled'); splitExtractBtn.setAttribute('aria-disabled', 'true'); }
-  splitExtractBtn.addEventListener('click', handleSplit);
+  if (extractSelected.size === 0) { extractBtn.classList.add('disabled'); extractBtn.setAttribute('aria-disabled', 'true'); }
+  extractBtn.addEventListener('click', handleExtract);
 
-  bottom.appendChild(resetBtn);
-  bottom.appendChild(splitExtractBtn);
+  const checkRow = el('label', { className: 'ws-checkbox-row' });
+  const checkbox = el('input', { type: 'checkbox' }) as HTMLInputElement;
+  checkbox.checked = extractGroupAsOne;
+  checkbox.addEventListener('change', () => { extractGroupAsOne = checkbox.checked; });
+  checkRow.appendChild(checkbox);
+  checkRow.appendChild(document.createTextNode(' Combine into one PDF'));
+  bottom.appendChild(checkRow);
+  bottom.appendChild(extractBtn);
   sidebar.appendChild(bottom);
 }
 
-function updateSplitVisuals() {
+function updateExtractVisuals() {
   toolContent.querySelectorAll('.ws-page-card').forEach((card, i) => {
-    card.classList.toggle('ws-page-selected', splitSelected.has(i));
+    const selected = extractSelected.has(i);
+    card.classList.toggle('ws-page-selected', selected);
+    card.setAttribute('aria-checked', String(selected));
   });
 }
 
-async function handleSplit() {
-  if (!splitFile || splitSelected.size === 0) return;
-  showPopup('<div class="ws-processing"><div class="ws-spinner"></div><p>Splitting...</p></div>', true);
-  try {
-    const pageNums = [...splitSelected].sort((a, b) => a - b).map(i => splitPages[i].sourcePageNum);
-    const baseName = splitFile.name.replace(/\.pdf$/i, '');
-    const results = await split(splitFile.bytes, pageNums, baseName);
-    hidePopup();
+async function handleExtract() {
+  if (!extractFile || extractSelected.size === 0) return;
+  await runWithPopup('Extracting', 'Extract failed. The PDF might be damaged or unsupported.', async () => {
+    const pageNums = [...extractSelected].sort((a, b) => a - b).map(i => extractPages[i].sourcePageNum);
+    const baseName = extractFile!.name.replace(/\.pdf$/i, '');
+    const results = await extract(extractFile!.bytes, pageNums, baseName, extractGroupAsOne);
     if (results.length === 1) downloadFile(results[0].bytes, results[0].name);
     else await downloadAsZip(results, `${baseName}_pages.zip`);
-  } catch (e: any) { hidePopup(); showError(e?.message || 'Extract failed'); }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -539,15 +574,50 @@ function insertBlankPage(atIdx: number) {
       blankPageSize: size,
     };
     orgPages.splice(atIdx, 0, blank);
-    renderOrganizeView();
+
+    const grid = toolContent.querySelector('.ws-page-cards');
+    if (!grid) { renderOrganizeView(); kickPageThumbs(orgPages); return; }
+
+    // Insert new slot into existing grid
+    const newSlot = el('div', { className: 'ws-page-slot' });
+    newSlot.appendChild(createInsertBtn(atIdx));
+    newSlot.appendChild(createPageCard(blank, atIdx, true));
+    const trailing = grid.querySelector('.ws-page-insert-trailing');
+    const slots = grid.querySelectorAll('.ws-page-slot');
+    if (atIdx < slots.length) {
+      grid.insertBefore(newSlot, slots[atIdx]);
+    } else {
+      grid.insertBefore(newSlot, trailing);
+    }
+
+    // Re-index data attributes on all slots
+    reindexSlots(grid);
+
+    updateOrgSidebar();
     kickPageThumbs(orgPages);
   });
 }
 
 function createInsertBtn(atIdx: number): HTMLElement {
   const btn = el('button', { className: 'ws-page-insert', innerHTML: '+', ariaLabel: 'Insert blank page' });
-  btn.addEventListener('click', (e) => { e.stopPropagation(); insertBlankPage(atIdx); });
+  btn.dataset.insertAt = String(atIdx);
   return btn;
+}
+
+/** Re-index page card and insert button data attributes after reorder/insert. */
+function reindexSlots(grid: Element) {
+  grid.querySelectorAll<HTMLElement>('.ws-page-slot').forEach((slot, idx) => {
+    const card = slot.querySelector<HTMLElement>('.ws-page-card');
+    if (card) card.dataset.pageIdx = String(idx);
+    // Ensure insert button exists and has correct index
+    let btn = slot.querySelector<HTMLElement>('.ws-page-insert');
+    if (!btn) {
+      btn = createInsertBtn(idx);
+      slot.insertBefore(btn, slot.firstChild);
+    } else {
+      btn.dataset.insertAt = String(idx);
+    }
+  });
 }
 
 function renderOrganizeView() {
@@ -555,11 +625,11 @@ function renderOrganizeView() {
   toolContent.innerHTML = '';
 
   if (orgPages.length === 0) {
-    renderEmptyState('Drop PDFs to organize', true);
+    renderEmptyState('Drop PDFs to rearrange, rotate, or remove pages', true);
     return;
   }
 
-  toolContent.className = 'ws-split-layout';
+  toolContent.className = 'ws-extract-layout';
 
   // Left card: page grid
   const leftCard = el('div', { className: 'card-base ws-grid-card ws-card-enter' });
@@ -572,9 +642,18 @@ function renderOrganizeView() {
   });
   // Trailing insert — card-shaped add button
   const trailing = el('button', { className: 'ws-page-insert-trailing', innerHTML: '+', ariaLabel: 'Insert blank page at end' });
-  trailing.addEventListener('click', (e) => { e.stopPropagation(); insertBlankPage(orgPages.length); });
+  trailing.dataset.insertAt = 'end';
   grid.appendChild(trailing);
   leftCard.appendChild(grid);
+
+  // Event delegation for all insert buttons (between-page + trailing)
+  grid.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-insert-at]');
+    if (!btn) return;
+    e.stopPropagation();
+    const at = btn.dataset.insertAt === 'end' ? orgPages.length : Number(btn.dataset.insertAt);
+    insertBlankPage(at);
+  });
 
   sortableInstance = new Sortable(grid, {
     animation: 200, delay: 150, delayOnTouchOnly: true,
@@ -596,8 +675,8 @@ function renderOrganizeView() {
           orgPages.push(...reordered);
         }
       }
-      renderOrganizeView();
-      kickPageThumbs(orgPages);
+      reindexSlots(grid);
+      updateOrgSidebar();
     },
   });
 
@@ -611,15 +690,15 @@ function renderOrganizeView() {
   toolContent.appendChild(leftCard);
   toolContent.appendChild(rightCard);
 
-  // Mobile: FAB + sidebar toggle
+  // Mobile toolbar + tray
   const active = orgPages.filter(p => !p.deleted).length;
-  appendMobileControls(rightCard, async () => {
-    const activePages = orgPages.filter(p => !p.deleted);
-    if (!activePages.length) return;
-    showPopup('<div class="ws-processing"><div class="ws-spinner"></div><p>Saving...</p></div>', true);
-    try { const r = await organize(orgFiles, activePages); hidePopup(); downloadFile(r.bytes, r.name); }
-    catch (e: any) { hidePopup(); showError(e?.message || 'Save failed'); }
-  }, 'Save PDF', active === 0);
+  appendMobileToolbar({
+    gridCard: leftCard,
+    actionText: 'Save PDF',
+    actionDisabled: active === 0,
+    onAction: handleOrganize,
+    buildTrayContent: (tray) => { updateOrgSidebarContent(tray); },
+  });
 }
 
 function updateOrgSidebar() {
@@ -633,7 +712,7 @@ function updateOrgSidebarContent(sidebar: HTMLElement) {
   const top = el('div', { className: 'ws-sidebar-top' });
 
   // File list
-  const uniqueFiles = [...new Set(orgPages.map(p => p.sourceFileId))];
+  const uniqueFiles = [...new Set(orgPages.filter(p => p.type !== 'blank').map(p => p.sourceFileId))];
   for (const fid of uniqueFiles) {
     const sf = orgFiles.find(f => f.id === fid);
     if (!sf) continue;
@@ -645,7 +724,7 @@ function updateOrgSidebarContent(sidebar: HTMLElement) {
     }
 
     // Per-file delete button
-    const delFileBtn = el('button', { className: 'close-btn close-btn-sm ws-hover-reveal ws-file-list-remove', innerHTML: '&times;', ariaLabel: `Remove ${sf.name}` });
+    const delFileBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-list-remove', innerHTML: '&times;', ariaLabel: `Remove ${sf.name}` });
     delFileBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       orgPages = orgPages.filter(p => p.sourceFileId !== fid);
@@ -659,76 +738,79 @@ function updateOrgSidebarContent(sidebar: HTMLElement) {
     top.appendChild(fileItem);
   }
 
-  const addBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: '+ Add files' });
-  addBtn.addEventListener('click', () => { fileInput.multiple = true; fileInput.click(); });
-  top.appendChild(addBtn);
+  top.appendChild(el('p', { className: 'ws-sidebar-hint', textContent: 'Drag to reorder' }));
+
+  const addZone = createDropzone('Drop more PDFs', true);
+  addZone.classList.add('ws-sidebar-dropzone');
+  top.appendChild(addZone);
 
   const active = orgPages.filter(p => !p.deleted).length;
   const deleted = orgPages.filter(p => p.deleted).length;
   let countText = `${active} pages`;
-  if (deleted > 0) countText += ` · ${deleted} deleted`;
+  if (deleted > 0) countText += ` · ${deleted} removed`;
   top.appendChild(el('p', { className: 'ws-sidebar-count', textContent: countText }));
 
   sidebar.appendChild(top);
 
   // Bottom: actions
   const bottom = el('div', { className: 'ws-sidebar-bottom' });
-  const resetBtn = el('button', { className: 'ws-btn-text', textContent: 'Reset' });
-  resetBtn.addEventListener('click', () => { orgFiles = []; orgPages = []; clearThumbnailCache(); renderOrganizeView(); });
 
   const saveBtn = el('button', { className: 'btn-primary ws-action-btn ws-action-full', textContent: 'Save PDF' });
   if (active === 0) { saveBtn.classList.add('disabled'); saveBtn.setAttribute('aria-disabled', 'true'); }
-  saveBtn.addEventListener('click', async () => {
-    const activePages = orgPages.filter(p => !p.deleted);
-    if (!activePages.length) return;
-    showPopup('<div class="ws-processing"><div class="ws-spinner"></div><p>Saving...</p></div>', true);
-    try { const r = await organize(orgFiles, activePages); hidePopup(); downloadFile(r.bytes, r.name); }
-    catch (e: any) { hidePopup(); showError(e?.message || 'Save failed'); }
-  });
+  saveBtn.addEventListener('click', handleOrganize);
 
-  bottom.appendChild(resetBtn);
   bottom.appendChild(saveBtn);
   sidebar.appendChild(bottom);
 }
 
+async function handleOrganize() {
+  const activePages = orgPages.filter(p => !p.deleted);
+  if (!activePages.length) return;
+  await runWithPopup('Saving', 'Save failed. Try with fewer pages or a smaller file.', async () => {
+    const r = await organize(orgFiles, activePages);
+    downloadFile(r.bytes, r.name);
+  });
+}
+
 // ---------------------------------------------------------------------------
-// Shared: mobile controls (FAB + sidebar toggle)
+// Shared: mobile toolbar + tray
 
-function appendMobileControls(sidebarCard: HTMLElement, onAction: () => void, actionText: string, disabled: boolean) {
-  // FAB
-  const fab = el('div', { className: 'ws-fab' });
-  const fabBtn = el('button', { className: 'btn-primary', textContent: actionText });
-  if (disabled) { fabBtn.classList.add('disabled'); fabBtn.setAttribute('aria-disabled', 'true'); }
-  fabBtn.addEventListener('click', onAction);
-  fab.appendChild(fabBtn);
-  toolContent.appendChild(fab);
+const MORE_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>';
 
-  // Sidebar toggle button
-  const toggle = el('button', { className: 'ws-sidebar-toggle', ariaLabel: 'Show details' });
-  toggle.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
-  toolContent.appendChild(toggle);
+function appendMobileToolbar(opts: {
+  gridCard: HTMLElement;
+  actionText: string;
+  actionDisabled: boolean;
+  onAction: () => void;
+  buildTrayContent: (container: HTMLElement) => void;
+}): HTMLElement {
+  // Toolbar — lives inside the grid card for sticky positioning
+  const toolbar = el('div', { className: 'ws-toolbar' });
+  const iconBtn = el('button', { className: 'icon-btn ws-toolbar-icon', ariaLabel: 'More options' });
+  iconBtn.innerHTML = MORE_SVG;
+  const actionBtn = el('button', { className: 'btn-primary ws-toolbar-action', textContent: opts.actionText });
+  if (opts.actionDisabled) { actionBtn.classList.add('disabled'); actionBtn.setAttribute('aria-disabled', 'true'); }
+  actionBtn.addEventListener('click', opts.onAction);
+  toolbar.appendChild(actionBtn);
+  toolbar.appendChild(iconBtn);
+  opts.gridCard.appendChild(toolbar);
 
-  // Overlay
-  const overlay = el('div', { className: 'ws-sidebar-overlay' });
+  // Tray + overlay stay in toolContent (fixed-positioned)
+  const tray = el('div', { className: 'ws-tray' });
+  opts.buildTrayContent(tray);
+
+  const overlay = el('div', { className: 'ws-tray-overlay' });
+
+  const openTray = () => { tray.classList.add('ws-tray-open'); overlay.classList.add('ws-tray-open'); };
+  const closeTray = () => { tray.classList.remove('ws-tray-open'); overlay.classList.remove('ws-tray-open'); };
+  iconBtn.addEventListener('click', () => tray.classList.contains('ws-tray-open') ? closeTray() : openTray());
+  overlay.addEventListener('click', closeTray);
+
   toolContent.appendChild(overlay);
+  toolContent.appendChild(tray);
 
-  // Close button inside sidebar
-  const closeBtn = el('button', { className: 'close-btn close-btn-lg ws-sidebar-close', innerHTML: '&times;', ariaLabel: 'Close' });
-  sidebarCard.prepend(closeBtn);
-
-  // Toggle logic
-  const openSidebar = () => {
-    sidebarCard.classList.add('ws-sidebar-open');
-    overlay.classList.add('ws-sidebar-open');
-  };
-  const closeSidebar = () => {
-    sidebarCard.classList.remove('ws-sidebar-open');
-    overlay.classList.remove('ws-sidebar-open');
-  };
-
-  toggle.addEventListener('click', openSidebar);
-  overlay.addEventListener('click', closeSidebar);
-  closeBtn.addEventListener('click', closeSidebar);
+  mobileActionBtn = actionBtn;
+  return actionBtn;
 }
 
 // Shared: page card
@@ -736,7 +818,7 @@ function appendMobileControls(sidebarCard: HTMLElement, onAction: () => void, ac
 
 function getPageBadgeText(page: PageEntry): string {
   if (page.type === 'blank') return 'Blank';
-  const files = activeTool === 'organize' ? orgFiles : (splitFile ? [splitFile] : []);
+  const files = activeTool === 'organize' ? orgFiles : (extractFile ? [extractFile] : []);
   if (files.length <= 1) return String(page.sourcePageNum);
   const fileIdx = files.findIndex(f => f.id === page.sourceFileId);
   const letter = String.fromCharCode(65 + (fileIdx % 26));
@@ -744,9 +826,15 @@ function getPageBadgeText(page: PageEntry): string {
 }
 
 function addDeleteButton(card: HTMLElement, idx: number) {
-  const delBtn = el('button', { className: 'close-btn close-btn-sm ws-overlay-btn ws-hover-reveal ws-page-delete', innerHTML: '&times;', ariaLabel: 'Delete' });
+  const delBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-page-delete', innerHTML: '&times;', ariaLabel: 'Delete' });
   delBtn.addEventListener('click', (e) => {
     e.stopPropagation();
+    if (orgPages[idx].type === 'blank') {
+      orgPages.splice(idx, 1);
+      renderOrganizeView();
+      kickPageThumbs(orgPages);
+      return;
+    }
     orgPages[idx].deleted = true;
     card.classList.add('ws-page-deleted');
     card.closest('.ws-page-slot')?.classList.add('ws-page-deleted');
@@ -760,7 +848,7 @@ function addDeleteButton(card: HTMLElement, idx: number) {
 
 function addRotateButton(card: HTMLElement, page: PageEntry, badge: HTMLElement) {
   let visualAngle = page.rotation || 0;
-  const rotBtn = el('button', { className: 'close-btn close-btn-sm ws-overlay-btn ws-hover-reveal ws-page-rotate', innerHTML: '&#x21bb;', ariaLabel: 'Rotate' });
+  const rotBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-page-rotate', innerHTML: '&#x21bb;', ariaLabel: 'Rotate' });
   rotBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     page.rotation = ((page.rotation + 90) % 360) as 0 | 90 | 180 | 270;
@@ -773,7 +861,7 @@ function addRotateButton(card: HTMLElement, page: PageEntry, badge: HTMLElement)
 }
 
 function addUndoButton(card: HTMLElement, idx: number) {
-  const undoBtn = el('button', { className: 'ws-page-undo', textContent: '\u21a9', ariaLabel: 'Undo' });
+  const undoBtn = el('button', { className: 'icon-btn ws-page-undo', textContent: '\u21a9', ariaLabel: 'Undo' });
   undoBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     orgPages[idx].deleted = false;
@@ -830,7 +918,7 @@ function kickPageThumbs(pages: PageEntry[]) {
 
 function queuePageThumb(pages: PageEntry[], idx: number) {
   if (pages[idx].thumbnail || pages[idx].type === 'blank') return;
-  const allFiles = activeTool === 'split' ? (splitFile ? [splitFile] : []) : orgFiles;
+  const allFiles = activeTool === 'extract' ? (extractFile ? [extractFile] : []) : orgFiles;
   const sf = allFiles.find(f => f.id === pages[idx].sourceFileId);
   if (!sf) return;
   queueRender(sf.bytes, pages[idx].sourcePageNum, (url) => {
@@ -884,7 +972,7 @@ async function processQueue() {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function parsePageRange(text: string, max: number): Set<number> | null {
+export function parsePageRange(text: string, max: number): Set<number> | null {
   const result = new Set<number>();
   for (const part of text.split(',').map(s => s.trim()).filter(Boolean)) {
     const m = part.match(/^(\d+)\s*-\s*(\d+)$/);
@@ -901,6 +989,35 @@ function parsePageRange(text: string, max: number): Set<number> | null {
   return result.size > 0 ? result : null;
 }
 
+export function setToRangeString(selected: Set<number>, total: number): string {
+  if (selected.size === 0) return '';
+  if (selected.size === total) return `1-${total}`;
+  const sorted = [...selected].sort((a, b) => a - b);
+  const ranges: string[] = [];
+  let start = sorted[0], end = sorted[0];
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === end + 1) { end = sorted[i]; }
+    else { ranges.push(start === end ? String(start + 1) : `${start + 1}-${end + 1}`); start = sorted[i]; end = sorted[i]; }
+  }
+  ranges.push(start === end ? String(start + 1) : `${start + 1}-${end + 1}`);
+  return ranges.join(', ');
+}
+
+function syncRangeInput() {
+  if (!extractRangeInput) return;
+  extractRangeInput.value = setToRangeString(extractSelected, extractPages.length);
+  extractRangeInput.classList.remove('ws-input-error');
+}
+
+async function runWithPopup(verb: string, fallback: string, fn: () => Promise<void>) {
+  const wrap = el('div', { className: 'ws-processing' });
+  wrap.appendChild(el('div', { className: 'ws-spinner' }));
+  wrap.appendChild(el('p', { textContent: `${verb}...` }));
+  showPopup(wrap, true);
+  try { await fn(); hidePopup(); }
+  catch (e: any) { hidePopup(); showError(e?.message || fallback); }
+}
+
 let errorTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function showError(msg: string) {
@@ -911,12 +1028,6 @@ function showError(msg: string) {
 }
 
 function hideError() { errorEl.style.display = 'none'; errorEl.textContent = ''; }
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function el(tag: string, props: Record<string, any> = {}): HTMLElement {
   const elem = document.createElement(tag);

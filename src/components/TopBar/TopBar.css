@@ -142,14 +142,10 @@
   transform: translateY(-6px) rotate(-45deg);
 }
 
-#filter-label {
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  color: var(--muted-foreground);
-  margin-right: var(--space-1);
-}
-
 #mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
   height: var(--control-size);
@@ -162,6 +158,11 @@
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease;
   font-family: inherit;
+}
+
+.mode-toggle-icon {
+  opacity: 0.5;
+  flex-shrink: 0;
 }
 
 #mode-toggle:hover {
@@ -190,51 +191,90 @@
   background-color: var(--accent);
 }
 
-/* --- Menu Label (mobile hamburger settings) --- */
-.menu-label {
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  color: var(--muted-foreground);
+/* Hide filter controls in PDF mode (both desktop and mobile) */
+#top-controls-menu.pdf-mode #mode-toggle {
   display: none;
 }
 
-/* --- Segmented Controls (mobile) --- */
-.segmented-control {
+/* --- Mobile Menu Components (hidden on desktop) --- */
+.menu-pill-group,
+.menu-list-label,
+.menu-divider {
   display: none;
-  background-color: var(--secondary);
+}
+
+/* App mode toggle — single button, matches theme-toggle */
+#app-mode-toggle {
+  width: var(--control-size);
+  height: var(--control-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: var(--leading-none);
   border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  padding: 2px;
-  gap: 0;
-  width: 100%;
+  border-radius: var(--radius);
+  background-color: var(--secondary);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.segmented-option {
+#app-mode-toggle:hover {
+  background-color: var(--accent);
+}
+
+.menu-list-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted-foreground);
+  padding: 0 4px 6px;
+  text-align: center;
+}
+
+/* --- Pill Option (shared by all pill groups) --- */
+.pill-option {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-1);
+  gap: 6px;
   font-family: inherit;
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
-  padding: var(--space-1-5) var(--space-3);
+  padding: 8px 14px;
   border: none;
-  border-radius: var(--radius-full);
+  border-radius: 100px;
   background: none;
   color: var(--muted-foreground);
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
   white-space: nowrap;
 }
 
-.segmented-option.active {
+.pill-option.active {
   background-color: var(--primary);
   color: var(--primary-foreground);
 }
 
-.segmented-option:not(.active):hover {
+.pill-option:not(.active):hover {
   color: var(--foreground);
+  background-color: var(--accent);
+}
+
+.pill-option:active {
+  transform: scale(0.96);
+}
+
+.pill-option svg {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.pill-option:active svg {
+  transform: scale(0.9);
 }
 
 @media only screen and (max-width: 800px) {
@@ -242,21 +282,36 @@
     display: flex;
   }
 
-  #filter-label {
-    display: none;
-  }
-
   #mode-toggle,
-  #theme-toggle {
+  #theme-toggle,
+  #app-mode-toggle {
     display: none;
   }
 
-  .segmented-control {
+  .menu-pill-group {
     display: flex;
+    background-color: var(--secondary);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 3px;
+    width: 100%;
   }
 
-  .menu-label {
+  .menu-pill-group.menu-pill-vertical {
+    flex-direction: column;
+    border-radius: var(--radius);
+    gap: 3px;
+  }
+
+  .menu-list-label {
     display: block;
+  }
+
+  .menu-divider {
+    display: block;
+    width: 100%;
+    height: 1px;
+    background-color: var(--border);
   }
 
   #top-controls-menu {
@@ -267,15 +322,15 @@
     z-index: 9999;
     background-color: var(--card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
-    padding: var(--space-4);
-    box-shadow: none;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.16);
     opacity: 0;
     visibility: hidden;
-    transform: translateY(-10px);
-    transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
-    min-width: 180px;
-    gap: var(--space-4);
+    transform: translateY(-8px);
+    transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+    min-width: 240px;
+    gap: 12px;
   }
 
   #top-controls.menu-open #top-controls-menu {
@@ -284,54 +339,41 @@
     transform: translateY(0);
   }
 
-  #top-controls-menu button:not(.segmented-option) {
-    width: 100%;
-    justify-content: center;
+  /* Staggered entrance for menu children */
+  #top-controls-menu > * {
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
   }
 
-  #top-controls-menu .segmented-control {
-    flex-direction: column;
-    background: none;
-    border: none;
-    padding: 0;
-    border-radius: 0;
-    gap: var(--space-1);
+  #top-controls.menu-open #top-controls-menu > * {
+    opacity: 1;
+    transform: translateY(0);
   }
 
-  #top-controls-menu .segmented-option {
-    border-radius: var(--radius);
-    justify-content: space-between;
-    padding: var(--space-2-5) var(--space-3);
-    color: var(--foreground);
-    font-size: var(--text-base);
-    font-weight: var(--font-normal);
-  }
+  #top-controls.menu-open #top-controls-menu > *:nth-child(1) { transition-delay: 0.03s; }
+  #top-controls.menu-open #top-controls-menu > *:nth-child(2) { transition-delay: 0.06s; }
+  #top-controls.menu-open #top-controls-menu > *:nth-child(3) { transition-delay: 0.09s; }
+  #top-controls.menu-open #top-controls-menu > *:nth-child(4) { transition-delay: 0.12s; }
+  #top-controls.menu-open #top-controls-menu > *:nth-child(5) { transition-delay: 0.15s; }
+  #top-controls.menu-open #top-controls-menu > *:nth-child(6) { transition-delay: 0.18s; }
+  #top-controls.menu-open #top-controls-menu > *:nth-child(7) { transition-delay: 0.21s; }
+  #top-controls.menu-open #top-controls-menu > *:nth-child(8) { transition-delay: 0.24s; }
+  #top-controls.menu-open #top-controls-menu > *:nth-child(9) { transition-delay: 0.27s; }
+  #top-controls.menu-open #top-controls-menu > *:nth-child(10) { transition-delay: 0.30s; }
+  #top-controls.menu-open #top-controls-menu > *:nth-child(11) { transition-delay: 0.33s; }
+  #top-controls.menu-open #top-controls-menu > *:nth-child(12) { transition-delay: 0.36s; }
 
-  #top-controls-menu .segmented-option:not(.active):hover {
-    background-color: var(--accent);
-    color: var(--foreground);
-  }
-
-  #top-controls-menu .segmented-option.active {
-    background: var(--accent);
-    color: var(--foreground);
-    font-weight: var(--font-medium);
-  }
-
-  #top-controls-menu .segmented-option.active::after {
-    content: "✓";
-    font-size: var(--text-xs);
-    opacity: 0.6;
-  }
-
-  #top-controls-menu #label-theme,
-  #top-controls-menu #label-app-mode {
-    margin-top: var(--space-3);
+  /* Hide formats section in PDF mode */
+  #top-controls-menu.pdf-mode #formats-divider,
+  #top-controls-menu.pdf-mode #formats-label,
+  #top-controls-menu.pdf-mode #formats-section {
+    display: none;
   }
 }
 
 @media only screen and (max-width: 400px) {
-  #hero-title {
+  .page-title {
     font-size: var(--space-7);
     margin-top: calc(var(--space-16) + 0.5rem);
     margin-bottom: var(--space-4);

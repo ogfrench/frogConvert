@@ -1,5 +1,5 @@
-/* --- Category Tabs --- */
-#category-tabs {
+/* --- Tab Bar (shared: converter + PDF workspace) --- */
+.tab-bar {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
