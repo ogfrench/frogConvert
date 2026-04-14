@@ -156,8 +156,11 @@
   background-color: var(--secondary);
   color: var(--foreground);
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.3s ease, transform 0.3s ease;
   font-family: inherit;
+  white-space: nowrap;
+  opacity: 1;
+  transform: scale(1);
 }
 
 .mode-toggle-icon {
@@ -193,7 +196,9 @@
 
 /* Hide filter controls in PDF mode (both desktop and mobile) */
 #top-controls-menu.pdf-mode #mode-toggle {
-  display: none;
+  opacity: 0;
+  transform: scale(0.95);
+  pointer-events: none;
 }
 
 /* --- Mobile Menu Components (hidden on desktop) --- */

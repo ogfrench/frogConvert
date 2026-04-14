@@ -34,9 +34,9 @@
   --link-color: inherit;
 
   /* Radius */
-  --radius: 0.5rem;
-  --radius-sm: calc(var(--radius) - 2px);
-  --radius-xl: calc(var(--radius) * 2.5);
+  --radius: 1rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-xl: 1.5rem;
   --radius-full: 9999px;
 
   /* Sizing */
@@ -230,6 +230,7 @@ body {
 html {
   overflow-x: hidden !important;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   width: 100% !important;
   max-width: 100vw !important;
 }
@@ -384,6 +385,14 @@ html.scroll-lock {
 .disabled {
   opacity: var(--opacity-disabled);
   pointer-events: none;
+}
+
+/* Buttons: solid disabled look instead of opacity fade */
+.btn-primary.disabled {
+  opacity: 1;
+  background-color: var(--secondary);
+  color: var(--muted-foreground);
+  border-color: var(--border);
 }
 
 /* --- Primary Button --- */
@@ -551,7 +560,7 @@ html.scroll-lock {
   width: var(--space-8);
   height: var(--space-8);
   font-size: var(--text-2xl);
-  border-radius: var(--radius);
+  border-radius: var(--radius-full);
 }
 
 /* --- Modal Close Button --- */

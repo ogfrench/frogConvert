@@ -106,6 +106,21 @@ const bgEmojis = {
 };
 const bgEmojiSpans = document.querySelectorAll<HTMLSpanElement>("#bg-visuals .bg-pop span");
 
+function replayEntranceAnimations(roots: Element[]) {
+  const pairs: [HTMLElement, string][] = [];
+  for (const root of roots) {
+    const all = [
+      ...(root.matches('.entrance, .word-entrance') ? [root as HTMLElement] : []),
+      ...root.querySelectorAll<HTMLElement>('.entrance, .word-entrance'),
+    ];
+    for (const el of all)
+      pairs.push([el, el.classList.contains('entrance') ? 'entrance' : 'word-entrance']);
+  }
+  for (const [el, cls] of pairs) el.classList.remove(cls);
+  if (pairs.length) void pairs[0][0].offsetHeight; // single reflow
+  for (const [el, cls] of pairs) el.classList.add(cls);
+}
+
 function setAppMode(mode: string) {
   currentAppMode = mode;
 
@@ -123,7 +138,11 @@ function setAppMode(mode: string) {
       span.textContent = set[i];
       span.style.transition = "scale 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)";
       span.style.scale = "1";
-      setTimeout(() => { span.style.animationPlayState = ""; }, 350);
+      setTimeout(() => {
+        span.style.animationPlayState = "";
+        span.style.scale = "";
+        span.style.transition = "";
+      }, 350);
     });
   }, 200);
 
@@ -150,16 +169,12 @@ function setAppMode(mode: string) {
   if (mode === "pdf-editor") {
     for (const el of converterEls) el.style.display = "none";
     pdfWorkspaceEl.style.display = "";
-    // Re-trigger entrance animations
-    for (const child of pdfWorkspaceEl.querySelectorAll('.entrance')) {
-      child.classList.remove('entrance');
-      void (child as HTMLElement).offsetHeight;
-      child.classList.add('entrance');
-    }
+    replayEntranceAnimations([pdfWorkspaceEl]);
     initPdfWorkspace();
   } else {
     pdfWorkspaceEl.style.display = "none";
     for (const el of converterEls) el.style.display = "";
+    replayEntranceAnimations(converterEls);
   }
 }
 

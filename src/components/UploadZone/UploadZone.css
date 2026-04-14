@@ -24,7 +24,7 @@
   height: 5.5rem;
   padding: 0 var(--space-4);
   border: 2px dashed var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-xl);
   background-color: var(--secondary);
   cursor: pointer;
   transition: border-color 0.15s ease, background-color 0.15s ease;

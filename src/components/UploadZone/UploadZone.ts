@@ -55,6 +55,10 @@ export function initUploadZone(
   });
 
   const fileSelectHandler = (event: Event) => {
+    // Skip window-level drop/paste when the converter UI is hidden (e.g. PDF mode)
+    if ((event instanceof DragEvent || event instanceof ClipboardEvent) &&
+        ui.uploadZone.offsetParent === null) return;
+
     let inputFiles;
 
     if (event instanceof DragEvent) {

@@ -6,7 +6,7 @@ import { getNextFileId } from '../../tools/types.ts';
 import { merge } from '../../tools/pdfMerge.ts';
 import { extract } from '../../tools/pdfExtract.ts';
 import { organize } from '../../tools/pdfOrganize.ts';
-import { renderPageThumbnail, clearThumbnailCache } from '../../tools/pdfThumbnails.ts';
+import { renderPageThumbnail, clearThumbnailCache, mockPageThumb } from '../../tools/pdfThumbnails.ts';
 import { downloadFile, downloadAsZip } from '../ConversionModal/ConversionActions.ts';
 import { showPopup, hidePopup } from '../Popup/Popup.ts';
 import { formatBytes } from '../utils.ts';
@@ -18,10 +18,9 @@ import { formatBytes } from '../utils.ts';
 type Tool = 'merge' | 'extract' | 'organize';
 
 let mergeFiles: SourceFile[] = [];
-let extractFile: SourceFile | null = null;
+let extractFiles: SourceFile[] = [];
 let extractPages: PageEntry[] = [];
 let extractSelected = new Set<number>();
-let extractCountEl: HTMLElement | null = null;
 let extractBtn: HTMLElement | null = null;
 let mobileActionBtn: HTMLElement | null = null;
 let extractRangeInput: HTMLInputElement | null = null;
@@ -32,6 +31,9 @@ let orgPages: PageEntry[] = [];
 let activeTool: Tool = 'merge';
 let pendingTool: Tool | null = null; // set before init, applied on init
 let lastClickedIdx = -1; // for shift-select
+let mergeGridContainer: HTMLElement | null = null;
+let mergeSidebarCard: HTMLElement | null = null;
+let mergeMobileTray: HTMLElement | null = null;
 let sortableInstance: Sortable | null = null;
 let thumbnailObserver: IntersectionObserver | null = null;
 let initialized = false;
@@ -110,7 +112,7 @@ export function initPdfWorkspace() {
 function renderActiveTool() {
   cleanup();
   hideError();
-  toolContent.className = ''; // reset layout classes
+  toolContent.classList.remove('ws-empty-layout', 'ws-extract-layout');
   if (activeTool === 'merge') renderMergeView();
   else if (activeTool === 'extract') renderExtractView();
   else renderOrganizeView();
@@ -122,10 +124,25 @@ function cleanup() {
   thumbnailObserver?.disconnect();
   thumbnailObserver = null;
   renderQueue.length = 0;
-  extractCountEl = null;
   extractBtn = null;
   extractRangeInput = null;
   mobileActionBtn = null;
+  mergeGridContainer = null;
+  mergeSidebarCard = null;
+  mergeMobileTray = null;
+}
+
+function resetAll() {
+  mergeFiles = [];
+  extractFiles = [];
+  extractPages = [];
+  extractSelected.clear();
+  extractGroupAsOne = false;
+  orgFiles = [];
+  orgPages = [];
+  lastClickedIdx = -1;
+  clearThumbnailCache();
+  renderActiveTool();
 }
 
 // ---------------------------------------------------------------------------
@@ -155,7 +172,7 @@ function createDropzone(text: string, multi: boolean): HTMLElement {
 
 /** Wrap a dropzone in a centered card-base with a label */
 function createDropzoneCard(text: string, multi: boolean, label?: string): HTMLElement {
-  const card = el('div', { className: 'card-base ws-dropzone-card ws-card-enter' });
+  const card = el('div', { className: 'card-base ws-dropzone-card' });
   if (label) {
     card.appendChild(el('span', { className: 'ws-field-label', textContent: label }));
   }
@@ -194,14 +211,13 @@ async function handleFiles(files: File[]) {
 
   if (activeTool === 'merge') {
     mergeFiles.push(...parsed);
-    renderMergeView();
+    updateMergeContent();
     kickMergeThumbs();
   } else if (activeTool === 'extract') {
-    extractFile = parsed[0];
-    extractPages = [];
-    extractSelected.clear();
-    for (let p = 1; p <= extractFile.pageCount; p++)
-      extractPages.push({ type: 'source', sourceFileId: extractFile.id, sourcePageNum: p, thumbnail: null, deleted: false, rotation: 0 });
+    extractFiles.push(...parsed);
+    for (const sf of parsed)
+      for (let p = 1; p <= sf.pageCount; p++)
+        extractPages.push({ type: 'source', sourceFileId: sf.id, sourcePageNum: p, thumbnail: null, deleted: false, rotation: 0 });
     renderExtractView();
     kickPageThumbs(extractPages);
   } else {
@@ -219,7 +235,7 @@ async function handleFiles(files: File[]) {
 // ---------------------------------------------------------------------------
 
 function renderEmptyState(text: string, multi: boolean) {
-  toolContent.className = 'ws-empty-layout';
+  toolContent.classList.add('ws-empty-layout');
   toolContent.appendChild(createDropzoneCard(text, multi));
 }
 
@@ -230,26 +246,57 @@ function renderEmptyState(text: string, multi: boolean) {
 function renderMergeView() {
   cleanup();
   toolContent.innerHTML = '';
+  toolContent.classList.remove('ws-empty-layout', 'ws-extract-layout');
 
   if (mergeFiles.length === 0) {
     renderEmptyState('Drop PDFs to merge', true);
     return;
   }
 
-  toolContent.className = 'ws-extract-layout';
+  toolContent.classList.add('ws-extract-layout');
 
   // Left card: file cards grid
-  const leftCard = el('div', { className: 'card-base ws-grid-card ws-card-enter' });
-  const container = el('div', { className: 'ws-file-cards' });
-  for (const sf of mergeFiles) container.appendChild(createFileCard(sf));
-  leftCard.appendChild(container);
+  const leftCard = el('div', { className: 'card-base ws-grid-card' });
+  mergeGridContainer = el('div', { className: 'ws-file-cards' });
+  leftCard.appendChild(mergeGridContainer);
 
-  // Add-file card in grid (not draggable)
+  // Right card: sidebar
+  mergeSidebarCard = el('div', { className: 'card-base ws-sidebar-card' });
+  mergeSidebarCard.id = 'merge-sidebar';
+
+  toolContent.appendChild(leftCard);
+  toolContent.appendChild(mergeSidebarCard);
+
+  // Mobile toolbar + tray
+  appendMobileToolbar({
+    gridCard: leftCard,
+    actionText: 'Merge PDF',
+    actionDisabled: mergeFiles.length < 2,
+    onAction: handleMerge,
+    buildTrayContent: (tray) => { mergeMobileTray = tray; updateMergeSidebarContent(tray); },
+  });
+
+  updateMergeContent();
+}
+
+/** Incrementally update the merge grid + sidebar without rebuilding outer cards. */
+function updateMergeContent() {
+  if (!mergeGridContainer) { renderMergeView(); return; }
+
+  // If all files removed, full re-render to show empty state
+  if (mergeFiles.length === 0) { renderMergeView(); return; }
+
+  // Rebuild grid contents
+  sortableInstance?.destroy();
+  sortableInstance = null;
+  mergeGridContainer.innerHTML = '';
+  for (const sf of mergeFiles) mergeGridContainer.appendChild(createFileCard(sf));
+
   const addCard = createDropzone('Drop more PDFs', true);
   addCard.className = 'ws-file-card ws-file-add';
-  container.appendChild(addCard);
+  mergeGridContainer.appendChild(addCard);
 
-  sortableInstance = new Sortable(container, {
+  sortableInstance = new Sortable(mergeGridContainer, {
     animation: 200, delay: 150, delayOnTouchOnly: true, ghostClass: 'ws-ghost',
     draggable: '.ws-file-card:not(.ws-file-add)',
     onEnd: (evt) => {
@@ -260,32 +307,37 @@ function renderMergeView() {
     },
   });
 
-  // Right card: sidebar
-  const rightCard = el('div', { className: 'card-base ws-sidebar-card ws-card-enter' });
-  rightCard.id = 'merge-sidebar';
-  updateMergeSidebarContent(rightCard);
+  // Update sidebar + mobile tray
+  if (mergeSidebarCard) updateMergeSidebarContent(mergeSidebarCard);
+  if (mergeMobileTray) updateMergeSidebarContent(mergeMobileTray);
 
-  toolContent.appendChild(leftCard);
-  toolContent.appendChild(rightCard);
-
-  // Mobile toolbar + tray
-  appendMobileToolbar({
-    gridCard: leftCard,
-    actionText: 'Merge PDF',
-    actionDisabled: mergeFiles.length < 2,
-    onAction: handleMerge,
-    buildTrayContent: (tray) => { updateMergeSidebarContent(tray); },
-  });
+  // Update mobile action button state
+  if (mobileActionBtn) {
+    mobileActionBtn.textContent = 'Merge PDF';
+    mobileActionBtn.classList.toggle('disabled', mergeFiles.length < 2);
+    if (mergeFiles.length < 2) mobileActionBtn.setAttribute('aria-disabled', 'true');
+    else mobileActionBtn.removeAttribute('aria-disabled');
+  }
 }
 
 function updateMergeSidebarContent(sidebar: HTMLElement) {
   sidebar.innerHTML = '';
 
-  const top = el('div', { className: 'ws-sidebar-top' });
+  const addZone = createDropzone('Drop more PDFs', true);
+  addZone.classList.add('ws-sidebar-dropzone');
+  sidebar.appendChild(addZone);
 
+  const total = mergeFiles.reduce((s, f) => s + f.pageCount, 0);
+  const mergeCountText = mergeFiles.length === 1
+    ? `${total} pages`
+    : `${mergeFiles.length} files · ${total} pages`;
+  sidebar.appendChild(el('p', { className: 'ws-sidebar-count', textContent: mergeCountText }));
+
+  const fileList = el('div', { className: 'ws-sidebar-files' });
   for (const sf of mergeFiles) {
     const fileItem = el('div', { className: 'ws-sidebar-file' });
-    fileItem.appendChild(el('span', { className: 'ws-sidebar-filename', textContent: sf.name, title: sf.name }));
+    const letter = mergeFiles.length > 1 ? String.fromCharCode(65 + (mergeFiles.indexOf(sf) % 26)) + ': ' : '';
+    fileItem.appendChild(el('span', { className: 'ws-sidebar-filename', textContent: letter + sf.name, title: sf.name }));
     if (mergeFiles.length > 1) {
       fileItem.appendChild(el('span', { className: 'ws-sidebar-meta', textContent: `${sf.pageCount} pages · ${formatBytes(sf.size)}` }));
     }
@@ -294,21 +346,13 @@ function updateMergeSidebarContent(sidebar: HTMLElement) {
     delFileBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       mergeFiles = mergeFiles.filter(f => f.id !== sf.id);
-      renderMergeView();
+      updateMergeContent();
       if (mergeFiles.length) kickMergeThumbs();
     });
     fileItem.appendChild(delFileBtn);
-    top.appendChild(fileItem);
+    fileList.appendChild(fileItem);
   }
-
-  const addZone = createDropzone('Drop more PDFs', true);
-  addZone.classList.add('ws-sidebar-dropzone');
-  top.appendChild(addZone);
-
-  const total = mergeFiles.reduce((s, f) => s + f.pageCount, 0);
-  top.appendChild(el('p', { className: 'ws-sidebar-count', textContent: `${mergeFiles.length} files · ${total} pages` }));
-
-  sidebar.appendChild(top);
+  sidebar.appendChild(fileList);
 
   const bottom = el('div', { className: 'ws-sidebar-bottom' });
 
@@ -347,7 +391,7 @@ function createFileCard(sf: SourceFile): HTMLElement {
   removeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     mergeFiles = mergeFiles.filter(f => f.id !== sf.id);
-    renderMergeView();
+    updateMergeContent();
     if (mergeFiles.length) kickMergeThumbs();
   });
   card.appendChild(removeBtn);
@@ -383,16 +427,17 @@ function kickMergeThumbs() {
 function renderExtractView() {
   cleanup();
   toolContent.innerHTML = '';
+  toolContent.classList.remove('ws-empty-layout', 'ws-extract-layout');
 
-  if (!extractFile) {
-    renderEmptyState('Drop a PDF to extract pages', false);
+  if (extractFiles.length === 0) {
+    renderEmptyState('Drop PDFs to extract pages', true);
     return;
   }
 
-  toolContent.className = 'ws-extract-layout';
+  toolContent.classList.add('ws-extract-layout');
 
   // Left card: page grid
-  const leftCard = el('div', { className: 'card-base ws-grid-card ws-card-enter' });
+  const leftCard = el('div', { className: 'card-base ws-grid-card' });
   const grid = el('div', { className: 'ws-page-cards' });
   extractPages.forEach((page, idx) => {
     const card = createPageCard(page, idx, false);
@@ -420,13 +465,20 @@ function renderExtractView() {
     card.addEventListener('keydown', togglePage);
     grid.appendChild(card);
   });
+  const addCard = createDropzone('Drop more PDFs', true);
+  addCard.className = 'ws-page-add';
+  grid.appendChild(addCard);
   leftCard.appendChild(grid);
   setupThumbnailObserver(leftCard, extractPages);
 
   // Right card: sidebar
-  const rightCard = el('div', { className: 'card-base ws-sidebar-card ws-card-enter' });
+  const rightCard = el('div', { className: 'card-base ws-sidebar-card' });
   rightCard.id = 'extract-sidebar';
   updateExtractSidebarContent(rightCard);
+
+  // Save desktop refs before mobile tray overwrites them
+  const desktopBtn = extractBtn;
+  const desktopRangeInput = extractRangeInput;
 
   toolContent.appendChild(leftCard);
   toolContent.appendChild(rightCard);
@@ -439,11 +491,14 @@ function renderExtractView() {
     onAction: handleExtract,
     buildTrayContent: (tray) => { updateExtractSidebarContent(tray); },
   });
+
+  // Restore desktop refs (tray build overwrote them)
+  extractBtn = desktopBtn;
+  extractRangeInput = desktopRangeInput;
 }
 
 function updateExtractSidebar() {
   const text = extractSelected.size === 0 ? 'Select pages to extract' : `Extract ${extractSelected.size} page${extractSelected.size !== 1 ? 's' : ''}`;
-  if (extractCountEl) extractCountEl.textContent = `${extractSelected.size} of ${extractPages.length} selected`;
   if (extractBtn) {
     extractBtn.textContent = text;
     extractBtn.classList.toggle('disabled', extractSelected.size === 0);
@@ -462,31 +517,26 @@ function updateExtractSidebar() {
 function updateExtractSidebarContent(sidebar: HTMLElement) {
   sidebar.innerHTML = '';
 
-  // Top section: file info + controls
-  const top = el('div', { className: 'ws-sidebar-top' });
-
-  const fileInfo = el('div', { className: 'ws-sidebar-file' });
-  fileInfo.appendChild(el('span', { className: 'ws-sidebar-filename', textContent: extractFile!.name, title: extractFile!.name }));
-  top.appendChild(fileInfo);
-
-  // Select controls
+  // Select controls (pinned above scroll)
+  const multiFile = extractFiles.length > 1;
   const rangeInput = el('input', {
-    type: 'text', className: 'ws-range-input', placeholder: 'e.g. 1-5, 8, 12-20', ariaLabel: 'Page range',
+    type: 'text', className: 'ws-range-input',
+    placeholder: multiFile ? 'e.g. A1-A5, B3, B8-B10' : 'e.g. 1-5, 8, 12-20',
+    ariaLabel: 'Page range',
   }) as HTMLInputElement;
-  rangeInput.value = setToRangeString(extractSelected, extractPages.length);
+  rangeInput.value = extractRangeToString();
   rangeInput.addEventListener('input', () => {
     const text = rangeInput.value.trim();
-    if (!text) { rangeInput.classList.remove('ws-input-error'); return; }
-    const parsed = parsePageRange(text, extractPages.length);
+    if (!text) { rangeInput.classList.remove('ws-input-error'); extractSelected.clear(); updateExtractVisuals(); updateExtractSidebar(); return; }
+    const parsed = parseExtractRange(text);
     if (!parsed) { rangeInput.classList.add('ws-input-error'); return; }
     rangeInput.classList.remove('ws-input-error');
-    extractSelected.clear();
-    for (const n of parsed) extractSelected.add(n - 1);
+    extractSelected = parsed;
     updateExtractVisuals();
     updateExtractSidebar();
   });
   extractRangeInput = rangeInput;
-  top.appendChild(rangeInput);
+  sidebar.appendChild(rangeInput);
 
   const btnRow = el('div', { className: 'ws-sidebar-btn-row' });
   const selectAllBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Select all' });
@@ -495,15 +545,53 @@ function updateExtractSidebarContent(sidebar: HTMLElement) {
   deselectBtn.addEventListener('click', () => { extractSelected.clear(); updateExtractVisuals(); updateExtractSidebar(); syncRangeInput(); });
   btnRow.appendChild(selectAllBtn);
   btnRow.appendChild(deselectBtn);
-  top.appendChild(btnRow);
-  const isTouch = window.matchMedia("(pointer: coarse)").matches;
-  if (!isTouch) top.appendChild(el('p', { className: 'ws-sidebar-hint', textContent: 'Tip: Shift-click to select a range' }));
+  sidebar.appendChild(btnRow);
 
-  extractCountEl = el('p', { className: 'ws-sidebar-count', textContent: `${extractSelected.size} of ${extractPages.length} selected` });
-  extractCountEl.setAttribute('aria-live', 'polite');
-  top.appendChild(extractCountEl);
+  const countText = extractFiles.length === 1
+    ? `${extractPages.length} pages`
+    : `${extractFiles.length} files · ${extractPages.length} pages`;
+  sidebar.appendChild(el('p', { className: 'ws-sidebar-count', textContent: countText }));
 
-  sidebar.appendChild(top);
+  const addZone = createDropzone('Drop more PDFs', true);
+  addZone.classList.add('ws-sidebar-dropzone');
+  sidebar.appendChild(addZone);
+
+  // File list (scrollable)
+  const fileList = el('div', { className: 'ws-sidebar-files' });
+  const uniqueFiles = [...new Set(extractPages.map(p => p.sourceFileId))];
+  for (const fid of uniqueFiles) {
+    const sf = extractFiles.find(f => f.id === fid);
+    if (!sf) continue;
+    const fileItem = el('div', { className: 'ws-sidebar-file' });
+    const letter = uniqueFiles.length > 1 ? String.fromCharCode(65 + (uniqueFiles.indexOf(fid) % 26)) + ': ' : '';
+    fileItem.appendChild(el('span', { className: 'ws-sidebar-filename', textContent: letter + sf.name, title: sf.name }));
+    if (uniqueFiles.length > 1) {
+      fileItem.appendChild(el('span', { className: 'ws-sidebar-meta', textContent: `${sf.pageCount} pages · ${formatBytes(sf.size)}` }));
+    }
+
+    const delFileBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-list-remove', innerHTML: '&times;', ariaLabel: `Remove ${sf.name}` });
+    delFileBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      // Remap selected indices after removing this file's pages
+      const newSelected = new Set<number>();
+      let newIdx = 0;
+      extractPages.forEach((p, oldIdx) => {
+        if (p.sourceFileId === fid) return;
+        if (extractSelected.has(oldIdx)) newSelected.add(newIdx);
+        newIdx++;
+      });
+      const survivingPages = extractPages.filter(p => p.sourceFileId !== fid);
+      extractPages = survivingPages;
+      extractSelected = newSelected;
+      extractFiles = extractFiles.filter(f => f.id !== fid);
+      if (extractFiles.length === 0) clearThumbnailCache();
+      renderExtractView();
+      if (extractPages.length > 0) kickPageThumbs(extractPages);
+    });
+    fileItem.appendChild(delFileBtn);
+    fileList.appendChild(fileItem);
+  }
+  sidebar.appendChild(fileList);
 
   // Bottom section: action buttons
   const bottom = el('div', { className: 'ws-sidebar-bottom' });
@@ -534,13 +622,48 @@ function updateExtractVisuals() {
 }
 
 async function handleExtract() {
-  if (!extractFile || extractSelected.size === 0) return;
+  if (extractFiles.length === 0 || extractSelected.size === 0) return;
   await runWithPopup('Extracting', 'Extract failed. The PDF might be damaged or unsupported.', async () => {
-    const pageNums = [...extractSelected].sort((a, b) => a - b).map(i => extractPages[i].sourcePageNum);
-    const baseName = extractFile!.name.replace(/\.pdf$/i, '');
-    const results = await extract(extractFile!.bytes, pageNums, baseName, extractGroupAsOne);
-    if (results.length === 1) downloadFile(results[0].bytes, results[0].name);
-    else await downloadAsZip(results, `${baseName}_pages.zip`);
+    // Group selected pages by source file
+    const byFile = new Map<number, number[]>();
+    for (const idx of [...extractSelected].sort((a, b) => a - b)) {
+      const page = extractPages[idx];
+      const arr = byFile.get(page.sourceFileId) ?? [];
+      arr.push(page.sourcePageNum);
+      byFile.set(page.sourceFileId, arr);
+    }
+
+    const firstName = extractFiles[0].name.replace(/\.pdf$/i, '');
+
+    if (extractGroupAsOne) {
+      // Combine selected pages across all files into one PDF
+      const output = await PDFDocument.create();
+      const loadedSources = new Map<number, Awaited<ReturnType<typeof PDFDocument.load>>>();
+      for (const idx of [...extractSelected].sort((a, b) => a - b)) {
+        const page = extractPages[idx];
+        if (!loadedSources.has(page.sourceFileId)) {
+          const sf = extractFiles.find(f => f.id === page.sourceFileId)!;
+          loadedSources.set(page.sourceFileId, await PDFDocument.load(sf.bytes, { ignoreEncryption: true }));
+        }
+        const source = loadedSources.get(page.sourceFileId)!;
+        const [copied] = await output.copyPages(source, [page.sourcePageNum - 1]);
+        output.addPage(copied);
+      }
+      const outputBytes = new Uint8Array(await output.save());
+      const suffix = extractSelected.size === extractPages.length ? '' : '_extracted';
+      downloadFile(outputBytes, `${firstName}${suffix}.pdf`);
+    } else {
+      // Extract per-file, collect all results
+      const allResults: { name: string; bytes: Uint8Array }[] = [];
+      for (const [fid, pageNums] of byFile) {
+        const sf = extractFiles.find(f => f.id === fid)!;
+        const baseName = sf.name.replace(/\.pdf$/i, '');
+        const results = await extract(sf.bytes, pageNums, baseName, false);
+        allResults.push(...results);
+      }
+      if (allResults.length === 1) downloadFile(allResults[0].bytes, allResults[0].name);
+      else await downloadAsZip(allResults, `${firstName}_pages.zip`);
+    }
   });
 }
 
@@ -612,10 +735,10 @@ function reindexSlots(grid: Element) {
     // Ensure insert button exists and has correct index
     let btn = slot.querySelector<HTMLElement>('.ws-page-insert');
     if (!btn) {
-      btn = createInsertBtn(idx);
+      btn = createInsertBtn(idx + 1);
       slot.insertBefore(btn, slot.firstChild);
     } else {
-      btn.dataset.insertAt = String(idx);
+      btn.dataset.insertAt = String(idx + 1);
     }
   });
 }
@@ -623,20 +746,21 @@ function reindexSlots(grid: Element) {
 function renderOrganizeView() {
   cleanup();
   toolContent.innerHTML = '';
+  toolContent.classList.remove('ws-empty-layout', 'ws-extract-layout');
 
   if (orgPages.length === 0) {
     renderEmptyState('Drop PDFs to rearrange, rotate, or remove pages', true);
     return;
   }
 
-  toolContent.className = 'ws-extract-layout';
+  toolContent.classList.add('ws-extract-layout');
 
   // Left card: page grid
-  const leftCard = el('div', { className: 'card-base ws-grid-card ws-card-enter' });
+  const leftCard = el('div', { className: 'card-base ws-grid-card' });
   const grid = el('div', { className: 'ws-page-cards' });
   orgPages.forEach((page, idx) => {
     const slot = el('div', { className: `ws-page-slot${page.deleted ? ' ws-page-deleted' : ''}` });
-    slot.appendChild(createInsertBtn(idx));
+    slot.appendChild(createInsertBtn(idx + 1));
     slot.appendChild(createPageCard(page, idx, true));
     grid.appendChild(slot);
   });
@@ -644,6 +768,13 @@ function renderOrganizeView() {
   const trailing = el('button', { className: 'ws-page-insert-trailing', innerHTML: '+', ariaLabel: 'Insert blank page at end' });
   trailing.dataset.insertAt = 'end';
   grid.appendChild(trailing);
+  const addBlankCard = el('button', { className: 'ws-page-add', ariaLabel: 'Add blank page' });
+  addBlankCard.innerHTML = '<p class="upload-text">+ Blank page</p>';
+  addBlankCard.addEventListener('click', () => insertBlankPage(orgPages.length));
+  grid.appendChild(addBlankCard);
+  const addCard = createDropzone('Drop more PDFs', true);
+  addCard.className = 'ws-page-add';
+  grid.appendChild(addCard);
   leftCard.appendChild(grid);
 
   // Event delegation for all insert buttons (between-page + trailing)
@@ -683,7 +814,7 @@ function renderOrganizeView() {
   setupThumbnailObserver(leftCard, orgPages);
 
   // Right card: sidebar
-  const rightCard = el('div', { className: 'card-base ws-sidebar-card ws-card-enter' });
+  const rightCard = el('div', { className: 'card-base ws-sidebar-card' });
   rightCard.id = 'org-sidebar';
   updateOrgSidebarContent(rightCard);
 
@@ -709,9 +840,18 @@ function updateOrgSidebar() {
 function updateOrgSidebarContent(sidebar: HTMLElement) {
   sidebar.innerHTML = '';
 
-  const top = el('div', { className: 'ws-sidebar-top' });
+  const addZone = createDropzone('Drop more PDFs', true);
+  addZone.classList.add('ws-sidebar-dropzone');
+  sidebar.appendChild(addZone);
 
-  // File list
+  const active = orgPages.filter(p => !p.deleted).length;
+  const deleted = orgPages.filter(p => p.deleted).length;
+  let countText = `${active} pages`;
+  if (deleted > 0) countText += ` · ${deleted} removed`;
+  sidebar.appendChild(el('p', { className: 'ws-sidebar-count', textContent: countText }));
+
+  // File list (scrollable)
+  const fileList = el('div', { className: 'ws-sidebar-files' });
   const uniqueFiles = [...new Set(orgPages.filter(p => p.type !== 'blank').map(p => p.sourceFileId))];
   for (const fid of uniqueFiles) {
     const sf = orgFiles.find(f => f.id === fid);
@@ -720,10 +860,9 @@ function updateOrgSidebarContent(sidebar: HTMLElement) {
     const letter = uniqueFiles.length > 1 ? String.fromCharCode(65 + (uniqueFiles.indexOf(fid) % 26)) + ': ' : '';
     fileItem.appendChild(el('span', { className: 'ws-sidebar-filename', textContent: letter + sf.name, title: sf.name }));
     if (uniqueFiles.length > 1) {
-      fileItem.appendChild(el('span', { className: 'ws-sidebar-meta', textContent: `${sf.pageCount} pages` }));
+      fileItem.appendChild(el('span', { className: 'ws-sidebar-meta', textContent: `${sf.pageCount} pages · ${formatBytes(sf.size)}` }));
     }
 
-    // Per-file delete button
     const delFileBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-list-remove', innerHTML: '&times;', ariaLabel: `Remove ${sf.name}` });
     delFileBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -734,23 +873,9 @@ function updateOrgSidebarContent(sidebar: HTMLElement) {
       if (orgPages.length > 0) kickPageThumbs(orgPages);
     });
     fileItem.appendChild(delFileBtn);
-
-    top.appendChild(fileItem);
+    fileList.appendChild(fileItem);
   }
-
-  top.appendChild(el('p', { className: 'ws-sidebar-hint', textContent: 'Drag to reorder' }));
-
-  const addZone = createDropzone('Drop more PDFs', true);
-  addZone.classList.add('ws-sidebar-dropzone');
-  top.appendChild(addZone);
-
-  const active = orgPages.filter(p => !p.deleted).length;
-  const deleted = orgPages.filter(p => p.deleted).length;
-  let countText = `${active} pages`;
-  if (deleted > 0) countText += ` · ${deleted} removed`;
-  top.appendChild(el('p', { className: 'ws-sidebar-count', textContent: countText }));
-
-  sidebar.appendChild(top);
+  sidebar.appendChild(fileList);
 
   // Bottom: actions
   const bottom = el('div', { className: 'ws-sidebar-bottom' });
@@ -818,7 +943,7 @@ function appendMobileToolbar(opts: {
 
 function getPageBadgeText(page: PageEntry): string {
   if (page.type === 'blank') return 'Blank';
-  const files = activeTool === 'organize' ? orgFiles : (extractFile ? [extractFile] : []);
+  const files = activeTool === 'organize' ? orgFiles : extractFiles;
   if (files.length <= 1) return String(page.sourcePageNum);
   const fileIdx = files.findIndex(f => f.id === page.sourceFileId);
   const letter = String.fromCharCode(65 + (fileIdx % 26));
@@ -918,7 +1043,7 @@ function kickPageThumbs(pages: PageEntry[]) {
 
 function queuePageThumb(pages: PageEntry[], idx: number) {
   if (pages[idx].thumbnail || pages[idx].type === 'blank') return;
-  const allFiles = activeTool === 'extract' ? (extractFile ? [extractFile] : []) : orgFiles;
+  const allFiles = activeTool === 'extract' ? extractFiles : orgFiles;
   const sf = allFiles.find(f => f.id === pages[idx].sourceFileId);
   if (!sf) return;
   queueRender(sf.bytes, pages[idx].sourcePageNum, (url) => {
@@ -961,8 +1086,13 @@ async function processQueue() {
   let count = 0;
   while (renderQueue.length > 0) {
     const { bytes, page, cb } = renderQueue.shift()!;
-    try { const url = await renderPageThumbnail(bytes, page); cb(url); }
-    catch { /* skip */ }
+    try {
+      const url = await renderPageThumbnail(bytes, page);
+      cb(url || mockPageThumb());
+    } catch (e) {
+      console.warn('[pdfThumbnails] page', page, e);
+      cb(mockPageThumb());
+    }
     if (++count % 3 === 0) await new Promise(r => requestAnimationFrame(r));
   }
   rendering = false;
@@ -1005,8 +1135,95 @@ export function setToRangeString(selected: Set<number>, total: number): string {
 
 function syncRangeInput() {
   if (!extractRangeInput) return;
-  extractRangeInput.value = setToRangeString(extractSelected, extractPages.length);
+  extractRangeInput.value = extractRangeToString();
   extractRangeInput.classList.remove('ws-input-error');
+}
+
+/** Convert extractSelected → range string. Uses letter prefixes when multi-file. */
+function extractRangeToString(): string {
+  if (extractSelected.size === 0) return '';
+  if (extractFiles.length <= 1) return setToRangeString(extractSelected, extractPages.length);
+
+  // Group selected indices by file
+  const byFile = new Map<number, number[]>();
+  for (const idx of [...extractSelected].sort((a, b) => a - b)) {
+    const page = extractPages[idx];
+    const arr = byFile.get(page.sourceFileId) ?? [];
+    arr.push(page.sourcePageNum);
+    byFile.set(page.sourceFileId, arr);
+  }
+
+  const uniqueFileIds = [...new Set(extractPages.map(p => p.sourceFileId))];
+  const parts: string[] = [];
+  for (const [fid, pageNums] of byFile) {
+    const letterIdx = uniqueFileIds.indexOf(fid);
+    const letter = String.fromCharCode(65 + (letterIdx % 26));
+    const sf = extractFiles.find(f => f.id === fid);
+    const total = sf?.pageCount ?? 0;
+    if (pageNums.length === total && total > 0) {
+      parts.push(`${letter}1-${letter}${total}`);
+      continue;
+    }
+    let start = pageNums[0], end = pageNums[0];
+    for (let i = 1; i < pageNums.length; i++) {
+      if (pageNums[i] === end + 1) { end = pageNums[i]; }
+      else { parts.push(start === end ? `${letter}${start}` : `${letter}${start}-${letter}${end}`); start = pageNums[i]; end = pageNums[i]; }
+    }
+    parts.push(start === end ? `${letter}${start}` : `${letter}${start}-${letter}${end}`);
+  }
+  return parts.join(', ');
+}
+
+/** Parse range string → 0-indexed extractSelected indices. Supports letter prefixes when multi-file. */
+function parseExtractRange(text: string): Set<number> | null {
+  if (extractFiles.length <= 1) {
+    const oneIndexed = parsePageRange(text, extractPages.length);
+    if (!oneIndexed) return null;
+    const zeroIndexed = new Set<number>();
+    for (const n of oneIndexed) zeroIndexed.add(n - 1);
+    return zeroIndexed;
+  }
+
+  const uniqueFileIds = [...new Set(extractPages.map(p => p.sourceFileId))];
+  const result = new Set<number>();
+
+  for (const part of text.split(',').map(s => s.trim()).filter(Boolean)) {
+    // Match prefixed range: A1-A5 or A1-5
+    const rangeMatch = part.match(/^([A-Z])(\d+)\s*-\s*(?:([A-Z])(\d+)|(\d+))$/i);
+    if (rangeMatch) {
+      const letter = rangeMatch[1].toUpperCase();
+      const start = parseInt(rangeMatch[2], 10);
+      const endLetter = rangeMatch[3]?.toUpperCase() ?? letter;
+      const end = parseInt(rangeMatch[4] ?? rangeMatch[5], 10);
+      if (endLetter !== letter) return null; // cross-file ranges not supported
+      const fileIdx = letter.charCodeAt(0) - 65;
+      if (fileIdx < 0 || fileIdx >= uniqueFileIds.length) return null;
+      const fid = uniqueFileIds[fileIdx];
+      const sf = extractFiles.find(f => f.id === fid);
+      if (!sf || start < 1 || end > sf.pageCount || start > end) return null;
+      for (let p = start; p <= end; p++) {
+        const idx = extractPages.findIndex(pg => pg.sourceFileId === fid && pg.sourcePageNum === p);
+        if (idx >= 0) result.add(idx);
+      }
+      continue;
+    }
+    // Match single prefixed page: A5
+    const singleMatch = part.match(/^([A-Z])(\d+)$/i);
+    if (singleMatch) {
+      const letter = singleMatch[1].toUpperCase();
+      const pageNum = parseInt(singleMatch[2], 10);
+      const fileIdx = letter.charCodeAt(0) - 65;
+      if (fileIdx < 0 || fileIdx >= uniqueFileIds.length) return null;
+      const fid = uniqueFileIds[fileIdx];
+      const sf = extractFiles.find(f => f.id === fid);
+      if (!sf || pageNum < 1 || pageNum > sf.pageCount) return null;
+      const idx = extractPages.findIndex(pg => pg.sourceFileId === fid && pg.sourcePageNum === pageNum);
+      if (idx >= 0) result.add(idx);
+      continue;
+    }
+    return null; // unrecognized format
+  }
+  return result.size > 0 ? result : null;
 }
 
 async function runWithPopup(verb: string, fallback: string, fn: () => Promise<void>) {

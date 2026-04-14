@@ -13,6 +13,7 @@
   display: block;
   width: 100%;
   margin-top: var(--space-6);
+  border-radius: var(--radius-full);
 }
 
 /* --- Convert Notice (quality warning when a better handler isn't available) --- */
@@ -115,7 +116,7 @@
   width: 100%;
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-xl);
   background-color: var(--secondary);
   color: var(--foreground);
   font-family: inherit;
