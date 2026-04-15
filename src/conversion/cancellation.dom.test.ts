@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { ui } from "../store/store.ts";
-import { hidePopup } from "../Popup/Popup.ts";
+import { ui } from "../components/store/store.ts";
+import { hidePopup } from "../components/Popup/Popup.ts";
 import {
     isCancelled,
     isSoftCancelRequested,
@@ -14,9 +14,9 @@ import {
     triggerCancellation,
     completeCancellation,
     showPartialDownloadPopup,
-} from "./ConversionModal.ts";
+} from "./cancellation.ts";
 
-vi.mock("../Popup/Popup.ts", () => ({
+vi.mock("../components/Popup/Popup.ts", () => ({
     showPopup: vi.fn((content: string | Node | Node[]) => {
         if (typeof content === "string") {
             ui.popupBox.innerHTML = content;
@@ -68,7 +68,7 @@ vi.mock("../Popup/Popup.ts", () => ({
     }),
 }));
 
-describe("ConversionModal DOM bindings", () => {
+describe("cancellation DOM bindings", () => {
     beforeEach(() => {
         document.body.innerHTML = `
             <div id="popup-bg"></div>

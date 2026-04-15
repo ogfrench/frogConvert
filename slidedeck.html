@@ -279,17 +279,17 @@
   }
   .glow-1 {
     width: 80vw; height: 80vw;
-    background: radial-gradient(circle, rgba(76,223,107,0.1) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(120,200,140,0.05) 0%, transparent 70%);
     animation: breathe1 20s ease-in-out infinite alternate;
   }
   .glow-2 {
     width: 70vw; height: 70vw;
-    background: radial-gradient(circle, rgba(76,223,107,0.07) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(120,200,140,0.035) 0%, transparent 70%);
     animation: breathe2 26s ease-in-out infinite alternate;
   }
   .glow-3 {
     width: 60vw; height: 60vw;
-    background: radial-gradient(circle, rgba(50,200,120,0.08) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(90,170,120,0.04) 0%, transparent 70%);
     animation: breathe3 18s ease-in-out infinite alternate;
   }
   @keyframes breathe1 {
@@ -318,7 +318,9 @@
   <div class="glow glow-2" style="bottom:-25%;left:-10%;"></div>
   <div>
     <h1><span class="green">frog</span>Convert</h1>
-    <p style="margin-top:0.8em;">A file converter born from frustration&nbsp;&amp;&nbsp;AI</p>
+    <!-- TAGLINE A (short, currently live). Option B below keeps explicit "70+ formats". -->
+    <p style="margin-top:0.8em;">Convert files, edit&nbsp;PDFs, automate via&nbsp;AI. All in your browser.</p>
+    <!-- TAGLINE B: <p style="margin-top:0.8em;">Convert 70+ file formats, edit PDFs, automate via AI. All in your browser.</p> -->
     <div class="links" style="margin-top:2em;">
       <a href="https://frogconvert.xyz">frogconvert.xyz</a>
     </div>
@@ -334,36 +336,58 @@
   <div class="glow glow-3" style="bottom:-20%;right:-5%;"></div>
   <div>
     <div class="tag">the spark</div>
-    <h2 style="margin-top:0.8em;">Online converters are <span class="green">insecure</span><br>On enterprise networks, most are <span class="green">blocked</span></h2>
+    <!-- COPY OPTION A (security-first, currently live). Delete this block to swap to Option B. -->
+    <h2 style="margin-top:0.8em;">Your files shouldn't need a <span class="green">round trip</span><br>to a stranger's server</h2>
     <p style="margin-top:0.8em;">
-      Your files get uploaded to unknown servers. Not great when you work with confidential data.
+      Most web converters upload your documents to someone else's cloud. Fine for a meme, not fine for a contract.
     </p>
+    <!-- COPY OPTION B (enterprise angle). To use: replace the h2 + first <p> above with the block below.
+    <h2 style="margin-top:0.8em;">Enterprise networks <span class="green">block</span> the web converters.<br>Desktop tools <span class="green">cost money</span>.</h2>
     <p style="margin-top:0.8em;">
-      Then I found a <a href="https://youtu.be/btUbcsTbVA8" class="link">YouTube video</a> about
-      <a href="https://github.com/p2r3/convert" class="link">"Convert to it!"</a>,
-      an open-source converter where everything runs in the browser.
-      Great concept. Rough&nbsp;UI. <span class="green">Perfect&nbsp;opportunity.</span>
+      frogConvert runs in the tab you already have open. No install, no upload, no IT ticket.
+    </p>
+    -->
+    <p style="margin-top:0.8em;">
+      Starting point: <a href="https://github.com/p2r3/convert" class="link">"Convert to it!"</a> by p2r3
+      (<a href="https://youtu.be/btUbcsTbVA8" class="link">seen here</a>). An in-browser converter with
+      a <span class="green">great concept</span> and a rough UI.
     </p>
   </div>
 </div>
 
-<!-- ─── Slide 3: The Challenge ─── -->
+<!-- ─── Slide 3: Privacy as a feature ─── -->
 <div class="slide layout-split">
-  <div class="glow glow-1" style="top:10%;left:-20%;"></div>
-  <div class="glow glow-3" style="bottom:-10%;right:20%;"></div>
+  <div class="glow glow-1" style="top:-15%;left:-10%;"></div>
+  <div class="glow glow-3" style="bottom:-20%;right:5%;"></div>
   <div>
-    <div class="tag">the challenge</div>
-    <h2 style="margin-top:0.8em;">The AI&nbsp;Challenge</h2>
+    <div class="tag">privacy</div>
+    <h2 style="margin-top:0.8em;">Your files <span class="green">never leave</span><br>the pond</h2>
     <p style="margin-top:0.8em;">
-      A challenge to explore what's possible with AI tools.
+      Conversions and PDF edits run entirely in your browser.
+      Nothing to hack, because nothing gets sent.
     </p>
     <p style="margin-top:0.8em;">
-      My pitch: take this rough project and use AI to turn it into
-      <span class="bright">a real product.</span>
+      <span class="bright">No tracking. No analytics. No data sent home.</span>
+      There&#39;s a desktop helper for tricky formats, and it stays on your machine too.
     </p>
   </div>
-  <div style="text-align:center;">
-    <span class="kaomoji" style="font-size:clamp(2.5rem,6vw,5rem);">ദ്ദി(^ o ^)</span>
+  <div style="display:grid; gap:0.8em;">
+    <div class="feat">
+      <div class="feat-title">Browser only</div>
+      <div class="feat-desc">Files stay in the tab. Never sent anywhere.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-title">No tracking</div>
+      <div class="feat-desc">No analytics tools, no hidden pings</div>
+    </div>
+    <div class="feat">
+      <div class="feat-title">Works offline</div>
+      <div class="feat-desc">Once loaded, you can unplug the WiFi</div>
+    </div>
+    <div class="frogsworth-quote">
+      <span class="kaomoji">(~ _ ~)</span>
+      <p>"the only server involved is the one serving the page."</p>
+    </div>
   </div>
 </div>
 
@@ -373,6 +397,17 @@
   <div class="glow glow-1" style="bottom:-15%;left:-15%;"></div>
   <div>
     <div class="tag">the tool</div>
+    <!-- COPY OPTION A (built-with / built-for AI, currently live). Delete to swap to Option B. -->
+    <h2 style="margin-top:0.8em;">Built <span class="green">with</span> AI,<br>built <span class="green">for</span> AI</h2>
+    <p style="margin-top:0.8em;">
+      I took the rough project into an AI-build challenge. Claude Code wrote most of it;
+      I directed: vision, design, tone. frogConvert also exposes an API,
+      so other AI agents can drive it too.
+    </p>
+    <div class="prompt-block" style="margin-top:0.8em;">
+      <span class="dim">$</span> Build a PDF merge flow: drop files, reorder pages, export<span class="cursor"></span>
+    </div>
+    <!-- COPY OPTION B (origin-story flavour). To use, replace the h2 + p + prompt above with:
     <h2 style="margin-top:0.8em;">Meet <span class="green">Claude Code</span></h2>
     <p style="margin-top:0.8em;">
       An AI coding assistant you talk to in plain English.
@@ -380,8 +415,9 @@
       I focused on <span class="bright">vision&nbsp;&amp;&nbsp;design,</span> it handled the code.
     </p>
     <div class="prompt-block" style="margin-top:0.8em;">
-      <span class="dim">$</span> Make the file list sortable, add drag&nbsp;&amp;&nbsp;drop, clean&nbsp;on&nbsp;mobile<span class="cursor"></span>
+      <span class="dim">$</span> Build a PDF merge flow: drop files, reorder pages, export<span class="cursor"></span>
     </div>
+    -->
   </div>
 </div>
 
@@ -394,7 +430,7 @@
     <h2 style="margin-top:0.8em;">Start with a brief,<br>not code</h2>
     <p style="margin-top:0.8em;">
       Before building, I asked Claude to brainstorm the file structure,
-      plan the architecture, and document what the project is about.
+      plan the architecture, and write it down.
     </p>
     <p style="margin-top:0.8em;">
       That documentation becomes a <span class="bright">shared reference</span>,
@@ -409,7 +445,7 @@
       <span class="dim">&gt;</span> Document the architecture so we have a reference
     </div>
     <div class="prompt-block" style="max-width:100%;">
-      <span class="dim">&gt;</span> The better the brief, the better the output
+      <span class="dim">&gt;</span> What edge cases are we likely to hit?
     </div>
   </div>
 </div>
@@ -428,11 +464,14 @@
       You set the quality bar.<br>
       <span class="bright">AI enforces it.</span>
     </p>
+    <p style="margin-top:0.8em;">
+      Unit tests and full browser tests, all AI-written.
+    </p>
   </div>
   <div style="text-align:center;">
     <span class="kaomoji">(~ _ ~)</span>
     <p style="margin-top:0.8em; text-align:center; color:#999; max-width:100%;">
-      creative director, not QA department
+      creative director, not QA team
     </p>
   </div>
 </div>
@@ -463,6 +502,9 @@
     <div class="prompt-block" style="max-width:100%;">
       <span class="dim">&gt;</span> Look at how this repo solves it
     </div>
+    <div class="prompt-block" style="max-width:100%;">
+      <span class="dim">&gt;</span> Grab a PDF library so we're not rebuilding Adobe
+    </div>
   </div>
 </div>
 
@@ -475,27 +517,28 @@
     <div class="big-num" style="margin-top:0.3em;">70+</div>
     <p style="color:#999;">format conversions</p>
   </div>
+  <!-- COPY OPTION A (feature grid, currently live). Delete to swap to Option B below. -->
   <div style="display:grid; gap:1em;">
     <div class="features">
       <div class="feat">
-        <div class="feat-title">In-browser</div>
-        <div class="feat-desc">No files leave your machine</div>
-      </div>
-      <div class="feat">
         <div class="feat-title">Any device</div>
-        <div class="feat-desc">Fully responsive</div>
+        <div class="feat-desc">Mobile-first, fully responsive</div>
       </div>
       <div class="feat">
         <div class="feat-title">Chain formats</div>
-        <div class="feat-desc">WAV &rarr; PDF? Sure.</div>
+        <div class="feat-desc">WAV &rarr; PDF? It finds a path.</div>
       </div>
       <div class="feat">
-        <div class="feat-title">AI-ready</div>
-        <div class="feat-desc">Built-in MCP &amp; REST API</div>
+        <div class="feat-title">PDF: merge</div>
+        <div class="feat-desc">Combine documents in-tab</div>
       </div>
       <div class="feat">
-        <div class="feat-title">PDF editor</div>
-        <div class="feat-desc">Merge, reorder, extract, no Adobe</div>
+        <div class="feat-title">PDF: organize</div>
+        <div class="feat-desc">Reorder, rotate, insert blanks</div>
+      </div>
+      <div class="feat">
+        <div class="feat-title">PDF: extract</div>
+        <div class="feat-desc">Pull ranges into a new file</div>
       </div>
     </div>
     <div class="frogsworth-quote">
@@ -503,9 +546,92 @@
       <p>"pdf to docx? attempting to undo what adobe hath wrought."</p>
     </div>
   </div>
+  <!-- COPY OPTION B (condensed: conversion + single PDF cell, since there's a dedicated PDF slide next). To use, replace the Option A block above with:
+  <div style="display:grid; gap:1em;">
+    <div class="features">
+      <div class="feat">
+        <div class="feat-title">Any device</div>
+        <div class="feat-desc">Mobile-first, fully responsive</div>
+      </div>
+      <div class="feat">
+        <div class="feat-title">Chain formats</div>
+        <div class="feat-desc">WAV &rarr; PDF? It finds a path.</div>
+      </div>
+      <div class="feat" style="grid-column:1 / -1;">
+        <div class="feat-title">PDF workspace</div>
+        <div class="feat-desc">Merge, organize, extract. Covered next slide.</div>
+      </div>
+    </div>
+    <div class="frogsworth-quote">
+      <span class="kaomoji">(~ _ ~)</span>
+      <p>"pdf to docx? attempting to undo what adobe hath wrought."</p>
+    </div>
+  </div>
+  -->
 </div>
 
-<!-- ─── Slide 9: Demo ─── -->
+<!-- ─── Slide 9: PDF editor deep dive ─── -->
+<div class="slide layout-split">
+  <div class="glow glow-2" style="top:-15%;left:-10%;"></div>
+  <div class="glow glow-1" style="bottom:-20%;right:-10%;"></div>
+  <div>
+    <div class="tag">pdf workspace</div>
+    <h2 style="margin-top:0.8em;">A <span class="green">PDF editor</span><br>that lives in your tab</h2>
+    <p style="margin-top:0.8em;">
+      Three operations, all in your browser, built on proven open-source PDF libraries.
+    </p>
+    <p style="margin-top:0.8em;">
+      Mobile got the same polish: long-press to drag, a contextual action bar
+      instead of fiddly per-card buttons.
+    </p>
+  </div>
+  <div style="display:grid; gap:0.8em;">
+    <div class="feat">
+      <div class="feat-title">Merge</div>
+      <div class="feat-desc">Combine multiple PDFs into one, in order you choose</div>
+    </div>
+    <div class="feat">
+      <div class="feat-title">Organize</div>
+      <div class="feat-desc">Reorder, rotate, insert blanks, delete pages</div>
+    </div>
+    <div class="feat">
+      <div class="feat-title">Extract</div>
+      <div class="feat-desc">Pull a page range out as a standalone PDF</div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Slide 10: Three ways to use it ─── -->
+<div class="slide layout-left">
+  <div class="glow glow-3" style="top:-10%;right:-15%;"></div>
+  <div class="glow glow-1" style="bottom:-25%;left:-10%;"></div>
+  <div>
+    <div class="tag">surfaces</div>
+    <h2 style="margin-top:0.8em;">Three ways to <span class="green">use it</span></h2>
+    <p style="margin-top:0.8em;">
+      Same engine under all three. Pick the surface that matches the task.
+    </p>
+    <div class="features" style="margin-top:1.5em; grid-template-columns:1fr 1fr 1fr; max-width:900px;">
+      <div class="feat">
+        <div class="feat-title">Web app</div>
+        <div class="feat-desc">frogconvert.xyz. Drop, pick, download.</div>
+      </div>
+      <div class="feat">
+        <div class="feat-title">Plug into Claude</div>
+        <div class="feat-desc">Let Claude or another AI agent drive conversions</div>
+      </div>
+      <div class="feat">
+        <div class="feat-title">Plug into scripts</div>
+        <div class="feat-desc">An API for automations and batch jobs</div>
+      </div>
+    </div>
+    <p style="margin-top:1.2em;">
+      Six tools total: three for conversion, three for PDF editing.
+    </p>
+  </div>
+</div>
+
+<!-- ─── Slide 11: Demo ─── -->
 <div class="slide layout-center">
   <div class="glow glow-1" style="top:-10%;left:20%;"></div>
   <div class="glow glow-2" style="bottom:-20%;right:15%;"></div>
@@ -521,12 +647,12 @@
     </div>
     <p style="margin: 2em auto 0; text-align:center; color:#999; font-size:clamp(0.8rem,1.2vw,1rem);">
       (- _ -) &nbsp;drop a file, pick a format<br>
-      or switch to PDF editor mode and reshape a PDF
+      or edit a PDF
     </p>
   </div>
 </div>
 
-<!-- ─── Slide 10: Takeaway ─── -->
+<!-- ─── Slide 12: Takeaway ─── -->
 <div class="slide layout-center">
   <div class="glow glow-1" style="top:-15%;right:-10%;"></div>
   <div class="glow glow-2" style="bottom:-15%;left:-10%;"></div>
@@ -538,22 +664,18 @@
     </h2>
     <p style="margin: 1.2em auto 0; text-align:center; max-width:700px;">
       Start small. Pick a fun side project and build it with AI.
-      That's how you learn. It's also still super valuable to do a basic HTML/CSS/JS course
-      so you understand the fundamentals of what you're building.
+      That's how you learn.
     </p>
     <div class="links" style="justify-content:center; margin-top:2.5em;">
       <a href="https://frogconvert.xyz">frogconvert.xyz</a>
       <a href="https://github.com/ogfrench/frogConvert">GitHub</a>
-    </div>
-    <div class="credit">
-      Built on <a href="https://github.com/p2r3/convert">Convert to it!</a> by p2r3
     </div>
   </div>
 </div>
 
 <!-- ─── Nav ─── -->
 <div class="nav">
-  <span class="slide-count" id="slideCount">1/10</span>
+  <span class="slide-count" id="slideCount">1/12</span>
   <button id="prev" aria-label="Previous">&#8592;</button>
   <button id="next" aria-label="Next">&#8594;</button>
 </div>

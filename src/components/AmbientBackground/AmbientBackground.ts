@@ -1,4 +1,4 @@
-import { MOBILE_BREAKPOINT, PARALLAX_MAX_DIST, PARALLAX_STRENGTH } from "../store/store.ts";
+import { MOBILE_BREAKPOINT, PARALLAX_MAX_DIST, PARALLAX_STRENGTH } from "../../constants/ui.ts";
 import { isTouchUi } from "../../core/utils/touchUi.ts";
 
 // --- Ambient Visuals ---

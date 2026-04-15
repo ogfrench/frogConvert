@@ -1,8 +1,8 @@
-import "./ConversionModal.css";
-import { ui } from "../store/store.ts";
-import { showPopup, hidePopup, createPopupButton, replacePopup } from "../Popup/Popup.ts";
-import { ModalManager } from "../utils/ModalManager.ts";
-import { ensureMinDuration } from "../utils.ts";
+import "./conversion.css";
+import { ui } from "../components/store/store.ts";
+import { showPopup, hidePopup, createPopupButton, replacePopup } from "../components/Popup/Popup.ts";
+import { ModalManager } from "../components/utils/ModalManager.ts";
+import { ensureMinDuration } from "../components/utils/index.ts";
 
 export let isCancelled = false;
 let softCancelRequested = false;

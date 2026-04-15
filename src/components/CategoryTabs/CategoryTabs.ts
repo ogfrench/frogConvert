@@ -1,5 +1,6 @@
 import "./CategoryTabs.css";
-import { ui, DEFAULT_UPLOAD_TEXT, DEFAULT_UPLOAD_LABEL } from "../store/store.ts";
+import { ui } from "../store/store.ts";
+import { DEFAULT_UPLOAD_TEXT, DEFAULT_UPLOAD_LABEL } from "../../constants/ui.ts";
 
 // --- Category tabs ---
 

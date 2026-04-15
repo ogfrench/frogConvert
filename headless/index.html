@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!--
+  Vite MPA entry for the headless build. Served at /headless/ so that the
+  Puppeteer browser bridge (src/mcp/core/browserBridge.ts) can load the full
+  handler runtime from the same origin as /wasm/ assets. Module source lives
+  at src/headless/index.ts.
+-->
 <html>
 <head>
   <meta charset="UTF-8" />

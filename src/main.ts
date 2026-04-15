@@ -29,13 +29,9 @@ import {
   showDetectedFormat,
   resetUploadZone,
   updateCategoryText,
-  findMatchingFormat,
   initModeToggle,
   applyMode,
   clearFormatSelection,
-  initConvertButton,
-  getIsConverting,
-  setOnConversionEnd,
   initResponsiveMenu,
   initSegmentedControls,
   initParallax,
@@ -55,6 +51,12 @@ import {
   formatMode,
   formatDisplayName,
 } from "./components/index.ts";
+import {
+  findMatchingFormat,
+  initConvertButton,
+  getIsConverting,
+  setOnConversionEnd,
+} from "./conversion/actions.ts";
 import { triggerConfetti } from "./effects/Confetti/Confetti.ts";
 
 // --- Init UI ---

@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
-import CommonFormats from '../../src/core/CommonFormats/CommonFormats.ts';
-import { FormatDefinition } from '../../src/core/FormatHandler/FormatHandler.ts';
-import json5Handler from '../../src/handlers/json5.ts';
+import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
+import { FormatDefinition } from '../core/FormatHandler/FormatHandler.ts';
+import json5Handler from './json5.ts';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();

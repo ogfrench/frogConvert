@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-vi.mock('../../src/tools/pdfThumbnails.ts', () => ({
+vi.mock('../../tools/pdfThumbnails.ts', () => ({
   renderPageThumbnail: vi.fn(async () => ''),
   clearThumbnailCache: vi.fn(),
   mockPageThumb: vi.fn(() => ''),
 }));
 
-const { __testing } = await import('../../src/components/PdfWorkspace/PdfWorkspace.ts');
-import type { PageEntry, SourceFile } from '../../src/tools/types.ts';
+const { __testing } = await import('./PdfWorkspace.ts');
+import type { PageEntry, SourceFile } from '../../tools/types.ts';
 
 function srcPage(fileId: number, pageNum: number, rotation: 0 | 90 | 180 | 270 = 0): PageEntry {
   return { type: 'source', sourceFileId: fileId, sourcePageNum: pageNum, thumbnail: null, rotation, originalPos: pageNum };

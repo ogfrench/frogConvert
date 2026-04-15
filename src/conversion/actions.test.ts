@@ -1,11 +1,11 @@
 /**
- * Unit tests for ConversionActions.ts - findMatchingFormat and download helpers.
- * Run with: bun test src/components/ConversionModal/ConversionActions.test.ts
+ * Unit tests for actions.ts - findMatchingFormat and download helpers.
+ * Run with: bun test src/conversion/actions.test.ts
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { findMatchingFormat, setLastConvertedFiles, getIsConverting } from "./ConversionActions.ts";
-import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
+import { findMatchingFormat, setLastConvertedFiles, getIsConverting } from "./actions.ts";
+import type { FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers

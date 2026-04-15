@@ -155,6 +155,7 @@ export class TraversionGraph {
         const startTime = performance.now();
         // Maps node index → first FileFormat that created that node (used for supportAnyInput edges)
         const nodeFormats = new Map<number, FileFormat>();
+        const nodeIndexByIdentifier = new Map<string, number>();
         let handlerIndex = 0;
         supportedFormatCache.forEach((formats, handler) => {
             // Skip handlers that are in the cache but not registered in this graph instance.
@@ -166,13 +167,14 @@ export class TraversionGraph {
             let toIndices: Array<{ format: FileFormat, index: number }> = [];
             formats.forEach(format => {
                 const formatIdentifier = format.mime + `(${format.format})`;
-                let index = this.nodes.findIndex(node => node.identifier === formatIdentifier);
+                let index = nodeIndexByIdentifier.get(formatIdentifier) ?? -1;
                 if (index === -1) {
                     index = this.nodes.length;
                     this.nodes.push({
                         identifier: formatIdentifier,
                         edges: []
                     });
+                    nodeIndexByIdentifier.set(formatIdentifier, index);
                     nodeFormats.set(index, format);
                 }
                 if (format.from) fromIndices.push({ format, index });
@@ -209,7 +211,7 @@ export class TraversionGraph {
             formats.forEach(format => {
                 if (!format.to) return;
                 const identifier = format.mime + `(${format.format})`;
-                const index = this.nodes.findIndex(n => n.identifier === identifier);
+                const index = nodeIndexByIdentifier.get(identifier) ?? -1;
                 if (index !== -1) toIndices.push({ format, index });
             });
 

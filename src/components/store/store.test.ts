@@ -2,8 +2,9 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
     isCategoryVisible, isFormatVisible, type FormatMode,
     checkFileSizeLimits, sortFilesByName, formatDisplayName, getFormatCategory,
-    isLoadingHandlers, getMaxFiles, ABSOLUTE_MAX_FILES,
+    isLoadingHandlers, getMaxFiles,
 } from "./store.ts";
+import { ABSOLUTE_MAX_FILES } from "../../constants/ui.ts";
 import type { FileFormat } from "../../core/FormatHandler/FormatHandler.ts";
 
 describe("store visibility logic", () => {

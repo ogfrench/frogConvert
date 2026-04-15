@@ -170,10 +170,10 @@ frogConvert/
 │   │   ├── conversion.worker.ts  ← Runs handlers off the main thread
 │   │   └── route-search.worker.ts ← Runs pathfinding off the main thread
 │   ├── components/
-│   │   ├── ConversionModal/ ← Progress popup + conversion orchestration
 │   │   ├── FormatModal/    ← Format picker UI
 │   │   ├── store/store.ts  ← Shared app state (current files, UI refs)
 │   │   └── Frogsworth/     ← The mascot frog in the corner
+│   ├── conversion/         ← Conversion-flow orchestration (actions, cancellation, downloads)
 │   ├── mcp/               ← MCP server for AI agents (Node.js, stdio)
 │   └── api/               ← REST API server (HTTP on localhost:3000)
 ├── docs/
@@ -210,7 +210,7 @@ When you hit Convert:
 ```mermaid
 sequenceDiagram
     actor User
-    participant UI as ConversionModal.ts
+    participant UI as conversion/actions.ts
     participant Worker as route-search.worker.ts
     participant CW as conversion.worker.ts
     participant Handler as e.g. FFmpeg

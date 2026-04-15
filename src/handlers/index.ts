@@ -9,91 +9,113 @@ import { fromJsonHandler, toJsonHandler } from "./json.ts";
 import textEncodingHandler from "./textEncoding.ts";
 
 const handlers: FormatHandler[] = [];
-try { handlers.push(new svgTraceHandler()) } catch (e) { console.warn('[handlers] Failed to load svgTrace:', e); }
-try { handlers.push(new canvasToBlobHandler()) } catch (e) { console.warn('[handlers] Failed to load canvasToBlob:', e); }
-try { handlers.push(new envelopeHandler()) } catch (e) { console.warn('[handlers] Failed to load envelope:', e); }
-try { handlers.push(new jszipHandler()) } catch (e) { console.warn('[handlers] Failed to load jszip:', e); }
-try { handlers.push(new fromJsonHandler()) } catch (e) { console.warn('[handlers] Failed to load fromJson:', e); }
-try { handlers.push(new toJsonHandler()) } catch (e) { console.warn('[handlers] Failed to load toJson:', e); }
-try { handlers.push(new textEncodingHandler()) } catch (e) { console.warn('[handlers] Failed to load textEncoding:', e); }
+
+const pushSafe = (name: string, make: () => FormatHandler | FormatHandler[]) => {
+  try {
+    const result = make();
+    if (Array.isArray(result)) handlers.push(...result);
+    else handlers.push(result);
+  } catch (e) {
+    console.warn(`[handlers] Failed to load ${name}:`, e);
+  }
+};
+
+pushSafe('svgTrace', () => new svgTraceHandler());
+pushSafe('canvasToBlob', () => new canvasToBlobHandler());
+pushSafe('envelope', () => new envelopeHandler());
+pushSafe('jszip', () => new jszipHandler());
+pushSafe('fromJson', () => new fromJsonHandler());
+pushSafe('toJson', () => new toJsonHandler());
+pushSafe('textEncoding', () => new textEncodingHandler());
+
+// Keeps import("./x") as a static string so Vite can code-split per handler.
+const lazy = (name: string, importer: () => Promise<{ default: new () => FormatHandler }>) =>
+  async () => {
+    try { handlers.push(new (await importer()).default()); }
+    catch (e) { console.warn(`[handlers] Failed to load ${name}:`, e); }
+  };
 
 /** Dynamically load all non-core handlers. Appends to the handlers array. */
 export async function loadBackgroundHandlers() {
   const loaders: Array<() => Promise<void>> = [
-    async () => { const m = await import("./pdftoimg.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./pdftotxt.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./font.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./FFmpeg.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./ImageMagick.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./libreoffice.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./pandoc.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./meyda.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./htmlEmbed.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./curani.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./bunburrows.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./rename.ts"); handlers.push(m.renameZipHandler, m.renameTxtHandler, m.renameJsonHandler); },
-    async () => { const m = await import("./svgForeignObject.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./qoi-fu.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./sppd.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./threejs.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./sqlite.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./vtf.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./mcmap.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./als.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./qoa-fu.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./pyTurtle.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./nbt.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./petozip.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./flptojson.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./flo.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./cgbi-to-png.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./batToExe.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./sb3tohtml.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./libopenmpt.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./midi.ts"); handlers.push(new m.midiCodecHandler(), new m.midiSynthHandler()); },
-    async () => { const m = await import("./lzh.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./tar.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./wad.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./txtToInfiniteCraft.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./espeakng.js"); handlers.push(new m.default()); },
-    async () => { const m = await import("./bsor.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./icns.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./mcSchematicHandler.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./bson.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./aseprite.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./n64rom.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./vexflow.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./toon.ts"); handlers.push(new m.default()); },
+    lazy('pdftoimg', () => import("./pdftoimg.ts")),
+    lazy('pdftotxt', () => import("./pdftotxt.ts")),
+    lazy('font', () => import("./font.ts")),
+    lazy('FFmpeg', () => import("./FFmpeg.ts")),
+    lazy('ImageMagick', () => import("./ImageMagick.ts")),
+    lazy('libreoffice', () => import("./libreoffice.ts")),
+    lazy('pandoc', () => import("./pandoc.ts")),
+    lazy('meyda', () => import("./meyda.ts")),
+    lazy('htmlEmbed', () => import("./htmlEmbed.ts")),
+    lazy('curani', () => import("./curani.ts")),
+    lazy('bunburrows', () => import("./bunburrows.ts")),
+    async () => {
+      try { const m = await import("./rename.ts"); handlers.push(m.renameZipHandler, m.renameTxtHandler, m.renameJsonHandler); }
+      catch (e) { console.warn('[handlers] Failed to load rename:', e); }
+    },
+    lazy('svgForeignObject', () => import("./svgForeignObject.ts")),
+    lazy('qoi-fu', () => import("./qoi-fu.ts")),
+    lazy('sppd', () => import("./sppd.ts")),
+    lazy('threejs', () => import("./threejs.ts")),
+    lazy('sqlite', () => import("./sqlite.ts")),
+    lazy('vtf', () => import("./vtf.ts")),
+    lazy('mcmap', () => import("./mcmap.ts")),
+    lazy('als', () => import("./als.ts")),
+    lazy('qoa-fu', () => import("./qoa-fu.ts")),
+    lazy('pyTurtle', () => import("./pyTurtle.ts")),
+    lazy('nbt', () => import("./nbt.ts")),
+    lazy('petozip', () => import("./petozip.ts")),
+    lazy('flptojson', () => import("./flptojson.ts")),
+    lazy('flo', () => import("./flo.ts")),
+    lazy('cgbi-to-png', () => import("./cgbi-to-png.ts")),
+    lazy('batToExe', () => import("./batToExe.ts")),
+    lazy('sb3tohtml', () => import("./sb3tohtml.ts")),
+    lazy('libopenmpt', () => import("./libopenmpt.ts")),
+    async () => {
+      try { const m = await import("./midi.ts"); handlers.push(new m.midiCodecHandler(), new m.midiSynthHandler()); }
+      catch (e) { console.warn('[handlers] Failed to load midi:', e); }
+    },
+    lazy('lzh', () => import("./lzh.ts")),
+    lazy('tar', () => import("./tar.ts")),
+    lazy('wad', () => import("./wad.ts")),
+    lazy('txtToInfiniteCraft', () => import("./txtToInfiniteCraft.ts")),
+    lazy('espeakng', () => import("./espeakng.js")),
+    lazy('bsor', () => import("./bsor.ts")),
+    lazy('icns', () => import("./icns.ts")),
+    lazy('mcSchematic', () => import("./mcSchematicHandler.ts")),
+    lazy('bson', () => import("./bson.ts")),
+    lazy('aseprite', () => import("./aseprite.ts")),
+    lazy('n64rom', () => import("./n64rom.ts")),
+    lazy('vexflow', () => import("./vexflow.ts")),
+    lazy('toon', () => import("./toon.ts")),
     // --- Handlers added from upstream ---
-    async () => { const m = await import("./sevenZip.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./json5.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./jsonToC.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./turbowarp.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./exeToBat.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./rpgmvp.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./ota.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./comics.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./terrariawld.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./opusMagnum.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./aperturePicture.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./xcf.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./pdfparse.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./minecraftLangfileHandler.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./celariaMap.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./cybergrindHandler.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./textToSource.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./chessjs.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./fenToJson.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./piskel.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./xcursor.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./rgba.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./har.ts"); handlers.push(new m.default()); },
-    async () => { const m = await import("./tmx.ts"); handlers.push(new m.default()); },
+    lazy('sevenZip', () => import("./sevenZip.ts")),
+    lazy('json5', () => import("./json5.ts")),
+    lazy('jsonToC', () => import("./jsonToC.ts")),
+    lazy('turbowarp', () => import("./turbowarp.ts")),
+    lazy('exeToBat', () => import("./exeToBat.ts")),
+    lazy('rpgmvp', () => import("./rpgmvp.ts")),
+    lazy('ota', () => import("./ota.ts")),
+    lazy('comics', () => import("./comics.ts")),
+    lazy('terrariawld', () => import("./terrariawld.ts")),
+    lazy('opusMagnum', () => import("./opusMagnum.ts")),
+    lazy('aperturePicture', () => import("./aperturePicture.ts")),
+    lazy('xcf', () => import("./xcf.ts")),
+    lazy('pdfparse', () => import("./pdfparse.ts")),
+    lazy('minecraftLangfile', () => import("./minecraftLangfileHandler.ts")),
+    lazy('celariaMap', () => import("./celariaMap.ts")),
+    lazy('cybergrind', () => import("./cybergrindHandler.ts")),
+    lazy('textToSource', () => import("./textToSource.ts")),
+    lazy('chessjs', () => import("./chessjs.ts")),
+    lazy('fenToJson', () => import("./fenToJson.ts")),
+    lazy('piskel', () => import("./piskel.ts")),
+    lazy('xcursor', () => import("./xcursor.ts")),
+    lazy('rgba', () => import("./rgba.ts")),
+    lazy('har', () => import("./har.ts")),
+    lazy('tmx', () => import("./tmx.ts")),
   ];
 
-  await Promise.all(loaders.map(loader => loader().catch(e => {
-    console.warn('[handlers] Failed to load handler:', e);
-  })));
+  await Promise.all(loaders.map(loader => loader()));
 }
 
 export default handlers;

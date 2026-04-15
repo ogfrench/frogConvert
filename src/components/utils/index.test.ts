@@ -1,9 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { ensureMinDuration } from "./utils.ts";
-
-function sleep(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
+import { describe, it, expect } from "vitest";
+import { ensureMinDuration } from "./index.ts";
 
 describe("ensureMinDuration", () => {
     it("waits if the elapsed time is less than the minimum duration", async () => {

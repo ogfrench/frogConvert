@@ -1,12 +1,13 @@
 import "./FilesModal.css";
 import {
-  ui, currentFiles, FILES_PER_PAGE, filesModalPage,
+  ui, currentFiles, filesModalPage,
   filesModalResizeHandler, onClearFiles, onFilesChanged, getMaxFiles,
   checkFileSizeLimits, sortFilesByName, bindDragAndDropVisuals, updateScrollLock
 } from "../store/store.ts";
+import { FILES_PER_PAGE } from "../../constants/ui.ts";
 import { showFileInUploadZone } from "../UploadZone/UploadZone.ts";
 import { showSizeWarningPopup } from "../Popup/Popup.ts";
-import { shortenFileName } from "../utils.ts";
+import { shortenFileName } from "../utils/index.ts";
 
 /** Returns a friendly label for a MIME type, e.g. "image/png" -> "PNG image" */
 function friendlyMimeLabel(mime: string): string {

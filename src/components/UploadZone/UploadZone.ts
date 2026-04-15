@@ -1,11 +1,11 @@
 import "./UploadZone.css";
 import {
   ui, currentFiles, getMaxFiles, checkFileSizeLimits,
-  DEFAULT_UPLOAD_LABEL,
   onFilesChanged, onClearFiles, sortFilesByName, bindDragAndDropVisuals
 } from "../store/store.ts";
+import { DEFAULT_UPLOAD_LABEL } from "../../constants/ui.ts";
 import { showPopup, hidePopup, createPopupButton, showSizeWarningPopup, showFileTypeMismatchPopup } from "../Popup/Popup.ts";
-import { shortenFileName } from "../utils.ts";
+import { shortenFileName } from "../utils/index.ts";
 import { openFilesModal } from "../FilesModal/FilesModal.ts";
 
 // --- Drop zone ---

@@ -17,7 +17,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-4) var(--space-6) var(--space-6);
+  padding: var(--space-4) var(--space-6);
   z-index: 200;
   animation: fadeIn 0.4s ease-out forwards;
   transform: translateZ(0);

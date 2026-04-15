@@ -25,13 +25,13 @@ function setupTocDOM() {
   `;
 }
 
-type TocModule = typeof import('../../src/docs/toc.ts');
+type TocModule = typeof import('./toc.ts');
 let mod: TocModule;
 
 beforeEach(async () => {
   setupTocDOM();
   vi.resetModules();
-  mod = await import('../../src/docs/toc.ts');
+  mod = await import('./toc.ts');
 });
 
 function makeDocBody(html: string): HTMLElement {

@@ -46,7 +46,7 @@ Avoid `document.querySelector` inside components. Use the centralized `ui` objec
 - **`utils/ModalManager.ts`** owns modal lifecycle: stacks open modals, toggles the `open` class, sets `aria-hidden`, handles keyboard escape (non-persistent modals), traps focus, and calls `updateScrollLock()`. Managed modals are `#format-modal`, `#files-modal`, `#popup`.
 - **Visibility contract.** Modals are shown/hidden via the `open` CSS class, never `style.display`. A modal is open iff it has `classList.contains("open")`.
 - **Spinners.** Active conversions use the gooey spinner (`loader-gooey`); short blocking operations like cancellation use `loader-spinner`.
-- **Cancellation and partial downloads.** `isCancelled` and related state machine live in `ConversionModal.ts`. If a batch is cancelled, `showPartialDownloadPopup()` offers a download of finished files.
+- **Cancellation and partial downloads.** `isCancelled` and related state machine live in `src/conversion/cancellation.ts`. If a batch is cancelled, `showPartialDownloadPopup()` offers a download of finished files.
 - **Scroll locking.** `updateScrollLock()` in `store.ts` checks all three modal elements for the `open` class and toggles `.scroll-lock` on `<html>`. Called automatically by `ModalManager`.
 
 ---

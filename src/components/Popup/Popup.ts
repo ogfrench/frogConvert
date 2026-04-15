@@ -1,6 +1,6 @@
 import "./Popup.css";
 import { ui } from "../store/store.ts";
-import { formatBytes } from "../utils.ts";
+import { formatBytes } from "../utils/index.ts";
 
 import { ModalManager } from "../utils/ModalManager.ts";
 

@@ -1,19 +1,24 @@
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
-import normalizeMimeType from "../../core/utils/normalizeMimeType.ts";
-import { isSafari } from "../../tools/pdfThumbnails.ts";
-import type { FileFormat, FormatHandler, FileData, ConvertPathNode, ProgressEvent, QualityPreset } from "../../core/FormatHandler/FormatHandler.ts";
-import { triggerConfetti } from "../../effects/Confetti/Confetti.ts";
+import normalizeMimeType from "../core/utils/normalizeMimeType.ts";
+import { downloadFile, downloadAsZip } from "./download.ts";
+import { isSafari } from "../tools/pdfThumbnails.ts";
+import type { FileFormat, FormatHandler, FileData, ConvertPathNode, ProgressEvent, QualityPreset } from "../core/FormatHandler/FormatHandler.ts";
+import { triggerConfetti } from "../effects/Confetti/Confetti.ts";
 import {
     ui,
     currentFiles,
     selectedFromIndex,
     selectedToIndex,
     allOptionsRef,
-    escapeHTML,
+    CATEGORY_LABELS,
+} from "../components/store/store.ts";
+import { escapeHTML } from "../components/utils/index.ts";
+import {
     hidePopup,
     showAlertPopup,
     createPopupButton,
+    replacePopup,
+} from "../components/Popup/Popup.ts";
+import {
     isCancelled,
     isSoftCancelRequested,
     setActiveBatchSize,
@@ -25,11 +30,9 @@ import {
     showEnginesLoadingPopup,
     ensureCancelButton,
     removeCancelButton,
-    replacePopup,
-    CATEGORY_LABELS,
-} from "../index.ts";
-import { createDancingFrog } from "../Frogsworth/DancingFrog.ts";
-import { shortenFileName, ensureMinDuration } from "../utils.ts";
+} from "./cancellation.ts";
+import { createDancingFrog } from "../components/Frogsworth/DancingFrog.ts";
+import { shortenFileName, ensureMinDuration } from "../components/utils/index.ts";
 
 // --- Helpers ---
 
@@ -100,25 +103,6 @@ let lastConvertedFiles: { name: string; bytes: Uint8Array }[] = [];
 
 export function setLastConvertedFiles(files: { name: string; bytes: Uint8Array }[]) {
     lastConvertedFiles = files;
-}
-
-export function downloadFile(bytes: Uint8Array, name: string) {
-    const blob = new Blob([bytes as BlobPart], { type: "application/octet-stream" });
-    const link = document.createElement("a");
-    const objectUrl = URL.createObjectURL(blob);
-    link.href = objectUrl;
-    link.download = name;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
-}
-
-export async function downloadAsZip(files: { name: string; bytes: Uint8Array }[], zipName: string) {
-    const zip = new JSZip();
-    for (const file of files) {
-        zip.file(file.name, file.bytes);
-    }
-    const blob = await zip.generateAsync({ type: "blob" });
-    saveAs(blob, zipName);
 }
 
 export async function downloadAllConvertedFiles() {

@@ -10,12 +10,12 @@ function setupBuildInfoDOM() {
   `;
 }
 
-type BuildInfoModule = typeof import('../../src/docs/build-info.ts');
+type BuildInfoModule = typeof import('./build-info.ts');
 let mod: BuildInfoModule;
 
 beforeEach(async () => {
   setupBuildInfoDOM();
-  mod = await import('../../src/docs/build-info.ts');
+  mod = await import('./build-info.ts');
 });
 
 // ── Tests ─────────────────────────────────────────────────────────────────

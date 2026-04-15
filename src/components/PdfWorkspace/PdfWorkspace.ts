@@ -7,10 +7,11 @@ import { merge } from '../../tools/pdfMerge.ts';
 import { extract } from '../../tools/pdfExtract.ts';
 import { organize } from '../../tools/pdfOrganize.ts';
 import { renderPageThumbnail, clearThumbnailCache, mockPageThumb } from '../../tools/pdfThumbnails.ts';
-import { downloadFile, downloadAsZip } from '../ConversionModal/ConversionActions.ts';
+import { downloadFile, downloadAsZip } from '../../conversion/download.ts';
 import { isTouchUi } from '../../core/utils/touchUi.ts';
+import { showToast } from '../Toast/Toast.ts';
 import { showPopup, hidePopup, replacePopup, createPopupButton } from '../Popup/Popup.ts';
-import { formatBytes, escapeHTML, shortenFileName, ensureMinDuration } from '../utils.ts';
+import { formatBytes, escapeHTML, shortenFileName, ensureMinDuration } from '../utils/index.ts';
 import { createDancingFrog } from '../Frogsworth/DancingFrog.ts';
 import { triggerConfetti } from '../../effects/Confetti/Confetti.ts';
 import { ui } from '../store/store.ts';
@@ -25,8 +26,136 @@ let files: SourceFile[] = [];
 // Organize state (persists across tab switches)
 let pages: PageEntry[] = [];
 let selected = new Set<number>();
+let selectedFiles = new Set<number>();
 let lastClickedIdx = -1;
 let organizeInitialized = false; // true once pages derived from files
+
+function onFilesMutated(): void {
+  organizeInitialized = false;
+  const cleared = selected.size > 0 || selectedFiles.size > 0;
+  selected.clear();
+  selectedFiles.clear();
+  if (cleared) showToast('Selection cleared after files changed');
+}
+
+// File order changed but ids unchanged — preserve `selectedFiles`; only the
+// derived page indices are invalid.
+function onFilesReordered(): void {
+  organizeInitialized = false;
+  const cleared = selected.size > 0;
+  selected.clear();
+  if (cleared) showToast('Selection cleared after files changed');
+}
+
+// After a drop, subsequent drags within this window drop the hold-to-drag
+// delay to 0 — fast when reordering many, cautious when starting cold.
+let lastDragAt = 0;
+const DRAG_MOMENTUM_MS = 8000;
+function dragDelay(): number {
+  return Date.now() - lastDragAt < DRAG_MOMENTUM_MS ? 0 : 150;
+}
+
+// Revert live Sortable's delay after the momentum window expires, so an idle
+// user doesn't get a too-easy drag far past the window.
+let momentumTimer: ReturnType<typeof setTimeout> | null = null;
+function markDragComplete(): void {
+  lastDragAt = Date.now();
+  sortableInstance?.option('delay', 0);
+  if (momentumTimer) clearTimeout(momentumTimer);
+  momentumTimer = setTimeout(() => {
+    sortableInstance?.option('delay', 150);
+    momentumTimer = null;
+  }, DRAG_MOMENTUM_MS);
+}
+
+function setKeyboardMode(on: boolean): void {
+  document.body.classList.toggle('ws-keyboard-mode', on);
+}
+
+// Dragging an unselected item resets the selection to just that item. Shared
+// invariant across the Organize and Merge Sortable `onStart` handlers, then
+// the `onEnd` branches decide between single- and multi-drag off a correct
+// selection state.
+function stompDragSelection<T>(set: Set<T>, id: T, onChanged: () => void): void {
+  if (set.has(id)) return;
+  set.clear();
+  set.add(id);
+  onChanged();
+}
+
+function refreshMergeUi(): void {
+  updateMergeSelectionVisuals();
+  if (mergeSidebarCard) updateMergeSidebarContent(mergeSidebarCard);
+  if (mergeMobileTray) updateMergeSidebarContent(mergeMobileTray);
+}
+
+function moveSelection(dir: 'up' | 'down'): boolean {
+  if (!selected.size) return false;
+  const sorted = [...selected].sort((a, b) => a - b);
+  if (dir === 'up' && sorted[0] === 0) return false;
+  if (dir === 'down' && sorted[sorted.length - 1] === pages.length - 1) return false;
+
+  pushHistory();
+  const movingSet = new Set(sorted);
+  const moving = sorted.map(i => pages[i]);
+  const kept = pages.filter((_, i) => !movingSet.has(i));
+  const dropAt = dir === 'up' ? sorted[0] - 1 : sorted[sorted.length - 1] + 2;
+  const removedBefore = sorted.filter(i => i < dropAt).length;
+  const insertAt = dropAt - removedBefore;
+  kept.splice(insertAt, 0, ...moving);
+  pages.length = 0;
+  pages.push(...kept);
+  selected.clear();
+  moving.forEach(p => { const ni = pages.indexOf(p); if (ni >= 0) selected.add(ni); });
+  return true;
+}
+
+let moreMenuEl: HTMLDivElement | null = null;
+function toggleMoreMenu(anchor: HTMLElement): void {
+  if (moreMenuEl) { closeMoreMenu(); return; }
+  const menu = document.createElement('div');
+  menu.className = 'ws-more-menu';
+  menu.setAttribute('role', 'menu');
+  const items: Array<{ label: string; onSelect: () => void }> = [
+    { label: 'Export pages as separate PDFs', onSelect: () => handleExportSeparate() },
+  ];
+  for (const it of items) {
+    const mi = document.createElement('button');
+    mi.className = 'ws-more-menu-item';
+    mi.setAttribute('role', 'menuitem');
+    mi.textContent = it.label;
+    mi.addEventListener('click', () => { closeMoreMenu(); it.onSelect(); });
+    menu.appendChild(mi);
+  }
+  document.body.appendChild(menu);
+  moreMenuEl = menu;
+  const rect = anchor.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.right = `${window.innerWidth - rect.right}px`;
+  menu.style.bottom = `${window.innerHeight - rect.top + 6}px`;
+  anchor.setAttribute('aria-expanded', 'true');
+  setTimeout(() => {
+    document.addEventListener('click', onMoreMenuOutside);
+    document.addEventListener('keydown', onMoreMenuKey);
+  }, 0);
+}
+function closeMoreMenu(): void {
+  if (!moreMenuEl) return;
+  moreMenuEl.remove();
+  moreMenuEl = null;
+  document.removeEventListener('click', onMoreMenuOutside);
+  document.removeEventListener('keydown', onMoreMenuKey);
+  document.querySelectorAll<HTMLElement>('.ws-action-more').forEach(b =>
+    b.setAttribute('aria-expanded', 'false'));
+}
+function onMoreMenuOutside(e: MouseEvent): void {
+  if (!moreMenuEl) return;
+  if (moreMenuEl.contains(e.target as Node)) return;
+  closeMoreMenu();
+}
+function onMoreMenuKey(e: KeyboardEvent): void {
+  if (e.key === 'Escape') closeMoreMenu();
+}
 
 type HistorySnapshot = {
   pages: PageEntry[];
@@ -218,16 +347,55 @@ function updateMergeContent() {
   mergeGridContainer.appendChild(addCard);
 
   sortableInstance = new Sortable(mergeGridContainer, {
-    animation: 200, delay: 150, delayOnTouchOnly: true, ghostClass: 'ws-ghost',
+    animation: 200, delay: dragDelay(), delayOnTouchOnly: true, ghostClass: 'ws-ghost',
     draggable: '.ws-file-card:not(.ws-file-add)',
     filter: '.ws-file-remove, .ws-file-list-remove',
     preventOnFilter: true,
+    onStart: (evt) => {
+      const draggedCard = evt.item as HTMLElement;
+      const draggedFid = Number(draggedCard.dataset.fileId);
+      if (isNaN(draggedFid)) return;
+      stompDragSelection(selectedFiles, draggedFid, refreshMergeUi);
+    },
     onEnd: (evt) => {
-      if (evt.oldIndex != null && evt.newIndex != null && evt.oldIndex !== evt.newIndex) {
-        const [moved] = files.splice(evt.oldIndex, 1);
-        files.splice(evt.newIndex, 0, moved);
-        organizeInitialized = false; // page order invalidated
+      markDragComplete();
+      if (evt.oldIndex == null || evt.newIndex == null || evt.oldIndex === evt.newIndex) return;
+      const draggedCard = evt.item as HTMLElement;
+      const draggedFid = Number(draggedCard.dataset.fileId);
+
+      if (selectedFiles.has(draggedFid) && selectedFiles.size > 1) {
+        const movingSet = new Set(selectedFiles);
+        const moving = files.filter(f => movingSet.has(f.id));
+        const domOrder = [...mergeGridContainer!.querySelectorAll<HTMLElement>('.ws-file-card:not(.ws-file-add)')]
+          .map(c => Number(c.dataset.fileId));
+        const dropDomIdx = domOrder.indexOf(draggedFid);
+        const kept = files.filter(f => !movingSet.has(f.id));
+        const prevInDom = dropDomIdx > 0 ? domOrder[dropDomIdx - 1] : null;
+        let insertAt = 0;
+        if (prevInDom != null && !movingSet.has(prevInDom)) {
+          insertAt = kept.findIndex(f => f.id === prevInDom) + 1;
+        } else {
+          for (let i = dropDomIdx - 1; i >= 0; i--) {
+            if (!movingSet.has(domOrder[i])) {
+              insertAt = kept.findIndex(f => f.id === domOrder[i]) + 1;
+              break;
+            }
+          }
+        }
+        kept.splice(insertAt, 0, ...moving);
+        files = kept;
+        onFilesReordered();
+        updateMergeContent();
+        return;
       }
+
+      const [moved] = files.splice(evt.oldIndex, 1);
+      files.splice(evt.newIndex, 0, moved);
+      onFilesReordered();
+      // Sortable already moved the DOM — keep the cards in place, just refresh
+      // the sidebar (file-letter labels depend on order) and retune the delay
+      // so momentum applies to the next drag.
+      refreshMergeUi();
     },
   });
 
@@ -267,7 +435,7 @@ function updateMergeSidebarContent(sidebar: HTMLElement) {
     delFileBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       files = files.filter(f => f.id !== sf.id);
-      organizeInitialized = false;
+      onFilesMutated();
       updateMergeContent();
       if (files.length) kickMergeThumbs();
     });
@@ -279,11 +447,29 @@ function updateMergeSidebarContent(sidebar: HTMLElement) {
   sidebar.appendChild(el('hr', { className: 'ws-divider' }));
 
   const bottom = el('div', { className: 'ws-sidebar-bottom' });
+
+  if (selectedFiles.size > 0) {
+    const removeBtn = el('button', {
+      className: 'ws-btn ws-action-btn ws-action-full',
+      textContent: `Remove ${selectedFiles.size} file${selectedFiles.size !== 1 ? 's' : ''}`,
+    });
+    removeBtn.addEventListener('click', handleRemoveSelectedFiles);
+    bottom.appendChild(removeBtn);
+  }
+
   const mergeBtn = el('button', { className: 'btn-primary ws-action-btn ws-action-full', textContent: 'Merge PDF' });
   if (files.length < 2) { mergeBtn.classList.add('disabled'); mergeBtn.setAttribute('aria-disabled', 'true'); }
   mergeBtn.addEventListener('click', handleMerge);
   bottom.appendChild(mergeBtn);
   sidebar.appendChild(bottom);
+}
+
+function handleRemoveSelectedFiles(): void {
+  if (!selectedFiles.size) return;
+  files = files.filter(f => !selectedFiles.has(f.id));
+  onFilesMutated();
+  updateMergeContent();
+  if (files.length) kickMergeThumbs();
 }
 
 async function handleMerge() {
@@ -303,6 +489,19 @@ async function handleMerge() {
 
 function createFileCard(sf: SourceFile): HTMLElement {
   const card = el('div', { className: 'ws-file-card' });
+  card.dataset.fileId = String(sf.id);
+  if (selectedFiles.has(sf.id)) card.classList.add('ws-file-selected');
+  card.setAttribute('role', 'checkbox');
+  card.setAttribute('aria-checked', String(selectedFiles.has(sf.id)));
+  card.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('.ws-file-remove, .ws-file-list-remove')) return;
+    if (selectedFiles.has(sf.id)) selectedFiles.delete(sf.id);
+    else selectedFiles.add(sf.id);
+    updateMergeContent();
+  });
+
+  const checkBadge = el('span', { className: 'ws-file-check', innerHTML: '&#x2713;', ariaHidden: 'true' });
+  card.appendChild(checkBadge);
 
   const thumbWrap = el('div', { className: 'ws-file-thumb-wrap' });
   const thumb = el('div', { className: `ws-file-thumb${sf.firstPageThumb ? '' : ' ws-skeleton'}` });
@@ -329,7 +528,7 @@ function createFileCard(sf: SourceFile): HTMLElement {
   removeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     files = files.filter(f => f.id !== sf.id);
-    organizeInitialized = false;
+    onFilesMutated();
     updateMergeContent();
     if (files.length) kickMergeThumbs();
   });
@@ -451,7 +650,27 @@ function renderOrganizeView() {
 
   leftCard.appendChild(grid);
 
-  // Event delegation: insert buttons
+  grid.addEventListener('pointerdown', () => setKeyboardMode(false));
+  grid.addEventListener('keydown', (e) => {
+    if (e.key.startsWith('Arrow') || e.key === ' ' || e.key === 'Enter' || e.key === 'Tab') {
+      setKeyboardMode(true);
+    }
+  });
+
+  grid.addEventListener('keydown', (e) => {
+    if ((e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || !selected.size) return;
+    const card = (e.target as HTMLElement).closest('.ws-page-card') as HTMLElement | null;
+    if (!card) return;
+    e.preventDefault();
+    const moved = moveSelection(e.key === 'ArrowUp' ? 'up' : 'down');
+    if (moved) {
+      renderOrganizeView();
+      const firstIdx = [...selected].sort((a, b) => a - b)[0];
+      const next = gridEl?.querySelector<HTMLElement>(`.ws-page-card[data-page-idx="${firstIdx}"]`);
+      next?.focus();
+    }
+  });
+
   grid.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-insert-at]');
     if (!btn) return;
@@ -483,25 +702,23 @@ function renderOrganizeView() {
     toggleSelection(idx, e.shiftKey, e.ctrlKey || e.metaKey);
   });
 
-  // Sortable — multi-drag with visual preview
   sortableInstance = new Sortable(grid, {
-    animation: 200, delay: 150, delayOnTouchOnly: true,
+    animation: 200, delay: dragDelay(), delayOnTouchOnly: true,
     ghostClass: 'ws-ghost',
     draggable: '.ws-page-slot',
-    filter: '.ws-page-delete, .ws-page-rotate, .ws-page-insert',
+    filter: '.ws-page-delete, .ws-page-rotate, .ws-page-insert, .ws-page-plus',
     preventOnFilter: true,
     onStart: (evt) => {
       const dragCard = evt.item.querySelector<HTMLElement>('.ws-page-card');
       const dragIdx = Number(dragCard?.dataset.pageIdx);
       pendingMultiDrag = null;
 
-      // Drag unselected page: select only that card
-      if (!isNaN(dragIdx) && !selected.has(dragIdx)) {
-        selected.clear();
-        selected.add(dragIdx);
-        updateSelectionVisuals();
-        updateSidebar();
-        syncRangeInput();
+      if (!isNaN(dragIdx)) {
+        stompDragSelection(selected, dragIdx, () => {
+          updateSelectionVisuals();
+          updateSidebar();
+          syncRangeInput();
+        });
       }
 
       // Multi-drag: capture state NOW (immune to mid-drag selection clearing)
@@ -533,6 +750,7 @@ function renderOrganizeView() {
       grid.querySelectorAll('.ws-page-insert').forEach(b => b.remove());
     },
     onEnd: (evt) => {
+      markDragComplete();
       grid.querySelectorAll('.ws-multi-drag-hidden').forEach(s =>
         s.classList.remove('ws-multi-drag-hidden'));
 
@@ -609,6 +827,9 @@ function cleanup() {
   sortableInstance = null;
   thumbnailObserver?.disconnect();
   thumbnailObserver = null;
+  if (momentumTimer) { clearTimeout(momentumTimer); momentumTimer = null; }
+  closeMoreMenu();
+  setKeyboardMode(false);
   renderQueue.length = 0;
   saveBtn = null;
   extractBtn = null;
@@ -627,9 +848,11 @@ export function resetAll() {
   files = [];
   pages = [];
   selected.clear();
+  selectedFiles.clear();
   lastClickedIdx = -1;
   organizeInitialized = false;
   history.length = 0;
+  setKeyboardMode(false);
   clearThumbnailCache();
   renderActiveTool();
 }
@@ -742,7 +965,7 @@ async function handleFiles(rawFiles: File[]) {
   files.push(...parsed);
 
   if (activeTool === 'organize') {
-    // Append new pages to existing organize state
+    // New pages append at the end, so existing selection indices stay valid.
     let nextPos = pages.length + 1;
     for (const sf of parsed)
       for (let p = 1; p <= sf.pageCount; p++)
@@ -750,8 +973,7 @@ async function handleFiles(rawFiles: File[]) {
     renderOrganizeView();
     kickPageThumbs(pages);
   } else {
-    // Merge view: files added, re-derive organize on next switch
-    organizeInitialized = false;
+    onFilesMutated();
     updateMergeContent();
     kickMergeThumbs();
   }
@@ -782,6 +1004,8 @@ function updateSidebarContent(sidebar: HTMLElement) {
   // Range input
   const ri = el('input', {
     type: 'text', className: 'ws-range-input',
+    name: 'page-range', id: 'ws-range-input-sidebar',
+    autocomplete: 'off',
     placeholder: 'e.g. 1-5, 8, 12-20',
     ariaLabel: 'Page range',
   }) as HTMLInputElement;
@@ -856,12 +1080,33 @@ function updateSidebarContent(sidebar: HTMLElement) {
 
   sidebar.appendChild(el('hr', { className: 'ws-divider' }));
 
-  // Bottom: action buttons
   const bottom = el('div', { className: 'ws-sidebar-bottom' });
 
-  saveBtn = el('button', { className: 'btn-primary ws-action-btn ws-action-full', textContent: 'Export PDF' });
-  saveBtn.addEventListener('click', handleSave);
-  bottom.appendChild(saveBtn);
+  if (selected.size > 0) {
+    const moveRow = el('div', { className: 'ws-sidebar-move-row' });
+    const sorted = [...selected].sort((a, b) => a - b);
+    const atTop = sorted[0] === 0;
+    const atBottom = sorted[sorted.length - 1] === pages.length - 1;
+    const upBtn = el('button', { className: 'ws-btn ws-btn-small ws-move-btn', innerHTML: '&uarr; Move up' });
+    upBtn.dataset.dir = 'up';
+    if (atTop) { upBtn.classList.add('disabled'); upBtn.setAttribute('aria-disabled', 'true'); }
+    upBtn.addEventListener('click', () => {
+      if (!moveSelection('up')) return;
+      renderOrganizeView();
+      document.querySelector<HTMLElement>('#pdf-sidebar .ws-move-btn[data-dir="up"]')?.focus();
+    });
+    const downBtn = el('button', { className: 'ws-btn ws-btn-small ws-move-btn', innerHTML: 'Move down &darr;' });
+    downBtn.dataset.dir = 'down';
+    if (atBottom) { downBtn.classList.add('disabled'); downBtn.setAttribute('aria-disabled', 'true'); }
+    downBtn.addEventListener('click', () => {
+      if (!moveSelection('down')) return;
+      renderOrganizeView();
+      document.querySelector<HTMLElement>('#pdf-sidebar .ws-move-btn[data-dir="down"]')?.focus();
+    });
+    moveRow.appendChild(upBtn);
+    moveRow.appendChild(downBtn);
+    bottom.appendChild(moveRow);
+  }
 
   const extractText = selected.size === 0
     ? 'Select pages to extract'
@@ -871,6 +1116,18 @@ function updateSidebarContent(sidebar: HTMLElement) {
   extractBtn.addEventListener('click', handleExtractClick);
   bottom.appendChild(extractBtn);
 
+  const exportRow = el('div', { className: 'ws-sidebar-export-row' });
+  saveBtn = el('button', { className: 'btn-primary ws-action-btn ws-action-full-grow', textContent: 'Export PDF' });
+  saveBtn.addEventListener('click', handleSave);
+  exportRow.appendChild(saveBtn);
+
+  const moreBtn = el('button', { className: 'icon-btn ws-action-more', innerHTML: '&#8942;', ariaLabel: 'More export options' });
+  moreBtn.setAttribute('aria-haspopup', 'menu');
+  moreBtn.setAttribute('aria-expanded', 'false');
+  moreBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleMoreMenu(moreBtn); });
+  exportRow.appendChild(moreBtn);
+
+  bottom.appendChild(exportRow);
   sidebar.appendChild(bottom);
 }
 
@@ -918,10 +1175,29 @@ function toggleSelection(idx: number, shift: boolean, ctrl: boolean) {
 
 function updateSelectionVisuals() {
   if (!gridEl) return;
+  let firstSelIdx = -1;
+  let lastSelIdx = -1;
+  if (selected.size > 0) {
+    const sorted = [...selected].sort((a, b) => a - b);
+    firstSelIdx = sorted[0];
+    lastSelIdx = sorted[sorted.length - 1];
+  }
   gridEl.querySelectorAll<HTMLElement>('.ws-page-card').forEach((card) => {
     const i = Number(card.dataset.pageIdx);
     const sel = selected.has(i);
     card.classList.toggle('ws-page-selected', sel);
+    card.classList.toggle('ws-first-selected', i === firstSelIdx);
+    card.classList.toggle('ws-last-selected', i === lastSelIdx);
+    card.setAttribute('aria-checked', String(sel));
+  });
+}
+
+function updateMergeSelectionVisuals() {
+  if (!mergeGridContainer) return;
+  mergeGridContainer.querySelectorAll<HTMLElement>('.ws-file-card').forEach((card) => {
+    const fid = Number(card.dataset.fileId);
+    const sel = !isNaN(fid) && selectedFiles.has(fid);
+    card.classList.toggle('ws-file-selected', sel);
     card.setAttribute('aria-checked', String(sel));
   });
 }
@@ -947,13 +1223,19 @@ async function handleSave() {
 
 async function handleExtractClick() {
   if (selected.size === 0) return;
-  // 1 page → just download directly
-  if (selected.size === 1) { doExtract(false); return; }
-  showExtractModal();
+  const indices = [...selected].sort((a, b) => a - b);
+  if (indices.length === 1) { doExtract(indices, false); return; }
+  showExtractModal(indices);
 }
 
-function showExtractModal() {
-  const count = selected.size;
+async function handleExportSeparate() {
+  if (pages.length === 0) return;
+  const indices = pages.map((_, i) => i);
+  await doExtract(indices, false);
+}
+
+function showExtractModal(indices: number[]) {
+  const count = indices.length;
   const wrap = el('div', { className: 'popup-choices' });
 
   const closeBtn = el('button', { className: 'close-btn close-btn-lg modal-close-btn', innerHTML: '&times;', ariaLabel: 'Close' });
@@ -963,23 +1245,24 @@ function showExtractModal() {
   wrap.appendChild(el('p', { className: 'ws-sidebar-count', textContent: `Extract ${count} pages as` }));
 
   const combBtn = el('button', { className: 'btn-primary ws-action-btn ws-action-full', textContent: 'Combined PDF' });
-  combBtn.addEventListener('click', () => { hidePopup(); doExtract(true); });
+  combBtn.addEventListener('click', () => { hidePopup(); doExtract(indices, true); });
   wrap.appendChild(combBtn);
 
   const sepBtn = el('button', { className: 'ws-btn ws-action-btn ws-action-full', textContent: 'One file per page' });
-  sepBtn.addEventListener('click', () => { hidePopup(); doExtract(false); });
+  sepBtn.addEventListener('click', () => { hidePopup(); doExtract(indices, false); });
   wrap.appendChild(sepBtn);
 
   showPopup(wrap, false, () => hidePopup());
 }
 
-async function doExtract(groupAsOne: boolean) {
-  if (files.length === 0 || selected.size === 0) return;
-  const extractCount = selected.size;
+async function doExtract(indices: number[], groupAsOne: boolean) {
+  if (files.length === 0 || indices.length === 0) return;
+  const extractCount = indices.length;
+  const sorted = [...indices].sort((a, b) => a - b);
   await runWithPopup('Extracting', 'Extract failed. The PDF might be damaged or unsupported.',
     async () => {
       const byFile = new Map<number, number[]>();
-      for (const idx of [...selected].sort((a, b) => a - b)) {
+      for (const idx of sorted) {
         const page = pages[idx];
         const arr = byFile.get(page.sourceFileId) ?? [];
         arr.push(page.sourcePageNum);
@@ -991,7 +1274,7 @@ async function doExtract(groupAsOne: boolean) {
       if (groupAsOne) {
         const output = await PDFDocument.create();
         const loadedSources = new Map<number, Awaited<ReturnType<typeof PDFDocument.load>>>();
-        for (const idx of [...selected].sort((a, b) => a - b)) {
+        for (const idx of sorted) {
           const page = pages[idx];
           if (!loadedSources.has(page.sourceFileId)) {
             const sf = files.find(f => f.id === page.sourceFileId)!;
@@ -1002,7 +1285,7 @@ async function doExtract(groupAsOne: boolean) {
           output.addPage(copied);
         }
         const outputBytes = new Uint8Array(await output.save());
-        const suffix = selected.size === pages.length ? '' : '_extracted';
+        const suffix = extractCount === pages.length ? '' : '_extracted';
         const name = `${firstName}${suffix}.pdf`;
         lastPdfResult = [{ bytes: outputBytes, name }];
         lastPdfZipName = null;
@@ -1168,6 +1451,8 @@ function buildMobileTrayContent(tray: HTMLElement) {
   const multiFile = files.length > 1;
   const ri = el('input', {
     type: 'text', className: 'ws-range-input',
+    name: 'page-range', id: 'ws-range-input-tray',
+    autocomplete: 'off',
     placeholder: multiFile ? 'e.g. A1-A5, B3' : 'e.g. 1-5, 8',
     ariaLabel: 'Page range',
   }) as HTMLInputElement;
@@ -1236,7 +1521,6 @@ function buildMobileTrayContent(tray: HTMLElement) {
 
   tray.appendChild(el('hr', { className: 'ws-divider' }));
 
-  // Extract button (bottom)
   const extractText = selected.size === 0
     ? 'Select pages to extract'
     : `Extract ${selected.size} page${selected.size !== 1 ? 's' : ''}`;
@@ -1244,6 +1528,12 @@ function buildMobileTrayContent(tray: HTMLElement) {
   if (selected.size === 0) { trayExtract.classList.add('disabled'); trayExtract.setAttribute('aria-disabled', 'true'); }
   trayExtract.addEventListener('click', handleExtractClick);
   tray.appendChild(trayExtract);
+
+  if (pages.length > 0) {
+    const trayExportSep = el('button', { className: 'ws-btn ws-action-btn ws-action-full', textContent: 'Export pages as separate PDFs' });
+    trayExportSep.addEventListener('click', handleExportSeparate);
+    tray.appendChild(trayExportSep);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1279,6 +1569,25 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
   const badgeText = getPageBadgeText(page);
   const badge = el('span', { className: 'ws-page-badge', textContent: page.rotation ? `${badgeText} \u21bb` : badgeText });
   card.appendChild(badge);
+
+  const checkBadge = el('span', { className: 'ws-page-check', innerHTML: '&#x2713;', ariaHidden: 'true' });
+  card.appendChild(checkBadge);
+
+  const plusBefore = el('button', { className: 'ws-page-plus ws-page-plus-before', innerHTML: '+', ariaLabel: 'Insert blank page before selection' });
+  plusBefore.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const sorted = [...selected].sort((a, b) => a - b);
+    if (sorted.length) insertBlankPage(sorted[0]);
+  });
+  card.appendChild(plusBefore);
+
+  const plusAfter = el('button', { className: 'ws-page-plus ws-page-plus-after', innerHTML: '+', ariaLabel: 'Insert blank page after selection' });
+  plusAfter.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const sorted = [...selected].sort((a, b) => a - b);
+    if (sorted.length) insertBlankPage(sorted[sorted.length - 1] + 1);
+  });
+  card.appendChild(plusAfter);
 
   const delBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-page-delete', innerHTML: '&times;', ariaLabel: 'Delete' });
   delBtn.addEventListener('click', (e) => { e.stopPropagation(); deletePage(idx); });

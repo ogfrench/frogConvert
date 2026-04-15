@@ -15,13 +15,13 @@ function setupDocsDOM() {
 // Import the module after DOM is set up.
 // sidebar.ts accesses the DOM at module scope, so we use resetModules +
 // dynamic import inside beforeEach to get a fresh module each test.
-type SidebarModule = typeof import('../../src/docs/sidebar.ts');
+type SidebarModule = typeof import('./sidebar.ts');
 let mod: SidebarModule;
 
 beforeEach(async () => {
   setupDocsDOM();
   vi.resetModules();
-  mod = await import('../../src/docs/sidebar.ts');
+  mod = await import('./sidebar.ts');
 });
 
 // ── Tests ────────────────────────────────────────────────────────────────────

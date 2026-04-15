@@ -1,5 +1,5 @@
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
-import { shortenFileName } from "../utils.ts";
+import { shortenFileName } from "../utils/index.ts";
 // --- DOM element references (lazy-initialized to allow testing) ---
 const uiInternal: Record<string, any> = {};
 
@@ -113,18 +113,9 @@ export const ui = new Proxy({} as any, {
   filesModalErrorClose: HTMLButtonElement;
 };
 
-// --- Constants ---
-
-export const DEFAULT_UPLOAD_TEXT = "Drop your files";
-export const DEFAULT_UPLOAD_LABEL = "";
-export const FILES_PER_PAGE = 20;
-
-export const PARALLAX_MAX_DIST = 600;
-export const PARALLAX_STRENGTH = 15;
-export const MOBILE_BREAKPOINT = 800;
+import { ABSOLUTE_MAX_FILES } from "../../constants/ui.ts";
 
 // --- File upload safeguards ---
-export const ABSOLUTE_MAX_FILES = 200;
 const SIZE_WARNING_THRESHOLD = 3.6 * 1024 * 1024 * 1024; // 3.6 GB
 
 type SizeCheckLevel = "ok" | "warning";

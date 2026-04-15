@@ -1,0 +1,46 @@
+.toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%) translateY(calc(100% + var(--space-4)));
+  bottom: var(--space-6);
+  z-index: 400;
+  max-width: calc(100% - var(--space-8));
+  padding: var(--space-3) var(--space-5);
+  background-color: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-snug);
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toast.open {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.toast.variant-warn {
+  border-color: var(--ring);
+}
+.toast.variant-error {
+  border-color: var(--destructive);
+  color: var(--destructive);
+}
+
+/* On mobile, sit above the floating toolbar + tray */
+@media (max-width: 800px) {
+  .toast {
+    bottom: calc(var(--space-6) + var(--space-12) + var(--space-3) + env(safe-area-inset-bottom, 0px));
+  }
+}

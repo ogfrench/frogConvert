@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import CommonFormats from '../../src/core/CommonFormats/CommonFormats.ts';
-import TMXHandler from '../../src/handlers/tmx.ts';
+import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
+import TMXHandler from './tmx.ts';
 import * as XLSX from "xlsx";
 
 const encoder = new TextEncoder();
@@ -30,7 +30,7 @@ const tmxFormatOut = CommonFormats.TMX.supported('xlsx-to-tmx', false, true);
 test('TMX handler converts .tmx to .xlsx and back to .tmx (Round-trip)', async () => {
     const handler = new TMXHandler();
     await handler.init();
-    
+
     // Pass 1: TMX -> XLSX
     const [xlsxOutput] = await handler.doConvert(
         [{ name: 'translations.tmx', bytes: encoder.encode(sampleTmx) }],
@@ -40,7 +40,7 @@ test('TMX handler converts .tmx to .xlsx and back to .tmx (Round-trip)', async (
 
     expect(xlsxOutput.name).toBe('translations.xlsx');
     expect(xlsxOutput.bytes).toBeInstanceOf(Uint8Array);
-    
+
     // Validate XLSX content structures cleanly mapping escaped fields correctly
     const workbook = XLSX.read(xlsxOutput.bytes, { type: 'array' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -57,7 +57,7 @@ test('TMX handler converts .tmx to .xlsx and back to .tmx (Round-trip)', async (
     );
 
     expect(tmxOutput.name).toBe('translations.tmx');
-    
+
     // Assert the output accurately re-escapes and binds structural tags correctly!
     const outputXmlString = decoder.decode(tmxOutput.bytes);
     expect(outputXmlString).toContain('<tuv xml:lang="en-US"><seg>Hello &amp; Welcome</seg></tuv>');
