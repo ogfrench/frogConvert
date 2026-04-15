@@ -2,7 +2,12 @@ import './styles/global.css';
 import { initFrogsworth } from "./components/Frogsworth/FrogsworthWidget.ts";
 import type { FormatHandler } from "./core/FormatHandler/FormatHandler.js";
 import handlers, { loadBackgroundHandlers } from "./handlers";
-import { initPdfWorkspace, selectPdfTool, resetAll as resetPdfWorkspace } from "./components/PdfWorkspace/PdfWorkspace.ts";
+type PdfWorkspaceModule = typeof import("./components/PdfWorkspace/PdfWorkspace.ts");
+let _pdfWsPromise: Promise<PdfWorkspaceModule> | null = null;
+function getPdfWorkspace(): Promise<PdfWorkspaceModule> {
+  _pdfWsPromise ??= import("./components/PdfWorkspace/PdfWorkspace.ts");
+  return _pdfWsPromise;
+}
 import { initRouter, navigateTo, type RouteState } from "./router.ts";
 import { isTouchUi } from "./core/utils/touchUi.ts";
 
@@ -59,6 +64,8 @@ import {
   setOnConversionEnd,
 } from "./conversion/actions.ts";
 import { triggerConfetti } from "./effects/Confetti/Confetti.ts";
+
+getPdfWorkspace().catch(() => {});
 
 // --- Init UI ---
 
@@ -176,9 +183,9 @@ function setAppMode(mode: string) {
     pdfWorkspaceEl.style.display = "";
     pdfDescriptionEl.style.display = "";
     replayEntranceAnimations([pdfWorkspaceEl, pdfDescriptionEl]);
-    initPdfWorkspace();
+    getPdfWorkspace().then(ws => ws.initPdfWorkspace()).catch(() => {});
   } else {
-    resetPdfWorkspace();
+    getPdfWorkspace().then(ws => ws.resetAll()).catch(() => {});
     pdfWorkspaceEl.style.display = "none";
     pdfDescriptionEl.style.display = "none";
     for (const el of converterEls) el.style.display = "";
@@ -206,7 +213,6 @@ mobileModePill?.addEventListener("click", (e) => {
 
 function applyRoute(route: RouteState) {
   setAppMode(route.mode);
-  if (route.mode === 'pdf-editor') initPdfWorkspace();
 }
 
 const initialRoute = initRouter(applyRoute);
