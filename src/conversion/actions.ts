@@ -123,7 +123,7 @@ let workerErrorCallback: ((e: ErrorEvent) => void) | null = null;
 
 function getConversionWorker(): Worker {
     if (!conversionWorker) {
-        conversionWorker = new Worker(new URL("../../workers/conversion.worker.ts", import.meta.url), { type: "module" });
+        conversionWorker = new Worker(new URL("../workers/conversion.worker.ts", import.meta.url), { type: "module" });
         conversionWorker.onerror = (err) => {
             // Worker crashed - reject the in-flight promise with a real error, then discard the dead worker
             const cb = workerErrorCallback;

@@ -22,7 +22,7 @@ frogConvert runs entirely in your browser. Convert between 70+ file formats or e
 
 ## Recent changes
 
-Headline of 1.1.0: a full in-browser **PDF editor** plus programmatic PDF access over MCP and REST. Full history in [CHANGELOG.md](CHANGELOG.md).
+Headline of 2.0.0: the full **PDF Editor** (in-browser merge, reorder/rotate, extract) plus PDF editing over MCP and REST, a major codebase refactor, and the dismissable Toast component. Full history in [CHANGELOG.md](CHANGELOG.md).
 
 ## Docs
 

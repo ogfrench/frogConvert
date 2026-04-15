@@ -21,7 +21,7 @@ export type { McpContext };
 async function main() {
     const server = new McpServer({
         name: "frogConvert-MCP",
-        version: "1.0.0"
+        version: "2.0.0"
     });
 
     // Initialize handlers in the background — don't block server startup.
