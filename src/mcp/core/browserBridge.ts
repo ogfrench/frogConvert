@@ -158,12 +158,12 @@ async function ensureInitialized(): Promise<void> {
         // between restarts. On a warm restart, Pandoc (~55 MB) compiles in seconds.
         // Chrome locks its profile dir — if a second server process tries to use the same
         // path (e.g. MCP + API running simultaneously), fall back to a fresh session.
-        browser = await puppeteer.launch({ headless: true, userDataDir: BRIDGE_CACHE_DIR })
+        browser = await puppeteer.launch({ headless: true, userDataDir: BRIDGE_CACHE_DIR, args: ["--no-sandbox", "--disable-setuid-sandbox"] })
             .catch(async (lockErr) => {
                 process.stderr.write(
                     `[bridge] Persistent cache unavailable (${lockErr?.message ?? lockErr}), launching without cache\n`
                 );
-                return puppeteer.launch({ headless: true });
+                return puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
             });
         bridgePage = await browser.newPage();
 

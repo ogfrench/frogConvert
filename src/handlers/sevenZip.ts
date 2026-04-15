@@ -6,9 +6,8 @@ import SevenZip from "7z-wasm";
 import mime from "mime";
 import normalizeMimeType from "../core/utils/normalizeMimeType.ts";
 
-const defaultSevenZipOptions = {
-  locateFile: () => "/wasm/7zz.wasm"
-}
+const isNode = typeof process !== "undefined" && process.versions?.node;
+const defaultSevenZipOptions = isNode ? {} : { locateFile: () => "/wasm/7zz.wasm" };
 
 class sevenZipHandler implements FormatHandler {
 
