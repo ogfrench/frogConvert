@@ -29,41 +29,17 @@ When working with frogConvert programmatically, **use the REST API or MCP server
 
 ---
 
-## Quick Start - No Repo Clone Required
+## Running the servers
 
-The easiest way to use frogConvert as an MCP server or REST API is directly via `bunx` - no clone or install needed. Requires [Bun](https://bun.sh/).
+For installation and CLI usage, see [DEPLOYMENT.md § CLI](DEPLOYMENT.md#cli-no-repo-clone-required). For privacy posture, see [../SECURITY.md](../SECURITY.md).
 
-### MCP Server (for Claude Code / Claude Desktop)
-
-Add this to your MCP config (`~/.claude.json` or `claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "frogconvert": {
-      "command": "bunx",
-      "args": ["frogconvert", "mcp"]
-    }
-  }
-}
-```
-
-### REST API Server
-
-```bash
-bunx frogconvert api
-# Optional: PORT=8080 bunx frogconvert api
-```
-
-> **Privacy:** All file processing is 100% local. No files are ever sent to any remote server.
-
-> **Prerequisites:** For audio/video formats, native `ffmpeg` gives best results (`winget install ffmpeg` / `brew install ffmpeg`). frogConvert falls back to a bundled static binary and then WASM automatically.
+> **Prerequisites:** for audio/video formats, native `ffmpeg` gives best results (`winget install ffmpeg` / `brew install ffmpeg`). frogConvert falls back to a bundled static binary and then WASM automatically.
 
 ---
 
 ## MCP Tools Reference
 
-Three tools, all over `stdio`:
+Six tools, all over `stdio`. Three are format conversion; three are PDF editing.
 
 1. **`list_formats`**
    - **Description**: Returns a JSON array of all supported input and output formats available in the Node.js environment.
@@ -104,6 +80,51 @@ Three tools, all over `stdio`:
      filePath: "/absolute/path/to/input.png"
      outputFilePath: "/absolute/path/to/output.pptx"
      ```
+
+### PDF editor tools
+
+The PDF editor is exposed as three dedicated MCP tools. They operate on PDFs directly using `pdf-lib`; they do not run the browser bridge.
+
+4. **`pdf_merge`**
+   - **Arguments**:
+     | Argument | Required | Description |
+     |---|---|---|
+     | `inputs` | required, min 2 | Array of `{ filePath?, base64Bytes?, fileName? }`. Each entry must supply either `filePath` or `base64Bytes`. |
+     | `outputFilePath` | optional | Absolute path to save the merged PDF. If omitted, returns base64. |
+   - **Description**: Concatenates pages from the input PDFs in the order given.
+   - **Returns**: same shape as `convert_file` (array of `{ fileName, base64Bytes }`, or `{ savedTo: [...] }` when `outputFilePath` is set).
+
+5. **`pdf_organize`**
+   - **Arguments**:
+     | Argument | Required | Description |
+     |---|---|---|
+     | `inputs` | required, min 1 | Source PDFs (same shape as `pdf_merge.inputs`). |
+     | `pages` | required, min 1 | Ordered page manifest (see below). |
+     | `outputFilePath` | optional | Save target; otherwise base64 is returned. |
+   - **Page manifest entry**:
+     ```
+     {
+       "sourceIndex": number,   // index into inputs[], or -1 for a blank page
+       "pageNum":     number,   // 1-indexed page in source PDF, 0 for blank
+       "rotation":    0 | 90 | 180 | 270,   // optional, default 0
+       "blank":       boolean,              // optional; if true, inserts a blank
+       "blankSize":   { "width": number, "height": number }  // optional blank size
+     }
+     ```
+   - **Description**: Builds a new PDF by reordering, rotating, deleting, and inserting blank pages from one or more source PDFs. Delete is implicit: omit a page from the manifest.
+   - **Returns**: same shape as `pdf_merge`.
+
+6. **`pdf_extract`**
+   - **Arguments**:
+     | Argument | Required | Description |
+     |---|---|---|
+     | `input` | required | Single source PDF (`{ filePath?, base64Bytes?, fileName? }`). |
+     | `pageNums` | required, min 1 | Array of 1-indexed page numbers to extract. |
+     | `baseName` | optional | Base name for outputs. Defaults to the input filename stem. |
+     | `groupAsOne` | optional, default `false` | `true` returns one combined PDF; `false` returns one PDF per page. |
+     | `outputDir` | optional | Absolute directory to save outputs; otherwise base64 is returned. |
+   - **Description**: Extracts the given pages from a source PDF.
+   - **Returns**: array of `{ fileName, base64Bytes }` (one per output file), or `{ savedTo: [...] }` listing written paths when `outputDir` is set.
 
 ---
 
@@ -154,6 +175,54 @@ curl -X POST http://127.0.0.1:3000/convert \
 - Response: `[{ "fileName": "output.png", "base64Bytes": "<base64>" }]` (array supports multi-file outputs)
 
 Returns `400` on bad input, `413` if the file exceeds `MAX_UPLOAD_MB`, `415` if Content-Type is unsupported, `422` if no path found or conversion fails.
+
+### PDF editor endpoints
+
+Three REST routes mirror the MCP PDF tools. Input schemas are identical. Output shapes differ in one field name: MCP returns `{ fileName, base64Bytes }` (matching `convert_file`), REST returns `{ files: [{ name, base64Bytes }] }` (matching `POST /convert` JSON responses). Both include `{ savedTo: [...] }` when an output path is supplied.
+
+#### `POST /pdf/merge`
+JSON body:
+```json
+{
+  "inputs": [{ "filePath": "/abs/a.pdf" }, { "filePath": "/abs/b.pdf" }],
+  "outputFilePath": "/abs/merged.pdf"
+}
+```
+- Each `inputs[]` entry takes `filePath` or `base64Bytes`, optionally `fileName`. Minimum 2 inputs.
+- If `outputFilePath` is omitted, responds with `{ "files": [{ "name": "merged.pdf", "base64Bytes": "..." }] }`.
+- If provided, responds with `{ "savedTo": ["/abs/merged.pdf"] }`.
+- Returns `400` on bad input.
+
+#### `POST /pdf/organize`
+JSON body:
+```json
+{
+  "inputs": [{ "filePath": "/abs/src.pdf" }],
+  "pages": [
+    { "sourceIndex": 0, "pageNum": 3, "rotation": 90 },
+    { "sourceIndex": -1, "pageNum": 0, "blank": true, "blankSize": { "width": 612, "height": 792 } },
+    { "sourceIndex": 0, "pageNum": 1 }
+  ],
+  "outputFilePath": "/abs/reshaped.pdf"
+}
+```
+- `inputs[]` minimum 1. `pages[]` minimum 1; same manifest shape as the MCP tool.
+- Response shape matches `POST /pdf/merge`.
+
+#### `POST /pdf/extract`
+JSON body:
+```json
+{
+  "input": { "filePath": "/abs/doc.pdf" },
+  "pageNums": [1, 3, 5],
+  "baseName": "doc",
+  "groupAsOne": false,
+  "outputDir": "/abs/out"
+}
+```
+- `pageNums` 1-indexed, minimum 1. `groupAsOne: true` combines all pages into a single PDF.
+- If `outputDir` is set, response is `{ "savedTo": ["/abs/out/doc_page_1.pdf", ...] }`.
+- Otherwise response is `{ "files": [{ "name": "...", "base64Bytes": "..." }, ...] }`.
 
 ---
 
@@ -206,13 +275,9 @@ The first call is slow because headless Chromium must launch and the specific ha
 
 ---
 
-## Environment Variables
+## See also
 
-| Variable | Default | Applies to | Description |
-|---|---|---|---|
-| `PORT` | `3000` | REST API | Port the HTTP server binds to. |
-| `MAX_UPLOAD_MB` | `4096` | MCP + REST API | Maximum input file size in megabytes. Files exceeding this limit are rejected before conversion. |
-
----
-
-For internal architecture details, handler rules, and the full file structure, see **[ARCHITECTURE.md](ARCHITECTURE.md)** and **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+- [DEPLOYMENT.md](DEPLOYMENT.md) - running the MCP server or REST API, environment variables, Docker, desktop builds.
+- [PDF_EDITOR.md](PDF_EDITOR.md) - end-user PDF editor docs.
+- [ARCHITECTURE.md](ARCHITECTURE.md) - internal subsystem design.
+- [HANDLERS.md](HANDLERS.md) - authoring a new format handler.

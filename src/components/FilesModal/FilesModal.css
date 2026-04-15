@@ -83,12 +83,14 @@
   user-select: none;
 }
 
-.file-row:last-child {
-  border-bottom: none;
+@media (max-width: 800px) {
+  .file-row {
+    padding: var(--space-4);
+  }
 }
 
-.file-row:hover {
-  background-color: var(--accent);
+.file-row:last-child {
+  border-bottom: none;
 }
 
 .file-row-name {

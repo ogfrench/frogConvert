@@ -173,6 +173,7 @@
 *::before,
 *::after {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 a {
@@ -221,7 +222,9 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
   display: flex;
   flex-direction: column;
-  overflow: hidden !important;
+  /* clip (not hidden) so sticky children resolve against html, not body */
+  overflow-x: clip !important;
+  overflow-y: visible;
   width: 100% !important;
   max-width: 100vw !important;
   position: relative;
@@ -318,22 +321,24 @@ html.scroll-lock {
 }
 
 #footer-confetti-btn {
+  position: fixed;
+  bottom: var(--space-6);
+  left: var(--space-6);
+  z-index: 100;
   background: none;
   border: none;
-  font-size: var(--text-xl);
   cursor: pointer;
   padding: 0;
-  border-radius: var(--radius-full);
-  transition: transform 0.2s ease, background-color 0.2s ease;
+  color: var(--muted-foreground);
+  transition: color 0.3s ease, transform 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--space-8);
-  height: var(--space-8);
+  line-height: 1;
 }
 
 #footer-confetti-btn:hover {
-  background-color: var(--secondary);
+  color: var(--foreground);
   transform: scale(1.1);
 }
 
@@ -510,6 +515,13 @@ html.scroll-lock {
 
 .modal-container.popup-size>*:last-child:not(.popup-actions-footer) {
   margin-bottom: 0;
+}
+
+/* Popup choice layout — title + stacked action buttons + close */
+.popup-choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 /* --- Modal Header --- */

@@ -2,8 +2,9 @@ import './styles/global.css';
 import { initFrogsworth } from "./components/Frogsworth/FrogsworthWidget.ts";
 import type { FormatHandler } from "./core/FormatHandler/FormatHandler.js";
 import handlers, { loadBackgroundHandlers } from "./handlers";
-import { initPdfWorkspace, selectPdfTool } from "./components/PdfWorkspace/PdfWorkspace.ts";
+import { initPdfWorkspace, selectPdfTool, resetAll as resetPdfWorkspace } from "./components/PdfWorkspace/PdfWorkspace.ts";
 import { initRouter, navigateTo, type RouteState } from "./router.ts";
+import { isTouchUi } from "./core/utils/touchUi.ts";
 
 // Kick off TraversionGraph load immediately in the background - does not block paint.
 // refreshUI() awaits this promise before calling .init(), so it's always ready in time.
@@ -65,7 +66,7 @@ initCustomCursor();
 initFilesModal();
 
 // Set device-appropriate browse hint ("or click to browse" vs "or tap to browse")
-const browseHint = window.matchMedia("(pointer: coarse)").matches
+const browseHint = isTouchUi()
   ? "or tap to browse"
   : "or click to browse";
 for (const el of document.querySelectorAll<HTMLElement>(".upload-hint")) {
@@ -86,7 +87,7 @@ initCategoryTabs((category) => {
     clearFormatSelection(activeCategory.value);
   }
   updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
-  navigateTo('converter', category);
+  navigateTo('converter');
 });
 
 // --- App Mode Navigation (Converter ↔ PDF Editor) ---
@@ -97,6 +98,7 @@ const modeIconPdf = document.getElementById("mode-icon-pdf")!;
 const topControlsMenu = document.getElementById("top-controls-menu")!;
 const converterEls = ["hero-title", "category-tabs", "convert-card", "description"].map(id => document.getElementById(id)!);
 const pdfWorkspaceEl = document.getElementById("pdf-workspace")!;
+const pdfDescriptionEl = document.getElementById("pdf-description")!;
 
 let currentAppMode = "converter";
 
@@ -169,25 +171,23 @@ function setAppMode(mode: string) {
   if (mode === "pdf-editor") {
     for (const el of converterEls) el.style.display = "none";
     pdfWorkspaceEl.style.display = "";
-    replayEntranceAnimations([pdfWorkspaceEl]);
+    pdfDescriptionEl.style.display = "";
+    replayEntranceAnimations([pdfWorkspaceEl, pdfDescriptionEl]);
     initPdfWorkspace();
   } else {
+    resetPdfWorkspace();
     pdfWorkspaceEl.style.display = "none";
+    pdfDescriptionEl.style.display = "none";
     for (const el of converterEls) el.style.display = "";
     replayEntranceAnimations(converterEls);
   }
-}
-
-function subForMode(mode: string): string {
-  if (mode === 'converter') return activeCategory.value;
-  return document.querySelector('#pdf-editor-tabs .cat-tab.active')?.getAttribute('data-tool') || '';
 }
 
 // Desktop mode toggle button
 modeToggleBtn.addEventListener("click", () => {
   const next = currentAppMode === "converter" ? "pdf-editor" : "converter";
   setAppMode(next);
-  navigateTo(next, subForMode(next));
+  navigateTo(next);
 });
 
 // Mobile hamburger pill control
@@ -196,39 +196,18 @@ mobileModePill?.addEventListener("click", (e) => {
   const btn = (e.target as HTMLElement).closest(".pill-option") as HTMLButtonElement | null;
   if (!btn || btn.classList.contains("active")) return;
   setAppMode(btn.dataset.value!);
-  navigateTo(btn.dataset.value!, subForMode(btn.dataset.value!));
-});
-
-// PDF tool tabs → update URL
-document.getElementById("pdf-editor-tabs")!.addEventListener("click", (e) => {
-  const btn = (e.target as HTMLElement).closest(".cat-tab") as HTMLButtonElement | null;
-  if (!btn || btn.classList.contains("active")) return;
-  navigateTo('pdf-editor', btn.dataset.tool || '');
+  navigateTo(btn.dataset.value!);
 });
 
 // --- Router (URL ↔ state sync) ---
 
-function minModeForCategory(category: string) {
-  if (isCategoryVisible(category, 'core')) return 'core' as const;
-  if (isCategoryVisible(category, 'plus')) return 'plus' as const;
-  return 'all' as const;
-}
-
 function applyRoute(route: RouteState) {
   setAppMode(route.mode);
-  if (route.mode === 'converter') {
-    if (route.sub && !isCategoryVisible(route.sub, formatMode.value)) {
-      applyMode(minModeForCategory(route.sub));
-    }
-    selectCategoryTab(route.sub || '');
-  } else {
-    selectPdfTool(route.sub || 'merge');
-  }
+  if (route.mode === 'pdf-editor') initPdfWorkspace();
 }
 
 const initialRoute = initRouter(applyRoute);
-// Apply initial route from URL (only if non-default to avoid redundant work)
-if (initialRoute.mode !== 'converter' || initialRoute.sub !== '') {
+if (initialRoute.mode !== 'converter') {
   applyRoute(initialRoute);
 }
 
@@ -494,4 +473,12 @@ if (footerConfettiBtn) {
   footerConfettiBtn.addEventListener("click", () => {
     triggerConfetti();
   });
+
+  const confettiMq = window.matchMedia("(max-width: 1100px), (max-height: 350px)");
+  const updateConfettiPlacement = (mobile: boolean) => {
+    footerConfettiBtn.classList.toggle("confetti-below-footer", mobile);
+    document.body.appendChild(footerConfettiBtn);
+  };
+  updateConfettiPlacement(confettiMq.matches);
+  confettiMq.addEventListener("change", (e) => updateConfettiPlacement(e.matches));
 }

@@ -1,9 +1,10 @@
 import { MOBILE_BREAKPOINT, PARALLAX_MAX_DIST, PARALLAX_STRENGTH } from "../store/store.ts";
+import { isTouchUi } from "../../core/utils/touchUi.ts";
 
 // --- Ambient Visuals ---
 export function initParallax() {
   // Don't init on touch devices
-  if (window.matchMedia("(pointer: coarse)").matches) return;
+  if (isTouchUi()) return;
 
   const bgSpans = Array.from(document.querySelectorAll("#bg-visuals span")) as HTMLElement[];
   if (bgSpans.length === 0) return;

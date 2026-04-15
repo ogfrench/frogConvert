@@ -5,6 +5,7 @@ import { ui, CATEGORY_LABELS, formatDisplayName, formatMode, getFormatCategory, 
 // --- Format modal ---
 
 import { ModalManager } from "../utils/ModalManager.ts";
+import { isTouchUi } from "../../core/utils/touchUi.ts";
 
 let _searchTimeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -23,7 +24,7 @@ export function openFormatModal() {
   ModalManager.open(ui.formatModal, ui.formatModalBg, closeFormatModal);
 
   // Don't auto-focus search on mobile to prevent keyboard popup
-  if (!window.matchMedia("(pointer: coarse)").matches) {
+  if (!isTouchUi()) {
     ui.formatSearch.focus();
   }
 }

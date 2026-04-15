@@ -1,42 +1,25 @@
 // ---------------------------------------------------------------------------
-// Lightweight History API router for /convert/* and /pdf/* paths
+// Lightweight History API router for /convert and /pdf paths
 // ---------------------------------------------------------------------------
-
-const CONVERT_CATEGORIES = ['image', 'audio', 'video', 'document', 'archive', 'data', 'font', 'code', 'other'];
-const PDF_TOOLS = ['merge', 'extract', 'organize'];
 
 export interface RouteState {
   mode: 'converter' | 'pdf-editor';
-  sub: string; // category name or pdf tool, empty string for defaults
 }
 
-/** Parse current URL pathname into a RouteState. */
 export function parseURL(pathname = location.pathname): RouteState {
-  const parts = pathname.replace(/^\/+|\/+$/g, '').split('/');
-  const base = parts[0];
-  const sub = parts[1] || '';
-
-  if (base === 'pdf') {
-    return { mode: 'pdf-editor', sub: PDF_TOOLS.includes(sub) ? sub : '' };
-  }
-  if (base === 'convert') {
-    return { mode: 'converter', sub: CONVERT_CATEGORIES.includes(sub) ? sub : '' };
-  }
-  // Unknown path → default
-  return { mode: 'converter', sub: '' };
+  const base = pathname.replace(/^\/+|\/+$/g, '').split('/')[0];
+  return { mode: base === 'pdf' ? 'pdf-editor' : 'converter' };
 }
 
-/** Build a URL path from mode + sub-tab. */
-export function buildPath(mode: string, sub = ''): string {
-  const base = mode === 'pdf-editor' ? '/pdf' : '/convert';
-  return sub ? `${base}/${sub}` : base;
+export function buildPath(mode: string): string {
+  return mode === 'pdf-editor' ? '/pdf' : '/convert';
 }
 
 /** Push a new URL via History API. Skips if already at the target path or in Electron. */
-export function navigateTo(mode: string, sub = ''): void {
-  if (location.protocol === 'app:') return; // Electron — skip URL manipulation
-  const target = buildPath(mode, sub);
-  if (location.pathname === target) return; // Already there — avoid duplicate entries
+export function navigateTo(mode: string): void {
+  if (location.protocol === 'app:') return;
+  const target = buildPath(mode);
+  if (location.pathname === target) return;
   history.pushState(null, '', target);
 }
 
@@ -45,15 +28,11 @@ export function initRouter(onRouteChange: (route: RouteState) => void): RouteSta
   const initial = parseURL();
 
   if (location.protocol !== 'app:') {
-    // Normalize bare "/" or unknown paths to /convert
-    const correctPath = buildPath(initial.mode, initial.sub);
+    const correctPath = buildPath(initial.mode);
     if (location.pathname !== correctPath) {
       history.replaceState(null, '', correctPath);
     }
-
-    window.addEventListener('popstate', () => {
-      onRouteChange(parseURL());
-    });
+    window.addEventListener('popstate', () => onRouteChange(parseURL()));
   }
 
   return initial;

@@ -6,6 +6,13 @@ if (typeof navigator !== 'undefined' && !(navigator as any).deviceMemory) {
     Object.defineProperty(navigator, 'deviceMemory', { value: 4, configurable: true });
 }
 
+// pdfjs-dist references DOMMatrix at module-load time; jsdom doesn't provide it.
+if (typeof (globalThis as any).DOMMatrix === 'undefined') {
+    (globalThis as any).DOMMatrix = class DOMMatrix {
+        constructor(_init?: unknown) {}
+    };
+}
+
 import { createWorkerHandler } from '../src/workers/route-search.worker.ts';
 
 if (typeof Worker === 'undefined') {

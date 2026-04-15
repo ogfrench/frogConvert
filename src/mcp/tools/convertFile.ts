@@ -1,12 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { readFile, writeFile } from "fs/promises";
+import { writeFile } from "fs/promises";
 import { basename, dirname, join } from "path";
 import type { FileData } from "../../core/FormatHandler/FormatHandler.ts";
 import type { McpContext } from "../core/types.ts";
 
 import { findFormatAndHandler, libreofficeHint } from "../core/utils.ts";
 import { convertViaBrowser } from "../core/browserBridge.ts";
+import { resolveBytes } from "../core/fileInput.ts";
 
 async function serializeResults(files: FileData[], outputFilePath?: string) {
     // Collect warnings from all files (deduped).
@@ -54,39 +55,16 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
             outputFilePath: z.string().optional().describe("Absolute path where the output file should be saved. If omitted, the result is returned as base64.")
         },
         async ({ fileName, base64Bytes, filePath, inputMime, inputExtension, outputMime, outputExtension, outputFilePath }) => {
-            // Resolve file content: from filePath or base64Bytes
-            if (filePath) {
-                try {
-                    const diskBytes = await readFile(filePath);
-                    base64Bytes = diskBytes.toString('base64');
-                    if (!fileName) fileName = basename(filePath);
-                } catch (err: any) {
-                    return {
-                        content: [{ type: "text", text: `Error reading filePath: ${err?.message ?? err}` }],
-                        isError: true
-                    };
-                }
-            }
-
-            if (!base64Bytes) {
+            let bytes: Uint8Array;
+            let resolvedName: string;
+            try {
+                const r = await resolveBytes({ filePath, base64Bytes, fileName });
+                bytes = r.bytes;
+                resolvedName = r.name;
+            } catch (err: any) {
                 return {
-                    content: [{ type: "text", text: "Error: Either base64Bytes or filePath must be provided." }],
-                    isError: true
-                };
-            }
-
-            if (!fileName) {
-                return {
-                    content: [{ type: "text", text: "Error: fileName must be provided when using base64Bytes." }],
-                    isError: true
-                };
-            }
-
-            const maxUploadMb = Number(process.env.MAX_UPLOAD_MB ?? 4096);
-            if (base64Bytes.length * 0.75 > maxUploadMb * 1024 * 1024) {
-                return {
-                    content: [{ type: "text", text: `Error: File too large (max ${maxUploadMb} MB)` }],
-                    isError: true
+                    content: [{ type: "text", text: `Error: ${err?.message ?? err}` }],
+                    isError: true,
                 };
             }
 
@@ -106,9 +84,7 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
                 const pathResult = await pathsGenerator.next();
                 if (!pathResult.done && pathResult.value) {
                     const path = pathResult.value;
-                    const buffer = Buffer.from(base64Bytes, 'base64');
-                    const bytes = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-                    let currentFiles: FileData[] = [{ name: fileName, bytes }];
+                    let currentFiles: FileData[] = [{ name: resolvedName, bytes }];
 
                     try {
                         // path[0] is the source node (no conversion step); steps start at index 1
@@ -130,8 +106,9 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
             // No native path, format unknown to native registry, or native execution failed.
             // The bridge loads ALL handlers including browser-only ones (requiresMainThread=true).
             try {
+                const bridgeBase64 = Buffer.from(bytes).toString('base64');
                 const bridgeResults = await convertViaBrowser(
-                    fileName, base64Bytes, inputMime, inputExtension, outputMime, outputExtension
+                    resolvedName, bridgeBase64, inputMime, inputExtension, outputMime, outputExtension
                 );
                 if (outputFilePath && bridgeResults.length > 0) {
                     return await serializeResults(

@@ -1,14 +1,14 @@
 import { PDFDocument, degrees } from 'pdf-lib';
 import type { FileData } from '../core/FormatHandler/FormatHandler.ts';
-import type { PageEntry, SourceFile } from './types.ts';
+import type { CorePageEntry, CoreSourceFile } from './types.ts';
 
 /**
  * Create a new PDF with pages arranged according to the given PageEntry order.
  * Deleted pages should be filtered out before calling this function.
  */
 export async function organize(
-  sourceFiles: SourceFile[],
-  pages: PageEntry[]
+  sourceFiles: CoreSourceFile[],
+  pages: CorePageEntry[]
 ): Promise<FileData> {
   // Load each source PDF once
   const loaded = new Map<number, PDFDocument>();

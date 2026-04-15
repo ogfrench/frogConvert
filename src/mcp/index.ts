@@ -10,6 +10,9 @@ import type { FileFormat } from '../core/FormatHandler/FormatHandler.ts';
 import { registerListFormatsTool } from './tools/listFormats.ts';
 import { registerFindConversionPathTool } from './tools/findConversionPath.ts';
 import { registerConvertFileTool } from './tools/convertFile.ts';
+import { registerPdfMergeTool } from './tools/pdfMerge.ts';
+import { registerPdfOrganizeTool } from './tools/pdfOrganize.ts';
+import { registerPdfExtractTool } from './tools/pdfExtract.ts';
 import { warmUpBridge } from './core/browserBridge.ts';
 import type { McpContext } from './core/types.ts';
 
@@ -44,6 +47,9 @@ async function main() {
     registerListFormatsTool(server, initPromise);
     registerFindConversionPathTool(server, initPromise);
     registerConvertFileTool(server, initPromise);
+    registerPdfMergeTool(server);
+    registerPdfOrganizeTool(server);
+    registerPdfExtractTool(server);
 
     // Start browser warm-up immediately — don't await, let it run in parallel
     // with the transport setup and user think time before the first tool call.

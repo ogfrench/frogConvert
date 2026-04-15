@@ -2,17 +2,21 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 
 const _isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
-// Lazy-load pdfjs-dist only on non-Safari browsers
 let pdfjsLib: typeof import('pdfjs-dist') | null = null;
-const pdfjsReady: Promise<void> = import('pdfjs-dist').then(async (lib) => {
-  pdfjsLib = lib;
-  const { default: workerSrc } = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
-  lib.GlobalWorkerOptions.workerSrc = workerSrc;
-});
+let pdfjsReady: Promise<void> | null = null;
+function ensurePdfjs(): Promise<void> {
+  if (!pdfjsReady) {
+    pdfjsReady = import('pdfjs-dist').then(async (lib) => {
+      pdfjsLib = lib;
+      const { default: workerSrc } = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
+      lib.GlobalWorkerOptions.workerSrc = workerSrc;
+    });
+  }
+  return pdfjsReady;
+}
 
-// Cache loaded PDF documents so we don't reload the same PDF for every page.
+const DOC_CACHE_MAX = 5;
 const docCache = new Map<Uint8Array, PDFDocumentProxy>();
-// Reuse a single canvas for all thumbnail renders to avoid repeated allocation/GC.
 let sharedCanvas: HTMLCanvasElement | null = null;
 
 /**
@@ -24,17 +28,26 @@ export async function renderPageThumbnail(
   pageNum: number,
   maxWidth = 150
 ): Promise<string> {
-  await pdfjsReady;
+  await ensurePdfjs();
   if (!pdfjsLib) return '';
 
   let pdf = docCache.get(pdfBytes);
-  if (!pdf) {
+  if (pdf) {
+    // Re-insert to move to MRU position (Map iterates in insertion order).
+    docCache.delete(pdfBytes);
+    docCache.set(pdfBytes, pdf);
+  } else {
     pdf = await pdfjsLib.getDocument({
       data: pdfBytes.slice(),
       isEvalSupported: false,
       isOffscreenCanvasSupported: false,
     }).promise;
     docCache.set(pdfBytes, pdf);
+    if (docCache.size > DOC_CACHE_MAX) {
+      const oldestKey = docCache.keys().next().value as Uint8Array;
+      docCache.get(oldestKey)?.destroy();
+      docCache.delete(oldestKey);
+    }
   }
 
   const page = await pdf.getPage(pageNum);
@@ -61,6 +74,10 @@ export function clearThumbnailCache() {
     pdf.destroy();
   }
   docCache.clear();
+  if (sharedCanvas) {
+    sharedCanvas.width = 0;
+    sharedCanvas.height = 0;
+  }
 }
 
 /**

@@ -205,7 +205,7 @@ describe('registerConvertFileTool', () => {
         });
 
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/base64Bytes or filePath/);
+        expect(result.content[0].text).toMatch(/filePath or base64Bytes/);
     });
 
     it('returns error when base64Bytes provided without fileName', async () => {
@@ -281,7 +281,7 @@ describe('registerConvertFileTool', () => {
         });
 
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/Error reading filePath/);
+        expect(result.content[0].text).toMatch(/ENOENT/);
     });
 
     it('writes output to disk when outputFilePath is provided (native path)', async () => {

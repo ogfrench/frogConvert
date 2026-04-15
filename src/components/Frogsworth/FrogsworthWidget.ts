@@ -704,7 +704,7 @@ class FrogsworthWidget {
     window.addEventListener("drop", this._onDrop);
     this.scheduleIdle();
     const slot = document.getElementById("frogsworth-slot");
-    this._mq = window.matchMedia("(max-width: 1000px), (max-height: 350px)");
+    this._mq = window.matchMedia("(max-width: 1100px), (max-height: 350px)");
     const updatePlacement = (mobile: boolean) => {
       if (mobile && slot) slot.appendChild(this.el);
       else document.body.appendChild(this.el);

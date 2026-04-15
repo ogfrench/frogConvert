@@ -34,8 +34,16 @@ Allow: /
 Sitemap: https://frogconvert.xyz/sitemap.xml
 
 # Documentation (human + agent readable)
-# HTML docs: https://frogconvert.xyz/docs/
-# Raw markdown: https://frogconvert.xyz/docs/README.md
-#              https://frogconvert.xyz/docs/AGENTS.md
-#              https://frogconvert.xyz/docs/AGENT_CONTEXT.md
+# HTML docs:     https://frogconvert.xyz/docs/
+# Raw markdown:  https://frogconvert.xyz/README.md
+#                https://frogconvert.xyz/AGENTS.md
+#                https://frogconvert.xyz/SECURITY.md
+#                https://frogconvert.xyz/CHANGELOG.md
+#                https://frogconvert.xyz/docs/CONVERTER.md
+#                https://frogconvert.xyz/docs/PDF_EDITOR.md
+#                https://frogconvert.xyz/docs/INTEGRATIONS.md
+#                https://frogconvert.xyz/docs/DEPLOYMENT.md
+#                https://frogconvert.xyz/docs/ARCHITECTURE.md
+#                https://frogconvert.xyz/docs/HANDLERS.md
+#                https://frogconvert.xyz/docs/CONTRIBUTING.md
 

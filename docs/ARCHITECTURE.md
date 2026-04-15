@@ -113,6 +113,31 @@ Some handlers are pure compute (run in a background thread). Others need browser
 
 ---
 
+## PDF Workspace (Editor Mode)
+
+frogConvert ships a second workspace alongside the converter: an in-browser **PDF editor**. Unlike the conversion pipeline, which originates from the [Convert to it!](https://github.com/p2r3/convert) fork, the PDF Workspace is **frogConvert-original**; it is not present in the upstream project. It is a parallel subsystem and **does not route through TraversionGraph or FormatHandlers**. If you are extending the converter, ignore it. If you are extending the editor, ignore the handler authoring guide.
+
+**App-mode toggle.** [src/main.ts](../src/main.ts) and [src/router.ts](../src/router.ts) maintain an "app mode" state (`converter` vs `pdf`) that swaps which workspace section is visible in [index.html](../index.html). The converter workspace is `#convert-card`; the editor is `#pdf-workspace`.
+
+**Three operations**, each isolated in `src/tools/`:
+
+| File | Operation | Library |
+|------|-----------|---------|
+| [src/tools/pdfMerge.ts](../src/tools/pdfMerge.ts) | Concatenate multiple PDFs into one | `pdf-lib` |
+| [src/tools/pdfOrganize.ts](../src/tools/pdfOrganize.ts) | Reorder, rotate (±90°), insert blank pages | `pdf-lib` |
+| [src/tools/pdfExtract.ts](../src/tools/pdfExtract.ts) | Extract a page range as a new PDF | `pdf-lib` |
+| [src/tools/pdfThumbnails.ts](../src/tools/pdfThumbnails.ts) | Render page previews (lazy, cached) | `pdfjs-dist` |
+
+**Orchestrator.** [src/components/PdfWorkspace/PdfWorkspace.ts](../src/components/PdfWorkspace/PdfWorkspace.ts) owns the editor UI: tab switching (Merge / Organize), drag-and-drop reorder via `sortablejs`, rotation accumulation, and download wiring.
+
+**Dependency split.** `pdf-lib` is the **write path** (creates new PDFs). `pdfjs-dist` is the **render path** (only used for thumbnails). Keep them separate; do not import `pdfjs-dist` in tool files.
+
+**Safari note.** `pdfjs-dist` thumbnail rendering hits Safari JS-engine limits with PDF input. [src/tools/pdfThumbnails.ts](../src/tools/pdfThumbnails.ts) carries a fallback path; preserve it when refactoring.
+
+**Where to put new code.** A new conversion (e.g. PDF → CSV) is a new handler under `src/handlers/`. A new PDF editing operation (e.g. watermark, sign) is a new tool under `src/tools/` plus a new tab in `PdfWorkspace.ts`. They are not interchangeable.
+
+---
+
 ## Web Workers (Why the Page Doesn't Freeze)
 
 Converting a video can take seconds. If that ran on the browser's main thread, the whole page would lock up.
@@ -206,18 +231,18 @@ sequenceDiagram
 
 ## The MCP Server & REST API
 
-frogConvert also exposes its conversion engine as a **local server** - so scripts, automation tools, and AI assistants can trigger conversions without opening a browser.
+frogConvert exposes both the conversion engine and the PDF editor as a **local server** so scripts, automation tools, and AI assistants can drive them without opening a browser.
 
 ```mermaid
 flowchart LR
     A[AI Agent\nor Script] -->|MCP stdio| M[MCP Server\nsrc/mcp/]
-    A -->|HTTP POST /convert| R[REST API\nsrc/api/]
-    M --> E[Same Conversion Engine]
+    A -->|HTTP| R[REST API\nsrc/api/]
+    M --> E[Conversion Engine + PDF Workspace]
     R --> E
-    E --> O[Output File]
+    E --> O[Output Files]
 ```
 
-Both run 100% locally. No internet needed. See [INTEGRATIONS.md](INTEGRATIONS.md) for usage.
+Both run 100% locally. The MCP server exposes 6 tools (`list_formats`, `find_conversion_path`, `convert_file`, `pdf_merge`, `pdf_organize`, `pdf_extract`). The REST API mirrors the same surface. See [INTEGRATIONS.md](INTEGRATIONS.md) for request/response shapes.
 
 ---
 
@@ -240,9 +265,18 @@ Both run 100% locally. No internet needed. See [INTEGRATIONS.md](INTEGRATIONS.md
 
 ## How to Add a New Format
 
-1. Create a new file in `src/handlers/myFormat.ts`
-2. Implement the `FormatHandler` interface - define which formats you accept/output
-3. Register your handler in `src/handlers/index.ts`
-4. The route finder automatically includes your handler in the graph - no other wiring needed
+Quick version:
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full handler authoring guide.
+1. Create `src/handlers/myFormat.ts`.
+2. Implement `FormatHandler` (or extend a base class); declare input/output formats.
+3. Register in `src/handlers/index.ts`.
+4. The route finder picks it up automatically; no other wiring needed.
+
+Full guide with interface, base classes, builder API, quality presets, warnings, and registration patterns is in **[HANDLERS.md](HANDLERS.md)**.
+
+## See also
+
+- [HANDLERS.md](HANDLERS.md) - authoring a new format handler.
+- [CONTRIBUTING.md](CONTRIBUTING.md) - PR process, testing, style.
+- [INTEGRATIONS.md](INTEGRATIONS.md) - MCP and REST API.
+- [PDF_EDITOR.md](PDF_EDITOR.md) - PDF editor end-user docs.

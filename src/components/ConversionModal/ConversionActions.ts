@@ -109,7 +109,7 @@ export function downloadFile(bytes: Uint8Array, name: string) {
     link.href = objectUrl;
     link.download = name;
     link.click();
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
 }
 
 export async function downloadAsZip(files: { name: string; bytes: Uint8Array }[], zipName: string) {

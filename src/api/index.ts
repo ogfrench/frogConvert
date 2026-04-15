@@ -7,6 +7,7 @@ import type { FileFormat } from '../core/FormatHandler/FormatHandler.ts';
 import { handleFormats } from './routes/formats.ts';
 import { handlePath } from './routes/path.ts';
 import { handleConvert } from './routes/convert.ts';
+import { handlePdfMerge, handlePdfOrganize, handlePdfExtract } from './routes/pdf.ts';
 import { warmUpBridge } from '../mcp/core/browserBridge.ts';
 
 async function main() {
@@ -43,6 +44,18 @@ async function main() {
 
             if (req.method === "POST" && url.pathname === "/convert") {
                 return handleConvert(req, handlers, graph, allHandlers);
+            }
+
+            if (req.method === "POST" && url.pathname === "/pdf/merge") {
+                return handlePdfMerge(req);
+            }
+
+            if (req.method === "POST" && url.pathname === "/pdf/organize") {
+                return handlePdfOrganize(req);
+            }
+
+            if (req.method === "POST" && url.pathname === "/pdf/extract") {
+                return handlePdfExtract(req);
             }
 
             return Response.json({ error: "Not found" }, { status: 404 });

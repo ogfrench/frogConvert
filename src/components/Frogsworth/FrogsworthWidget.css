@@ -94,10 +94,21 @@
 }
 
 /* Pre-allocate slot height on mobile so the layout doesn't shift when JS loads the widget */
-@media (max-width: 1000px),
+@media (max-width: 1100px),
 (max-height: 350px) {
   #frogsworth-slot {
     min-height: 6rem;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+  }
+
+  #frogsworth-slot:has(.frogsworth-widget) {
+    margin-top: auto;
+  }
+
+  body:has(#frogsworth-slot .frogsworth-widget) #page-footer {
+    margin-top: 0;
   }
 }
 
@@ -105,8 +116,24 @@
 #frogsworth-slot .frogsworth-widget {
   position: static;
   align-items: center;
-  margin: var(--space-8) auto var(--space-2);
+  margin: var(--space-8) 0 var(--space-4);
   animation: frog-slot-enter 0.45s ease forwards;
+}
+
+body > #footer-confetti-btn.confetti-below-footer {
+  position: static;
+  display: flex;
+  margin: var(--space-4) auto var(--space-6);
+  z-index: 101;
+  animation: frog-slot-enter 0.45s ease forwards;
+}
+
+body:has(.ws-toolbar) > #footer-confetti-btn.confetti-below-footer {
+  margin-bottom: calc(var(--space-16) + var(--space-12));
+}
+
+body:has(.ws-toolbar):has(#footer-confetti-btn.confetti-below-footer) #page-footer {
+  padding-bottom: var(--space-4);
 }
 
 /* Reduce footer top padding when frogsworth is in the slot */

@@ -52,9 +52,9 @@ describe("E2E Conversion Flow", () => {
     }, 30000); // Server and chromium startup may take time
 
     afterAll(async () => {
-        if (browser) await browser.close();
-        if (server) await server.close();
-    }, 15000);
+        try { if (browser) await browser.close(); } catch { /* slow chromium teardown under full-suite load */ }
+        try { if (server) await server.close(); } catch { /* ignore */ }
+    }, 60000);
 
     beforeEach(({ skip }) => {
         if (!browserAvailable) skip();
