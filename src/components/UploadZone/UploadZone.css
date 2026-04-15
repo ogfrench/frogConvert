@@ -40,6 +40,12 @@
   background-color: var(--accent);
 }
 
+#upload-zone.drag-reject {
+  border-color: var(--destructive);
+  background-color: color-mix(in srgb, var(--destructive) 8%, var(--secondary));
+  cursor: not-allowed;
+}
+
 #upload-zone.has-file {
   border-style: solid;
   border-color: var(--ring);

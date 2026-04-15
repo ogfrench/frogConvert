@@ -50,6 +50,7 @@ import {
   isCategoryVisible,
   formatMode,
   formatDisplayName,
+  buildAcceptString,
 } from "./components/index.ts";
 import {
   findMatchingFormat,
@@ -335,7 +336,12 @@ function showLoadingBar(show: boolean) {
   }
 }
 
+function updateFileInputAccept() {
+  ui.fileInput.accept = buildAcceptString(allOptionsRef.value);
+}
+
 async function refreshUI() {
+  updateFileInputAccept();
   await traversionGraphReady;
   window.traversionGraph.init(window.supportedFormatCache, handlers);
   renderFormatOptions(allOptionsRef.value, activeCategory.value);

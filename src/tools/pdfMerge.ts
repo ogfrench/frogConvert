@@ -19,8 +19,8 @@ export async function merge(files: CoreSourceFile[]): Promise<FileData> {
 
   const bytes = await output.save();
   const name = files.length === 2
-    ? `${stripExt(files[0].name)}_merged.pdf`
-    : 'merged.pdf';
+    ? `${stripExt(files[0].name)}_merged_pdfs.pdf`
+    : 'merged_pdfs.pdf';
 
   return { name, bytes: new Uint8Array(bytes) };
 }

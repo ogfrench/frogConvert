@@ -1,5 +1,6 @@
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 import { shortenFileName } from "../utils/index.ts";
+import normalizeMimeType from "../../core/utils/normalizeMimeType.ts";
 // --- DOM element references (lazy-initialized to allow testing) ---
 const uiInternal: Record<string, any> = {};
 
@@ -310,21 +311,73 @@ export function isFormatVisible(format: FileFormat, mode: FormatMode): boolean {
 }
 
 // --- UI Helpers ---
-export function bindDragAndDropVisuals(element: HTMLElement, activeClass: string = "drag-over") {
+export function bindDragAndDropVisuals(
+  element: HTMLElement,
+  activeClass: string = "drag-over",
+  getOptions?: () => Array<{ format: FileFormat; handler: FormatHandler }>,
+) {
   let dragCount = 0;
   window.addEventListener("dragenter", (e) => {
     if (!(e.dataTransfer?.types ?? []).includes("Files")) return;
-    if (++dragCount === 1) element.classList.add(activeClass);
+    if (++dragCount !== 1) return;
+    if (getOptions) {
+      const opts = getOptions();
+      if (opts.length > 0) {
+        const items = Array.from(e.dataTransfer?.items ?? []);
+        const allRejected = items.length > 0 && items.every(item => {
+          if (!item.type || item.type === "application/octet-stream") return false;
+          return !opts.some(o => o.format.from && o.format.mime === item.type);
+        });
+        if (allRejected) {
+          element.classList.add("drag-reject");
+          return;
+        }
+      }
+    }
+    element.classList.add(activeClass);
   });
   window.addEventListener("dragleave", (e) => {
     if (!(e.dataTransfer?.types ?? []).includes("Files")) return;
     dragCount = Math.max(0, dragCount - 1);
-    if (dragCount === 0) element.classList.remove(activeClass);
+    if (dragCount === 0) {
+      element.classList.remove(activeClass);
+      element.classList.remove("drag-reject");
+    }
   });
   window.addEventListener("drop", () => {
     dragCount = 0;
     element.classList.remove(activeClass);
+    element.classList.remove("drag-reject");
   });
+}
+
+/** Build the `accept` attribute string for a file input from the current format list. */
+export function buildAcceptString(
+  allOptions: Array<{ format: FileFormat; handler: FormatHandler }>
+): string {
+  const mimes = new Set<string>();
+  const exts  = new Set<string>();
+  for (const { format } of allOptions) {
+    if (!format.from) continue;
+    if (format.mime) mimes.add(format.mime);
+    if (format.extension) exts.add(`.${format.extension.toLowerCase()}`);
+  }
+  return [...mimes, ...exts].join(",");
+}
+
+/** Returns true if the file matches any supported input format in the current format list. */
+export function isFileSupported(
+  file: File,
+  allOptions: Array<{ format: FileFormat; handler: FormatHandler }>
+): boolean {
+  const mime = normalizeMimeType(file.type);
+  const ext  = file.name.split(".").pop()?.toLowerCase() ?? "";
+  for (const { format } of allOptions) {
+    if (!format.from) continue;
+    if (format.mime && format.mime === mime) return true;
+    if (format.extension && format.extension.toLowerCase() === ext) return true;
+  }
+  return false;
 }
 
 /** Sort files alphabetically by name. Shared by UploadZone and FilesModal. */

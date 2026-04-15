@@ -95,26 +95,26 @@ describe('pdfOrganize', () => {
     expect(p.getHeight()).toBeCloseTo(841.89, 1);
   });
 
-  it('names output "{base}_organized.pdf" for single source file', async () => {
+  it('names output "{base}_organized_pdfs.pdf" for single source file', async () => {
     const bytes = await makePdf(2);
     const file = sf(1, 'report.pdf', bytes, 2);
     const pages = [page(1, 2), page(1, 1)];
     const result = await organize([file], pages);
-    expect(result.name).toBe('report_organized.pdf');
+    expect(result.name).toBe('report_organized_pdfs.pdf');
   });
 
-  it('names output "organized.pdf" for multiple source files', async () => {
+  it('names output "organized_pdfs.pdf" for multiple source files', async () => {
     const a = await makePdf(1);
     const b = await makePdf(1);
     const pages = [page(1, 1), page(2, 1)];
     const result = await organize([sf(1, 'a.pdf', a, 1), sf(2, 'b.pdf', b, 1)], pages);
-    expect(result.name).toBe('organized.pdf');
+    expect(result.name).toBe('organized_pdfs.pdf');
   });
 
-  it('names output "organized.pdf" when all pages are blank', async () => {
+  it('names output "organized_pdfs.pdf" when all pages are blank', async () => {
     const pages = [blankPage(), blankPage()];
     const result = await organize([], pages);
-    expect(result.name).toBe('organized.pdf');
+    expect(result.name).toBe('organized_pdfs.pdf');
   });
 
   it('silently skips pages with missing source file ID', async () => {

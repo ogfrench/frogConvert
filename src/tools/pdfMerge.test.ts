@@ -23,18 +23,18 @@ describe('pdfMerge', () => {
     expect(out.getPageCount()).toBe(2);
   });
 
-  it('names output "{first}_merged.pdf" for exactly 2 files', async () => {
+  it('names output "{first}_merged_pdfs.pdf" for exactly 2 files', async () => {
     const a = await makePdf(1);
     const b = await makePdf(1);
     const result = await merge([sf(0, 'report.pdf', a, 1), sf(1, 'appendix.pdf', b, 1)]);
-    expect(result.name).toBe('report_merged.pdf');
+    expect(result.name).toBe('report_merged_pdfs.pdf');
   });
 
-  it('names output "merged.pdf" for 3+ files', async () => {
+  it('names output "merged_pdfs.pdf" for 3+ files', async () => {
     const bytes = await makePdf(1);
     const files = [sf(0, 'a.pdf', bytes, 1), sf(1, 'b.pdf', bytes, 1), sf(2, 'c.pdf', bytes, 1)];
     const result = await merge(files);
-    expect(result.name).toBe('merged.pdf');
+    expect(result.name).toBe('merged_pdfs.pdf');
   });
 
   it('preserves page order across files', async () => {
@@ -57,6 +57,6 @@ describe('pdfMerge', () => {
     const b = await makePdf(1);
     const result = await merge([sf(0, 'noext', a, 1), sf(1, 'b.pdf', b, 1)]);
     // stripExt returns the whole name when no '.' found
-    expect(result.name).toBe('noext_merged.pdf');
+    expect(result.name).toBe('noext_merged_pdfs.pdf');
   });
 });

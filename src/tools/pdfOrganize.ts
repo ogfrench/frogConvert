@@ -43,13 +43,13 @@ export async function organize(
 
   // Name based on number of real sources (exclude blank pages)
   const uniqueSources = new Set(pages.filter(p => p.type !== 'blank').map(p => p.sourceFileId));
-  let name = 'organized.pdf';
+  let name = 'organized_pdfs.pdf';
   if (uniqueSources.size === 1) {
     const sf = sourceFiles.find(f => f.id === [...uniqueSources][0]);
     if (sf) {
       const dot = sf.name.lastIndexOf('.');
       const base = dot > 0 ? sf.name.slice(0, dot) : sf.name;
-      name = `${base}_organized.pdf`;
+      name = `${base}_organized_pdfs.pdf`;
     }
   }
 

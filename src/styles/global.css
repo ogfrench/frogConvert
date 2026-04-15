@@ -447,6 +447,10 @@ html.scroll-lock {
   transform: scale(0.98);
 }
 
+.dark .btn-secondary {
+  background-color: var(--card);
+}
+
 /* --- Modal Overlay --- */
 .modal-overlay {
   position: fixed;

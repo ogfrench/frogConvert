@@ -49,6 +49,26 @@
   flex-direction: column;
 }
 
+/* Cap the popup and disable the default modal-container scroll so the
+   inner list scrolls instead, pinning the footer. Both selectors needed:
+   one caps the flex parent, the other suppresses the outer scrollbar. */
+#popup:has(.type-filter-scroll) {
+  max-height: 85vh;
+}
+
+.modal-container.popup-size:has(.type-filter-scroll) {
+  overflow-y: hidden;
+}
+
+.type-filter-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  gap: 0;
+  padding-top: 0;
+  margin-top: 0;
+}
+
 #popup button.type-filter-row {
   display: flex;
   justify-content: space-between;
@@ -98,4 +118,80 @@
   font-size: var(--text-xl);
   font-weight: var(--font-normal);
   margin-left: var(--space-4);
+}
+
+#popup button.type-filter-row--unsupported {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+#popup button.type-filter-row--unsupported:hover {
+  background-color: transparent;
+}
+
+.type-filter-tag {
+  font-size: var(--text-sm);
+  font-weight: var(--font-normal);
+  color: var(--muted-foreground);
+  margin-left: var(--space-4);
+  white-space: nowrap;
+}
+
+#popup p.upload-summary-sub {
+  margin: calc(-1 * var(--space-4)) 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+.upload-summary-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-4);
+  max-height: 50vh;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.upload-summary-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-base);
+}
+
+.upload-summary-row:last-child {
+  border-bottom: none;
+}
+
+.upload-summary-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--foreground);
+}
+
+.upload-summary-row--skipped .upload-summary-name {
+  color: var(--muted-foreground);
+}
+
+.upload-summary-tag {
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  padding: var(--space-0-5) var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--secondary);
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+}
+
+.upload-summary-row--added .upload-summary-tag {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.upload-summary-row--skipped .upload-summary-tag {
+  color: var(--destructive);
+  border-color: var(--destructive);
 }

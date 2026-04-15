@@ -6,6 +6,7 @@ import { ui, CATEGORY_LABELS, formatDisplayName, formatMode, getFormatCategory, 
 
 import { ModalManager } from "../utils/ModalManager.ts";
 import { isTouchUi } from "../../core/utils/touchUi.ts";
+import { showToast } from "../Toast/Toast.ts";
 
 let _searchTimeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -145,6 +146,7 @@ const LIBREOFFICE_INPUT_EXTS = new Set([
  * libreoffice enabled). Otherwise hide it.
  */
 let libreofficeNoticeDismissed = false;
+let mobileHintShown = false;
 
 function updateLibreofficeNoticeVisibility(fromIdx: number | null, toIdx: number | null) {
   const notice = ui.libreofficeNotice;
@@ -183,7 +185,22 @@ function updateLibreofficeNoticeVisibility(fromIdx: number | null, toIdx: number
   const lofmts = window.supportedFormatCache?.get("libreoffice");
   const libreofficeAvailable = Array.isArray(lofmts) && lofmts.length > 0;
 
-  notice.hidden = libreofficeAvailable;
+  const shouldShow = !libreofficeAvailable;
+
+  if (isTouchUi()) {
+    // On mobile, the banner takes too much space — show a one-time toast instead.
+    notice.hidden = true;
+    if (shouldShow && !mobileHintShown) {
+      mobileHintShown = true;
+      showToast(
+        "You're on mobile, so this conversion will happen without LibreOffice. Your PDF may not match your slides.",
+        "warn",
+        12000,
+      );
+    }
+  } else {
+    notice.hidden = !shouldShow;
+  }
 }
 
 // --- Format list rendering ---

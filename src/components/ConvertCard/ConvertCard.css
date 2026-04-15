@@ -27,7 +27,6 @@
   padding-right: calc(var(--space-4) + 24px);
   background-color: var(--secondary);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--primary);
   border-radius: var(--radius);
 }
 

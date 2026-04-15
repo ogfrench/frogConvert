@@ -1,10 +1,12 @@
 import "./UploadZone.css";
 import {
   ui, currentFiles, getMaxFiles, checkFileSizeLimits,
-  onFilesChanged, onClearFiles, sortFilesByName, bindDragAndDropVisuals
+  onFilesChanged, onClearFiles, sortFilesByName, bindDragAndDropVisuals,
+  allOptionsRef, isLoadingHandlers, isLoadingPhase2, isFileSupported,
 } from "../store/store.ts";
 import { DEFAULT_UPLOAD_LABEL } from "../../constants/ui.ts";
-import { showPopup, hidePopup, createPopupButton, showSizeWarningPopup, showFileTypeMismatchPopup } from "../Popup/Popup.ts";
+import { showSizeWarningPopup, showFileTypeMismatchPopup, showUploadSummaryPopup, LEGACY_OFFICE_HINT, type UploadResult } from "../Popup/Popup.ts";
+import { showToast } from "../Toast/Toast.ts";
 import { shortenFileName } from "../utils/index.ts";
 import { openFilesModal } from "../FilesModal/FilesModal.ts";
 
@@ -36,7 +38,7 @@ export function initUploadZone(
     ui.fileInput.click();
   });
 
-  bindDragAndDropVisuals(ui.uploadZone);
+  bindDragAndDropVisuals(ui.uploadZone, "drag-over", () => allOptionsRef.value);
 
   ui.removeFileBtn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -76,17 +78,33 @@ export function initUploadZone(
     const files = Array.from(inputFiles);
     if (files.length === 0) return;
 
+    // Reject unsupported files before they enter the pipeline.
+    // Only filter when handlers are fully loaded; during cold start fall through to the
+    // existing loading-phase handling in the onFilesSelected callback.
+    if (!isLoadingHandlers.value && !isLoadingPhase2.value && allOptionsRef.value.length > 0) {
+      const unsupported = files.filter(f => !isFileSupported(f, allOptionsRef.value));
+      if (unsupported.length === files.length) {
+        if (files.length === 1) {
+          const ext = files[0].name.split(".").pop()?.toUpperCase() ?? "?";
+          const hint = LEGACY_OFFICE_HINT[ext.toLowerCase()];
+          const msg = hint
+            ? `.${ext} isn't supported. Open it in ${hint.app} and save as .${hint.modern} to convert it here.`
+            : `.${ext} isn't supported yet.`;
+          showToast(msg, "warn", 8000);
+        } else {
+          const results: UploadResult[] = files.map(f => ({ name: f.name, status: "skipped", reason: "unsupported" }));
+          showUploadSummaryPopup(results);
+        }
+        return;
+      }
+    }
+
     // Dynamic file count cap based on device memory + file weight
     const maxFiles = getMaxFiles(files);
     if (files.length > maxFiles) {
-      const h2 = document.createElement("h2");
-      h2.textContent = "Too many files";
-      const p = document.createElement("p");
-      p.textContent = `You selected ${files.length} files, but the limit for these files is ${maxFiles}. Try selecting fewer or smaller files.`;
-      const actions = document.createElement("div");
-      actions.className = "popup-actions";
-      actions.appendChild(createPopupButton("OK", "popup-primary", () => hidePopup()));
-      showPopup([h2, p, actions]);
+      const results: UploadResult[] = files.map(f =>
+        ({ name: f.name, status: "skipped", reason: "file-limit" }));
+      showUploadSummaryPopup(results, { files: maxFiles });
       return;
     }
 

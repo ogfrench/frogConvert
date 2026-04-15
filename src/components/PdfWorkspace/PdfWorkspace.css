@@ -104,52 +104,6 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 .ws-move-btn {
   flex: 1;
 }
-.ws-action-full-grow {
-  flex: 1;
-  min-width: 0;
-}
-.ws-action-more {
-  flex-shrink: 0;
-  width: var(--control-size);
-  height: auto;
-  aspect-ratio: 1;
-  font-size: var(--text-xl);
-  line-height: var(--leading-none);
-}
-
-/* ⋮ dropdown menu */
-.ws-more-menu {
-  min-width: 14rem;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-lg);
-  padding: var(--space-1);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  z-index: 350;
-  animation: ws-more-menu-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-}
-@keyframes ws-more-menu-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.ws-more-menu-item {
-  text-align: left;
-  padding: var(--space-2) var(--space-3);
-  border: 0;
-  background: transparent;
-  color: var(--foreground);
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  font-family: inherit;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background-color 0.12s ease;
-  white-space: nowrap;
-}
-.ws-more-menu-item:hover { background: var(--accent); }
 
 .ws-checkbox-row {
   display: flex;
@@ -171,7 +125,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   flex-direction: column;
   justify-content: center;
   gap: var(--space-0-5);
-  padding-right: var(--space-5);
+  padding-right: var(--space-8);
   min-height: var(--space-7);
   flex-shrink: 0;
 }
@@ -202,7 +156,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding-right: var(--space-5);
+  padding-right: 0;
 }
 
 .ws-sidebar-meta {
@@ -308,6 +262,12 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 .ws-dropzone.drag-over {
   border-color: var(--primary);
   background-color: var(--accent);
+}
+
+.ws-dropzone.drag-reject {
+  border-color: var(--destructive);
+  background-color: color-mix(in srgb, var(--destructive) 8%, var(--secondary));
+  cursor: not-allowed;
 }
 
 .ws-dropzone .upload-text {
@@ -541,13 +501,14 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 .ws-page-check,
 .ws-file-check {
   position: absolute;
-  top: var(--space-2);
-  left: var(--space-2);
+  bottom: var(--space-5);
+  left: 50%;
+  transform: translateX(-50%);
   width: 1.25rem;
   height: 1.25rem;
   border-radius: var(--radius-full);
-  background: var(--primary);
-  color: var(--primary-foreground);
+  background: #0a0a0a;
+  color: #fafafa;
   display: none;
   align-items: center;
   justify-content: center;
@@ -782,6 +743,11 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   opacity: var(--opacity-disabled);
 }
 
+.sortable-fallback {
+  opacity: 0.85 !important;
+  pointer-events: none !important;
+}
+
 /* ===================================================================
    Buttons
    =================================================================== */
@@ -799,8 +765,13 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   transition: background-color 0.15s ease;
 }
 
+.dark .ws-btn {
+  background: var(--card);
+}
+
 .ws-btn:hover {
   background: var(--accent);
+  border-color: var(--ring);
 }
 
 .ws-btn-small {
@@ -947,6 +918,38 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     opacity: 1;
   }
 
+  /* --- Organize toolbar: two-row layout --- */
+  .ws-toolbar--organize {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ws-toolbar-top {
+    display: flex;
+    gap: var(--space-2);
+    align-items: stretch;
+  }
+
+  .ws-toolbar-extract,
+  .ws-toolbar-export {
+    text-align: center;
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--text-base);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .ws-toolbar-extract { flex: 1; }
+  .ws-toolbar-export  { width: 100%; }
+
+  /* Two-row toolbar is taller: push tray and grid padding accordingly */
+  body:has(.ws-toolbar--organize) .ws-tray {
+    bottom: calc(var(--space-6) + var(--space-12) + var(--space-12) + var(--space-2) + var(--space-3) + env(safe-area-inset-bottom, 0px));
+  }
+
+  body:has(.ws-toolbar--organize) .ws-grid-card {
+    padding-bottom: calc(var(--space-16) + var(--space-10) + var(--space-12) + var(--space-2));
+  }
+
   /* --- Mobile tray: floating card above toolbar --- */
   .ws-tray {
     display: block;
@@ -957,7 +960,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     width: calc(100% - var(--space-10));
     max-width: 28rem;
     max-height: 70vh;
-    overflow-y: auto;
+    overflow: hidden auto;
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
