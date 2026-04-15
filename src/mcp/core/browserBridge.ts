@@ -24,6 +24,8 @@ const DIST_DIR = join(__dirname, "..", "..", "..", "dist");
 // Persistent Chrome profile: V8 caches compiled WASM here between restarts.
 // On a warm restart, Pandoc WASM (~55 MB) compiles in seconds instead of minutes.
 const BRIDGE_CACHE_DIR = join(__dirname, "..", "..", "..", ".bridge-cache");
+// Required on Linux CI/Docker where unprivileged user namespaces are restricted (AppArmor).
+const PUPPETEER_ARGS = ["--no-sandbox", "--disable-setuid-sandbox"];
 
 const MIME_TYPES: Record<string, string> = {
     ".html": "text/html",
@@ -158,12 +160,12 @@ async function ensureInitialized(): Promise<void> {
         // between restarts. On a warm restart, Pandoc (~55 MB) compiles in seconds.
         // Chrome locks its profile dir — if a second server process tries to use the same
         // path (e.g. MCP + API running simultaneously), fall back to a fresh session.
-        browser = await puppeteer.launch({ headless: true, userDataDir: BRIDGE_CACHE_DIR, args: ["--no-sandbox", "--disable-setuid-sandbox"] })
+        browser = await puppeteer.launch({ headless: true, userDataDir: BRIDGE_CACHE_DIR, args: PUPPETEER_ARGS })
             .catch(async (lockErr) => {
                 process.stderr.write(
                     `[bridge] Persistent cache unavailable (${lockErr?.message ?? lockErr}), launching without cache\n`
                 );
-                return puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+                return puppeteer.launch({ headless: true, args: PUPPETEER_ARGS });
             });
         bridgePage = await browser.newPage();
 
