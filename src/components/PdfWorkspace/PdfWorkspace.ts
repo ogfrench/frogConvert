@@ -14,7 +14,7 @@ import { showPopup, hidePopup, replacePopup, createPopupButton, showUploadSummar
 import { formatBytes, escapeHTML, shortenFileName, ensureMinDuration } from '../utils/index.ts';
 import { createDancingFrog } from '../Frogsworth/DancingFrog.ts';
 import { triggerConfetti } from '../../effects/Confetti/Confetti.ts';
-import { ui } from '../store/store.ts';
+import { ui, updateScrollLock } from '../store/store.ts';
 
 // ---------------------------------------------------------------------------
 // State — shared file pool, per-tab working state
@@ -211,6 +211,21 @@ export function initPdfWorkspace() {
   toolContent = document.getElementById('pdf-tool-content')!;
   fileInput = document.getElementById('workspace-file-input') as HTMLInputElement;
   errorEl = document.getElementById('workspace-error')!;
+
+  // Blank-page thumbs bake theme colors into an SVG data URL, so re-render on theme toggle.
+  let wasDark = document.documentElement.classList.contains('dark');
+  new MutationObserver(() => {
+    const isDark = document.documentElement.classList.contains('dark');
+    if (isDark === wasDark) return;
+    wasDark = isDark;
+    requestAnimationFrame(() => {
+      if (!gridEl) return;
+      const src = getBlankPageThumb();
+      gridEl.querySelectorAll<HTMLImageElement>('.ws-page-card img[alt="Blank page"]').forEach(img => {
+        img.src = src;
+      });
+    });
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
   // Apply pending tool
   const tabs = document.getElementById('pdf-editor-tabs')!;
@@ -460,6 +475,7 @@ function createFileCard(sf: SourceFile): HTMLElement {
   if (selectedFiles.has(sf.id)) card.classList.add('ws-file-selected');
   card.setAttribute('role', 'checkbox');
   card.setAttribute('aria-checked', String(selectedFiles.has(sf.id)));
+  card.addEventListener('contextmenu', (e) => e.preventDefault());
   card.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).closest('.ws-file-remove, .ws-file-list-remove')) return;
     if (selectedFiles.has(sf.id)) selectedFiles.delete(sf.id);
@@ -541,11 +557,7 @@ function appendMobileToolbar_merge(gridCard: HTMLElement) {
   mergeMobileTray = tray;
   updateMergeSidebarContent(tray);
   const overlay = el('div', { className: 'ws-tray-overlay' });
-
-  const openTray = () => { tray.classList.add('ws-tray-open'); overlay.classList.add('ws-tray-open'); };
-  const closeTray = () => { tray.classList.remove('ws-tray-open'); overlay.classList.remove('ws-tray-open'); };
-  iconBtn.addEventListener('click', () => tray.classList.contains('ws-tray-open') ? closeTray() : openTray());
-  overlay.addEventListener('click', closeTray);
+  wireTrayToggle(tray, overlay, iconBtn);
 
   document.body.appendChild(overlay);
   document.body.appendChild(tray);
@@ -1141,10 +1153,10 @@ function removeFile(fid: number) {
 // ---------------------------------------------------------------------------
 
 function toggleSelection(idx: number, shift: boolean) {
-  if (shift && lastClickedIdx >= 0) {
-    const start = Math.min(lastClickedIdx, idx);
-    const end = Math.max(lastClickedIdx, idx);
-    for (let i = start; i <= end; i++) selected.add(i);
+  if (shift && selected.size > 0) {
+    let lo = idx, hi = idx;
+    for (const s of selected) { if (s < lo) lo = s; if (s > hi) hi = s; }
+    for (let i = lo; i <= hi; i++) selected.add(i);
   } else {
     selected.has(idx) ? selected.delete(idx) : selected.add(idx);
   }
@@ -1388,7 +1400,20 @@ function createInsertBtn(atIdx: number): HTMLElement {
 // Mobile toolbar + tray
 // ---------------------------------------------------------------------------
 
-const MORE_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>';
+const MORE_SVG  = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>';
+const CLOSE_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+function wireTrayToggle(tray: HTMLElement, overlay: HTMLElement, iconBtn: HTMLElement) {
+  const setOpen = (open: boolean) => {
+    tray.classList.toggle('ws-tray-open', open);
+    overlay.classList.toggle('ws-tray-open', open);
+    iconBtn.innerHTML = open ? CLOSE_SVG : MORE_SVG;
+    iconBtn.setAttribute('aria-label', open ? 'Close options' : 'More options');
+    updateScrollLock();
+  };
+  iconBtn.addEventListener('click', () => setOpen(!tray.classList.contains('ws-tray-open')));
+  overlay.addEventListener('click', () => setOpen(false));
+}
 
 function appendMobileToolbar(gridCard: HTMLElement) {
   const toolbar = el('div', { className: 'ws-toolbar ws-toolbar--organize' });
@@ -1420,10 +1445,7 @@ function appendMobileToolbar(gridCard: HTMLElement) {
   buildMobileTrayContent(tray);
   const overlay = el('div', { className: 'ws-tray-overlay' });
 
-  const openTray = () => { tray.classList.add('ws-tray-open'); overlay.classList.add('ws-tray-open'); };
-  const closeTray = () => { tray.classList.remove('ws-tray-open'); overlay.classList.remove('ws-tray-open'); };
-  iconBtn.addEventListener('click', () => tray.classList.contains('ws-tray-open') ? closeTray() : openTray());
-  overlay.addEventListener('click', closeTray);
+  wireTrayToggle(tray, overlay, iconBtn);
 
   document.body.appendChild(overlay);
   document.body.appendChild(tray);
@@ -1532,6 +1554,7 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
     className: 'ws-page-card',
     dataset: { pageIdx: String(idx) },
   });
+  card.addEventListener('contextmenu', (e) => e.preventDefault());
 
   const isBlank = page.type === 'blank';
   const thumb = el('div', { className: `ws-page-thumb${page.thumbnail || isBlank ? '' : ' ws-skeleton'}` });

@@ -156,7 +156,15 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding-right: 0;
+  padding-right: var(--space-8);
+}
+
+.ws-page-thumb img,
+.ws-file-thumb img {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none;
 }
 
 .ws-sidebar-meta {
@@ -891,7 +899,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     background: none;
     border: none;
     box-shadow: none;
-    z-index: 200;
+    z-index: 302;
   }
 
   .ws-toolbar-icon {
@@ -922,6 +930,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   .ws-toolbar--organize {
     flex-direction: column;
     align-items: stretch;
+    bottom: calc(var(--toolbar-bottom) + var(--space-2));
   }
 
   .ws-toolbar-top {
@@ -943,11 +952,15 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 
   /* Two-row toolbar is taller: push tray and grid padding accordingly */
   body:has(.ws-toolbar--organize) .ws-tray {
-    bottom: calc(var(--space-6) + var(--space-12) + var(--space-12) + var(--space-2) + var(--space-3) + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--space-6) + var(--space-12) + var(--space-12) + var(--space-4) + var(--space-3) + env(safe-area-inset-bottom, 0px));
   }
 
   body:has(.ws-toolbar--organize) .ws-grid-card {
-    padding-bottom: calc(var(--space-16) + var(--space-10) + var(--space-12) + var(--space-2));
+    padding-bottom: calc(var(--space-12) + var(--space-12) + var(--space-4) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .ws-sidebar-count {
+    font-size: var(--text-xs);
   }
 
   /* --- Mobile tray: floating card above toolbar --- */
@@ -965,7 +978,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg);
-    z-index: 201;
+    z-index: 301;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s ease, transform 0.2s ease;
@@ -1021,7 +1034,8 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     position: fixed;
     inset: 0;
     background: var(--overlay-bg);
-    z-index: 198;
+    backdrop-filter: var(--blur-overlay);
+    z-index: 300;
   }
 
   .ws-tray-overlay.ws-tray-open {

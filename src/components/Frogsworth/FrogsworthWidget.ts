@@ -76,6 +76,17 @@ const PDF_IDLE_QUIPS: Quip[] = [
   q("need fewer pages? extract. more pages? merge. same pages but different? organize.", "excited"),
   q("frogsworth: pdf surgeon", "excited"),
   q("pdfs don't edit themselves. well, not yet.", "smug"),
+  q("rotate, reorder, remove. the three r's.", "happy"),
+  q("that one page sideways? i can fix that.", "excited"),
+  q("page 47 ruining the whole document? delete it.", "smug"),
+  q("combine the boring pdfs into one giant boring pdf", "idle"),
+  q("reorder pages by dragging. no manual required.", "happy"),
+  q("splitting a pdf: like cell division, but for paperwork", "excited"),
+  q("pages don't have feelings. reorder freely.", "smug"),
+  q("staring at a 200-page pdf? pick the 10 you need.", "idle"),
+  q("thumbnails below. scroll, drag, done.", "happy"),
+  q("two pdfs enter. one pdf leaves.", "excited"),
+  q("the undo button exists. use it generously.", "idle"),
 ];
 
 const PAIR_QUIPS: Record<string, Quip[]> = {

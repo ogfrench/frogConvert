@@ -427,7 +427,8 @@ export function updateScrollLock() {
     ui.formatModal?.classList.contains("open") ||
     ui.filesModal?.classList.contains("open") ||
     ui.topControls?.classList.contains("menu-open") ||
-    ui.popupBox?.classList.contains("open");
+    ui.popupBox?.classList.contains("open") ||
+    !!document.querySelector(".ws-tray.ws-tray-open");
 
   document.documentElement.classList.toggle("scroll-lock", !!isAnyModalOpen);
 }

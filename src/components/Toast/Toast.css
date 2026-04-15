@@ -30,7 +30,9 @@
 }
 
 .toast.variant-warn {
-  border-color: var(--ring);
+  border-color: var(--destructive);
+  color: var(--destructive);
+  background-color: color-mix(in srgb, var(--destructive) 10%, var(--card));
 }
 .toast.variant-error {
   border-color: var(--destructive);

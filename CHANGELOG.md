@@ -41,6 +41,21 @@ Headline: the **full PDF Editor** lands alongside a major structural refactor of
 - PDF workspace hero: "How will you shape your PDFs today?" (plural).
 - Homepage meta description trimmed.
 
+### Polish
+- **Upload UX overhaul.** Unsupported files now rejected upfront via dynamic `accept` attribute, drag-reject visual, and a drop-time toast or summary modal (replaces the old post-upload dead-end popup). Legacy Office formats (.doc/.xls/.ppt) surface an actionable "save as .DOCX" hint.
+- **Upload summary modal.** New read-only list of added vs skipped files with per-file reason tags (Not supported / Too large / Page limit / File limit / Not a PDF) and an overall limit line (e.g. "Limit: 200 pages total."). Replaces three separate truncation toasts.
+- **Mismatch picker** disables unsupported type groups, sorts supported first, scrolls internally with a pinned footer, and shows a concrete "Save as .DOCX" hint for legacy Office formats.
+- **PDF workspace limits.** Lowered to 200 pages / 500 MB total; breaches truncate gracefully instead of hard-rejecting.
+- **Mobile PDF toolbar.** Rebuilt to a two-row layout (Extract · ⋮ / Export PDF full-width); kebab swaps to × when the tray is open; tray overlay now dims the hamburger menu with the same backdrop-blur as other modals.
+- **Mobile tray body-scroll lock** reuses `updateScrollLock()`.
+- **Organize selection.** Plain tap/click toggles (unified with mobile); shift-click extends range to cover the full current selection (no more fragmented blocks). New pointer-driven rAF autoscroll when dragging near viewport edges.
+- **Filenames.** Merge/organize outputs named `*_pdfs.pdf` for clarity in downloads folder.
+- **Dark-mode secondary buttons** now show a visible border (root cause: `--secondary` and `--border` resolved to the same token).
+- **Warn toast styling** updated to use warning-colored border/text/tint so it actually looks like a warning.
+- **Blank-page thumb** follows theme toggle via a scoped MutationObserver.
+- **Thumbnail long-press / right-click** blocked on both mobile and desktop so the browser's native image menu no longer interrupts drag.
+- **Frogsworth** gains 11 new PDF-editor quips.
+
 ## [1.0.x and earlier]
 
 Pre-changelog releases. Notable additions since forking from [Convert to it!](https://github.com/p2r3/convert):
