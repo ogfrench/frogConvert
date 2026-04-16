@@ -45,7 +45,7 @@
 .ws-grid-card {
   flex: 1;
   min-width: 0;
-  min-height: 20rem;
+  align-self: flex-start;
   padding: var(--space-5);
   border-radius: var(--radius-xl) 0 0 var(--radius-xl);
 }
@@ -305,7 +305,6 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   grid-template-columns: repeat(auto-fill, 8rem);
   justify-content: center;
   gap: var(--space-4) var(--space-6);
-  padding-bottom: var(--space-3);
   align-items: stretch;
   touch-action: manipulation;
 }
