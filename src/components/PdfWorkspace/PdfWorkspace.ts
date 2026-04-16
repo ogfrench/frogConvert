@@ -32,19 +32,18 @@ let organizeInitialized = false; // true once pages derived from files
 
 function onFilesMutated(): void {
   organizeInitialized = false;
-  const cleared = selected.size > 0 || selectedFiles.size > 0;
   selected.clear();
-  selectedFiles.clear();
-  if (cleared) showToast('Selection cleared after files changed');
+  const fileIds = new Set(files.map(f => f.id));
+  for (const id of selectedFiles) {
+    if (!fileIds.has(id)) selectedFiles.delete(id);
+  }
 }
 
 // File order changed but ids unchanged — preserve `selectedFiles`; only the
 // derived page indices are invalid.
 function onFilesReordered(): void {
   organizeInitialized = false;
-  const cleared = selected.size > 0;
   selected.clear();
-  if (cleared) showToast('Selection cleared after files changed');
 }
 
 
@@ -76,6 +75,39 @@ function startAutoScroll(leftCard: HTMLElement): void {
 function stopAutoScroll(): void {
   if (_autoScrollFrame) { cancelAnimationFrame(_autoScrollFrame); _autoScrollFrame = null; }
   document.removeEventListener('pointermove', _onAutoScrollPointerMove);
+}
+
+// ---------------------------------------------------------------------------
+// Multi-drag visuals (shared between merge + organize Sortable instances)
+// ---------------------------------------------------------------------------
+
+function applyMultiDragVisuals(
+  container: HTMLElement,
+  itemSelector: string,
+  getId: (el: HTMLElement) => number,
+  draggedId: number,
+  selectionSet: Set<number>,
+): void {
+  requestAnimationFrame(() => {
+    const ghost = document.querySelector('.sortable-fallback') as HTMLElement;
+    if (ghost) {
+      const badge = document.createElement('span');
+      badge.className = 'ws-ghost-count';
+      badge.textContent = String(selectionSet.size);
+      ghost.appendChild(badge);
+    }
+  });
+  container.querySelectorAll<HTMLElement>(itemSelector).forEach(el => {
+    const id = getId(el);
+    if (!isNaN(id) && id !== draggedId && selectionSet.has(id)) {
+      el.classList.add('ws-multi-drag-hidden');
+    }
+  });
+}
+
+function clearMultiDragVisuals(container: HTMLElement): void {
+  container.querySelectorAll('.ws-multi-drag-hidden').forEach(el =>
+    el.classList.remove('ws-multi-drag-hidden'));
 }
 
 function setKeyboardMode(on: boolean): void {
@@ -183,8 +215,8 @@ let rendering = false;
 const EAGER_LIMIT = 50;
 
 const MAX_TOTAL_FILE_SIZE = 500 * 1024 * 1024; // 500 MB total
-const MAX_FILES = 200;
-const MAX_TOTAL_PAGES = 200;
+const MAX_FILES = 300;
+const MAX_TOTAL_PAGES = 300;
 
 // ---------------------------------------------------------------------------
 // Init + Tab switching
@@ -330,22 +362,33 @@ function updateMergeContent() {
   mergeGridContainer.appendChild(addCard);
 
   sortableInstance = new Sortable(mergeGridContainer, {
-    animation: 200, delay: 150, delayOnTouchOnly: true, ghostClass: 'ws-ghost',
+    animation: 200, delay: 150, delayOnTouchOnly: true,
+    forceFallback: true,
+    fallbackOnBody: true,
+    scroll: false,
+    ghostClass: 'ws-ghost',
     draggable: '.ws-file-card:not(.ws-file-add)',
     filter: '.ws-file-remove, .ws-file-list-remove',
     preventOnFilter: true,
     onStart: (evt) => {
+      startAutoScroll(mergeGridContainer!.parentElement as HTMLElement);
       const draggedCard = evt.item as HTMLElement;
       const draggedFid = Number(draggedCard.dataset.fileId);
       if (isNaN(draggedFid)) return;
       stompDragSelection(selectedFiles, draggedFid, refreshMergeUi);
+
+      if (selectedFiles.size > 1) {
+        applyMultiDragVisuals(mergeGridContainer!, '.ws-file-card', c => Number(c.dataset.fileId), draggedFid, selectedFiles);
+      }
     },
     onEnd: (evt) => {
+      stopAutoScroll();
+      clearMultiDragVisuals(mergeGridContainer!);
       if (evt.oldIndex == null || evt.newIndex == null || evt.oldIndex === evt.newIndex) return;
       const draggedCard = evt.item as HTMLElement;
       const draggedFid = Number(draggedCard.dataset.fileId);
 
-      if (selectedFiles.has(draggedFid) && selectedFiles.size > 1) {
+      if (selectedFiles.size > 1) {
         const movingSet = new Set(selectedFiles);
         const moving = files.filter(f => movingSet.has(f.id));
         const domOrder = [...mergeGridContainer!.querySelectorAll<HTMLElement>('.ws-file-card:not(.ws-file-add)')]
@@ -401,7 +444,9 @@ function updateMergeSidebarContent(sidebar: HTMLElement) {
   const countText = `${files.length} file${files.length !== 1 ? 's' : ''} · ${total} pages`;
   const countRow = el('div', { className: 'ws-sidebar-count-row' });
   countRow.appendChild(el('p', { className: 'ws-sidebar-count', textContent: countText }));
-  countRow.appendChild(createAddFileButton());
+  const mergeBtnGroup = el('div', { className: 'ws-count-btn-group' });
+  mergeBtnGroup.appendChild(createAddFileButton());
+  countRow.appendChild(mergeBtnGroup);
   sidebar.appendChild(countRow);
 
   const fileList = el('div', { className: 'ws-sidebar-files' });
@@ -602,14 +647,14 @@ function renderOrganizeView() {
     const slot = el('div', { className: 'ws-page-slot' });
     slot.appendChild(createInsertBtn(idx));
     const card = createPageCard(page, idx);
-    if (selected.has(idx)) card.classList.add('ws-page-selected');
     card.setAttribute('role', 'checkbox');
-    card.setAttribute('aria-checked', String(selected.has(idx)));
+
     card.setAttribute('aria-label', page.type === 'blank' ? 'Blank page' : `Page ${page.sourcePageNum}`);
     card.tabIndex = 0;
     slot.appendChild(card);
     grid.appendChild(slot);
   });
+  updateSelectionVisuals();
 
   // Trailing insert button
   const trailing = el('button', { className: 'ws-page-insert-trailing', innerHTML: '+', ariaLabel: 'Insert blank page at end' });
@@ -683,6 +728,7 @@ function renderOrganizeView() {
   sortableInstance = new Sortable(grid, {
     animation: 200, delay: 150, delayOnTouchOnly: true,
     forceFallback: true,
+    fallbackOnBody: true,
     ghostClass: 'ws-ghost',
     draggable: '.ws-page-slot',
     scroll: false,
@@ -707,33 +753,14 @@ function renderOrganizeView() {
         const multiPages = [...selected].sort((a, b) => a - b).map(i => pages[i]);
         pendingMultiDrag = { pages: multiPages, dragIdx };
 
-        // Add count badge to ghost
-        requestAnimationFrame(() => {
-          const ghost = grid.querySelector('.ws-ghost') as HTMLElement;
-          if (ghost) {
-            const badge = document.createElement('span');
-            badge.className = 'ws-ghost-count';
-            badge.textContent = String(selected.size);
-            ghost.appendChild(badge);
-          }
-        });
-
-        // Hide other selected slots
-        grid.querySelectorAll<HTMLElement>('.ws-page-slot').forEach((slot) => {
-          const card = slot.querySelector<HTMLElement>('.ws-page-card');
-          const i = Number(card?.dataset.pageIdx);
-          if (!isNaN(i) && i !== dragIdx && selected.has(i)) {
-            slot.classList.add('ws-multi-drag-hidden');
-          }
-        });
+        applyMultiDragVisuals(grid, '.ws-page-slot', el => Number(el.querySelector<HTMLElement>('.ws-page-card')?.dataset.pageIdx), dragIdx, selected);
       }
 
       grid.querySelectorAll('.ws-page-insert').forEach(b => b.remove());
     },
     onEnd: (evt) => {
       stopAutoScroll();
-      grid.querySelectorAll('.ws-multi-drag-hidden').forEach(s =>
-        s.classList.remove('ws-multi-drag-hidden'));
+      clearMultiDragVisuals(grid);
 
       const multi = pendingMultiDrag;
       pendingMultiDrag = null;
@@ -1051,12 +1078,14 @@ function updateSidebarContent(sidebar: HTMLElement) {
   }
   const countRow = el('div', { className: 'ws-sidebar-count-row' });
   countRow.appendChild(el('p', { className: 'ws-sidebar-count', innerHTML: countHtml }));
+  const btnGroup = el('div', { className: 'ws-count-btn-group' });
   if (modified) {
     const restoreBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Restore' });
     restoreBtn.addEventListener('click', resetPages);
-    countRow.appendChild(restoreBtn);
+    btnGroup.appendChild(restoreBtn);
   }
-  countRow.appendChild(createAddFileButton());
+  btnGroup.appendChild(createAddFileButton());
+  countRow.appendChild(btnGroup);
   sidebar.appendChild(countRow);
 
   // File list
@@ -1501,12 +1530,14 @@ function buildMobileTrayContent(tray: HTMLElement) {
   }
   const countRow = el('div', { className: 'ws-sidebar-count-row' });
   countRow.appendChild(el('p', { className: 'ws-sidebar-count', innerHTML: countHtml }));
+  const trayBtnGroup = el('div', { className: 'ws-count-btn-group' });
   if (modified) {
     const restoreBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Restore' });
     restoreBtn.addEventListener('click', resetPages);
-    countRow.appendChild(restoreBtn);
+    trayBtnGroup.appendChild(restoreBtn);
   }
-  countRow.appendChild(createAddFileButton());
+  trayBtnGroup.appendChild(createAddFileButton());
+  countRow.appendChild(trayBtnGroup);
   tray.appendChild(countRow);
 
   // File list

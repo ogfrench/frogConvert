@@ -98,7 +98,7 @@ function renderFilesModalList() {
 
     const nameSpan = document.createElement("span");
     nameSpan.className = "file-row-name truncate";
-    nameSpan.textContent = shortenFileName(file.name, 36);
+    nameSpan.textContent = shortenFileName(file.name, 28);
     nameSpan.title = file.name;
 
     const actions = document.createElement("div");

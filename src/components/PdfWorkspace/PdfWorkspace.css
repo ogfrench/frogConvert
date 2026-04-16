@@ -178,6 +178,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   gap: var(--space-3);
   margin: 0;
   min-height: var(--space-8);
+  width: 100%;
 }
 
 .ws-divider {
@@ -187,8 +188,11 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   width: 100%;
 }
 
-.ws-sidebar-count-row > :last-child {
+.ws-count-btn-group {
   margin-left: auto;
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
 }
 
 .ws-sidebar-count {
@@ -754,6 +758,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 .sortable-fallback {
   opacity: 0.85 !important;
   pointer-events: none !important;
+  transition: none !important;
 }
 
 /* ===================================================================
@@ -875,7 +880,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     animation: none;
     opacity: 1;
     overflow: hidden;
-    padding-bottom: calc(var(--space-16) + var(--space-10));
+    padding-bottom: var(--space-5);
   }
 
   /* Hide desktop sidebar on mobile */
@@ -907,7 +912,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     height: auto;
     flex-shrink: 0;
     font-size: var(--text-lg);
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-toolbar);
   }
 
   .ws-toolbar-action {
@@ -918,7 +923,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     background-color: var(--card);
     color: var(--foreground);
     border: 1px solid var(--border);
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-toolbar);
   }
 
   .ws-toolbar-action:hover {
@@ -944,7 +949,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     text-align: center;
     padding: var(--space-3) var(--space-4);
     font-size: var(--text-base);
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-toolbar);
   }
 
   .ws-toolbar-extract { flex: 1; }
@@ -953,10 +958,6 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   /* Two-row toolbar is taller: push tray and grid padding accordingly */
   body:has(.ws-toolbar--organize) .ws-tray {
     bottom: calc(var(--space-6) + var(--space-12) + var(--space-12) + var(--space-4) + var(--space-3) + env(safe-area-inset-bottom, 0px));
-  }
-
-  body:has(.ws-toolbar--organize) .ws-grid-card {
-    padding-bottom: calc(var(--space-12) + var(--space-12) + var(--space-4) + env(safe-area-inset-bottom, 0px));
   }
 
   .ws-sidebar-count {
@@ -1061,11 +1062,6 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   /* Touch devices: always show hover-reveal buttons */
   .ws-hover-reveal {
     opacity: 1;
-  }
-
-  /* Footer: extra bottom padding when toolbar is present so it scrolls clear */
-  body:has(.ws-toolbar) #page-footer {
-    padding-bottom: calc(var(--space-16) + var(--space-12));
   }
 
   .ws-range-input {

@@ -129,7 +129,11 @@ body > #footer-confetti-btn.confetti-below-footer {
 }
 
 body:has(.ws-toolbar) > #footer-confetti-btn.confetti-below-footer {
-  margin-bottom: calc(var(--space-16) + var(--space-12));
+  margin-bottom: calc(var(--space-16) + var(--space-12) + env(safe-area-inset-bottom, 0px));
+}
+
+body:has(.ws-toolbar--organize) > #footer-confetti-btn.confetti-below-footer {
+  margin-bottom: calc(var(--space-16) + var(--space-12) + var(--space-12) + env(safe-area-inset-bottom, 0px));
 }
 
 body:has(.ws-toolbar):has(#footer-confetti-btn.confetti-below-footer) #page-footer {

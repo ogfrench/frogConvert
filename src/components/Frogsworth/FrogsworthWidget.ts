@@ -83,7 +83,7 @@ const PDF_IDLE_QUIPS: Quip[] = [
   q("reorder pages by dragging. no manual required.", "happy"),
   q("splitting a pdf: like cell division, but for paperwork", "excited"),
   q("pages don't have feelings. reorder freely.", "smug"),
-  q("staring at a 200-page pdf? pick the 10 you need.", "idle"),
+  q("staring at a 300-page pdf? pick the 10 you need.", "idle"),
   q("thumbnails below. scroll, drag, done.", "happy"),
   q("two pdfs enter. one pdf leaves.", "excited"),
   q("the undo button exists. use it generously.", "idle"),
