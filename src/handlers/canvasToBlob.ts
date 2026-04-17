@@ -117,7 +117,7 @@ class canvasToBlobHandler implements FormatHandler {
         });
       }
 
-      const name = inputFile.name.split(".")[0] + "." + outputFormat.extension;
+      const name = inputFile.name.replace(/\.[^.]+$/, '') + "." + outputFormat.extension;
 
       outputFiles.push({ bytes, name });
 

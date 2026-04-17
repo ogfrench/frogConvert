@@ -1,6 +1,10 @@
 import type { FileData, FileFormat, FormatHandler, ProgressEvent, QualityPreset } from "../core/FormatHandler/FormatHandler.ts";
 import { extractQualityPreset } from "../core/FormatHandler/FormatHandler.ts";
 
+// Internal flag sentinels — stripped from args before forwarding to FFmpeg.
+const NO_GIF_PALETTE = "--no-gif-palette";
+const NO_STREAM_COPY = "--no-stream-copy";
+
 /**
  * Map a quality preset to FFmpeg encoder flags for the output container.
  * Return is a flat arg array, already pre-filtered so nothing is appended
@@ -578,6 +582,7 @@ class FFmpegHandler implements FormatHandler {
       && inputFormat.mime?.startsWith("video/")
       && outputFormat.mime?.startsWith("video/")
       && !userHasEncoderFlag
+      && !args?.includes(NO_STREAM_COPY)
       && REMUX_OK[outputFormat.format]
     ) {
       const probeStdout = await this.getStdout(async () => {
@@ -619,7 +624,7 @@ class FFmpegHandler implements FormatHandler {
       command.push("-vf", "setsar=1", "-target", "ntsc-dvd", "-pix_fmt", "rgb24");
     } else if (outputFormat.internal === "vcd") {
       command.push("-vf", "scale=352:288,setsar=1", "-target", "pal-vcd", "-pix_fmt", "rgb24");
-    } else if (outputFormat.format === "gif" && !extractFrames) {
+    } else if (outputFormat.format === "gif" && !extractFrames && !args?.includes(NO_GIF_PALETTE)) {
       // Two-pass palette: without this, default 256-color palette bands gradients heavily.
       command.push(
         "-filter_complex",
@@ -637,6 +642,7 @@ class FFmpegHandler implements FormatHandler {
     if (args) {
       for (let i = 0; i < args.length; i++) {
         if (args[i] === "--quality" && i + 1 < args.length) { i++; continue; }
+        if (args[i] === NO_GIF_PALETTE || args[i] === NO_STREAM_COPY) continue;
         command.push(args[i]);
       }
     }
@@ -738,6 +744,12 @@ class FFmpegHandler implements FormatHandler {
         const acceptedBitrate = stdout.split("does not support that sample rate, choose from (")[1].split(", ")[0];
         recoveryArgs = [...oldArgs, "-ar", acceptedBitrate];
         recoveryWarning = `Audio sample rate changed to ${acceptedBitrate} Hz - encoder rejected the original.`;
+      } else if (outputFormat.format === "gif" && !oldArgs.includes(NO_GIF_PALETTE) && stdout.includes("Aborted()")) {
+        recoveryArgs = [...oldArgs, NO_GIF_PALETTE];
+        recoveryWarning = "GIF palette generation skipped — video too large for high-quality dithering in-browser.";
+      } else if (useStreamCopy && !oldArgs.includes(NO_STREAM_COPY)) {
+        recoveryArgs = [...oldArgs, NO_STREAM_COPY];
+        recoveryWarning = "Re-encoded instead of remuxing — codec wasn't fully compatible with the output container.";
       }
 
       if (recoveryArgs && recoveryWarning) {

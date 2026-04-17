@@ -17,6 +17,9 @@ const traversionGraphReady = import("./core/TraversionGraph/TraversionGraph.js")
   ({ TraversionGraph }) => { window.traversionGraph = new TraversionGraph(); }
 );
 
+import { formatToIdentifier } from "./core/TraversionGraph/TraversionGraph.js";
+import { showToast } from "./components/Toast/Toast.ts";
+
 import {
   initTheme,
   initFormatModal,
@@ -49,6 +52,7 @@ import {
   allOptionsRef,
   isLoadingPhase2,
   isLoadingHandlers,
+  reachableIdentifiers,
   ui,
   formatMode,
   formatDisplayName,
@@ -237,10 +241,14 @@ initUploadZone(
     } else {
       selectedFromIndex.value = null;
     }
+    computeReachability();
     updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
   },
   () => {
     selectedFromIndex.value = null;
+    selectedToIndex.value = null;
+    clearFormatSelection(activeCategory.value);
+    computeReachability();
     resetUploadZone();
     updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
   },
@@ -336,10 +344,33 @@ function updateFileInputAccept() {
   ui.fileInput.accept = buildAcceptString(allOptionsRef.value);
 }
 
+function computeReachability() {
+  const fromIdx = selectedFromIndex.value;
+  if (fromIdx === null || !window.traversionGraph || window.traversionGraph.nodeCount === 0) {
+    reachableIdentifiers.value = null;
+    return;
+  }
+  const fromFormat = allOptionsRef.value[fromIdx].format;
+  const reachable = window.traversionGraph.getReachableIdentifiers(formatToIdentifier(fromFormat));
+  reachableIdentifiers.value = reachable;
+
+  const toIdx = selectedToIndex.value;
+  if (toIdx === null) return;
+  const toOpt = allOptionsRef.value[toIdx];
+  if (!toOpt || reachable.has(formatToIdentifier(toOpt.format))) return;
+
+  const toName = toOpt.format.format.toUpperCase();
+  const fromName = fromFormat.format.toUpperCase();
+  selectedToIndex.value = null;
+  clearFormatSelection(activeCategory.value);
+  showToast(`${toName} isn't reachable from ${fromName}. Pick another format.`, "warn");
+}
+
 async function refreshUI() {
   updateFileInputAccept();
   await traversionGraphReady;
   window.traversionGraph.init(window.supportedFormatCache, handlers);
+  computeReachability();
   renderFormatOptions(allOptionsRef.value, activeCategory.value);
   if (ui.formatModal.classList.contains("open")) {
     filterFormats(ui.formatSearch.value);
@@ -354,6 +385,7 @@ async function refreshUI() {
     if (matchIndex >= 0) {
       selectedFromIndex.value = matchIndex;
       showDetectedFormat(allOptionsRef.value[matchIndex].format.format, currentFiles.value.length);
+      computeReachability();
       updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
     }
   }

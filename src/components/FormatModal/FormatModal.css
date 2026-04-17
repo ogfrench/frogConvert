@@ -120,3 +120,35 @@
     transform: scale(1);
   }
 }
+
+.format-option.unavailable {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+  cursor: default;
+  transition: none;
+}
+
+.format-option.unavailable:hover {
+  background-color: transparent;
+  border-color: transparent;
+}
+
+.format-group-header.format-unavailable-header {
+  font-weight: var(--font-normal);
+  font-style: italic;
+  opacity: 0.7;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: var(--text-sm);
+}
+
+.format-group-header.format-group-header-unavailable {
+  font-weight: var(--font-normal);
+}
+
+.format-empty-state {
+  padding: var(--space-4);
+  color: var(--muted-foreground);
+  text-align: center;
+  font-size: var(--text-sm);
+}

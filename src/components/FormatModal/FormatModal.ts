@@ -1,6 +1,7 @@
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 import "./FormatModal.css";
-import { ui, CATEGORY_LABELS, formatDisplayName, formatMode, getFormatCategory, activeCategory, allOptionsRef, isLoadingPhase2, isLoadingHandlers, updateScrollLock, isFormatVisible, isCategoryVisible } from "../store/store.ts";
+import { ui, CATEGORY_LABELS, formatDisplayName, formatMode, getFormatCategory, activeCategory, allOptionsRef, isLoadingPhase2, isLoadingHandlers, updateScrollLock, isFormatVisible, isCategoryVisible, reachableIdentifiers, selectedFromIndex } from "../store/store.ts";
+import { formatToIdentifier } from "../../core/TraversionGraph/TraversionGraph.ts";
 
 // --- Format modal ---
 
@@ -36,10 +37,18 @@ export function filterFormats(query: string) {
   const q = query.toLowerCase();
   let lastHeaderVisible = false;
   let lastHeader: HTMLElement | null = null;
+  let unavailableDivider: HTMLElement | null = null;
+  let unavailableDividerVisible = false;
 
   for (const child of Array.from(options.children)) {
     const el = child as HTMLElement;
-    if (el.classList.contains("format-group-header")) {
+    if (el.classList.contains("format-unavailable-header")) {
+      el.style.display = "none";
+      unavailableDivider = el;
+      unavailableDividerVisible = false;
+      lastHeader = null;
+      lastHeaderVisible = false;
+    } else if (el.classList.contains("format-group-header")) {
       el.style.display = "none";
       lastHeader = el;
       lastHeaderVisible = false;
@@ -56,6 +65,10 @@ export function filterFormats(query: string) {
         if (lastHeader && !lastHeaderVisible) {
           lastHeader.style.display = "";
           lastHeaderVisible = true;
+        }
+        if (unavailableDivider && !unavailableDividerVisible && el.classList.contains("unavailable")) {
+          unavailableDivider.style.display = "";
+          unavailableDividerVisible = true;
         }
       } else {
         el.style.display = "none";
@@ -245,9 +258,40 @@ export function renderFormatOptions(
   const categoryOrder = ["image", "audio", "video", "document", "data", "archive", "font", "code", "other"];
   const showHeaders = !category;
 
+  const reachable = reachableIdentifiers.value;
+  const fromIdx = selectedFromIndex.value;
+  const sourceExt = fromIdx !== null ? (allOptions[fromIdx]?.format.extension ?? null) : null;
+
+  const appendOption = (item: { index: number; text: string }, unavailable: boolean) => {
+    const btn = document.createElement("button");
+    btn.className = unavailable ? "format-option unavailable" : "format-option";
+    btn.setAttribute("data-index", item.index.toString());
+    if (unavailable) btn.setAttribute("aria-disabled", "true");
+    btn.textContent = item.text;
+    ui.formatOptions.appendChild(btn);
+  };
+
+  const unavailableByCat = new Map<string, { index: number; text: string }[]>();
+  let anyAvailable = false;
+
   for (const cat of categoryOrder) {
     const items = toGroups.get(cat);
     if (!items || items.length === 0) continue;
+
+    const available: Array<{ index: number; text: string }> = [];
+    const unavailable: Array<{ index: number; text: string }> = [];
+    if (reachable) {
+      for (const it of items) {
+        if (reachable.has(formatToIdentifier(allOptions[it.index].format))) available.push(it);
+        else unavailable.push(it);
+      }
+    } else {
+      available.push(...items);
+    }
+
+    if (unavailable.length > 0) unavailableByCat.set(cat, unavailable);
+    if (available.length === 0) continue;
+    anyAvailable = true;
 
     if (showHeaders) {
       const header = document.createElement("div");
@@ -256,12 +300,31 @@ export function renderFormatOptions(
       ui.formatOptions.appendChild(header);
     }
 
-    for (const item of items) {
-      const btn = document.createElement("button");
-      btn.className = "format-option";
-      btn.setAttribute("data-index", item.index.toString());
-      btn.textContent = item.text;
-      ui.formatOptions.appendChild(btn);
+    for (const item of available) appendOption(item, false);
+  }
+
+  if (reachable && !anyAvailable && unavailableByCat.size > 0) {
+    const empty = document.createElement("div");
+    empty.className = "format-empty-state";
+    empty.textContent = `No conversion paths from ${sourceExt ? sourceExt.toUpperCase() : "this file"}. Try a different source file.`;
+    ui.formatOptions.appendChild(empty);
+  }
+
+  if (unavailableByCat.size > 0) {
+    const divider = document.createElement("div");
+    divider.className = "format-group-header format-unavailable-header";
+    divider.textContent = `No available conversion path from ${sourceExt ? sourceExt.toUpperCase() : "this file"}`;
+    ui.formatOptions.appendChild(divider);
+    for (const cat of categoryOrder) {
+      const items = unavailableByCat.get(cat);
+      if (!items) continue;
+      if (showHeaders) {
+        const header = document.createElement("div");
+        header.className = "format-group-header format-group-header-unavailable";
+        header.textContent = CATEGORY_LABELS[cat] || cat;
+        ui.formatOptions.appendChild(header);
+      }
+      for (const item of items) appendOption(item, true);
     }
   }
 

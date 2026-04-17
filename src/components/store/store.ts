@@ -261,6 +261,7 @@ export const selectedFromIndex: { value: number | null } = { value: null };
 export const selectedToIndex: { value: number | null } = { value: null };
 export const isLoadingPhase2: { value: boolean } = { value: false };
 export const isLoadingHandlers: { value: boolean } = { value: false };
+export const reachableIdentifiers: { value: Set<string> | null } = { value: null };
 
 // --- Helpers ---
 

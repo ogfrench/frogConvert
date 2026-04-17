@@ -25,6 +25,10 @@ const FORMAT_PRIORITY_COST: number = 0.05; // Cost multiplier for format priorit
 const ANY_INPUT_COST: number = 2; // Extra cost for edges created via supportAnyInput. Discourages generic "pack" conversions so the algorithm prefers more specific conversion paths.
 
 
+export function formatToIdentifier(format: FileFormat): string {
+    return `${format.mime}(${format.format})`;
+}
+
 export interface Node {
     identifier: string;
     edges: Array<number>;
@@ -166,7 +170,7 @@ export class TraversionGraph {
             let fromIndices: Array<{ format: FileFormat, index: number }> = [];
             let toIndices: Array<{ format: FileFormat, index: number }> = [];
             formats.forEach(format => {
-                const formatIdentifier = format.mime + `(${format.format})`;
+                const formatIdentifier = formatToIdentifier(format);
                 let index = nodeIndexByIdentifier.get(formatIdentifier) ?? -1;
                 if (index === -1) {
                     index = this.nodes.length;
@@ -210,7 +214,7 @@ export class TraversionGraph {
             const toIndices: Array<{ format: FileFormat, index: number }> = [];
             formats.forEach(format => {
                 if (!format.to) return;
-                const identifier = format.mime + `(${format.format})`;
+                const identifier = formatToIdentifier(format);
                 const index = nodeIndexByIdentifier.get(identifier) ?? -1;
                 if (index !== -1) toIndices.push({ format, index });
             });
@@ -323,6 +327,26 @@ export class TraversionGraph {
         return cost;
     }
 
+    public getReachableIdentifiers(fromIdentifier: string): Set<string> {
+        const startIndex = this.nodes.findIndex(n => n.identifier === fromIdentifier);
+        if (startIndex === -1) return new Set();
+        const visited = new Set<number>([startIndex]);
+        const queue = [startIndex];
+        for (let head = 0; head < queue.length; head++) {
+            const current = queue[head];
+            for (const edgeIdx of this.nodes[current].edges) {
+                const toIndex = this.edges[edgeIdx].to.index;
+                if (!visited.has(toIndex)) {
+                    visited.add(toIndex);
+                    queue.push(toIndex);
+                }
+            }
+        }
+        const result = new Set<string>();
+        for (const idx of visited) result.add(this.nodes[idx].identifier);
+        return result;
+    }
+
     /**
      * Returns a copy of the graph data, including nodes, edges, category change costs, and category adaptive costs. This can be used for debugging, visualization, or analysis purposes. The returned data is a deep copy to prevent external modifications from affecting the internal state of the graph.
      */
@@ -374,8 +398,8 @@ export class TraversionGraph {
             return;
         }
 
-        const fromIdentifier = from.format.mime + `(${from.format.format})`;
-        const toIdentifier = to.format.mime + `(${to.format.format})`;
+        const fromIdentifier = formatToIdentifier(from.format);
+        const toIdentifier = formatToIdentifier(to.format);
 
         let fromIndex = this.nodes.findIndex(node => node.identifier === fromIdentifier);
         let toIndex = this.nodes.findIndex(node => node.identifier === toIdentifier);
