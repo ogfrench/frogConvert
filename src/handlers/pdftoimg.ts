@@ -9,6 +9,9 @@ import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
+const MAX_TOTAL_MEGAPIXELS = 1000;
+const QUALITY_TARGETS: Record<string, number> = { low: 1.2, medium: 2.5, high: 8.5, lossless: 50 };
+
 class pdftoimgHandler implements FormatHandler {
 
   public name: string = "pdftoimg";
@@ -43,9 +46,11 @@ class pdftoimgHandler implements FormatHandler {
 
     const quality = extractQualityPreset(args);
     const dpiIdx = args ? args.indexOf("--dpi") : -1;
+    const isExplicitDpi = dpiIdx >= 0;
+
     const dpiFromPreset: Record<string, number> = { low: 72, medium: 144, high: 300, lossless: 600 };
     const defaultDpi = (quality ? dpiFromPreset[quality] : undefined) ?? 144;
-    const rawDpi = (args && dpiIdx >= 0 && dpiIdx + 1 < args.length) ? Number(args[dpiIdx + 1]) : defaultDpi;
+    const rawDpi = (isExplicitDpi && args && dpiIdx + 1 < args.length) ? Number(args[dpiIdx + 1]) : defaultDpi;
     const dpi = Number.isFinite(rawDpi) ? Math.min(600, Math.max(36, rawDpi)) : defaultDpi;
     const scale = dpi / 72;
 
@@ -57,12 +62,8 @@ class pdftoimgHandler implements FormatHandler {
       ?? (Number.isFinite(numQ) && numQ > 0 && numQ <= 1 ? numQ : undefined);
 
     const outputFiles: FileData[] = [];
-
-    // Guard against OOM on huge PDFs at high DPI. Checked per-page so
-    // mixed-size pages are handled correctly.
-    const MAX_TOTAL_MEGAPIXELS = 100;
-
     const canvas = document.createElement("canvas");
+    let warnings: string[] = [];
 
     for (const inputFile of inputFiles) {
       let pdf;
@@ -84,10 +85,22 @@ class pdftoimgHandler implements FormatHandler {
         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
           const page = await pdf.getPage(pageNum);
           try {
-            const viewport = page.getViewport({ scale });
+            const viewportAtRequestedScale = page.getViewport({ scale });
+            const requestedMP = (viewportAtRequestedScale.width * viewportAtRequestedScale.height) / 1_000_000;
+
+            // Target sensible screen resolution (Medium ~2.5MP) to avoid monster files
+            const targetMP = isExplicitDpi ? 25 : (QUALITY_TARGETS[quality ?? "medium"] ?? 12);
+
+            let viewport = viewportAtRequestedScale;
+            if (requestedMP > targetMP) {
+              viewport = page.getViewport({ scale: scale * Math.sqrt(targetMP / requestedMP) });
+              const msg = `Automatically adjusted resolution for large pages.`;
+              if (!warnings.includes(msg)) warnings.push(msg);
+            }
+
             totalMP += (viewport.width * viewport.height) / 1_000_000;
             if (totalMP > MAX_TOTAL_MEGAPIXELS) {
-              throw new Error(`PDF too large at ${dpi} DPI: ~${totalMP.toFixed(0)} megapixels after ${pageNum} pages (max ${MAX_TOTAL_MEGAPIXELS}). Try a lower DPI.`);
+              throw new Error(`PDF too large (total > ${MAX_TOTAL_MEGAPIXELS}MP). Try lower quality.`);
             }
 
             canvas.width = viewport.width;
@@ -108,6 +121,10 @@ class pdftoimgHandler implements FormatHandler {
       } finally {
         await pdf.destroy();
       }
+    }
+
+    if (warnings.length > 0 && outputFiles.length > 0) {
+      outputFiles[0].warnings = warnings;
     }
 
     return outputFiles;
