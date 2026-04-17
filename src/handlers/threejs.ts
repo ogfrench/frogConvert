@@ -110,23 +110,54 @@ class threejsHandler implements FormatHandler {
 
       scene.background = new THREE.Color(0x424242);
       scene.add(object);
-      renderer.render(scene, camera);
-      scene.remove(object);
+      try {
+        renderer.render(scene, camera);
 
-      const bytes: Uint8Array = await new Promise((resolve, reject) => {
-        this.renderer.domElement.toBlob((blob: Blob | null) => {
-          if (!blob) return reject("Canvas output failed");
-          blob.arrayBuffer().then((buf: ArrayBuffer) => resolve(new Uint8Array(buf)));
-        }, outputFormat.mime);
-      });
-      const name = inputFile.name.split(".").slice(0, -1).join(".") + "." + outputFormat.extension;
-      outputFiles.push({ bytes, name });
-
+        const bytes: Uint8Array = await new Promise((resolve, reject) => {
+          this.renderer.domElement.toBlob((blob: Blob | null) => {
+            if (!blob) return reject("Canvas output failed");
+            blob.arrayBuffer().then((buf: ArrayBuffer) => resolve(new Uint8Array(buf)));
+          }, outputFormat.mime);
+        });
+        const name = inputFile.name.split(".").slice(0, -1).join(".") + "." + outputFormat.extension;
+        outputFiles.push({ bytes, name });
+      } finally {
+        // Release GPU resources held by the loaded model. Three.js doesn't
+        // auto-dispose geometries/materials/textures — each call leaks them
+        // until the tab closes. Traverse and release everything reachable
+        // from the loaded object, regardless of whether the render succeeded.
+        scene.remove(object);
+        disposeObject3D(object);
+      }
     }
 
     return outputFiles;
   }
 
+}
+
+// Recursively release GPU resources attached to a loaded three.js object.
+function disposeObject3D(root: any): void {
+    root.traverse?.((node: any) => {
+        node.geometry?.dispose?.();
+        const mat = node.material;
+        if (Array.isArray(mat)) {
+            for (const m of mat) disposeMaterial(m);
+        } else if (mat) {
+            disposeMaterial(mat);
+        }
+    });
+}
+
+function disposeMaterial(mat: any): void {
+    // Dispose any Texture-typed properties (map, normalMap, emissiveMap, …).
+    for (const key of Object.keys(mat)) {
+        const v = mat[key];
+        if (v && typeof v === "object" && typeof v.dispose === "function" && v.isTexture) {
+            v.dispose();
+        }
+    }
+    mat.dispose?.();
 }
 
 export default threejsHandler;

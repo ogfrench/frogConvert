@@ -8,17 +8,55 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
-## [2.0.0] - 2026-04-15
+## [2.0.0] - 2026-04-17
 
-Headline: the **full PDF Editor** lands alongside a major structural refactor of the codebase.
+Headline: the **full PDF Editor** lands alongside a major structural refactor of the codebase, plus a security + quality hardening pass.
+
+### Security
+- Local HTTP API (`bun x frogconvert api`) now validates `Origin` / `Host` headers and rejects cross-origin requests — closes a DNS-rebinding exposure where a page the user visits could POST to `127.0.0.1:3000`.
+- `FROGCONVERT_SANDBOX_ROOT` env var constrains `filePath` / `outputFilePath` / `outputDir` arguments to a configured directory (defense-in-depth; loopback-only remains the primary guard).
+- POST bodies on `/pdf/merge`, `/pdf/organize`, `/pdf/extract` now validate shape before dispatch; malformed inputs return 400 instead of crashing deep.
+- Archive decompression-size cap on LZH, TAR, and 7z handlers — protects against zip-bomb inputs that would exhaust the browser WASM heap.
+- `svgForeignObject` HTML→SVG sanitiser now rewrites external `http(s)://` URLs in `<img>`, `<link>`, `<iframe>`, `srcset`, inline styles, and `<style>` blocks, so converting untrusted HTML no longer leaks network requests to third-party origins during bounding-box measurement.
+- LZH→ZIP output sanitises entry filenames against path-traversal sequences.
+- Netlify deploy now emits a matching CSP, `Permissions-Policy`, and explicit 404s for `/api/*` and `/.well-known/*` (previously fell through to SPA `index.html`).
+- Electron renderer: added `sandbox: true` alongside the existing `contextIsolation`/`nodeIntegration:false` baseline.
+- `xlsx` migrated to the patched SheetJS CDN tarball (0.20.3) — fixes prototype-pollution and ReDoS advisories on the XLSX parser path.
+- Production sourcemaps emitted as `hidden` (maps still uploadable to error trackers; no inline reference shipped).
+- `bun audit --level high` wired as a new `audit` npm script.
+
+### Reliability
+- `initConvertButton` cleanup wrapped in a nested try/finally so the `isConverting` flag and UI state reset even if `completeCancellation()` throws — eliminates "stuck at Converting…" dead ends.
+- Hard-cancel safety-net: if the worker doesn't acknowledge a cancel within 2 s, the force-cleanup path now terminates the worker and returns the UI to idle.
+- LibreOffice subprocess kill uses `SIGKILL` on timeout (previously `SIGTERM`, which a hung soffice can ignore); handler `init()` sweeps stale `libreoffice-node-*` temp dirs from prior crashes.
+- pdfjs `pdf.destroy()` + `page.cleanup()` wrapped in `try/finally` across `pdftoimg`, `pdftotxt`, `pdfparse` — prevents worker-side memory pinning when a page throws mid-parse.
+- Three.js geometry, material, and texture `dispose()` runs after each render in `threejs` handler — fixes long-session GPU memory accumulation.
+- `browserBridge` signal-handler registration flag anchored on `globalThis` so HMR / duplicate module instantiation no longer double-registers process exit handlers.
+- Worker reference cleared on bfcache restore (`pageshow` listener) so the first post-restore conversion re-spawns instead of posting to a zombie worker.
+- Global `unhandledrejection` / `error` listeners now surface a recovery popup with a Reload button so an unexpected error never leaves the UI silently stuck.
+
+### UX
+- Password-protected PDFs show a dedicated, actionable error ("Decrypt it with Adobe Acrobat or similar, then upload again") instead of a generic "Conversion failed" popup.
+- Downloaded filenames sanitised against Windows reserved names (`CON`, `NUL`, `PRN`, `COM1–9`, `LPT1–9`), control chars, NUL bytes, trailing dots/spaces, and length > 200 chars; ZIP entries deduplicated on collision.
+- Batch warnings surfaced per-file (or as "all N files" when universal) instead of one flat de-duplicated list.
+- MIME type preferred over filename extension when they disagree; names without an extension no longer accidentally match a format with that whole name.
+- `localStorage.setItem` sites wrapped against `QuotaExceededError` — a full storage quota no longer breaks page init.
+- Thumbnail render queue serialised so concurrent callers no longer race on the shared canvas.
+- Archive-bomb rejection uses neutral sizing language ("exceeds the N MB safety cap") rather than accusatory phrasing.
+
+### Developer experience
+- Three copy-paste clusters extracted into shared helpers: `src/handlers/_archiveGuard.ts`, `src/handlers/_pdfErrors.ts`, and `safeLocalStorageSet` in `src/components/utils/`.
+- jsdom canvas `getContext` stub added to `test/setup.ts` — fixes the Confetti test and unblocks future canvas-touching tests.
+- Four new tests for the hard-cancel timer and cancel-then-reconvert state reset in `src/conversion/cancellation.dom.test.ts`.
+
+Structural-refactor + PDF-editor details follow.
 
 ### Added
 - **PDF Editor** (frogConvert-original, not present in the upstream [Convert to it!](https://github.com/p2r3/convert) project): a full in-browser workspace for merging multiple PDFs, reordering and rotating pages, inserting blank pages, and extracting page ranges. Toggle between **Converter** and **PDF Editor** modes from the top bar. Powered by `pdf-lib` (write) and `pdfjs-dist` (thumbnails). See [docs/PDF_EDITOR.md](docs/PDF_EDITOR.md).
 - **PDF editor over MCP**: new MCP tools `pdf_merge`, `pdf_organize`, `pdf_extract`. See [docs/INTEGRATIONS.md § MCP Tools Reference](docs/INTEGRATIONS.md#mcp-tools-reference).
 - **PDF editor over REST**: new endpoints `POST /pdf/merge`, `POST /pdf/organize`, `POST /pdf/extract`. See [docs/INTEGRATIONS.md § REST API Reference](docs/INTEGRATIONS.md#rest-api-reference).
-- **PDF editor mobile UX polish**: Toast integration, layout refinements, CSS cleanups.
-- **Toast component** (`src/components/Toast/`): dismissable, `aria-live` polite, info/warn/error variants.
-- Docs restructured to be MECE: new [docs/CONVERTER.md](docs/CONVERTER.md), [docs/HANDLERS.md](docs/HANDLERS.md), [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/PDF_EDITOR_MOBILE_UX.md](docs/PDF_EDITOR_MOBILE_UX.md), and root-level [SECURITY.md](SECURITY.md). Each doc now owns one audience/purpose.
+- **Toast component** (`src/components/Toast/`): dismissable, `aria-live` polite, info/warn/error variants. Used across the PDF workspace and upload flow.
+- Docs restructured to be MECE: new [docs/CONVERTER.md](docs/CONVERTER.md), [docs/HANDLERS.md](docs/HANDLERS.md), [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), and root-level [SECURITY.md](SECURITY.md). Each doc now owns one audience/purpose.
 - Root-level [AGENTS.md](AGENTS.md) consolidating the agent workflow rules that previously lived at the bottom of `docs/CONTRIBUTING.md`.
 
 ### Changed

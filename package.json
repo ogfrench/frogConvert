@@ -45,6 +45,7 @@
     "compile:mac:x64": "bun build --compile --target=bun-darwin-x64 bin/frogconvert.ts --outfile=release/frogconvert-mac-x64",
     "compile:linux": "bun build --compile --target=bun-linux-x64 bin/frogconvert.ts --outfile=release/frogconvert-linux",
     "docs:verify": "bun run scripts/verify-docs.ts",
+    "audit": "bun audit --level high",
     "prepare": "husky"
   },
   "build": {
@@ -138,7 +139,7 @@
     "vite-plugin-static-copy": "^3.1.6",
     "wavefile": "^11.0.0",
     "woff2-encoder": "^2.0.0",
-    "xlsx": "^0.18.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "yaml": "^2.8.2"
   }
 }

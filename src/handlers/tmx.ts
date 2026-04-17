@@ -1,3 +1,6 @@
+// `xlsx` is pinned to the SheetJS CDN tarball in package.json because the
+// community `xlsx` npm package is abandoned. `bun update` won't bump it.
+// When updating SheetJS, change the URL in package.json by hand.
 import * as XLSX from "xlsx";
 import { DOMParser } from "@xmldom/xmldom";
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';

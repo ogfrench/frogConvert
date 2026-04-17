@@ -2,6 +2,7 @@ import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 import { createTar, parseTar, type TarFileItem } from "nanotar";
 import JSZip from "jszip";
+import { assertDecompressedSizeSafe } from "./_archiveGuard.ts";
 
 class tarHandler implements FormatHandler {
 
@@ -33,6 +34,7 @@ class tarHandler implements FormatHandler {
         await zip.loadAsync(inputFile.bytes);
 
         const archiveFiles: TarFileItem[] = [];
+        let totalExpanded = 0;
 
         for (const [filename, zipEntry] of Object.entries(zip.files)) {
           if (zipEntry.dir) {
@@ -40,6 +42,8 @@ class tarHandler implements FormatHandler {
             continue;
           }
           const data = await zipEntry.async("uint8array");
+          totalExpanded += data.length;
+          assertDecompressedSizeSafe(inputFile.bytes, totalExpanded, "ZIP");
 
           archiveFiles.push({
             name: filename,
@@ -59,6 +63,11 @@ class tarHandler implements FormatHandler {
     } else if (inputFormat.internal === "tar" && outputFormat.internal === "zip") {
       for (const inputFile of inputFiles) {
         const files = parseTar(inputFile.bytes);
+        assertDecompressedSizeSafe(
+          inputFile.bytes,
+          files.reduce((sum, f) => sum + (f.data?.length ?? 0), 0),
+          "TAR"
+        );
 
         const zip = new JSZip();
 

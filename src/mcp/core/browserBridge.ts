@@ -54,7 +54,15 @@ let staticServer: Server | null = null;
 let browser: import("puppeteer").Browser | null = null;
 let bridgePage: import("puppeteer").Page | null = null;
 let initPromise: Promise<void> | null = null;
-let signalHandlersRegistered = false;
+// Anchored on globalThis rather than a module-local `let` so HMR / duplicate
+// module instantiation cannot double-register process signal handlers.
+const SIGNAL_FLAG = "__frogConvertBridgeSignalsRegistered";
+function signalHandlersRegistered(): boolean {
+    return (globalThis as any)[SIGNAL_FLAG] === true;
+}
+function markSignalHandlersRegistered(): void {
+    (globalThis as any)[SIGNAL_FLAG] = true;
+}
 
 // Serialise concurrent page.evaluate() calls so conversions don't interleave
 let conversionQueue: Promise<unknown> = Promise.resolve();
@@ -134,9 +142,11 @@ async function startStaticServer(): Promise<number> {
 async function ensureInitialized(): Promise<void> {
     if (initPromise) return initPromise;
 
-    // Register cleanup handlers once — only when the bridge is first used
-    if (!signalHandlersRegistered) {
-        signalHandlersRegistered = true;
+    // Register cleanup handlers once — only when the bridge is first used.
+    // Flag lives on globalThis so HMR/duplicate module instantiation can't
+    // double-register these process listeners.
+    if (!signalHandlersRegistered()) {
+        markSignalHandlersRegistered();
         process.on("exit", () => {
             // browser.close() is async and won't complete in a synchronous exit handler.
             // Kill the underlying child process directly for reliable cleanup.

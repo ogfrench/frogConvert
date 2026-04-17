@@ -150,8 +150,15 @@ async function ensureHandlerReady(handler: FormatHandler): Promise<void> {
 
     const path = pathResult.value;
 
-    // Decode base64 → Uint8Array
-    const binaryStr = atob(base64);
+    // Decode base64 → Uint8Array. atob throws InvalidCharacterError on
+    // malformed input; translate to a clear message so the bridge surfaces
+    // something actionable rather than a generic evaluate failure.
+    let binaryStr: string;
+    try {
+        binaryStr = atob(base64);
+    } catch {
+        throw new Error("Invalid base64 input");
+    }
     const bytes = new Uint8Array(binaryStr.length);
     for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
 

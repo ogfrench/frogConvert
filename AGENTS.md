@@ -83,7 +83,7 @@ These are not suggestions. PRs that violate them will be rejected.
 
 5. **Format standards.** Use [src/core/CommonFormats/CommonFormats.ts](src/core/CommonFormats/CommonFormats.ts) for all MIME types and extensions. Never hardcode MIME strings if they exist in the common registry.
 
-6. **Shared utilities.** Use [src/components/utils.ts](src/components/utils.ts) for common UI tasks (HTML escaping, byte formatting, string shortening). Do not re-implement these locally.
+6. **Shared utilities.** Use [src/components/utils/](src/components/utils/) for common UI tasks (HTML escaping, byte formatting, string shortening, modal management). Do not re-implement these locally.
 
 7. **Mobile first.** `MOBILE_BREAKPOINT` is 800px. UI elements must work on narrow viewports and coarse pointer (touch) devices.
 

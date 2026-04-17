@@ -428,970 +428,101 @@
     ]
   ],
   [
-    "pandoc",
+    "pdftotxt",
     [
       {
-        "name": "Hypertext Markup Language",
-        "format": "html",
-        "extension": "html",
-        "mime": "text/html",
-        "from": true,
-        "to": true,
-        "internal": "html",
-        "category": "text",
-        "lossless": true
-      },
-      {
-        "name": "modern AsciiDoc",
-        "format": "asciidoc",
-        "extension": "adoc",
-        "mime": "text/asciidoc",
-        "from": true,
-        "to": true,
-        "internal": "asciidoc",
+        "name": "Portable Document Format",
+        "format": "pdf",
+        "extension": "pdf",
+        "mime": "application/pdf",
         "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "BibLaTeX bibliography",
-        "format": "biblatex",
-        "extension": "bib",
-        "mime": "text/biblatex",
-        "from": true,
-        "to": true,
-        "internal": "biblatex",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "BibTeX bibliography",
-        "format": "bibtex",
-        "extension": "bib",
-        "mime": "text/bibtex",
-        "from": true,
-        "to": true,
-        "internal": "bibtex",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "BITS XML, alias for jats",
-        "format": "bits",
-        "extension": "bits",
-        "mime": "text/bits",
+        "internal": "pdf",
         "from": true,
         "to": false,
-        "internal": "bits",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "CommonMark Markdown",
-        "format": "commonmark",
-        "extension": "md",
-        "mime": "text/markdown",
-        "from": true,
-        "to": true,
-        "internal": "commonmark",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "CommonMark with extensions",
-        "format": "commonmark_x",
-        "extension": "md",
-        "mime": "text/markdown",
-        "from": true,
-        "to": true,
-        "internal": "commonmark_x",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Creole 1.0",
-        "format": "creole",
-        "extension": "creole",
-        "mime": "text/creole",
-        "from": true,
-        "to": false,
-        "internal": "creole",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Comma Separated Values",
-        "format": "csv",
-        "extension": "csv",
-        "mime": "text/csv",
-        "from": true,
-        "to": false,
-        "internal": "csv",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Djot markup",
-        "format": "djot",
-        "extension": "dj",
-        "mime": "text/djot",
-        "from": true,
-        "to": true,
-        "internal": "djot",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Microsoft Word (DOCX)",
-        "format": "docx",
-        "extension": "docx",
-        "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "from": true,
-        "to": true,
-        "internal": "docx",
-        "category": "document",
         "lossless": false
-      },
-      {
-        "name": "DokuWiki markup",
-        "format": "dokuwiki",
-        "extension": "dokuwiki",
-        "mime": "text/dokuwiki",
-        "from": true,
-        "to": true,
-        "internal": "dokuwiki",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "EndNote XML bibliography",
-        "format": "endnotexml",
-        "extension": "endnotexml",
-        "mime": "text/endnotexml",
-        "from": true,
-        "to": false,
-        "internal": "endnotexml",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "EPUB v3",
-        "format": "epub",
-        "extension": "epub",
-        "mime": "application/epub+zip",
-        "from": true,
-        "to": true,
-        "internal": "epub",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "FictionBook2",
-        "format": "fb2",
-        "extension": "fb2",
-        "mime": "text/fb2",
-        "from": true,
-        "to": true,
-        "internal": "fb2",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "GitHub-Flavored Markdown",
-        "format": "gfm",
-        "extension": "md",
-        "mime": "text/markdown",
-        "from": true,
-        "to": true,
-        "internal": "gfm",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Haddock markup",
-        "format": "haddock",
-        "extension": "haddock",
-        "mime": "text/haddock",
-        "from": true,
-        "to": true,
-        "internal": "haddock",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Jupyter notebook",
-        "format": "ipynb",
-        "extension": "ipynb",
-        "mime": "application/x-ipynb+json",
-        "from": true,
-        "to": true,
-        "internal": "ipynb",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Jira/Confluence wiki markup",
-        "format": "jira",
-        "extension": "jira",
-        "mime": "text/jira",
-        "from": true,
-        "to": true,
-        "internal": "jira",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "LaTeX",
-        "format": "latex",
-        "extension": "tex",
-        "mime": "application/x-tex",
-        "from": true,
-        "to": true,
-        "internal": "latex",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "roff man",
-        "format": "man",
-        "extension": "1",
-        "mime": "text/man",
-        "from": true,
-        "to": true,
-        "internal": "man",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Pandoc's Markdown",
-        "format": "markdown",
-        "extension": "md",
-        "mime": "text/markdown",
-        "from": true,
-        "to": true,
-        "internal": "markdown",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "GitHub-Flavored Markdown",
-        "format": "markdown_github",
-        "extension": "md",
-        "mime": "text/markdown",
-        "from": true,
-        "to": true,
-        "internal": "markdown_github",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "MultiMarkdown",
-        "format": "markdown_mmd",
-        "extension": "md",
-        "mime": "text/markdown",
-        "from": true,
-        "to": true,
-        "internal": "markdown_mmd",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "PHP Markdown Extra",
-        "format": "markdown_phpextra",
-        "extension": "md",
-        "mime": "text/markdown",
-        "from": true,
-        "to": true,
-        "internal": "markdown_phpextra",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "original unextended Markdown",
-        "format": "markdown_strict",
-        "extension": "md",
-        "mime": "text/markdown",
-        "from": true,
-        "to": true,
-        "internal": "markdown_strict",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "mdoc manual page markup",
-        "format": "mdoc",
-        "extension": "mdoc",
-        "mime": "text/mdoc",
-        "from": true,
-        "to": false,
-        "internal": "mdoc",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "MediaWiki markup",
-        "format": "mediawiki",
-        "extension": "wiki",
-        "mime": "text/mediawiki",
-        "from": true,
-        "to": true,
-        "internal": "mediawiki",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Muse",
-        "format": "muse",
-        "extension": "muse",
-        "mime": "text/muse",
-        "from": true,
-        "to": true,
-        "internal": "muse",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "native Haskell",
-        "format": "native",
-        "extension": "native",
-        "mime": "text/native",
-        "from": true,
-        "to": true,
-        "internal": "native",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "OpenDocument Text",
-        "format": "odt",
-        "extension": "odt",
-        "mime": "application/vnd.oasis.opendocument.text",
-        "from": true,
-        "to": true,
-        "internal": "odt",
-        "category": "text",
-        "lossless": false
-      },
-      {
-        "name": "OPML",
-        "format": "opml",
-        "extension": "opml",
-        "mime": "text/x-opml",
-        "from": true,
-        "to": true,
-        "internal": "opml",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Emacs Org mode",
-        "format": "org",
-        "extension": "org",
-        "mime": "application/vnd.lotus-organizer",
-        "from": true,
-        "to": true,
-        "internal": "org",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Perl POD",
-        "format": "pod",
-        "extension": "pod",
-        "mime": "text/pod",
-        "from": true,
-        "to": false,
-        "internal": "pod",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Microsoft PowerPoint (PPTX)",
-        "format": "pptx",
-        "extension": "pptx",
-        "mime": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        "from": true,
-        "to": true,
-        "internal": "pptx",
-        "category": [
-          "presentation",
-          "document"
-        ],
-        "lossless": false
-      },
-      {
-        "name": "RIS bibliography",
-        "format": "ris",
-        "extension": "ris",
-        "mime": "application/x-research-info-systems",
-        "from": true,
-        "to": false,
-        "internal": "ris",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "reStructuredText",
-        "format": "rst",
-        "extension": "rst",
-        "mime": "text/rst",
-        "from": true,
-        "to": true,
-        "internal": "rst",
-        "category": "text",
-        "lossless": true
-      },
-      {
-        "name": "Rich Text Format",
-        "format": "rtf",
-        "extension": "rtf",
-        "mime": "application/rtf",
-        "from": true,
-        "to": true,
-        "internal": "rtf",
-        "category": "text",
-        "lossless": true
-      },
-      {
-        "name": "txt2tags",
-        "format": "t2t",
-        "extension": "t2t",
-        "mime": "text/t2t",
-        "from": true,
-        "to": false,
-        "internal": "t2t",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Textile",
-        "format": "textile",
-        "extension": "textile",
-        "mime": "text/textile",
-        "from": true,
-        "to": true,
-        "internal": "textile",
-        "category": "text",
-        "lossless": true
-      },
-      {
-        "name": "TikiWiki markup",
-        "format": "tikiwiki",
-        "extension": "tikiwiki",
-        "mime": "text/tikiwiki",
-        "from": true,
-        "to": false,
-        "internal": "tikiwiki",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "TSV table",
-        "format": "tsv",
-        "extension": "tsv",
-        "mime": "text/tab-separated-values",
-        "from": true,
-        "to": false,
-        "internal": "tsv",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "TWiki markup",
-        "format": "twiki",
-        "extension": "twiki",
-        "mime": "text/twiki",
-        "from": true,
-        "to": false,
-        "internal": "twiki",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Typst",
-        "format": "typst",
-        "extension": "typ",
-        "mime": "text/typst",
-        "from": true,
-        "to": true,
-        "internal": "typst",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Vimwiki",
-        "format": "vimwiki",
-        "extension": "vimwiki",
-        "mime": "text/vimwiki",
-        "from": true,
-        "to": false,
-        "internal": "vimwiki",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Microsoft Excel (XLSX)",
-        "format": "xlsx",
-        "extension": "xlsx",
-        "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "from": true,
-        "to": false,
-        "internal": "xlsx",
-        "category": [
-          "spreadsheet",
-          "document"
-        ],
-        "lossless": false
-      },
-      {
-        "name": "ANSI terminal",
-        "format": "ansi",
-        "extension": "ansi",
-        "mime": "text/ansi",
-        "from": false,
-        "to": true,
-        "internal": "ansi",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "AsciiDoc for asciidoc-py",
-        "format": "asciidoc_legacy",
-        "extension": "adoc",
-        "mime": "text/asciidoc_legacy",
-        "from": false,
-        "to": true,
-        "internal": "asciidoc_legacy",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "AsciiDoctor (= modern AsciiDoc)",
-        "format": "asciidoctor",
-        "extension": "adoc",
-        "mime": "text/asciidoctor",
-        "from": false,
-        "to": true,
-        "internal": "asciidoctor",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "BBCode",
-        "format": "bbcode",
-        "extension": "bbcode",
-        "mime": "text/bbcode",
-        "from": false,
-        "to": true,
-        "internal": "bbcode",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "bbcode_fluxbb",
-        "format": "bbcode_fluxbb",
-        "extension": "bbcode_fluxbb",
-        "mime": "text/bbcode_fluxbb",
-        "from": false,
-        "to": true,
-        "internal": "bbcode_fluxbb",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "bbcode_hubzilla",
-        "format": "bbcode_hubzilla",
-        "extension": "bbcode_hubzilla",
-        "mime": "text/bbcode_hubzilla",
-        "from": false,
-        "to": true,
-        "internal": "bbcode_hubzilla",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "bbcode_phpbb",
-        "format": "bbcode_phpbb",
-        "extension": "bbcode_phpbb",
-        "mime": "text/bbcode_phpbb",
-        "from": false,
-        "to": true,
-        "internal": "bbcode_phpbb",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "bbcode_steam",
-        "format": "bbcode_steam",
-        "extension": "bbcode_steam",
-        "mime": "text/bbcode_steam",
-        "from": false,
-        "to": true,
-        "internal": "bbcode_steam",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "bbcode_xenforo",
-        "format": "bbcode_xenforo",
-        "extension": "bbcode_xenforo",
-        "mime": "text/bbcode_xenforo",
-        "from": false,
-        "to": true,
-        "internal": "bbcode_xenforo",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "LaTeX Beamer slides",
-        "format": "beamer",
-        "extension": "tex",
-        "mime": "application/x-tex",
-        "from": false,
-        "to": true,
-        "internal": "beamer",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "zip of linked HTML files",
-        "format": "chunkedhtml",
-        "extension": "zip",
-        "mime": "application/zip",
-        "from": false,
-        "to": true,
-        "internal": "chunkedhtml",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "ConTeXt",
-        "format": "context",
-        "extension": "tex",
-        "mime": "application/x-tex",
-        "from": false,
-        "to": true,
-        "internal": "context",
-        "category": "text",
-        "lossless": true
-      },
-      {
-        "name": "DZSlides HTML slides",
-        "format": "dzslides",
-        "extension": "html",
-        "mime": "text/html",
-        "from": false,
-        "to": true,
-        "internal": "dzslides",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "EPUB v2",
-        "format": "epub2",
-        "extension": "epub",
-        "mime": "application/epub+zip",
-        "from": false,
-        "to": true,
-        "internal": "epub2",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "EPUB v3",
-        "format": "epub3",
-        "extension": "epub",
-        "mime": "application/epub+zip",
-        "from": false,
-        "to": true,
-        "internal": "epub3",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "XHTML 1.0 Transitional",
-        "format": "html4",
-        "extension": "html",
-        "mime": "text/html",
-        "from": false,
-        "to": true,
-        "internal": "html4",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Hypertext Markup Language",
-        "format": "html5",
-        "extension": "html",
-        "mime": "text/html",
-        "from": false,
-        "to": true,
-        "internal": "html5",
-        "category": "text",
-        "lossless": true
-      },
-      {
-        "name": "InDesign ICML",
-        "format": "icml",
-        "extension": "icml",
-        "mime": "text/icml",
-        "from": false,
-        "to": true,
-        "internal": "icml",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "jats_archiving",
-        "format": "jats_archiving",
-        "extension": "jats_archiving",
-        "mime": "text/jats_archiving",
-        "from": false,
-        "to": true,
-        "internal": "jats_archiving",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "jats_articleauthoring",
-        "format": "jats_articleauthoring",
-        "extension": "jats_articleauthoring",
-        "mime": "text/jats_articleauthoring",
-        "from": false,
-        "to": true,
-        "internal": "jats_articleauthoring",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "jats_publishing",
-        "format": "jats_publishing",
-        "extension": "jats_publishing",
-        "mime": "text/jats_publishing",
-        "from": false,
-        "to": true,
-        "internal": "jats_publishing",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Markua",
-        "format": "markua",
-        "extension": "markua",
-        "mime": "text/markua",
-        "from": false,
-        "to": true,
-        "internal": "markua",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "roff ms",
-        "format": "ms",
-        "extension": "ms",
-        "mime": "text/troff",
-        "from": false,
-        "to": true,
-        "internal": "ms",
-        "category": "document",
-        "lossless": true
       },
       {
         "name": "Plain Text",
         "format": "text",
         "extension": "txt",
         "mime": "text/plain",
-        "from": false,
-        "to": true,
-        "internal": "plain",
         "category": "text",
-        "lossless": true
-      },
-      {
-        "name": "S5 HTML slides",
-        "format": "s5",
-        "extension": "html",
-        "mime": "text/html",
+        "internal": "text",
         "from": false,
         "to": true,
-        "internal": "s5",
-        "category": "document",
+        "lossless": false
+      }
+    ]
+  ],
+  [
+    "font",
+    [
+      {
+        "name": "TrueType Font",
+        "format": "ttf",
+        "extension": "ttf",
+        "mime": "font/ttf",
+        "category": [
+          "font"
+        ],
+        "internal": "ttf",
+        "from": true,
+        "to": false,
         "lossless": true
       },
       {
-        "name": "Slideous HTML slides",
-        "format": "slideous",
-        "extension": "html",
-        "mime": "text/html",
-        "from": false,
-        "to": true,
-        "internal": "slideous",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Slidy HTML slides",
-        "format": "slidy",
-        "extension": "html",
-        "mime": "text/html",
-        "from": false,
-        "to": true,
-        "internal": "slidy",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "GNU Texinfo",
-        "format": "texinfo",
-        "extension": "texi",
-        "mime": "application/x-texinfo",
-        "from": false,
-        "to": true,
-        "internal": "texinfo",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Vimdoc",
-        "format": "vimdoc",
-        "extension": "txt",
-        "mime": "text/plain",
-        "from": false,
-        "to": true,
-        "internal": "vimdoc",
-        "category": "text",
-        "lossless": true
-      },
-      {
-        "name": "XWiki markup",
-        "format": "xwiki",
-        "extension": "xwiki",
-        "mime": "text/xwiki",
-        "from": false,
-        "to": true,
-        "internal": "xwiki",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "ZimWiki markup",
-        "format": "zimwiki",
-        "extension": "zimwiki",
-        "mime": "text/zimwiki",
-        "from": false,
-        "to": true,
-        "internal": "zimwiki",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Mathematical Markup Language",
-        "format": "mathml",
-        "extension": "mml",
-        "mime": "application/mathml+xml",
-        "from": false,
-        "to": true,
-        "internal": "mathml",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "CSL JSON bibliography",
-        "format": "csljson",
-        "extension": "json",
-        "mime": "application/json",
+        "name": "OpenType Font",
+        "format": "otf",
+        "extension": "otf",
+        "mime": "font/otf",
+        "category": [
+          "font"
+        ],
+        "internal": "otf",
         "from": true,
         "to": true,
-        "internal": "csljson",
-        "category": "document",
         "lossless": true
       },
       {
-        "name": "DocBook v4",
-        "format": "docbook",
-        "extension": "xml",
-        "mime": "application/xml",
+        "name": "Web Open Font Format",
+        "format": "woff",
+        "extension": "woff",
+        "mime": "font/woff",
+        "category": [
+          "font"
+        ],
+        "internal": "woff",
+        "from": true,
+        "to": false,
+        "lossless": true
+      },
+      {
+        "name": "Web Open Font Format 2.0",
+        "format": "woff2",
+        "extension": "woff2",
+        "mime": "font/woff2",
+        "category": [
+          "font"
+        ],
+        "internal": "woff2",
         "from": true,
         "to": true,
-        "internal": "docbook",
-        "category": "document",
         "lossless": true
       },
       {
-        "name": "JATS XML",
-        "format": "jats",
-        "extension": "xml",
-        "mime": "application/xml",
+        "name": "Scalable Vector Graphics",
+        "format": "svg",
+        "extension": "svg",
+        "mime": "image/svg+xml",
+        "category": [
+          "image",
+          "vector",
+          "document"
+        ],
+        "internal": "svg",
         "from": true,
         "to": true,
-        "internal": "jats",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "docbook4",
-        "format": "docbook4",
-        "extension": "xml",
-        "mime": "application/xml",
-        "from": false,
-        "to": true,
-        "internal": "docbook4",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "DocBook v5",
-        "format": "docbook5",
-        "extension": "xml",
-        "mime": "application/xml",
-        "from": false,
-        "to": true,
-        "internal": "docbook5",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "OpenDocument XML",
-        "format": "opendocument",
-        "extension": "xml",
-        "mime": "application/xml",
-        "from": false,
-        "to": true,
-        "internal": "opendocument",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "TEI Simple",
-        "format": "tei",
-        "extension": "xml",
-        "mime": "application/xml",
-        "from": false,
-        "to": true,
-        "internal": "tei",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "JavaScript Object Notation",
-        "format": "json",
-        "extension": "json",
-        "mime": "application/json",
-        "from": true,
-        "to": true,
-        "internal": "json",
-        "category": "document",
-        "lossless": true
-      },
-      {
-        "name": "Extensible Markup Language",
-        "format": "xml",
-        "extension": "xml",
-        "mime": "application/xml",
-        "from": true,
-        "to": true,
-        "internal": "xml",
-        "category": "document",
-        "lossless": true
+        "lossless": false
       }
     ]
   ],
@@ -5106,31 +4237,8 @@
     ]
   ],
   [
-    "pdftotxt",
-    [
-      {
-        "name": "Portable Document Format",
-        "format": "pdf",
-        "extension": "pdf",
-        "mime": "application/pdf",
-        "category": "document",
-        "internal": "pdf",
-        "from": true,
-        "to": false,
-        "lossless": false
-      },
-      {
-        "name": "Plain Text",
-        "format": "text",
-        "extension": "txt",
-        "mime": "text/plain",
-        "category": "text",
-        "internal": "text",
-        "from": false,
-        "to": true,
-        "lossless": false
-      }
-    ]
+    "libreoffice",
+    []
   ],
   [
     "meyda",
@@ -5211,6 +4319,974 @@
         "from": true,
         "to": false,
         "lossless": false
+      }
+    ]
+  ],
+  [
+    "pandoc",
+    [
+      {
+        "name": "Hypertext Markup Language",
+        "format": "html",
+        "extension": "html",
+        "mime": "text/html",
+        "from": true,
+        "to": true,
+        "internal": "html",
+        "category": "text",
+        "lossless": true
+      },
+      {
+        "name": "modern AsciiDoc",
+        "format": "asciidoc",
+        "extension": "adoc",
+        "mime": "text/asciidoc",
+        "from": true,
+        "to": true,
+        "internal": "asciidoc",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "BibLaTeX bibliography",
+        "format": "biblatex",
+        "extension": "bib",
+        "mime": "text/biblatex",
+        "from": true,
+        "to": true,
+        "internal": "biblatex",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "BibTeX bibliography",
+        "format": "bibtex",
+        "extension": "bib",
+        "mime": "text/bibtex",
+        "from": true,
+        "to": true,
+        "internal": "bibtex",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "BITS XML, alias for jats",
+        "format": "bits",
+        "extension": "bits",
+        "mime": "text/bits",
+        "from": true,
+        "to": false,
+        "internal": "bits",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "CommonMark Markdown",
+        "format": "commonmark",
+        "extension": "md",
+        "mime": "text/markdown",
+        "from": true,
+        "to": true,
+        "internal": "commonmark",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "CommonMark with extensions",
+        "format": "commonmark_x",
+        "extension": "md",
+        "mime": "text/markdown",
+        "from": true,
+        "to": true,
+        "internal": "commonmark_x",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Creole 1.0",
+        "format": "creole",
+        "extension": "creole",
+        "mime": "text/creole",
+        "from": true,
+        "to": false,
+        "internal": "creole",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Comma Separated Values",
+        "format": "csv",
+        "extension": "csv",
+        "mime": "text/csv",
+        "from": true,
+        "to": false,
+        "internal": "csv",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Djot markup",
+        "format": "djot",
+        "extension": "dj",
+        "mime": "text/djot",
+        "from": true,
+        "to": true,
+        "internal": "djot",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Microsoft Word (DOCX)",
+        "format": "docx",
+        "extension": "docx",
+        "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "from": true,
+        "to": true,
+        "internal": "docx",
+        "category": "document",
+        "lossless": false
+      },
+      {
+        "name": "DokuWiki markup",
+        "format": "dokuwiki",
+        "extension": "dokuwiki",
+        "mime": "text/dokuwiki",
+        "from": true,
+        "to": true,
+        "internal": "dokuwiki",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "EndNote XML bibliography",
+        "format": "endnotexml",
+        "extension": "endnotexml",
+        "mime": "text/endnotexml",
+        "from": true,
+        "to": false,
+        "internal": "endnotexml",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "EPUB v3",
+        "format": "epub",
+        "extension": "epub",
+        "mime": "application/epub+zip",
+        "from": true,
+        "to": true,
+        "internal": "epub",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "FictionBook2",
+        "format": "fb2",
+        "extension": "fb2",
+        "mime": "text/fb2",
+        "from": true,
+        "to": true,
+        "internal": "fb2",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "GitHub-Flavored Markdown",
+        "format": "gfm",
+        "extension": "md",
+        "mime": "text/markdown",
+        "from": true,
+        "to": true,
+        "internal": "gfm",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Haddock markup",
+        "format": "haddock",
+        "extension": "haddock",
+        "mime": "text/haddock",
+        "from": true,
+        "to": true,
+        "internal": "haddock",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Jupyter notebook",
+        "format": "ipynb",
+        "extension": "ipynb",
+        "mime": "application/x-ipynb+json",
+        "from": true,
+        "to": true,
+        "internal": "ipynb",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Jira/Confluence wiki markup",
+        "format": "jira",
+        "extension": "jira",
+        "mime": "text/jira",
+        "from": true,
+        "to": true,
+        "internal": "jira",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "LaTeX",
+        "format": "latex",
+        "extension": "tex",
+        "mime": "application/x-tex",
+        "from": true,
+        "to": true,
+        "internal": "latex",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "roff man",
+        "format": "man",
+        "extension": "1",
+        "mime": "text/man",
+        "from": true,
+        "to": true,
+        "internal": "man",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Pandoc's Markdown",
+        "format": "markdown",
+        "extension": "md",
+        "mime": "text/markdown",
+        "from": true,
+        "to": true,
+        "internal": "markdown",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "GitHub-Flavored Markdown",
+        "format": "markdown_github",
+        "extension": "md",
+        "mime": "text/markdown",
+        "from": true,
+        "to": true,
+        "internal": "markdown_github",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "MultiMarkdown",
+        "format": "markdown_mmd",
+        "extension": "md",
+        "mime": "text/markdown",
+        "from": true,
+        "to": true,
+        "internal": "markdown_mmd",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "PHP Markdown Extra",
+        "format": "markdown_phpextra",
+        "extension": "md",
+        "mime": "text/markdown",
+        "from": true,
+        "to": true,
+        "internal": "markdown_phpextra",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "original unextended Markdown",
+        "format": "markdown_strict",
+        "extension": "md",
+        "mime": "text/markdown",
+        "from": true,
+        "to": true,
+        "internal": "markdown_strict",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "mdoc manual page markup",
+        "format": "mdoc",
+        "extension": "mdoc",
+        "mime": "text/mdoc",
+        "from": true,
+        "to": false,
+        "internal": "mdoc",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "MediaWiki markup",
+        "format": "mediawiki",
+        "extension": "wiki",
+        "mime": "text/mediawiki",
+        "from": true,
+        "to": true,
+        "internal": "mediawiki",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Muse",
+        "format": "muse",
+        "extension": "muse",
+        "mime": "text/muse",
+        "from": true,
+        "to": true,
+        "internal": "muse",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "native Haskell",
+        "format": "native",
+        "extension": "native",
+        "mime": "text/native",
+        "from": true,
+        "to": true,
+        "internal": "native",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "OpenDocument Text",
+        "format": "odt",
+        "extension": "odt",
+        "mime": "application/vnd.oasis.opendocument.text",
+        "from": true,
+        "to": true,
+        "internal": "odt",
+        "category": "text",
+        "lossless": false
+      },
+      {
+        "name": "OPML",
+        "format": "opml",
+        "extension": "opml",
+        "mime": "text/x-opml",
+        "from": true,
+        "to": true,
+        "internal": "opml",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Emacs Org mode",
+        "format": "org",
+        "extension": "org",
+        "mime": "application/vnd.lotus-organizer",
+        "from": true,
+        "to": true,
+        "internal": "org",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Perl POD",
+        "format": "pod",
+        "extension": "pod",
+        "mime": "text/pod",
+        "from": true,
+        "to": false,
+        "internal": "pod",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Microsoft PowerPoint (PPTX)",
+        "format": "pptx",
+        "extension": "pptx",
+        "mime": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "from": true,
+        "to": true,
+        "internal": "pptx",
+        "category": [
+          "presentation",
+          "document"
+        ],
+        "lossless": false
+      },
+      {
+        "name": "RIS bibliography",
+        "format": "ris",
+        "extension": "ris",
+        "mime": "application/x-research-info-systems",
+        "from": true,
+        "to": false,
+        "internal": "ris",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "reStructuredText",
+        "format": "rst",
+        "extension": "rst",
+        "mime": "text/rst",
+        "from": true,
+        "to": true,
+        "internal": "rst",
+        "category": "text",
+        "lossless": true
+      },
+      {
+        "name": "Rich Text Format",
+        "format": "rtf",
+        "extension": "rtf",
+        "mime": "application/rtf",
+        "from": true,
+        "to": true,
+        "internal": "rtf",
+        "category": "text",
+        "lossless": true
+      },
+      {
+        "name": "txt2tags",
+        "format": "t2t",
+        "extension": "t2t",
+        "mime": "text/t2t",
+        "from": true,
+        "to": false,
+        "internal": "t2t",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Textile",
+        "format": "textile",
+        "extension": "textile",
+        "mime": "text/textile",
+        "from": true,
+        "to": true,
+        "internal": "textile",
+        "category": "text",
+        "lossless": true
+      },
+      {
+        "name": "TikiWiki markup",
+        "format": "tikiwiki",
+        "extension": "tikiwiki",
+        "mime": "text/tikiwiki",
+        "from": true,
+        "to": false,
+        "internal": "tikiwiki",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "TSV table",
+        "format": "tsv",
+        "extension": "tsv",
+        "mime": "text/tab-separated-values",
+        "from": true,
+        "to": false,
+        "internal": "tsv",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "TWiki markup",
+        "format": "twiki",
+        "extension": "twiki",
+        "mime": "text/twiki",
+        "from": true,
+        "to": false,
+        "internal": "twiki",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Typst",
+        "format": "typst",
+        "extension": "typ",
+        "mime": "text/typst",
+        "from": true,
+        "to": true,
+        "internal": "typst",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Vimwiki",
+        "format": "vimwiki",
+        "extension": "vimwiki",
+        "mime": "text/vimwiki",
+        "from": true,
+        "to": false,
+        "internal": "vimwiki",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Microsoft Excel (XLSX)",
+        "format": "xlsx",
+        "extension": "xlsx",
+        "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "from": true,
+        "to": false,
+        "internal": "xlsx",
+        "category": [
+          "spreadsheet",
+          "document"
+        ],
+        "lossless": false
+      },
+      {
+        "name": "ANSI terminal",
+        "format": "ansi",
+        "extension": "ansi",
+        "mime": "text/ansi",
+        "from": false,
+        "to": true,
+        "internal": "ansi",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "AsciiDoc for asciidoc-py",
+        "format": "asciidoc_legacy",
+        "extension": "adoc",
+        "mime": "text/asciidoc_legacy",
+        "from": false,
+        "to": true,
+        "internal": "asciidoc_legacy",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "AsciiDoctor (= modern AsciiDoc)",
+        "format": "asciidoctor",
+        "extension": "adoc",
+        "mime": "text/asciidoctor",
+        "from": false,
+        "to": true,
+        "internal": "asciidoctor",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "BBCode",
+        "format": "bbcode",
+        "extension": "bbcode",
+        "mime": "text/bbcode",
+        "from": false,
+        "to": true,
+        "internal": "bbcode",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "bbcode_fluxbb",
+        "format": "bbcode_fluxbb",
+        "extension": "bbcode_fluxbb",
+        "mime": "text/bbcode_fluxbb",
+        "from": false,
+        "to": true,
+        "internal": "bbcode_fluxbb",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "bbcode_hubzilla",
+        "format": "bbcode_hubzilla",
+        "extension": "bbcode_hubzilla",
+        "mime": "text/bbcode_hubzilla",
+        "from": false,
+        "to": true,
+        "internal": "bbcode_hubzilla",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "bbcode_phpbb",
+        "format": "bbcode_phpbb",
+        "extension": "bbcode_phpbb",
+        "mime": "text/bbcode_phpbb",
+        "from": false,
+        "to": true,
+        "internal": "bbcode_phpbb",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "bbcode_steam",
+        "format": "bbcode_steam",
+        "extension": "bbcode_steam",
+        "mime": "text/bbcode_steam",
+        "from": false,
+        "to": true,
+        "internal": "bbcode_steam",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "bbcode_xenforo",
+        "format": "bbcode_xenforo",
+        "extension": "bbcode_xenforo",
+        "mime": "text/bbcode_xenforo",
+        "from": false,
+        "to": true,
+        "internal": "bbcode_xenforo",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "LaTeX Beamer slides",
+        "format": "beamer",
+        "extension": "tex",
+        "mime": "application/x-tex",
+        "from": false,
+        "to": true,
+        "internal": "beamer",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "zip of linked HTML files",
+        "format": "chunkedhtml",
+        "extension": "zip",
+        "mime": "application/zip",
+        "from": false,
+        "to": true,
+        "internal": "chunkedhtml",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "ConTeXt",
+        "format": "context",
+        "extension": "tex",
+        "mime": "application/x-tex",
+        "from": false,
+        "to": true,
+        "internal": "context",
+        "category": "text",
+        "lossless": true
+      },
+      {
+        "name": "DZSlides HTML slides",
+        "format": "dzslides",
+        "extension": "html",
+        "mime": "text/html",
+        "from": false,
+        "to": true,
+        "internal": "dzslides",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "EPUB v2",
+        "format": "epub2",
+        "extension": "epub",
+        "mime": "application/epub+zip",
+        "from": false,
+        "to": true,
+        "internal": "epub2",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "EPUB v3",
+        "format": "epub3",
+        "extension": "epub",
+        "mime": "application/epub+zip",
+        "from": false,
+        "to": true,
+        "internal": "epub3",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "XHTML 1.0 Transitional",
+        "format": "html4",
+        "extension": "html",
+        "mime": "text/html",
+        "from": false,
+        "to": true,
+        "internal": "html4",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Hypertext Markup Language",
+        "format": "html5",
+        "extension": "html",
+        "mime": "text/html",
+        "from": false,
+        "to": true,
+        "internal": "html5",
+        "category": "text",
+        "lossless": true
+      },
+      {
+        "name": "InDesign ICML",
+        "format": "icml",
+        "extension": "icml",
+        "mime": "text/icml",
+        "from": false,
+        "to": true,
+        "internal": "icml",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "jats_archiving",
+        "format": "jats_archiving",
+        "extension": "jats_archiving",
+        "mime": "text/jats_archiving",
+        "from": false,
+        "to": true,
+        "internal": "jats_archiving",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "jats_articleauthoring",
+        "format": "jats_articleauthoring",
+        "extension": "jats_articleauthoring",
+        "mime": "text/jats_articleauthoring",
+        "from": false,
+        "to": true,
+        "internal": "jats_articleauthoring",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "jats_publishing",
+        "format": "jats_publishing",
+        "extension": "jats_publishing",
+        "mime": "text/jats_publishing",
+        "from": false,
+        "to": true,
+        "internal": "jats_publishing",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Markua",
+        "format": "markua",
+        "extension": "markua",
+        "mime": "text/markua",
+        "from": false,
+        "to": true,
+        "internal": "markua",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "roff ms",
+        "format": "ms",
+        "extension": "ms",
+        "mime": "text/troff",
+        "from": false,
+        "to": true,
+        "internal": "ms",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Plain Text",
+        "format": "text",
+        "extension": "txt",
+        "mime": "text/plain",
+        "from": false,
+        "to": true,
+        "internal": "plain",
+        "category": "text",
+        "lossless": true
+      },
+      {
+        "name": "S5 HTML slides",
+        "format": "s5",
+        "extension": "html",
+        "mime": "text/html",
+        "from": false,
+        "to": true,
+        "internal": "s5",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Slideous HTML slides",
+        "format": "slideous",
+        "extension": "html",
+        "mime": "text/html",
+        "from": false,
+        "to": true,
+        "internal": "slideous",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Slidy HTML slides",
+        "format": "slidy",
+        "extension": "html",
+        "mime": "text/html",
+        "from": false,
+        "to": true,
+        "internal": "slidy",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "GNU Texinfo",
+        "format": "texinfo",
+        "extension": "texi",
+        "mime": "application/x-texinfo",
+        "from": false,
+        "to": true,
+        "internal": "texinfo",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Vimdoc",
+        "format": "vimdoc",
+        "extension": "txt",
+        "mime": "text/plain",
+        "from": false,
+        "to": true,
+        "internal": "vimdoc",
+        "category": "text",
+        "lossless": true
+      },
+      {
+        "name": "XWiki markup",
+        "format": "xwiki",
+        "extension": "xwiki",
+        "mime": "text/xwiki",
+        "from": false,
+        "to": true,
+        "internal": "xwiki",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "ZimWiki markup",
+        "format": "zimwiki",
+        "extension": "zimwiki",
+        "mime": "text/zimwiki",
+        "from": false,
+        "to": true,
+        "internal": "zimwiki",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Mathematical Markup Language",
+        "format": "mathml",
+        "extension": "mml",
+        "mime": "application/mathml+xml",
+        "from": false,
+        "to": true,
+        "internal": "mathml",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "CSL JSON bibliography",
+        "format": "csljson",
+        "extension": "json",
+        "mime": "application/json",
+        "from": true,
+        "to": true,
+        "internal": "csljson",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "DocBook v4",
+        "format": "docbook",
+        "extension": "xml",
+        "mime": "application/xml",
+        "from": true,
+        "to": true,
+        "internal": "docbook",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "JATS XML",
+        "format": "jats",
+        "extension": "xml",
+        "mime": "application/xml",
+        "from": true,
+        "to": true,
+        "internal": "jats",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "docbook4",
+        "format": "docbook4",
+        "extension": "xml",
+        "mime": "application/xml",
+        "from": false,
+        "to": true,
+        "internal": "docbook4",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "DocBook v5",
+        "format": "docbook5",
+        "extension": "xml",
+        "mime": "application/xml",
+        "from": false,
+        "to": true,
+        "internal": "docbook5",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "OpenDocument XML",
+        "format": "opendocument",
+        "extension": "xml",
+        "mime": "application/xml",
+        "from": false,
+        "to": true,
+        "internal": "opendocument",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "TEI Simple",
+        "format": "tei",
+        "extension": "xml",
+        "mime": "application/xml",
+        "from": false,
+        "to": true,
+        "internal": "tei",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "JavaScript Object Notation",
+        "format": "json",
+        "extension": "json",
+        "mime": "application/json",
+        "from": true,
+        "to": true,
+        "internal": "json",
+        "category": "document",
+        "lossless": true
+      },
+      {
+        "name": "Extensible Markup Language",
+        "format": "xml",
+        "extension": "xml",
+        "mime": "application/xml",
+        "from": true,
+        "to": true,
+        "internal": "xml",
+        "category": "document",
+        "lossless": true
       }
     ]
   ],
@@ -5324,33 +5400,6 @@
         "internal": "mp3",
         "from": true,
         "to": false,
-        "lossless": false
-      }
-    ]
-  ],
-  [
-    "bunburrows",
-    [
-      {
-        "name": "Portable Network Graphics",
-        "format": "png",
-        "extension": "png",
-        "mime": "image/png",
-        "category": "image",
-        "internal": "png",
-        "from": true,
-        "to": true,
-        "lossless": false
-      },
-      {
-        "name": "Pâquerette: Down the Bunburrows Level File",
-        "format": "bunlevel",
-        "extension": "level",
-        "mime": "application/x-bunburrows-level",
-        "from": true,
-        "to": false,
-        "internal": "bunlevel",
-        "category": "data",
         "lossless": false
       }
     ]
@@ -5763,6 +5812,33 @@
     ]
   ],
   [
+    "bunburrows",
+    [
+      {
+        "name": "Portable Network Graphics",
+        "format": "png",
+        "extension": "png",
+        "mime": "image/png",
+        "category": "image",
+        "internal": "png",
+        "from": true,
+        "to": true,
+        "lossless": false
+      },
+      {
+        "name": "Pâquerette: Down the Bunburrows Level File",
+        "format": "bunlevel",
+        "extension": "level",
+        "mime": "application/x-bunburrows-level",
+        "from": true,
+        "to": false,
+        "internal": "bunlevel",
+        "category": "data",
+        "lossless": false
+      }
+    ]
+  ],
+  [
     "threejs",
     [
       {
@@ -6028,40 +6104,18 @@
     ]
   ],
   [
-    "sppd",
+    "nbt",
     [
       {
-        "name": "Portal 2 Demo File",
-        "format": "dem",
-        "extension": "dem",
-        "mime": "application/x-portal2-demo",
+        "name": "Named Binary Tag",
+        "format": "nbt",
+        "extension": "nbt",
+        "mime": "application/x-minecraft-nbt",
         "from": true,
-        "to": false,
-        "internal": "dem",
+        "to": true,
+        "internal": "nbt",
         "category": "data",
-        "lossless": false
-      },
-      {
-        "name": "Portable Network Graphics",
-        "format": "png",
-        "extension": "png",
-        "mime": "image/png",
-        "category": "image",
-        "internal": "png",
-        "from": false,
-        "to": true,
-        "lossless": false
-      },
-      {
-        "name": "Joint Photographic Experts Group JFIF",
-        "format": "jpeg",
-        "extension": "jpg",
-        "mime": "image/jpeg",
-        "category": "image",
-        "internal": "jpeg",
-        "from": false,
-        "to": true,
-        "lossless": false
+        "lossless": true
       },
       {
         "name": "JavaScript Object Notation",
@@ -6070,8 +6124,19 @@
         "mime": "application/json",
         "category": "data",
         "internal": "json",
-        "from": false,
+        "from": true,
         "to": true,
+        "lossless": true
+      },
+      {
+        "name": "String Named Binary Tag",
+        "format": "snbt",
+        "extension": "snbt",
+        "mime": "application/x-minecraft-snbt",
+        "from": true,
+        "to": true,
+        "internal": "snbt",
+        "category": "data",
         "lossless": true
       }
     ]
@@ -6137,18 +6202,40 @@
     ]
   ],
   [
-    "nbt",
+    "sppd",
     [
       {
-        "name": "Named Binary Tag",
-        "format": "nbt",
-        "extension": "nbt",
-        "mime": "application/x-minecraft-nbt",
+        "name": "Portal 2 Demo File",
+        "format": "dem",
+        "extension": "dem",
+        "mime": "application/x-portal2-demo",
         "from": true,
-        "to": true,
-        "internal": "nbt",
+        "to": false,
+        "internal": "dem",
         "category": "data",
-        "lossless": true
+        "lossless": false
+      },
+      {
+        "name": "Portable Network Graphics",
+        "format": "png",
+        "extension": "png",
+        "mime": "image/png",
+        "category": "image",
+        "internal": "png",
+        "from": false,
+        "to": true,
+        "lossless": false
+      },
+      {
+        "name": "Joint Photographic Experts Group JFIF",
+        "format": "jpeg",
+        "extension": "jpg",
+        "mime": "image/jpeg",
+        "category": "image",
+        "internal": "jpeg",
+        "from": false,
+        "to": true,
+        "lossless": false
       },
       {
         "name": "JavaScript Object Notation",
@@ -6157,19 +6244,8 @@
         "mime": "application/json",
         "category": "data",
         "internal": "json",
-        "from": true,
+        "from": false,
         "to": true,
-        "lossless": true
-      },
-      {
-        "name": "String Named Binary Tag",
-        "format": "snbt",
-        "extension": "snbt",
-        "mime": "application/x-minecraft-snbt",
-        "from": true,
-        "to": true,
-        "internal": "snbt",
-        "category": "data",
         "lossless": true
       }
     ]
@@ -6209,6 +6285,33 @@
         "from": false,
         "to": true,
         "lossless": true
+      }
+    ]
+  ],
+  [
+    "flptojson",
+    [
+      {
+        "name": "FL Studio Project File",
+        "format": "flp",
+        "extension": "flp",
+        "mime": "application/octet-stream",
+        "from": true,
+        "to": false,
+        "internal": "flp",
+        "category": "audio",
+        "lossless": false
+      },
+      {
+        "name": "JavaScript Object Notation",
+        "format": "json",
+        "extension": "json",
+        "mime": "application/json",
+        "category": "data",
+        "internal": "json",
+        "from": false,
+        "to": true,
+        "lossless": false
       }
     ]
   ],
@@ -7186,325 +7289,6 @@
     ]
   ],
   [
-    "font",
-    [
-      {
-        "name": "TrueType Font",
-        "format": "ttf",
-        "extension": "ttf",
-        "mime": "font/ttf",
-        "category": [
-          "font"
-        ],
-        "internal": "ttf",
-        "from": true,
-        "to": false,
-        "lossless": true
-      },
-      {
-        "name": "OpenType Font",
-        "format": "otf",
-        "extension": "otf",
-        "mime": "font/otf",
-        "category": [
-          "font"
-        ],
-        "internal": "otf",
-        "from": true,
-        "to": true,
-        "lossless": true
-      },
-      {
-        "name": "Web Open Font Format",
-        "format": "woff",
-        "extension": "woff",
-        "mime": "font/woff",
-        "category": [
-          "font"
-        ],
-        "internal": "woff",
-        "from": true,
-        "to": false,
-        "lossless": true
-      },
-      {
-        "name": "Web Open Font Format 2.0",
-        "format": "woff2",
-        "extension": "woff2",
-        "mime": "font/woff2",
-        "category": [
-          "font"
-        ],
-        "internal": "woff2",
-        "from": true,
-        "to": true,
-        "lossless": true
-      },
-      {
-        "name": "Scalable Vector Graphics",
-        "format": "svg",
-        "extension": "svg",
-        "mime": "image/svg+xml",
-        "category": [
-          "image",
-          "vector",
-          "document"
-        ],
-        "internal": "svg",
-        "from": true,
-        "to": true,
-        "lossless": false
-      }
-    ]
-  ],
-  [
-    "flptojson",
-    [
-      {
-        "name": "FL Studio Project File",
-        "format": "flp",
-        "extension": "flp",
-        "mime": "application/octet-stream",
-        "from": true,
-        "to": false,
-        "internal": "flp",
-        "category": "audio",
-        "lossless": false
-      },
-      {
-        "name": "JavaScript Object Notation",
-        "format": "json",
-        "extension": "json",
-        "mime": "application/json",
-        "category": "data",
-        "internal": "json",
-        "from": false,
-        "to": true,
-        "lossless": false
-      }
-    ]
-  ],
-  [
-    "floHandler",
-    [
-      {
-        "name": "Flo Audio",
-        "format": "flo",
-        "extension": "flo",
-        "mime": "audio/flo",
-        "from": true,
-        "to": true,
-        "internal": "flo",
-        "category": "audio",
-        "lossless": false
-      },
-      {
-        "name": "Waveform Audio File Format",
-        "format": "wav",
-        "extension": "wav",
-        "mime": "audio/wav",
-        "category": "audio",
-        "internal": "wav",
-        "from": true,
-        "to": true,
-        "lossless": true
-      },
-      {
-        "name": "Raw PCM Float32LE",
-        "format": "f32le",
-        "extension": "pcm",
-        "mime": "video/f32le",
-        "from": true,
-        "to": true,
-        "internal": "f32le",
-        "category": "audio",
-        "lossless": true
-      }
-    ]
-  ],
-  [
-    "CgBI to PNG converter",
-    [
-      {
-        "name": "iPhone optimized CgBI PNG",
-        "format": "cgbi-png",
-        "extension": "png",
-        "mime": "image/png",
-        "from": true,
-        "to": false,
-        "internal": "cgbi-png",
-        "category": "image",
-        "lossless": true
-      },
-      {
-        "name": "Portable Network Graphics",
-        "format": "png",
-        "extension": "png",
-        "mime": "image/png",
-        "category": "image",
-        "internal": "png",
-        "from": false,
-        "to": true,
-        "lossless": true
-      }
-    ]
-  ],
-  [
-    "batToExe",
-    [
-      {
-        "name": "Windows Batch file",
-        "format": "batch",
-        "extension": "bat",
-        "mime": "text/windows-batch",
-        "category": [
-          "text"
-        ],
-        "internal": "bat",
-        "from": true,
-        "to": false,
-        "lossless": false
-      },
-      {
-        "name": "Windows Portable Executable",
-        "format": "exe",
-        "extension": "exe",
-        "mime": "application/vnd.microsoft.portable-executable",
-        "category": "code",
-        "internal": "exe",
-        "from": false,
-        "to": true,
-        "lossless": true
-      }
-    ]
-  ],
-  [
-    "sb3tohtml",
-    [
-      {
-        "name": "Scratch 3 Project",
-        "format": "sb3",
-        "extension": "sb3",
-        "mime": "application/x.scratch.sb3",
-        "from": true,
-        "to": false,
-        "internal": "sb3"
-      },
-      {
-        "name": "Hypertext Markup Language",
-        "format": "html",
-        "extension": "html",
-        "mime": "text/html",
-        "category": [
-          "document",
-          "text"
-        ],
-        "internal": "html",
-        "from": false,
-        "to": true,
-        "lossless": false
-      }
-    ]
-  ],
-  [
-    "miditextcodec",
-    [
-      {
-        "name": "MIDI",
-        "format": "mid",
-        "extension": "mid",
-        "mime": "audio/midi",
-        "from": true,
-        "to": true,
-        "internal": "mid",
-        "category": "audio",
-        "lossless": true
-      },
-      {
-        "name": "RTTTL",
-        "format": "rtttl",
-        "extension": "rtttl",
-        "mime": "audio/rtttl",
-        "from": true,
-        "to": true,
-        "internal": "rtttl",
-        "category": "text",
-        "lossless": false
-      },
-      {
-        "name": "NokRing",
-        "format": "rtttl",
-        "extension": "nokring",
-        "mime": "audio/rtttl",
-        "from": true,
-        "to": false,
-        "internal": "rtttl",
-        "category": "text",
-        "lossless": false
-      },
-      {
-        "name": "GRUB Init Tune",
-        "format": "grub",
-        "extension": "grub",
-        "mime": "text/plain",
-        "from": true,
-        "to": true,
-        "internal": "grub",
-        "category": "text",
-        "lossless": false
-      },
-      {
-        "name": "Plain Text",
-        "format": "text",
-        "extension": "txt",
-        "mime": "text/plain",
-        "category": "text",
-        "internal": "txt",
-        "from": true,
-        "to": true,
-        "lossless": true
-      },
-      {
-        "name": "Portable Network Graphics",
-        "format": "png",
-        "extension": "png",
-        "mime": "image/png",
-        "category": "image",
-        "internal": "png",
-        "from": true,
-        "to": true,
-        "lossless": false
-      }
-    ]
-  ],
-  [
-    "midi",
-    [
-      {
-        "name": "MIDI",
-        "format": "mid",
-        "extension": "mid",
-        "mime": "audio/midi",
-        "from": true,
-        "to": false,
-        "internal": "mid",
-        "category": "audio",
-        "lossless": true
-      },
-      {
-        "name": "Waveform Audio File Format",
-        "format": "wav",
-        "extension": "wav",
-        "mime": "audio/wav",
-        "category": "audio",
-        "internal": "wav",
-        "from": false,
-        "to": true,
-        "lossless": true
-      }
-    ]
-  ],
-  [
     "libopenmpt",
     [
       {
@@ -8269,6 +8053,224 @@
     ]
   ],
   [
+    "sb3tohtml",
+    [
+      {
+        "name": "Scratch 3 Project",
+        "format": "sb3",
+        "extension": "sb3",
+        "mime": "application/x.scratch.sb3",
+        "from": true,
+        "to": false,
+        "internal": "sb3"
+      },
+      {
+        "name": "Hypertext Markup Language",
+        "format": "html",
+        "extension": "html",
+        "mime": "text/html",
+        "category": [
+          "document",
+          "text"
+        ],
+        "internal": "html",
+        "from": false,
+        "to": true,
+        "lossless": false
+      }
+    ]
+  ],
+  [
+    "floHandler",
+    [
+      {
+        "name": "Flo Audio",
+        "format": "flo",
+        "extension": "flo",
+        "mime": "audio/flo",
+        "from": true,
+        "to": true,
+        "internal": "flo",
+        "category": "audio",
+        "lossless": false
+      },
+      {
+        "name": "Waveform Audio File Format",
+        "format": "wav",
+        "extension": "wav",
+        "mime": "audio/wav",
+        "category": "audio",
+        "internal": "wav",
+        "from": true,
+        "to": true,
+        "lossless": true
+      },
+      {
+        "name": "Raw PCM Float32LE",
+        "format": "f32le",
+        "extension": "pcm",
+        "mime": "video/f32le",
+        "from": true,
+        "to": true,
+        "internal": "f32le",
+        "category": "audio",
+        "lossless": true
+      }
+    ]
+  ],
+  [
+    "CgBI to PNG converter",
+    [
+      {
+        "name": "iPhone optimized CgBI PNG",
+        "format": "cgbi-png",
+        "extension": "png",
+        "mime": "image/png",
+        "from": true,
+        "to": false,
+        "internal": "cgbi-png",
+        "category": "image",
+        "lossless": true
+      },
+      {
+        "name": "Portable Network Graphics",
+        "format": "png",
+        "extension": "png",
+        "mime": "image/png",
+        "category": "image",
+        "internal": "png",
+        "from": false,
+        "to": true,
+        "lossless": true
+      }
+    ]
+  ],
+  [
+    "miditextcodec",
+    [
+      {
+        "name": "MIDI",
+        "format": "mid",
+        "extension": "mid",
+        "mime": "audio/midi",
+        "from": true,
+        "to": true,
+        "internal": "mid",
+        "category": "audio",
+        "lossless": true
+      },
+      {
+        "name": "RTTTL",
+        "format": "rtttl",
+        "extension": "rtttl",
+        "mime": "audio/rtttl",
+        "from": true,
+        "to": true,
+        "internal": "rtttl",
+        "category": "text",
+        "lossless": false
+      },
+      {
+        "name": "NokRing",
+        "format": "rtttl",
+        "extension": "nokring",
+        "mime": "audio/rtttl",
+        "from": true,
+        "to": false,
+        "internal": "rtttl",
+        "category": "text",
+        "lossless": false
+      },
+      {
+        "name": "GRUB Init Tune",
+        "format": "grub",
+        "extension": "grub",
+        "mime": "text/plain",
+        "from": true,
+        "to": true,
+        "internal": "grub",
+        "category": "text",
+        "lossless": false
+      },
+      {
+        "name": "Plain Text",
+        "format": "text",
+        "extension": "txt",
+        "mime": "text/plain",
+        "category": "text",
+        "internal": "txt",
+        "from": true,
+        "to": true,
+        "lossless": true
+      },
+      {
+        "name": "Portable Network Graphics",
+        "format": "png",
+        "extension": "png",
+        "mime": "image/png",
+        "category": "image",
+        "internal": "png",
+        "from": true,
+        "to": true,
+        "lossless": false
+      }
+    ]
+  ],
+  [
+    "midi",
+    [
+      {
+        "name": "MIDI",
+        "format": "mid",
+        "extension": "mid",
+        "mime": "audio/midi",
+        "from": true,
+        "to": false,
+        "internal": "mid",
+        "category": "audio",
+        "lossless": true
+      },
+      {
+        "name": "Waveform Audio File Format",
+        "format": "wav",
+        "extension": "wav",
+        "mime": "audio/wav",
+        "category": "audio",
+        "internal": "wav",
+        "from": false,
+        "to": true,
+        "lossless": true
+      }
+    ]
+  ],
+  [
+    "tar",
+    [
+      {
+        "name": "Tape Archive",
+        "format": "tar",
+        "extension": "tar",
+        "mime": "application/x-tar",
+        "category": "archive",
+        "internal": "tar",
+        "from": true,
+        "to": true,
+        "lossless": true
+      },
+      {
+        "name": "ZIP Archive",
+        "format": "zip",
+        "extension": "zip",
+        "mime": "application/zip",
+        "category": "archive",
+        "internal": "zip",
+        "from": true,
+        "to": true,
+        "lossless": true
+      }
+    ]
+  ],
+  [
     "lzh",
     [
       {
@@ -8302,60 +8304,6 @@
         "internal": "json",
         "from": false,
         "to": true,
-        "lossless": false
-      }
-    ]
-  ],
-  [
-    "tar",
-    [
-      {
-        "name": "Tape Archive",
-        "format": "tar",
-        "extension": "tar",
-        "mime": "application/x-tar",
-        "category": "archive",
-        "internal": "tar",
-        "from": true,
-        "to": true,
-        "lossless": true
-      },
-      {
-        "name": "ZIP Archive",
-        "format": "zip",
-        "extension": "zip",
-        "mime": "application/zip",
-        "category": "archive",
-        "internal": "zip",
-        "from": true,
-        "to": true,
-        "lossless": true
-      }
-    ]
-  ],
-  [
-    "txtToInfiniteCraft",
-    [
-      {
-        "name": "Plain Text",
-        "format": "text",
-        "extension": "txt",
-        "mime": "text/plain",
-        "category": "text",
-        "internal": "text",
-        "from": true,
-        "to": false,
-        "lossless": false
-      },
-      {
-        "name": "Infinite Craft Save File",
-        "format": "ic",
-        "extension": "ic",
-        "mime": "application/x-infinite-craft-ic",
-        "from": false,
-        "to": true,
-        "internal": "ic",
-        "category": "archive",
         "lossless": false
       }
     ]
@@ -8399,6 +8347,33 @@
     ]
   ],
   [
+    "txtToInfiniteCraft",
+    [
+      {
+        "name": "Plain Text",
+        "format": "text",
+        "extension": "txt",
+        "mime": "text/plain",
+        "category": "text",
+        "internal": "text",
+        "from": true,
+        "to": false,
+        "lossless": false
+      },
+      {
+        "name": "Infinite Craft Save File",
+        "format": "ic",
+        "extension": "ic",
+        "mime": "application/x-infinite-craft-ic",
+        "from": false,
+        "to": true,
+        "internal": "ic",
+        "category": "archive",
+        "lossless": false
+      }
+    ]
+  ],
+  [
     "espeakng",
     [
       {
@@ -8422,6 +8397,35 @@
         "from": false,
         "to": true,
         "lossless": false
+      }
+    ]
+  ],
+  [
+    "batToExe",
+    [
+      {
+        "name": "Windows Batch file",
+        "format": "batch",
+        "extension": "bat",
+        "mime": "text/windows-batch",
+        "category": [
+          "text"
+        ],
+        "internal": "bat",
+        "from": true,
+        "to": false,
+        "lossless": false
+      },
+      {
+        "name": "Windows Portable Executable",
+        "format": "exe",
+        "extension": "exe",
+        "mime": "application/vnd.microsoft.portable-executable",
+        "category": "code",
+        "internal": "exe",
+        "from": false,
+        "to": true,
+        "lossless": true
       }
     ]
   ],
@@ -8502,107 +8506,6 @@
     ]
   ],
   [
-    "n64rom",
-    [
-      {
-        "name": "Nintendo 64 ROM (Big Endian)",
-        "format": "z64",
-        "extension": "z64",
-        "mime": "application/x-n64-rom",
-        "from": true,
-        "to": true,
-        "internal": "z64",
-        "category": "data",
-        "lossless": true
-      },
-      {
-        "name": "Nintendo 64 ROM (Little Endian)",
-        "format": "n64",
-        "extension": "n64",
-        "mime": "application/x-n64-rom",
-        "from": true,
-        "to": true,
-        "internal": "n64",
-        "category": "data",
-        "lossless": true
-      },
-      {
-        "name": "Nintendo 64 ROM (Byte-swapped)",
-        "format": "v64",
-        "extension": "v64",
-        "mime": "application/x-n64-rom",
-        "from": true,
-        "to": true,
-        "internal": "v64",
-        "category": "data",
-        "lossless": true
-      },
-      {
-        "name": "Portable Network Graphics",
-        "format": "png",
-        "extension": "png",
-        "mime": "image/png",
-        "category": "image",
-        "internal": "n64png",
-        "from": true,
-        "to": true,
-        "lossless": true
-      }
-    ]
-  ],
-  [
-    "VexFlow",
-    [
-      {
-        "name": "MusicXML",
-        "format": "musicxml",
-        "extension": "musicxml",
-        "mime": "application/vnd.recordare.musicxml+xml",
-        "category": "document",
-        "internal": "musicxml",
-        "from": true,
-        "to": false,
-        "lossless": false
-      },
-      {
-        "name": "MusicXML Compressed",
-        "format": "mxl",
-        "extension": "mxl",
-        "mime": "application/vnd.recordare.musicxml",
-        "category": "document",
-        "internal": "mxl",
-        "from": true,
-        "to": false,
-        "lossless": false
-      },
-      {
-        "name": "Hypertext Markup Language",
-        "format": "html",
-        "extension": "html",
-        "mime": "text/html",
-        "category": [
-          "document",
-          "text"
-        ],
-        "internal": "html",
-        "from": false,
-        "to": true,
-        "lossless": false
-      },
-      {
-        "name": "MIDI",
-        "format": "mid",
-        "extension": "mid",
-        "mime": "audio/midi",
-        "from": false,
-        "to": true,
-        "internal": "mid",
-        "category": "audio",
-        "lossless": false
-      }
-    ]
-  ],
-  [
     "bsor",
     [
       {
@@ -8646,33 +8549,6 @@
         "category": "data",
         "internal": "json",
         "from": false,
-        "to": true,
-        "lossless": true
-      }
-    ]
-  ],
-  [
-    "toon",
-    [
-      {
-        "name": "JavaScript Object Notation",
-        "format": "json",
-        "extension": "json",
-        "mime": "application/json",
-        "category": "data",
-        "internal": "json",
-        "from": true,
-        "to": true,
-        "lossless": true
-      },
-      {
-        "name": "Token-Oriented Object Notation",
-        "format": "toon",
-        "extension": "toon",
-        "mime": "text/toon",
-        "category": "data",
-        "internal": "toon",
-        "from": true,
         "to": true,
         "lossless": true
       }
@@ -8748,6 +8624,187 @@
         "mime": "application/bson",
         "category": "data",
         "internal": "bson",
+        "from": true,
+        "to": true,
+        "lossless": true
+      }
+    ]
+  ],
+  [
+    "n64rom",
+    [
+      {
+        "name": "Nintendo 64 ROM (Big Endian)",
+        "format": "z64",
+        "extension": "z64",
+        "mime": "application/x-n64-rom",
+        "from": true,
+        "to": true,
+        "internal": "z64",
+        "category": "data",
+        "lossless": true
+      },
+      {
+        "name": "Nintendo 64 ROM (Little Endian)",
+        "format": "n64",
+        "extension": "n64",
+        "mime": "application/x-n64-rom",
+        "from": true,
+        "to": true,
+        "internal": "n64",
+        "category": "data",
+        "lossless": true
+      },
+      {
+        "name": "Nintendo 64 ROM (Byte-swapped)",
+        "format": "v64",
+        "extension": "v64",
+        "mime": "application/x-n64-rom",
+        "from": true,
+        "to": true,
+        "internal": "v64",
+        "category": "data",
+        "lossless": true
+      },
+      {
+        "name": "Portable Network Graphics",
+        "format": "png",
+        "extension": "png",
+        "mime": "image/png",
+        "category": "image",
+        "internal": "n64png",
+        "from": true,
+        "to": true,
+        "lossless": true
+      }
+    ]
+  ],
+  [
+    "toon",
+    [
+      {
+        "name": "JavaScript Object Notation",
+        "format": "json",
+        "extension": "json",
+        "mime": "application/json",
+        "category": "data",
+        "internal": "json",
+        "from": true,
+        "to": true,
+        "lossless": true
+      },
+      {
+        "name": "Token-Oriented Object Notation",
+        "format": "toon",
+        "extension": "toon",
+        "mime": "text/toon",
+        "category": "data",
+        "internal": "toon",
+        "from": true,
+        "to": true,
+        "lossless": true
+      }
+    ]
+  ],
+  [
+    "VexFlow",
+    [
+      {
+        "name": "MusicXML",
+        "format": "musicxml",
+        "extension": "musicxml",
+        "mime": "application/vnd.recordare.musicxml+xml",
+        "category": "document",
+        "internal": "musicxml",
+        "from": true,
+        "to": false,
+        "lossless": false
+      },
+      {
+        "name": "MusicXML Compressed",
+        "format": "mxl",
+        "extension": "mxl",
+        "mime": "application/vnd.recordare.musicxml",
+        "category": "document",
+        "internal": "mxl",
+        "from": true,
+        "to": false,
+        "lossless": false
+      },
+      {
+        "name": "Hypertext Markup Language",
+        "format": "html",
+        "extension": "html",
+        "mime": "text/html",
+        "category": [
+          "document",
+          "text"
+        ],
+        "internal": "html",
+        "from": false,
+        "to": true,
+        "lossless": false
+      },
+      {
+        "name": "MIDI",
+        "format": "mid",
+        "extension": "mid",
+        "mime": "audio/midi",
+        "from": false,
+        "to": true,
+        "internal": "mid",
+        "category": "audio",
+        "lossless": false
+      }
+    ]
+  ],
+  [
+    "jsonToC",
+    [
+      {
+        "name": "C Source File",
+        "format": "c",
+        "extension": "c",
+        "mime": "text/x-c",
+        "from": true,
+        "to": true,
+        "internal": "c",
+        "category": "code"
+      },
+      {
+        "name": "JavaScript Object Notation",
+        "format": "json",
+        "extension": "json",
+        "mime": "application/json",
+        "category": "data",
+        "internal": "json",
+        "from": true,
+        "to": true,
+        "lossless": false
+      }
+    ]
+  ],
+  [
+    "json5",
+    [
+      {
+        "name": "JavaScript Object Notation",
+        "format": "json",
+        "extension": "json",
+        "mime": "application/json",
+        "category": "data",
+        "internal": "json",
+        "from": true,
+        "to": true,
+        "lossless": true
+      },
+      {
+        "name": "JSON5",
+        "format": "json5",
+        "extension": "json5",
+        "mime": "application/json5",
+        "category": "data",
+        "internal": "json5",
         "from": true,
         "to": true,
         "lossless": true
@@ -9420,26 +9477,86 @@
     ]
   ],
   [
-    "jsonToC",
+    "exe2bat",
     [
       {
-        "name": "C Source File",
-        "format": "c",
-        "extension": "c",
-        "mime": "text/x-c",
+        "name": "Windows Portable Executable",
+        "format": "exe",
+        "extension": "exe",
+        "mime": "application/vnd.microsoft.portable-executable",
+        "category": "code",
+        "internal": "exe",
         "from": true,
-        "to": true,
-        "internal": "c",
-        "category": "code"
+        "to": false,
+        "lossless": false
       },
       {
-        "name": "JavaScript Object Notation",
-        "format": "json",
-        "extension": "json",
-        "mime": "application/json",
-        "category": "data",
-        "internal": "json",
+        "name": "Windows Batch file",
+        "format": "batch",
+        "extension": "bat",
+        "mime": "text/windows-batch",
+        "category": [
+          "text"
+        ],
+        "internal": "bat",
+        "from": false,
+        "to": true,
+        "lossless": true
+      }
+    ]
+  ],
+  [
+    "rpgmvp",
+    [
+      {
+        "name": "RPG Maker MV PNG (RPGMVP)",
+        "format": "rpgmvp",
+        "extension": "rpgmvp",
+        "mime": "application/x-rpgmvp",
         "from": true,
+        "to": false,
+        "internal": "rpgmvp",
+        "category": "image",
+        "lossless": true
+      },
+      {
+        "name": "Portable Network Graphics",
+        "format": "png",
+        "extension": "png",
+        "mime": "image/png",
+        "category": "image",
+        "internal": "png",
+        "from": false,
+        "to": true,
+        "lossless": true
+      }
+    ]
+  ],
+  [
+    "turbowarp",
+    [
+      {
+        "name": "Scratch 3 Project",
+        "format": "sb3",
+        "extension": "sb3",
+        "mime": "application/x.scratch.sb3",
+        "from": true,
+        "to": false,
+        "internal": "sb3",
+        "category": "archive",
+        "lossless": false
+      },
+      {
+        "name": "Hypertext Markup Language",
+        "format": "html",
+        "extension": "html",
+        "mime": "text/html",
+        "category": [
+          "document",
+          "text"
+        ],
+        "internal": "html",
+        "from": false,
         "to": true,
         "lossless": false
       }
@@ -9569,18 +9686,18 @@
     ]
   ],
   [
-    "rpgmvp",
+    "terrariaWld",
     [
       {
-        "name": "RPG Maker MV PNG (RPGMVP)",
-        "format": "rpgmvp",
-        "extension": "rpgmvp",
-        "mime": "application/x-rpgmvp",
+        "name": "Terraria World",
+        "format": "wld",
+        "extension": "wld",
+        "mime": "application/x-terraria-world",
         "from": true,
         "to": false,
-        "internal": "rpgmvp",
-        "category": "image",
-        "lossless": true
+        "internal": "wld",
+        "category": "data",
+        "lossless": false
       },
       {
         "name": "Portable Network Graphics",
@@ -9591,36 +9708,34 @@
         "internal": "png",
         "from": false,
         "to": true,
-        "lossless": true
+        "lossless": false
       }
     ]
   ],
   [
-    "aperturePicture",
+    "ota",
     [
       {
-        "name": "Aperture Picture Format",
-        "format": "apf",
-        "extension": "apf",
-        "mime": "image/x-aperture-picture",
+        "name": "Portable Network Graphics",
+        "format": "png",
+        "extension": "png",
+        "mime": "image/png",
+        "category": "image",
+        "internal": "png",
         "from": true,
-        "to": false,
-        "internal": "apf",
-        "category": [
-          "image"
-        ],
+        "to": true,
         "lossless": true
       },
       {
-        "name": "Microsoft Windows bitmap image",
-        "format": "bmp",
-        "extension": "bmp",
-        "mime": "image/bmp",
-        "category": "image",
-        "internal": "bmp",
-        "from": false,
+        "name": "Over The Air bitmap",
+        "format": "ota",
+        "extension": "otb",
+        "mime": "image/x-ota",
+        "from": true,
         "to": true,
-        "lossless": true
+        "internal": "ota",
+        "category": "image",
+        "lossless": false
       }
     ]
   ],
@@ -9655,112 +9770,31 @@
     ]
   ],
   [
-    "terrariaWld",
+    "aperturePicture",
     [
       {
-        "name": "Terraria World",
-        "format": "wld",
-        "extension": "wld",
-        "mime": "application/x-terraria-world",
+        "name": "Aperture Picture Format",
+        "format": "apf",
+        "extension": "apf",
+        "mime": "image/x-aperture-picture",
         "from": true,
         "to": false,
-        "internal": "wld",
-        "category": "data",
-        "lossless": false
-      },
-      {
-        "name": "Portable Network Graphics",
-        "format": "png",
-        "extension": "png",
-        "mime": "image/png",
-        "category": "image",
-        "internal": "png",
-        "from": false,
-        "to": true,
-        "lossless": false
-      }
-    ]
-  ],
-  [
-    "json5",
-    [
-      {
-        "name": "JavaScript Object Notation",
-        "format": "json",
-        "extension": "json",
-        "mime": "application/json",
-        "category": "data",
-        "internal": "json",
-        "from": true,
-        "to": true,
-        "lossless": true
-      },
-      {
-        "name": "JSON5",
-        "format": "json5",
-        "extension": "json5",
-        "mime": "application/json5",
-        "category": "data",
-        "internal": "json5",
-        "from": true,
-        "to": true,
-        "lossless": true
-      }
-    ]
-  ],
-  [
-    "exe2bat",
-    [
-      {
-        "name": "Windows Portable Executable",
-        "format": "exe",
-        "extension": "exe",
-        "mime": "application/vnd.microsoft.portable-executable",
-        "category": "code",
-        "internal": "exe",
-        "from": true,
-        "to": false,
-        "lossless": false
-      },
-      {
-        "name": "Windows Batch file",
-        "format": "batch",
-        "extension": "bat",
-        "mime": "text/windows-batch",
+        "internal": "apf",
         "category": [
-          "text"
+          "image"
         ],
-        "internal": "bat",
-        "from": false,
-        "to": true,
-        "lossless": true
-      }
-    ]
-  ],
-  [
-    "ota",
-    [
-      {
-        "name": "Portable Network Graphics",
-        "format": "png",
-        "extension": "png",
-        "mime": "image/png",
-        "category": "image",
-        "internal": "png",
-        "from": true,
-        "to": true,
         "lossless": true
       },
       {
-        "name": "Over The Air bitmap",
-        "format": "ota",
-        "extension": "otb",
-        "mime": "image/x-ota",
-        "from": true,
-        "to": true,
-        "internal": "ota",
+        "name": "Microsoft Windows bitmap image",
+        "format": "bmp",
+        "extension": "bmp",
+        "mime": "image/bmp",
         "category": "image",
-        "lossless": false
+        "internal": "bmp",
+        "from": false,
+        "to": true,
+        "lossless": true
       }
     ]
   ],
@@ -10049,74 +10083,6 @@
     ]
   ],
   [
-    "turbowarp",
-    [
-      {
-        "name": "Scratch 3 Project",
-        "format": "sb3",
-        "extension": "sb3",
-        "mime": "application/x.scratch.sb3",
-        "from": true,
-        "to": false,
-        "internal": "sb3",
-        "category": "archive",
-        "lossless": false
-      },
-      {
-        "name": "Hypertext Markup Language",
-        "format": "html",
-        "extension": "html",
-        "mime": "text/html",
-        "category": [
-          "document",
-          "text"
-        ],
-        "internal": "html",
-        "from": false,
-        "to": true,
-        "lossless": false
-      }
-    ]
-  ],
-  [
-    "xcursor",
-    [
-      {
-        "name": "Portable Network Graphics",
-        "format": "png",
-        "extension": "png",
-        "mime": "image/png",
-        "category": "image",
-        "internal": "png",
-        "from": false,
-        "to": true,
-        "lossless": true
-      },
-      {
-        "name": "Joint Photographic Experts Group JFIF",
-        "format": "jpeg",
-        "extension": "jpg",
-        "mime": "image/jpeg",
-        "category": "image",
-        "internal": "jpeg",
-        "from": false,
-        "to": true,
-        "lossless": false
-      },
-      {
-        "name": "X11 cursor",
-        "format": "xcur",
-        "extension": "",
-        "mime": "image/x-x11-cursor",
-        "from": true,
-        "to": false,
-        "internal": "xcur",
-        "category": "image",
-        "lossless": true
-      }
-    ]
-  ],
-  [
     "chessjs",
     [
       {
@@ -10182,40 +10148,40 @@
     ]
   ],
   [
-    "curani",
+    "xcursor",
     [
       {
-        "name": "Microsoft Windows ANI",
-        "format": "ani",
-        "extension": "ani",
-        "mime": "application/x-navi-animation",
-        "from": true,
-        "to": true,
-        "internal": "ani",
+        "name": "Portable Network Graphics",
+        "format": "png",
+        "extension": "png",
+        "mime": "image/png",
         "category": "image",
+        "internal": "png",
+        "from": false,
+        "to": true,
+        "lossless": true
+      },
+      {
+        "name": "Joint Photographic Experts Group JFIF",
+        "format": "jpeg",
+        "extension": "jpg",
+        "mime": "image/jpeg",
+        "category": "image",
+        "internal": "jpeg",
+        "from": false,
+        "to": true,
         "lossless": false
       },
       {
-        "name": "Microsoft Windows CUR",
-        "format": "cur",
-        "extension": "cur",
-        "mime": "image/vnd.microsoft.icon",
+        "name": "X11 cursor",
+        "format": "xcur",
+        "extension": "",
+        "mime": "image/x-x11-cursor",
         "from": true,
-        "to": true,
-        "internal": "cur",
+        "to": false,
+        "internal": "xcur",
         "category": "image",
-        "lossless": false
-      },
-      {
-        "name": "Microsoft Windows ICO",
-        "format": "ico",
-        "extension": "ico",
-        "mime": "image/vnd.microsoft.icon",
-        "from": true,
-        "to": true,
-        "internal": "ico",
-        "category": "image",
-        "lossless": false
+        "lossless": true
       }
     ]
   ],
@@ -10280,6 +10246,44 @@
         "internal": "zip",
         "from": false,
         "to": true,
+        "lossless": false
+      }
+    ]
+  ],
+  [
+    "curani",
+    [
+      {
+        "name": "Microsoft Windows ANI",
+        "format": "ani",
+        "extension": "ani",
+        "mime": "application/x-navi-animation",
+        "from": true,
+        "to": true,
+        "internal": "ani",
+        "category": "image",
+        "lossless": false
+      },
+      {
+        "name": "Microsoft Windows CUR",
+        "format": "cur",
+        "extension": "cur",
+        "mime": "image/vnd.microsoft.icon",
+        "from": true,
+        "to": true,
+        "internal": "cur",
+        "category": "image",
+        "lossless": false
+      },
+      {
+        "name": "Microsoft Windows ICO",
+        "format": "ico",
+        "extension": "ico",
+        "mime": "image/vnd.microsoft.icon",
+        "from": true,
+        "to": true,
+        "internal": "ico",
+        "category": "image",
         "lossless": false
       }
     ]
@@ -10371,9 +10375,5 @@
         "lossless": false
       }
     ]
-  ],
-  [
-    "libreoffice",
-    []
   ]
 ]

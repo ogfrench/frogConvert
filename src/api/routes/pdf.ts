@@ -1,11 +1,38 @@
 import { writeFile } from "fs/promises";
-import { join } from "path";
+import { join, basename } from "path";
 import { merge } from "../../tools/pdfMerge.ts";
 import { organize } from "../../tools/pdfOrganize.ts";
 import { extract } from "../../tools/pdfExtract.ts";
 import type { CorePageEntry } from "../../tools/types.ts";
 import type { FileData } from "../../core/FormatHandler/FormatHandler.ts";
-import { resolveBytes, buildSourceFiles, stripExt, type FileInputRef } from "../../mcp/core/fileInput.ts";
+import { resolveBytes, buildSourceFiles, stripExt, enforceSandboxedPath, type FileInputRef } from "../../mcp/core/fileInput.ts";
+
+/** Reject requests whose body isn't a plain JSON object. */
+function assertObjectBody(body: unknown): asserts body is Record<string, unknown> {
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+        throw new Error("Request body must be a JSON object");
+    }
+}
+
+/** Validate a FileInputRef shape before it reaches resolveBytes. */
+function assertFileInputRef(value: unknown, label: string): asserts value is FileInputRef {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+        throw new Error(`${label} must be an object`);
+    }
+    const v = value as Record<string, unknown>;
+    if (v.filePath !== undefined && typeof v.filePath !== "string") {
+        throw new Error(`${label}.filePath must be a string`);
+    }
+    if (v.base64Bytes !== undefined && typeof v.base64Bytes !== "string") {
+        throw new Error(`${label}.base64Bytes must be a string`);
+    }
+    if (v.fileName !== undefined && typeof v.fileName !== "string") {
+        throw new Error(`${label}.fileName must be a string`);
+    }
+    if (!v.filePath && !v.base64Bytes) {
+        throw new Error(`${label} must have filePath or base64Bytes`);
+    }
+}
 
 function filesResponse(files: FileData[]): Response {
     return Response.json({
@@ -18,15 +45,22 @@ function filesResponse(files: FileData[]): Response {
 
 export async function handlePdfMerge(req: Request): Promise<Response> {
     try {
-        const body = await req.json() as { inputs: FileInputRef[]; outputFilePath?: string };
+        const raw = await req.json();
+        assertObjectBody(raw);
+        const body = raw as { inputs?: unknown; outputFilePath?: unknown };
         if (!Array.isArray(body.inputs) || body.inputs.length < 2) {
             return Response.json({ error: "inputs must be an array of at least 2 items" }, { status: 400 });
         }
-        const sourceFiles = await buildSourceFiles(body.inputs);
+        body.inputs.forEach((v, i) => assertFileInputRef(v, `inputs[${i}]`));
+        if (body.outputFilePath !== undefined && typeof body.outputFilePath !== "string") {
+            return Response.json({ error: "outputFilePath must be a string" }, { status: 400 });
+        }
+        const sourceFiles = await buildSourceFiles(body.inputs as FileInputRef[]);
         const result = await merge(sourceFiles);
         if (body.outputFilePath) {
-            await writeFile(body.outputFilePath, result.bytes);
-            return Response.json({ savedTo: [body.outputFilePath] });
+            const safeOut = enforceSandboxedPath(body.outputFilePath);
+            await writeFile(safeOut, result.bytes);
+            return Response.json({ savedTo: [safeOut] });
         }
         return filesResponse([result]);
     } catch (err: any) {
@@ -44,18 +78,34 @@ interface PageEntryDTO {
 
 export async function handlePdfOrganize(req: Request): Promise<Response> {
     try {
-        const body = await req.json() as { inputs: FileInputRef[]; pages: PageEntryDTO[]; outputFilePath?: string };
+        const raw = await req.json();
+        assertObjectBody(raw);
+        const body = raw as { inputs?: unknown; pages?: unknown; outputFilePath?: unknown };
         if (!Array.isArray(body.inputs) || body.inputs.length < 1) {
             return Response.json({ error: "inputs must be an array of at least 1 item" }, { status: 400 });
         }
+        body.inputs.forEach((v, i) => assertFileInputRef(v, `inputs[${i}]`));
         if (!Array.isArray(body.pages) || body.pages.length < 1) {
             return Response.json({ error: "pages must be a non-empty array" }, { status: 400 });
         }
-        const sourceFiles = await buildSourceFiles(body.inputs);
-        const manifest: CorePageEntry[] = body.pages.map((p, idx) => {
+        body.pages.forEach((p, idx) => {
+            if (!p || typeof p !== "object") {
+                throw new Error(`pages[${idx}] must be an object`);
+            }
+            const pp = p as Record<string, unknown>;
+            if (typeof pp.sourceIndex !== "number") throw new Error(`pages[${idx}].sourceIndex must be a number`);
+            if (typeof pp.pageNum !== "number") throw new Error(`pages[${idx}].pageNum must be a number`);
+        });
+        if (body.outputFilePath !== undefined && typeof body.outputFilePath !== "string") {
+            return Response.json({ error: "outputFilePath must be a string" }, { status: 400 });
+        }
+        const inputs = body.inputs as FileInputRef[];
+        const pages = body.pages as PageEntryDTO[];
+        const sourceFiles = await buildSourceFiles(inputs);
+        const manifest: CorePageEntry[] = pages.map((p, idx) => {
             const isBlank = p.blank || p.sourceIndex === -1;
-            if (!isBlank && (p.sourceIndex < 0 || p.sourceIndex >= body.inputs.length)) {
-                throw new Error(`pages[${idx}].sourceIndex ${p.sourceIndex} out of range (inputs.length=${body.inputs.length})`);
+            if (!isBlank && (p.sourceIndex < 0 || p.sourceIndex >= inputs.length)) {
+                throw new Error(`pages[${idx}].sourceIndex ${p.sourceIndex} out of range (inputs.length=${inputs.length})`);
             }
             return {
                 type: isBlank ? "blank" : "source",
@@ -67,8 +117,9 @@ export async function handlePdfOrganize(req: Request): Promise<Response> {
         });
         const result = await organize(sourceFiles, manifest);
         if (body.outputFilePath) {
-            await writeFile(body.outputFilePath, result.bytes);
-            return Response.json({ savedTo: [body.outputFilePath] });
+            const safeOut = enforceSandboxedPath(body.outputFilePath as string);
+            await writeFile(safeOut, result.bytes);
+            return Response.json({ savedTo: [safeOut] });
         }
         return filesResponse([result]);
     } catch (err: any) {
@@ -78,24 +129,42 @@ export async function handlePdfOrganize(req: Request): Promise<Response> {
 
 export async function handlePdfExtract(req: Request): Promise<Response> {
     try {
-        const body = await req.json() as {
-            input: FileInputRef;
-            pageNums: number[];
-            baseName?: string;
-            groupAsOne?: boolean;
-            outputDir?: string;
+        const raw = await req.json();
+        assertObjectBody(raw);
+        const body = raw as {
+            input?: unknown;
+            pageNums?: unknown;
+            baseName?: unknown;
+            groupAsOne?: unknown;
+            outputDir?: unknown;
         };
         if (!body.input) return Response.json({ error: "input required" }, { status: 400 });
+        assertFileInputRef(body.input, "input");
         if (!Array.isArray(body.pageNums) || body.pageNums.length < 1) {
             return Response.json({ error: "pageNums must be a non-empty array" }, { status: 400 });
         }
-        const { bytes, name } = await resolveBytes(body.input);
-        const baseName = body.baseName ?? stripExt(name);
-        const results = await extract(bytes, body.pageNums, baseName, body.groupAsOne ?? false);
+        if (!body.pageNums.every(n => typeof n === "number" && Number.isFinite(n))) {
+            return Response.json({ error: "pageNums must contain only numbers" }, { status: 400 });
+        }
+        if (body.baseName !== undefined && typeof body.baseName !== "string") {
+            return Response.json({ error: "baseName must be a string" }, { status: 400 });
+        }
+        if (body.groupAsOne !== undefined && typeof body.groupAsOne !== "boolean") {
+            return Response.json({ error: "groupAsOne must be a boolean" }, { status: 400 });
+        }
+        if (body.outputDir !== undefined && typeof body.outputDir !== "string") {
+            return Response.json({ error: "outputDir must be a string" }, { status: 400 });
+        }
+        const { bytes, name } = await resolveBytes(body.input as FileInputRef);
+        const baseName = (body.baseName as string | undefined) ?? stripExt(name);
+        const results = await extract(bytes, body.pageNums as number[], baseName, (body.groupAsOne as boolean | undefined) ?? false);
 
         if (body.outputDir) {
+            const safeDir = enforceSandboxedPath(body.outputDir as string);
             const paths = await Promise.all(results.map(async f => {
-                const p = join(body.outputDir!, f.name);
+                // basename() strips any path segments the extract tool may have
+                // embedded in the output file name, keeping writes inside safeDir.
+                const p = join(safeDir, basename(f.name));
                 await writeFile(p, f.bytes);
                 return p;
             }));

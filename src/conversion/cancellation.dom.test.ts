@@ -11,6 +11,7 @@ import {
     resetCancellation,
     setCancelled,
     setWorkerCancelCallback,
+    setForceCleanupCallback,
     triggerCancellation,
     completeCancellation,
     showPartialDownloadPopup,
@@ -315,5 +316,95 @@ describe("cancellation DOM bindings", () => {
         ensureCancelButton();
         removeCancelButton();
         expect(ui.popupBox.querySelector(".popup-actions-footer")).toBeNull();
+    });
+
+    // Hard-cancel safety-net timer: fires forceCleanupCallback if the worker
+    // never acks a cancel request within the timeout window.
+    describe("hard-cancel timeout", () => {
+        it("fires forceCleanupCallback if the worker never acks", async () => {
+            vi.useFakeTimers();
+            const forceCb = vi.fn();
+            setForceCleanupCallback(forceCb);
+            setActiveBatchSize(1);
+            showConversionInProgress("Working...");
+            ensureCancelButton();
+            triggerCancellation();
+
+            // Timer is 2 s. Advance just before and confirm no fire yet.
+            await vi.advanceTimersByTimeAsync(1900);
+            expect(forceCb).not.toHaveBeenCalled();
+
+            // Cross the boundary — callback must fire exactly once.
+            await vi.advanceTimersByTimeAsync(200);
+            expect(forceCb).toHaveBeenCalledOnce();
+
+            vi.useRealTimers();
+            resetCancellation();
+        });
+
+        it("does not fire on soft cancel (batch, first click)", async () => {
+            vi.useFakeTimers();
+            const forceCb = vi.fn();
+            setForceCleanupCallback(forceCb);
+            setActiveBatchSize(3);
+            showConversionInProgress("Working...");
+            ensureCancelButton();
+            triggerCancellation(); // soft only
+
+            await vi.advanceTimersByTimeAsync(3000);
+            expect(forceCb).not.toHaveBeenCalled();
+
+            vi.useRealTimers();
+            resetCancellation();
+        });
+
+        // cancel → reset → reconvert must not fire the old timer
+        it("resetCancellation clears the pending hard-cancel timer", async () => {
+            vi.useFakeTimers();
+            const forceCb = vi.fn();
+            setForceCleanupCallback(forceCb);
+            setActiveBatchSize(1);
+            showConversionInProgress("Working...");
+            ensureCancelButton();
+            triggerCancellation();
+
+            // Reset before the 2 s threshold — simulates a retried conversion
+            // that reuses the module-level state. The old timer must not fire.
+            await vi.advanceTimersByTimeAsync(500);
+            resetCancellation();
+            await vi.advanceTimersByTimeAsync(5000);
+
+            expect(forceCb).not.toHaveBeenCalled();
+            vi.useRealTimers();
+        });
+
+        it("reconvert after reset does not inherit stale forceCleanupCallback", async () => {
+            vi.useFakeTimers();
+            const staleCb = vi.fn();
+            const freshCb = vi.fn();
+
+            // Run 1: register stale cb, cancel, reset.
+            setForceCleanupCallback(staleCb);
+            setActiveBatchSize(1);
+            showConversionInProgress("Working...");
+            ensureCancelButton();
+            triggerCancellation();
+            await vi.advanceTimersByTimeAsync(500);
+            resetCancellation();
+
+            // Run 2: register fresh cb, cancel, let timer fire.
+            setForceCleanupCallback(freshCb);
+            setActiveBatchSize(1);
+            showConversionInProgress("Working...");
+            ensureCancelButton();
+            triggerCancellation();
+            await vi.advanceTimersByTimeAsync(2500);
+
+            expect(staleCb).not.toHaveBeenCalled();
+            expect(freshCb).toHaveBeenCalledOnce();
+
+            vi.useRealTimers();
+            resetCancellation();
+        });
     });
 });

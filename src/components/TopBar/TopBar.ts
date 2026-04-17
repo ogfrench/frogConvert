@@ -1,5 +1,6 @@
 import "./TopBar.css";
 import { ui, formatMode, updateScrollLock, isCategoryVisible, type FormatMode } from "../store/store.ts";
+import { safeLocalStorageSet } from "../utils/index.ts";
 
 
 export function applyMode(mode: FormatMode) {
@@ -8,7 +9,7 @@ export function applyMode(mode: FormatMode) {
   const textEl = ui.modeToggleButton.querySelector('#mode-toggle-text');
   if (textEl) textEl.textContent = label;
   else ui.modeToggleButton.textContent = label;
-  localStorage.setItem("formatMode", mode);
+  safeLocalStorageSet("formatMode", mode);
 
   // Show/hide category tabs with animation
   for (const tab of Array.from(ui.categoryTabs.children) as HTMLElement[]) {

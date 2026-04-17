@@ -27,6 +27,7 @@ import {
   initUploadZone,
   showPopup,
   hidePopup,
+  createPopupButton,
   showUnsupportedFilePopup,
   closeFormatModal,
   setSelectedFormat,
@@ -66,7 +67,37 @@ import {
 } from "./conversion/actions.ts";
 import { triggerConfetti } from "./effects/Confetti/Confetti.ts";
 
-getPdfWorkspace().catch(() => {});
+getPdfWorkspace().catch((e) => console.warn("[main] PDF workspace module load failed:", e));
+
+// Last-line safety net for errors that escape every other catch site.
+// Logs to console for dev, and shows a one-shot recovery popup so users
+// get a way out of a stuck UI instead of a silent dead tab.
+let recoveryPopupOpen = false;
+function surfaceUnhandled(kind: string, reason: unknown) {
+  console.error(`[main] ${kind}:`, reason);
+  if (recoveryPopupOpen) return;
+  try {
+    recoveryPopupOpen = true;
+    const h2 = document.createElement("h2");
+    h2.textContent = "Something went wrong";
+    const p = document.createElement("p");
+    p.textContent = "The app ran into an unexpected error. Reload to try again.";
+    const actions = document.createElement("div");
+    actions.className = "popup-actions-footer";
+    actions.appendChild(createPopupButton("Reload", "btn-primary", () => location.reload()));
+    actions.appendChild(createPopupButton("Dismiss", "btn-secondary", () => {
+      hidePopup();
+      recoveryPopupOpen = false;
+    }));
+    showPopup([h2, p, actions]);
+  } catch (popupErr) {
+    // If the popup machinery itself failed we can't do much — leave the flag
+    // armed so we don't loop, and keep the console log.
+    console.error("[main] recovery popup failed:", popupErr);
+  }
+}
+window.addEventListener("unhandledrejection", (ev) => surfaceUnhandled("unhandled promise rejection", ev.reason));
+window.addEventListener("error", (ev) => surfaceUnhandled("uncaught error", ev.error ?? ev.message));
 
 // --- Init UI ---
 
@@ -184,9 +215,11 @@ function setAppMode(mode: string) {
     pdfWorkspaceEl.style.display = "";
     pdfDescriptionEl.style.display = "";
     replayEntranceAnimations([pdfWorkspaceEl, pdfDescriptionEl]);
-    getPdfWorkspace().then(ws => ws.initPdfWorkspace()).catch(() => {});
+    getPdfWorkspace().then(ws => ws.initPdfWorkspace())
+      .catch((e) => console.warn("[main] PDF workspace init failed:", e));
   } else {
-    getPdfWorkspace().then(ws => ws.resetAll()).catch(() => {});
+    getPdfWorkspace().then(ws => ws.resetAll())
+      .catch((e) => console.warn("[main] PDF workspace reset failed:", e));
     pdfWorkspaceEl.style.display = "none";
     pdfDescriptionEl.style.display = "none";
     for (const el of converterEls) el.style.display = "";
@@ -467,11 +500,15 @@ async function refreshUI() {
     } else {
       setOnConversionEnd(refreshUI);
     }
-    // Persist cache for next page load
+    // Persist cache for next page load. localStorage.setItem throws a
+    // QuotaExceededError synchronously when origin storage is full; if
+    // uncaught it takes the Phase-2 load path down with it. Log and move on.
     try {
       const entries = [...window.supportedFormatCache.entries()];
       localStorage.setItem("supportedFormatCache", JSON.stringify(entries));
-    } catch (_) { }
+    } catch (e) {
+      console.warn("[main] localStorage persist failed (quota or disabled):", e);
+    }
     console.debug(`Phase 2: ${handlers.length - countBefore} background handlers loaded.`);
   } finally {
     showLoadingBar(false);  // always hide bar when entire loading sequence ends

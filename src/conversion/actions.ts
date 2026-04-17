@@ -25,6 +25,7 @@ import {
     resetCancellation,
     showConversionInProgress,
     setWorkerCancelCallback,
+    setForceCleanupCallback,
     completeCancellation,
     showPartialDownloadPopup,
     showEnginesLoadingPopup,
@@ -72,14 +73,20 @@ export function findMatchingFormat(
     // current display mode. refreshUI() re-runs after each handler phase and handles
     // switching to the matched category tab if the format wasn't yet loaded on upload.
     const mimeType = normalizeMimeType(files[0].type);
-    const fileExtension = files[0].name.split(".").pop()?.toLowerCase();
+    // Only treat a trailing segment as an extension when there's an actual dot
+    // in the filename. Otherwise `"photo".split(".").pop()` returns the whole
+    // name, which would accidentally match a format whose extension happened
+    // to equal the filename.
+    const name = files[0].name;
+    const dotIdx = name.lastIndexOf(".");
+    const fileExtension = dotIdx > 0 ? name.slice(dotIdx + 1).toLowerCase() : undefined;
     // Best match: MIME + extension
     let mimeMatch = -1;
     for (let i = 0; i < allOptions.length; i++) {
         const { format } = allOptions[i];
         if (!format.from || format.mime !== mimeType) continue;
 
-        if (format.extension === fileExtension) return i; // Exact MIME+ext match
+        if (fileExtension && format.extension === fileExtension) return i; // Exact MIME+ext match
         if (mimeMatch === -1) mimeMatch = i; // First MIME-only match as fallback
     }
     if (mimeMatch !== -1) return mimeMatch;
@@ -136,6 +143,18 @@ function getConversionWorker(): Worker {
     return conversionWorker;
 }
 
+// bfcache restore: drop stale worker ref so getConversionWorker() re-spawns.
+if (typeof window !== "undefined") {
+    window.addEventListener("pageshow", (ev) => {
+        if ((ev as PageTransitionEvent).persisted) {
+            if (conversionWorker) {
+                try { conversionWorker.terminate(); } catch { /* already gone */ }
+                conversionWorker = null;
+            }
+        }
+    });
+}
+
 async function runInWorker(handlerName: string, inputFiles: FileData[], inputFormat: FileFormat, outputFormat: FileFormat, args?: string[], onProgress?: (p: ProgressEvent) => void): Promise<FileData[]> {
     const worker = getConversionWorker();
     const id = ++workerMsgId;
@@ -175,6 +194,13 @@ async function runInWorker(handlerName: string, inputFiles: FileData[], inputFor
             worker.terminate();
             conversionWorker = null;
             reject(new Error("Cancelled"));
+        });
+        // Hard-cancel fallback if the normal cancel path doesn't bring us down.
+        setForceCleanupCallback(() => {
+            cleanup();
+            try { worker.terminate(); } catch { /* already terminated */ }
+            conversionWorker = null;
+            reject(new Error("Cancelled (forced)"));
         });
         workerErrorCallback = (err: ErrorEvent) => {
             cleanup();
@@ -398,6 +424,7 @@ function showConversionFailedPopup(fromFormat: string, toFormat: string, error: 
 
 export function initConvertButton() {
     ui.convertButton.onclick = async () => {
+        // Reentrancy guard: flag is set synchronously before the first await.
         if (isConverting) return;
         isConverting = true;
 
@@ -634,20 +661,36 @@ export function initConvertButton() {
             const p = document.createElement("p");
             p.innerHTML = resultText;
 
-            // Aggregate dedupe warnings emitted by handlers (e.g. FFmpeg
-            // recovery padding the output, sample-rate coercion). Surface
-            // them so the user knows the result isn't a literal-faithful
-            // conversion.
-            const allWarnings = Array.from(new Set(
-                allOutputFiles.flatMap(f => f.warnings ?? [])
-            ));
-            const warningNode = allWarnings.length > 0
+            // Surface handler warnings per file. Dedupe identical warnings
+            // across files by grouping them so the user can see which file
+            // hit each caveat instead of one flat "something happened" list.
+            //   - `warningToFiles`: warning text → list of files that emitted it
+            //   - if every file emitted the same warning, show it once as
+            //     "across N files" rather than repeating the same filename list
+            const warningToFiles = new Map<string, string[]>();
+            for (const f of allOutputFiles) {
+                for (const w of (f.warnings ?? [])) {
+                    if (!warningToFiles.has(w)) warningToFiles.set(w, []);
+                    warningToFiles.get(w)!.push(f.name);
+                }
+            }
+            const warningNode = warningToFiles.size > 0
                 ? (() => {
                     const div = document.createElement("div");
                     div.className = "conversion-warnings";
-                    div.innerHTML = `<strong>Heads up:</strong><ul>${
-                        allWarnings.map(w => `<li>${escapeHTML(w)}</li>`).join("")
-                    }</ul>`;
+                    const lines: string[] = [];
+                    for (const [warning, names] of warningToFiles) {
+                        if (allOutputFiles.length > 1 && names.length === allOutputFiles.length) {
+                            lines.push(`<li>${escapeHTML(warning)} <span class="muted-text">(all ${names.length} files)</span></li>`);
+                        } else if (allOutputFiles.length > 1 && names.length > 1) {
+                            lines.push(`<li>${escapeHTML(warning)} <span class="muted-text">(${names.length} files)</span></li>`);
+                        } else if (allOutputFiles.length > 1) {
+                            lines.push(`<li>${escapeHTML(warning)} <span class="muted-text">(${escapeHTML(shortenFileName(names[0], 32))})</span></li>`);
+                        } else {
+                            lines.push(`<li>${escapeHTML(warning)}</li>`);
+                        }
+                    }
+                    div.innerHTML = `<strong>Heads up:</strong><ul>${lines.join("")}</ul>`;
                     return div;
                 })()
                 : null;
@@ -674,26 +717,29 @@ export function initConvertButton() {
             console.error(e);
             showAlertPopup("Something went wrong", escapeHTML(String(e)));
         } finally {
-            const hasConvertedFiles = allOutputFiles.length > 0;
-            const shouldHide = !isCancelled || !hasConvertedFiles;
-
-            // Clean up progress / download-finished UI regardless of outcome —
-            // they're only meaningful while a batch is running.
-            await completeCancellation(shouldHide);
-
-            if (isCancelled && hasConvertedFiles) {
-                setLastConvertedFiles(allOutputFiles);
-                showPartialDownloadPopup(allOutputFiles.length, () => {
-                    downloadAllConvertedFiles();
-                });
+            // Split cleanup and state-reset: anything in the cleanup block can
+            // throw (completeCancellation awaits UI animations; user callbacks
+            // can throw), but `isConverting = false` MUST run or the whole app
+            // freezes in "Converting…" state with no path back.
+            try {
+                const hasConvertedFiles = allOutputFiles.length > 0;
+                const shouldHide = !isCancelled || !hasConvertedFiles;
+                await completeCancellation(shouldHide);
+                if (isCancelled && hasConvertedFiles) {
+                    setLastConvertedFiles(allOutputFiles);
+                    showPartialDownloadPopup(allOutputFiles.length, () => {
+                        downloadAllConvertedFiles();
+                    });
+                }
+            } catch (cleanupErr) {
+                console.error("[conversion] cleanup failed:", cleanupErr);
             }
-
             resetCancellation();
             isConverting = false;
             if (onConversionEnd) {
                 const fn = onConversionEnd;
                 onConversionEnd = null;
-                fn();
+                try { fn(); } catch (e) { console.error("[conversion] onConversionEnd threw:", e); }
             }
         }
     };

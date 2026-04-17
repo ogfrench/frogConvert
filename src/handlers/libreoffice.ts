@@ -92,6 +92,28 @@ class libreofficeHandler implements FormatHandler {
       const fs = await import(/* @vite-ignore */ fsName);
       const path = await import(/* @vite-ignore */ pathName);
       const os = await import(/* @vite-ignore */ osName);
+
+      // Best-effort sweep of stale libreoffice-node-* dirs from prior runs
+      // that crashed before terminate() fired. Failure here is non-fatal.
+      try {
+        const tmpRoot = os.tmpdir();
+        const entries = await fs.readdir(tmpRoot);
+        const staleThresholdMs = 24 * 60 * 60 * 1000;
+        const cutoff = Date.now() - staleThresholdMs;
+        for (const name of entries) {
+          if (!name.startsWith("libreoffice-node-")) continue;
+          const full = path.join(tmpRoot, name);
+          try {
+            const st = await fs.stat(full);
+            if (st.mtimeMs < cutoff) {
+              await fs.rm(full, { recursive: true, force: true });
+            }
+          } catch { /* ignore per-entry stat/rm failures */ }
+        }
+      } catch (sweepErr: any) {
+        console.warn("[LibreOffice] stale temp sweep skipped:", sweepErr?.message || sweepErr);
+      }
+
       this.#tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "libreoffice-node-"));
       this.#profileDir = path.join(this.#tempDir, "profile");
       await fs.mkdir(this.#profileDir, { recursive: true });
@@ -174,7 +196,8 @@ class libreofficeHandler implements FormatHandler {
     if (this.#tempDir) {
       const fsName = "fs/promises";
       import(/* @vite-ignore */ fsName).then(fs =>
-        fs.rm(this.#tempDir, { recursive: true, force: true }).catch(() => { })
+        fs.rm(this.#tempDir, { recursive: true, force: true })
+          .catch((e: any) => console.warn("[LibreOffice] failed to remove temp dir on terminate:", e?.message ?? e))
       );
     }
   }
@@ -337,7 +360,8 @@ class libreofficeHandler implements FormatHandler {
         outputFiles.push({ name: baseName + ".pdf", bytes: pdfBytes });
       } finally {
         // Clean up per-call directory (always, even on early failure)
-        fs.rm(callDir, { recursive: true, force: true }).catch(() => {});
+        fs.rm(callDir, { recursive: true, force: true })
+          .catch((e: any) => console.warn("[LibreOffice] failed to remove call dir:", e?.message ?? e));
       }
     }
 
@@ -371,7 +395,9 @@ class libreofficeHandler implements FormatHandler {
       p.stderr?.on("data", (data: any) => { stderr += data.toString(); });
 
       const timeout = setTimeout(() => {
-        p.kill();
+        // SIGKILL (not default SIGTERM) — a hung soffice may ignore SIGTERM,
+        // leaving the mutex permanently locked and temp dirs leaked.
+        p.kill("SIGKILL");
         reject(new Error("LibreOffice conversion timed out (120s)"));
       }, 120_000);
 

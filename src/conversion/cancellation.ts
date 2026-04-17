@@ -13,6 +13,11 @@ export function resetCancellation() {
     softCancelRequested = false;
     _activeBatchSize = 0;
     cancelStartTime = null;
+    if (hardCancelTimeoutId !== null) {
+        clearTimeout(hardCancelTimeoutId);
+        hardCancelTimeoutId = null;
+    }
+    forceCleanupCallback = null;
     // Clear DOM artifacts from a previous soft-cancel so they don't leak
     // into the next conversion if the popup is reused without a full rebuild.
     ui.popupBox.querySelector(".conversion-wrap-up")?.remove();
@@ -118,6 +123,20 @@ export function showConversionInProgress(messageHTML: string, title: string = "C
  *
  * Escape also routes here, same rules apply.
  */
+// Hard-timeout for cancellation. If the worker doesn't yield (stuck inside a
+// synchronous WASM call), workerCancelCallback may never run — and the UI
+// stays on "Cancelling…" forever. After this window we give up waiting and
+// force the finally path to run, even if the worker ack never arrives.
+const HARD_CANCEL_TIMEOUT_MS = 2000;
+let hardCancelTimeoutId: ReturnType<typeof setTimeout> | null = null;
+let forceCleanupCallback: (() => void) | null = null;
+
+/** Registered by the conversion flow so the hard-cancel timer can force an
+ *  abort even when the worker never acks. */
+export function setForceCleanupCallback(cb: (() => void) | null) {
+    forceCleanupCallback = cb;
+}
+
 export function triggerCancellation() {
     if (isCancelled) return;  // guard against double-calls overwriting cancelStartTime
 
@@ -136,6 +155,20 @@ export function triggerCancellation() {
     workerCancelCallback?.();
     workerCancelCallback = null;
     cancelStartTime = performance.now();
+
+    // Arm the hard-timeout. If forceCleanupCallback fires before the worker
+    // unwinds naturally, we accept losing the in-flight output and return the
+    // UI to a usable state. Cleared in completeCancellation/resetCancellation.
+    if (hardCancelTimeoutId !== null) clearTimeout(hardCancelTimeoutId);
+    hardCancelTimeoutId = setTimeout(() => {
+        hardCancelTimeoutId = null;
+        if (forceCleanupCallback) {
+            console.warn("[cancellation] worker did not ack cancel within timeout — forcing cleanup");
+            const fn = forceCleanupCallback;
+            forceCleanupCallback = null;
+            try { fn(); } catch (e) { console.error("[cancellation] forceCleanup threw:", e); }
+        }
+    }, HARD_CANCEL_TIMEOUT_MS);
 
     const h2 = document.createElement("h2");
     h2.textContent = "Cancelling conversion";

@@ -1,5 +1,5 @@
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
-import { shortenFileName } from "../utils/index.ts";
+import { shortenFileName, safeLocalStorageSet } from "../utils/index.ts";
 import normalizeMimeType from "../../core/utils/normalizeMimeType.ts";
 // --- DOM element references (lazy-initialized to allow testing) ---
 const uiInternal: Record<string, any> = {};
@@ -411,7 +411,7 @@ export function initTheme() {
   ui.themeToggleButton?.addEventListener("click", () => {
     const currentlyDark = document.documentElement.classList.contains("dark");
     applyTheme(!currentlyDark);
-    localStorage.setItem("theme", currentlyDark ? "light" : "dark");
+    safeLocalStorageSet("theme", currentlyDark ? "light" : "dark");
   });
 }
 

@@ -1,5 +1,5 @@
 import { readFile } from "fs/promises";
-import { basename } from "path";
+import { basename, resolve as resolvePath, relative as relativePath, isAbsolute } from "path";
 import type { CoreSourceFile } from "../../tools/types.ts";
 
 export interface FileInputRef {
@@ -15,18 +15,57 @@ export function enforceSize(byteLength: number) {
     }
 }
 
+/**
+ * Containment check for caller-supplied absolute paths.
+ *
+ * When FROGCONVERT_SANDBOX_ROOT is set, every filePath / outputFilePath /
+ * outputDir passed into an API route must resolve to a location inside that
+ * root. This is defense-in-depth against DNS-rebinding or otherwise-untrusted
+ * clients reaching the local API — combined with the Origin/Host check in
+ * src/api/index.ts.
+ *
+ * When FROGCONVERT_SANDBOX_ROOT is unset the check is a no-op so existing
+ * workflows (e.g. agents passing absolute paths outside cwd) keep working.
+ */
+export function enforceSandboxedPath(inputPath: string): string {
+    const root = process.env.FROGCONVERT_SANDBOX_ROOT;
+    if (!root) return inputPath;
+    if (!isAbsolute(inputPath)) {
+        // Relative paths are resolved against the sandbox root itself.
+        const resolved = resolvePath(root, inputPath);
+        const rel = relativePath(root, resolved);
+        if (rel.startsWith("..") || isAbsolute(rel)) {
+            throw new Error("Path escapes FROGCONVERT_SANDBOX_ROOT");
+        }
+        return resolved;
+    }
+    const resolved = resolvePath(inputPath);
+    const rootResolved = resolvePath(root);
+    const rel = relativePath(rootResolved, resolved);
+    if (rel.startsWith("..") || isAbsolute(rel)) {
+        throw new Error("Path escapes FROGCONVERT_SANDBOX_ROOT");
+    }
+    return resolved;
+}
+
 export async function resolveBytes(input: FileInputRef): Promise<{ bytes: Uint8Array; name: string }> {
     if (input.filePath) {
-        const buf = await readFile(input.filePath);
+        const safePath = enforceSandboxedPath(input.filePath);
+        const buf = await readFile(safePath);
         enforceSize(buf.byteLength);
         const bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
-        return { bytes, name: input.fileName ?? basename(input.filePath) };
+        return { bytes, name: input.fileName ?? basename(safePath) };
     }
     if (!input.base64Bytes) throw new Error("Input must have filePath or base64Bytes");
     if (!input.fileName) throw new Error("fileName required when using base64Bytes");
-    // Approximate decoded size from base64 length (4 b64 chars → 3 bytes)
-    enforceSize(Math.floor(input.base64Bytes.length * 0.75));
-    const buf = Buffer.from(input.base64Bytes, "base64");
+    // Compute decoded size from base64 length. Whitespace is legal in base64
+    // strings and must be excluded from the count; padding (`=` chars) maps
+    // to zero output bytes. Without this an attacker could pad a string with
+    // whitespace and bypass MAX_UPLOAD_MB by a small constant.
+    const cleaned = input.base64Bytes.replace(/\s+/g, "");
+    const padding = cleaned.endsWith("==") ? 2 : cleaned.endsWith("=") ? 1 : 0;
+    enforceSize(Math.floor((cleaned.length * 3) / 4) - padding);
+    const buf = Buffer.from(cleaned, "base64");
     const bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
     return { bytes, name: input.fileName };
 }

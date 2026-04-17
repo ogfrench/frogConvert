@@ -19,6 +19,12 @@ const DOC_CACHE_MAX = 5;
 const docCache = new Map<Uint8Array, PDFDocumentProxy>();
 let sharedCanvas: HTMLCanvasElement | null = null;
 
+// Serialise all renderPageThumbnail calls. The function uses a single shared
+// canvas; parallel callers would race on its bitmap. Also helps on Safari
+// where concurrent WebGL-backed canvases exceed the per-page context cap.
+// Each call appends to the queue and awaits the previous.
+let renderQueue: Promise<unknown> = Promise.resolve();
+
 /**
  * Render a single page of a PDF as a thumbnail image.
  * @returns data:image/png URL, or '' if pdfjs failed to load
@@ -31,39 +37,49 @@ export async function renderPageThumbnail(
   await ensurePdfjs();
   if (!pdfjsLib) return '';
 
-  let pdf = docCache.get(pdfBytes);
-  if (pdf) {
-    // Re-insert to move to MRU position (Map iterates in insertion order).
-    docCache.delete(pdfBytes);
-    docCache.set(pdfBytes, pdf);
-  } else {
-    pdf = await pdfjsLib.getDocument({
-      data: pdfBytes.slice(),
-      isEvalSupported: false,
-      isOffscreenCanvasSupported: false,
-    }).promise;
-    docCache.set(pdfBytes, pdf);
-    if (docCache.size > DOC_CACHE_MAX) {
-      const oldestKey = docCache.keys().next().value as Uint8Array;
-      docCache.get(oldestKey)?.destroy();
-      docCache.delete(oldestKey);
+  // Chain onto the queue. Using .then(..., ..)-style so a rejection from a
+  // prior call doesn't poison later ones (we don't `await` the reject path).
+  const run = async (): Promise<string> => {
+    let pdf = docCache.get(pdfBytes);
+    if (pdf) {
+      // Re-insert to move to MRU position (Map iterates in insertion order).
+      docCache.delete(pdfBytes);
+      docCache.set(pdfBytes, pdf);
+    } else {
+      pdf = await pdfjsLib!.getDocument({
+        data: pdfBytes.slice(),
+        isEvalSupported: false,
+        isOffscreenCanvasSupported: false,
+      }).promise;
+      docCache.set(pdfBytes, pdf);
+      if (docCache.size > DOC_CACHE_MAX) {
+        const oldestKey = docCache.keys().next().value as Uint8Array;
+        docCache.get(oldestKey)?.destroy();
+        docCache.delete(oldestKey);
+      }
     }
-  }
 
-  const page = await pdf.getPage(pageNum);
-  const unscaled = page.getViewport({ scale: 1 });
-  const scale = maxWidth / unscaled.width;
-  const viewport = page.getViewport({ scale });
+    const page = await pdf.getPage(pageNum);
+    try {
+      const unscaled = page.getViewport({ scale: 1 });
+      const scale = maxWidth / unscaled.width;
+      const viewport = page.getViewport({ scale });
 
-  if (!sharedCanvas) sharedCanvas = document.createElement('canvas');
-  sharedCanvas.width = viewport.width;
-  sharedCanvas.height = viewport.height;
+      if (!sharedCanvas) sharedCanvas = document.createElement('canvas');
+      sharedCanvas.width = viewport.width;
+      sharedCanvas.height = viewport.height;
 
-  await page.render({ canvas: sharedCanvas, viewport }).promise;
-  const url = sharedCanvas.toDataURL('image/png');
+      await page.render({ canvas: sharedCanvas, viewport }).promise;
+      return sharedCanvas.toDataURL('image/png');
+    } finally {
+      page.cleanup();
+    }
+  };
 
-  page.cleanup();
-  return url;
+  const pending = renderQueue.then(run, run);
+  // Keep the chain alive even on rejection so later callers can still run.
+  renderQueue = pending.catch(() => { /* swallow to unblock queue */ });
+  return pending;
 }
 
 /**

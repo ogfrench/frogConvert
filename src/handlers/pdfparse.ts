@@ -3,6 +3,7 @@
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
 import { PDFParse } from 'pdf-parse';
+import { rethrowIfPasswordProtected } from "./_pdfErrors.ts";
 
 
 class pdfparseHandler implements FormatHandler {
@@ -28,8 +29,15 @@ class pdfparseHandler implements FormatHandler {
 
     for (const inputFile of inputFiles) {
       const parser = new PDFParse({ data: inputFile.bytes });
-      const text = await parser.getText();
-      await parser.destroy();
+      let text;
+      try {
+        text = await parser.getText();
+      } catch (e) {
+        rethrowIfPasswordProtected(e, inputFile.name);
+        throw e;
+      } finally {
+        await parser.destroy();
+      }
 
       outputFiles.push({
         bytes: new TextEncoder().encode(text.text),

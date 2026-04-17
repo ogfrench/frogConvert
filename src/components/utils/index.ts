@@ -33,3 +33,8 @@ export async function ensureMinDuration(startTime: number, minMs: number = 600):
         await new Promise<void>(resolve => setTimeout(resolve, minMs - elapsed));
     }
 }
+
+/** localStorage.setItem that swallows QuotaExceededError / disabled-storage errors. */
+export function safeLocalStorageSet(key: string, value: string): void {
+    try { localStorage.setItem(key, value); } catch { /* quota or disabled */ }
+}

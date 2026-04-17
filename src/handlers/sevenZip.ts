@@ -5,6 +5,7 @@ import CommonFormats, { Category } from "../core/CommonFormats/CommonFormats.ts"
 import SevenZip from "7z-wasm";
 import mime from "mime";
 import normalizeMimeType from "../core/utils/normalizeMimeType.ts";
+import { assertDecompressedSizeSafe } from "./_archiveGuard.ts";
 
 const isNodeOrBun = typeof process !== "undefined" && process.versions && (process.versions.node || process.versions.bun);
 const defaultSevenZipOptions = isNodeOrBun ? {} : { locateFile: () => "/wasm/7zz.wasm" };
@@ -111,6 +112,7 @@ class sevenZipHandler implements FormatHandler {
 
           const name = inputFile.name.replace(/\.[^.]+$/, "");
           const bytes = sevenZip.FS.readFile(name);
+          assertDecompressedSizeSafe(inputFile.bytes, bytes.length, "7z");
           outputFiles.push({ bytes, name });
         }
       } else if (inputFormat.internal === "tar") {
@@ -137,6 +139,21 @@ class sevenZipHandler implements FormatHandler {
 
         sevenZip.FS.writeFile(inputFile.name, inputFile.bytes);
         sevenZip.callMain(["x", inputFile.name, `-odata`]);
+
+        // Bomb-check the extracted tree before repacking — walk /data and sum
+        // file sizes, then validate the total.
+        let expandedTotal = 0;
+        const walk = (dir: string) => {
+            const entries = sevenZip.FS.readdir(dir).filter((n: string) => n !== "." && n !== "..");
+            for (const entry of entries) {
+                const full = `${dir}/${entry}`;
+                const st = sevenZip.FS.stat(full);
+                if (sevenZip.FS.isDir(st.mode)) walk(full);
+                else expandedTotal += st.size;
+            }
+        };
+        try { walk("data"); } catch { /* best-effort walk */ }
+        assertDecompressedSizeSafe(inputFile.bytes, expandedTotal, "7z");
 
         const name = inputFile.name.replace(/\.[^.]+$/, "") + `.${outputFormat.extension}`;
         sevenZip.FS.chdir("data"); // we need to preserve the structure of the input archive

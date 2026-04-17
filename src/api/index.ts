@@ -27,6 +27,24 @@ async function main() {
         async fetch(req) {
             const url = new URL(req.url);
 
+            // DNS-rebinding / cross-origin guard. The server binds to 127.0.0.1,
+            // but a hostile page in the user's browser can still issue fetches
+            // to http://127.0.0.1:<port>. Reject anything whose Origin or Host
+            // header doesn't look like a legitimate local caller. `null` Origin
+            // covers MCP / direct curl invocations which omit it entirely.
+            const origin = req.headers.get("origin");
+            const host   = req.headers.get("host") ?? "";
+            const originOk = origin === null
+                || origin === "null"
+                || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(origin);
+            const hostOk = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host);
+            if (!originOk || !hostOk) {
+                return Response.json(
+                    { error: "Forbidden: cross-origin request rejected" },
+                    { status: 403 }
+                );
+            }
+
             if (req.method === "GET" && url.pathname === "/health") {
                 return Response.json({
                     status: "ok",

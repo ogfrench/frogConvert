@@ -5,6 +5,7 @@ import JSZip from "jszip";
 import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
 import normalizeMimeType from "../core/utils/normalizeMimeType.ts";
 import mime from "mime";
+import { assertDecompressedSizeSafe } from "./_archiveGuard.ts";
 
 /**
  * LZH/LHA Archive Handler
@@ -59,6 +60,11 @@ class LZHHandler implements FormatHandler {
       for (const inputFile of inputFiles) {
         const decoder = new LZHDecoder(inputFile.bytes);
         const extractedFiles = decoder.extractAll();
+        assertDecompressedSizeSafe(
+          inputFile.bytes,
+          extractedFiles.reduce((sum, f) => sum + (f.originalSize ?? f.data?.length ?? 0), 0),
+          "LZH"
+        );
 
         // Sanitize all string values to ensure valid JSON
         const sanitizeString = (str: string): string => {
@@ -108,6 +114,11 @@ class LZHHandler implements FormatHandler {
       for (const inputFile of inputFiles) {
         const decoder = new LZHDecoder(inputFile.bytes);
         const extractedFiles = decoder.extractAll();
+        assertDecompressedSizeSafe(
+          inputFile.bytes,
+          extractedFiles.reduce((sum, f) => sum + (f.originalSize ?? f.data?.length ?? 0), 0),
+          "LZH"
+        );
 
         const zip = new JSZip();
 
@@ -117,7 +128,12 @@ class LZHHandler implements FormatHandler {
             continue;
           }
 
-          zip.file(file.filename, file.data, {
+          // Strip path separators before writing to the ZIP output. The raw
+          // LZH entry filename can contain '../' or absolute segments; naive
+          // downstream extractors would then write outside the user's chosen
+          // directory. Mirrors the sanitation used on the direct-extract path.
+          const safeName = file.filename.replace(/\\/g, "/").split("/").pop() || file.filename;
+          zip.file(safeName, file.data, {
             date: file.timestamp
           });
         }
@@ -139,6 +155,11 @@ class LZHHandler implements FormatHandler {
       for (const inputFile of inputFiles) {
         const decoder = new LZHDecoder(inputFile.bytes);
         const extractedFiles = decoder.extractAll();
+        assertDecompressedSizeSafe(
+          inputFile.bytes,
+          extractedFiles.reduce((sum, f) => sum + (f.originalSize ?? f.data?.length ?? 0), 0),
+          "LZH"
+        );
 
         for (const file of extractedFiles) {
           // Skip directory entries

@@ -1,15 +1,74 @@
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 
-/** Strip on* event handler attributes from all elements in an HTML string. */
+/**
+ * Strip on* event handlers AND rewrite external-resource URLs.
+ *
+ * The renderer injects this HTML into a hidden DOM element to measure its
+ * bounding box. If we leave `<img src="https://attacker.example/px.gif">` in
+ * place, the browser dispatches that request during measurement — the user's
+ * act of converting untrusted HTML leaks a network signal to any URL the
+ * input chose. Strip or neutralise anything that could trigger a fetch.
+ *
+ * Keep: `data:`, `blob:`, fragment refs, relative paths.
+ * Replace: `http:` / `https:` / `//` (protocol-relative) with a 1×1 inline
+ *   transparent PNG so layout measurement still succeeds.
+ * Also strip: `<link rel="stylesheet">` with external href, `<iframe>` and
+ *   `<script>` entirely (script tags inserted via innerHTML don't execute,
+ *   but iframes DO load their src).
+ */
+const INLINE_TRANSPARENT_PX =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=";
+
+function isExternalUrl(url: string): boolean {
+    const trimmed = url.trim();
+    return /^(https?:)?\/\//i.test(trimmed) || /^file:/i.test(trimmed);
+}
+
+const DROP_TAGS = new Set(["script", "iframe", "object", "embed"]);
+const EXTERNAL_URL_RE = /(^|,)\s*(https?:)?\/\//i;
+const STYLE_EXTERNAL_RE = /url\(\s*["']?\s*(https?:)?\/\//i;
+
 function sanitizeHTML(html: string): string {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
-    for (const el of doc.querySelectorAll("*")) {
+
+    // Array.from so removals during iteration don't skip siblings.
+    for (const el of Array.from(doc.querySelectorAll("*"))) {
+        const tag = el.tagName.toLowerCase();
+        if (DROP_TAGS.has(tag)) { el.remove(); continue; }
+
         for (const attr of [...el.attributes]) {
             if (attr.name.startsWith("on")) el.removeAttribute(attr.name);
         }
+
+        const src = el.getAttribute("src");
+        if (src && isExternalUrl(src)) el.setAttribute("src", INLINE_TRANSPARENT_PX);
+
+        const href = el.getAttribute("href");
+        if (href && isExternalUrl(href)) {
+            if (tag === "link") { el.remove(); continue; }
+            el.removeAttribute("href");
+        }
+
+        const srcset = el.getAttribute("srcset");
+        if (srcset && EXTERNAL_URL_RE.test(srcset)) {
+            el.setAttribute("srcset", INLINE_TRANSPARENT_PX);
+        }
+
+        const style = el.getAttribute("style");
+        if (style && STYLE_EXTERNAL_RE.test(style)) {
+            el.setAttribute("style", style.replace(/url\(\s*["']?\s*(https?:)?\/\/[^)]*\)/gi, "none"));
+        }
+
+        if (tag === "style") {
+            const css = el.textContent ?? "";
+            if (/@import\s+(url\()?\s*["']?\s*(https?:)?\/\//i.test(css) || STYLE_EXTERNAL_RE.test(css)) {
+                el.remove();
+            }
+        }
     }
+
     return doc.body.innerHTML;
 }
 

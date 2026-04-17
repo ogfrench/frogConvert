@@ -1,5 +1,6 @@
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import { rethrowIfPasswordProtected } from "./_pdfErrors.ts";
 
 import * as pdfjsLib from 'pdfjs-dist';
 import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -41,23 +42,33 @@ class pdftotxtHandler implements FormatHandler {
         data: inputFile.bytes,
         isEvalSupported: false,
       });
-      const pdfDocument = await loadingTask.promise;
-
-      let fullText = "";
-
-      for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
-        const page = await pdfDocument.getPage(pageNum);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items
-          .map((item: any) => ("str" in item ? item.str : ""))
-          .join(" ");
-        fullText += pageText + "\n";
-        page.cleanup();
+      let pdfDocument;
+      try {
+        pdfDocument = await loadingTask.promise;
+      } catch (e) {
+        rethrowIfPasswordProtected(e, inputFile.name);
+        throw e;
       }
 
-      await pdfDocument.destroy();
+      const pageTexts: string[] = [];
 
-      const bytes = new TextEncoder().encode(fullText);
+      try {
+        for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
+          const page = await pdfDocument.getPage(pageNum);
+          try {
+            const textContent = await page.getTextContent();
+            pageTexts.push(textContent.items
+              .map((item: any) => ("str" in item ? item.str : ""))
+              .join(" "));
+          } finally {
+            page.cleanup();
+          }
+        }
+      } finally {
+        await pdfDocument.destroy();
+      }
+
+      const bytes = new TextEncoder().encode(pageTexts.join("\n") + "\n");
       const name = inputFile.name.split(".").slice(0, -1).join(".") + "." + outputFormat.extension;
       outputFiles.push({ bytes, name });
     }

@@ -92,12 +92,12 @@ In dev, the cache is optional; the app falls back to initializing all handlers a
 
 ### Writing a handler test
 
-Handler tests go in `test/handlers/`. Minimal:
+Handler tests are **colocated** with the handler under `src/handlers/` (e.g. `src/handlers/myHandler.test.ts`). `test/` is reserved for e2e, fixtures, and shared mocks. Minimal:
 
 ```ts
 import { expect, test } from 'vitest';
-import CommonFormats from '../../src/core/CommonFormats/CommonFormats.ts';
-import myHandler from '../../src/handlers/myHandler.ts';
+import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
+import myHandler from './myHandler.ts';
 
 const encoder = new TextEncoder();
 

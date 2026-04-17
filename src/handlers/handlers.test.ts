@@ -1,3 +1,7 @@
+// This file covers handler loading and a handful of format-routing checks.
+// Most individual handlers do not yet have a round-trip smoke test. Adding
+// `handler.doConvert(fixture)` → assert non-empty output, one per handler
+// family, is a good follow-up.
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { WaveFile } from 'wavefile';
 

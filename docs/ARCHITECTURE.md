@@ -161,30 +161,43 @@ Handlers with `requiresMainThread: true` are the exception - they need browser A
 ```
 frogConvert/
 ├── src/
-│   ├── handlers/          ← Conversion tools (FFmpeg, ImageMagick, etc.)
+│   ├── handlers/           ← Conversion tools (FFmpeg, ImageMagick, etc.)
 │   ├── core/
-│   │   ├── FormatHandler/ ← The FormatHandler interface + base classes
-│   │   ├── TraversionGraph/ ← Route-finding algorithm (Dijkstra)
-│   │   └── CommonFormats/ ← Registry of all MIME types and extensions
+│   │   ├── FormatHandler/  ← The FormatHandler interface + base classes
+│   │   ├── TraversionGraph/← Route-finding algorithm (Dijkstra)
+│   │   ├── CommonFormats/  ← Registry of all MIME types and extensions
+│   │   ├── utils/          ← Shared core helpers
+│   │   └── index.ts        ← Barrel re-export
+│   ├── tools/              ← PDF editor ops (merge, organize, extract, thumbnails)
 │   ├── workers/
-│   │   ├── conversion.worker.ts  ← Runs handlers off the main thread
+│   │   ├── conversion.worker.ts   ← Runs handlers off the main thread
 │   │   └── route-search.worker.ts ← Runs pathfinding off the main thread
-│   ├── components/
-│   │   ├── FormatModal/    ← Format picker UI
-│   │   ├── store/store.ts  ← Shared app state (current files, UI refs)
-│   │   └── Frogsworth/     ← The mascot frog in the corner
+│   ├── components/         ← UI only: FormatModal, FilesModal, PdfWorkspace,
+│   │                         Toast, TopBar, UploadZone, Frogsworth, store, utils, …
 │   ├── conversion/         ← Conversion-flow orchestration (actions, cancellation, downloads)
-│   ├── mcp/               ← MCP server for AI agents (Node.js, stdio)
-│   └── api/               ← REST API server (HTTP on localhost:3000)
+│   ├── constants/          ← UI constants (breakpoints, limits, defaults)
+│   ├── mcp/                ← MCP server for AI agents (Node.js, stdio)
+│   └── api/                ← REST API server (HTTP on localhost:3000)
 ├── docs/
-│   ├── INTEGRATIONS.md    ← Guide for AI agents using the MCP/REST API
-│   ├── CONTRIBUTING.md    ← Handler authoring and codebase rules
-│   └── ARCHITECTURE.md     ← This file - architecture overview
+│   ├── ARCHITECTURE.md     ← This file
+│   ├── CONVERTER.md        ← End-user converter guide
+│   ├── PDF_EDITOR.md       ← End-user PDF editor guide
+│   ├── HANDLERS.md         ← Authoring a new format handler
+│   ├── INTEGRATIONS.md     ← MCP/REST API reference
+│   ├── DEPLOYMENT.md       ← Self-host, Docker, desktop, CLI
+│   └── CONTRIBUTING.md     ← PR workflow, testing, style
 ├── test/
-│   ├── e2e/               ← End-to-end browser tests (Puppeteer)
-│   └── *.test.ts          ← Unit tests (Vitest + jsdom)
-└── README.md              ← Main docs, deployment, contributing guide
+│   ├── e2e/                ← End-to-end browser tests (Puppeteer)
+│   ├── resources/          ← Fixture files
+│   ├── setup.ts            ← Vitest preload + MockWorker
+│   └── MockedHandler.ts    ← Stub FormatHandler for graph tests
+├── AGENTS.md               ← Rules for AI pair-programming agents
+├── SECURITY.md             ← Privacy posture and disclosure
+├── CHANGELOG.md            ← Release history
+└── README.md               ← Landing page
 ```
+
+Unit tests are **colocated** under `src/**/*.test.ts` (next to the code they cover); `test/` holds only e2e, fixtures, and shared mocks.
 
 ---
 

@@ -17,7 +17,7 @@ Specifically:
 - **No cloud conversion.** Every handler is a WASM module or browser API running in your browser tab or in a Web Worker.
 - **No telemetry.** No analytics, no crash reporting, no usage beacons.
 - **No server uploads for conversion.** The MCP and REST API, when you run them locally with `bunx frogconvert mcp` or `bunx frogconvert api`, listen only on `127.0.0.1` by default. Files you pass in never leave the machine the server runs on.
-- **Fonts and CSS** are fetched from Google Fonts (self-hosted Inter as primary, Google Fonts as fallback). These calls transmit referer/IP per normal HTTP behavior; they do not transmit file content.
+- **Fonts.** Inter is self-hosted with Google Fonts as a fallback. The fallback request transmits referer/IP per normal HTTP behavior; it does not transmit file content.
 
 ## Known limits and caveats
 
@@ -25,7 +25,7 @@ Specifically:
 - **Encrypted PDFs.** Password-protected PDFs are not supported by the editor. Remove the password with another tool first.
 - **Browser bridge (server mode).** If you run the REST API or MCP with a production build present, some conversions fall back to a Puppeteer-launched headless Chromium running locally. That is still on your machine, but it does spawn a real browser process. See [INTEGRATIONS.md § Browser-Assisted Conversions](docs/INTEGRATIONS.md#browser-assisted-conversions-automatic-fallback).
 - **Third-party mirrors and forks.** The privacy guarantee applies to the official hosted site and the source in this repository. If you use a fork, a mirror, or a self-hosted copy, verify the deployment has not been modified to add uploads or telemetry.
-- **Local disk.** When using the REST API with `filePath` or `outputFilePath`, the server reads and writes files on your local disk. It is your responsibility to handle those paths (permissions, deletion) appropriately.
+- **Local disk.** When using the REST API with `filePath` or `outputFilePath`, the server reads and writes files on your local disk. It is your responsibility to handle those paths (permissions, deletion) appropriately. Set `FROGCONVERT_SANDBOX_ROOT` to an absolute directory to constrain those arguments to that root as defense-in-depth. The API also rejects cross-origin requests via `Origin` / `Host` header validation, so a browser page you visit cannot POST to your locally-running server.
 
 ## Scope of this document
 

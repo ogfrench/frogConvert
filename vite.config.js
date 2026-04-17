@@ -21,14 +21,20 @@ function apiServerPlugin() {
     name: 'api-server',
     apply: 'serve',  // dev mode only
     async configureServer(server) {
-      // Probe existing API server first — skip spawn if already running
+      // Probe existing API server first — skip spawn if already running.
+      // Verify it's actually a frogConvert API (not some unrelated service
+      // happening to answer /health with 200) by checking the body shape.
       try {
         const resp = await fetch('http://127.0.0.1:3000/health', {
           signal: AbortSignal.timeout(500)
         });
         if (resp.ok) {
-          console.log('[api-server] existing /health responded; reusing instance on port 3000');
-          return;
+          const body = await resp.json().catch(() => null);
+          if (body && Array.isArray(body.handlers)) {
+            console.log('[api-server] existing frogConvert /health responded; reusing instance on port 3000');
+            return;
+          }
+          console.warn('[api-server] port 3000 answered /health but not with frogConvert marker; spawning our own on a fresh process');
         }
       } catch { /* nothing listening, spawn our own */ }
 
@@ -133,7 +139,7 @@ export default defineConfig({
     dedupe: ['internmap'],
   },
   build: {
-    sourcemap: true,
+    sourcemap: 'hidden',
     target: "esnext",
     rollupOptions: {
       input: {
