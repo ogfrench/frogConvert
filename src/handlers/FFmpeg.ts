@@ -746,15 +746,14 @@ class FFmpegHandler implements FormatHandler {
         recoveryWarning = `Audio sample rate changed to ${acceptedBitrate} Hz - encoder rejected the original.`;
       } else if (outputFormat.format === "gif" && !oldArgs.includes(NO_GIF_PALETTE) && stdout.includes("Aborted()")) {
         recoveryArgs = [...oldArgs, NO_GIF_PALETTE];
-        recoveryWarning = "GIF palette generation skipped — video too large for high-quality dithering in-browser.";
       } else if (useStreamCopy && !oldArgs.includes(NO_STREAM_COPY)) {
         recoveryArgs = [...oldArgs, NO_STREAM_COPY];
-        recoveryWarning = "Re-encoded instead of remuxing — codec wasn't fully compatible with the output container.";
       }
 
-      if (recoveryArgs && recoveryWarning) {
+      if (recoveryArgs) {
         const result = await this.doConvert(inputFiles, inputFormat, outputFormat, recoveryArgs, onProgress);
-        return result.map(f => ({ ...f, warnings: [...(f.warnings ?? []), recoveryWarning!] }));
+        if (!recoveryWarning) return result;
+        return result.map(f => ({ ...f, warnings: [...(f.warnings ?? []), recoveryWarning]}));
       }
 
       // Extract the most relevant FFmpeg error line for the user-facing
