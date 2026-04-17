@@ -130,6 +130,15 @@ class libreofficeHandler implements FormatHandler {
    * to it. Falls back to disabled if anything fails.
    */
   async #probeRemoteApi(): Promise<boolean> {
+    // Avoid noisy 404s in the console on known static production environments
+    // where the local API is guaranteed to be absent.
+    if (typeof window !== "undefined") {
+      const h = window.location.hostname;
+      if (h === "frogconvert.xyz" || h.endsWith(".netlify.app")) {
+        return false;
+      }
+    }
+
     try {
       const resp = await fetch("/api/health", {
         signal: AbortSignal.timeout(2000)

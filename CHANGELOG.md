@@ -10,7 +10,7 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [2.0.0] - 2026-04-17
 
-Headline: the **full PDF Editor** lands alongside a major structural refactor of the codebase, plus a security + quality hardening pass.
+Headline: frogConvert **2.0.0** is here — transform your PDFs with the new **PDF Editor**, convert **70+ formats**, and enjoy a **proactive UX** built on a hardened, battle-tested core.
 
 ### Security
 - Local HTTP API (`bun x frogconvert api`) now validates `Origin` / `Host` headers and rejects cross-origin requests — closes a DNS-rebinding exposure where a page the user visits could POST to `127.0.0.1:3000`.
