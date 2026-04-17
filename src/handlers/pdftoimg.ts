@@ -10,7 +10,7 @@ import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
 const MAX_TOTAL_MEGAPIXELS = 1000;
-const QUALITY_TARGETS: Record<string, number> = { low: 1.2, medium: 2.5, high: 8.5, lossless: 50 };
+const QUALITY_TARGETS: Record<string, number> = { low: 0.8, medium: 1.8, high: 6.0, lossless: 50 };
 
 class pdftoimgHandler implements FormatHandler {
 
@@ -63,7 +63,6 @@ class pdftoimgHandler implements FormatHandler {
 
     const outputFiles: FileData[] = [];
     const canvas = document.createElement("canvas");
-    let warnings: string[] = [];
 
     for (const inputFile of inputFiles) {
       let pdf;
@@ -88,14 +87,12 @@ class pdftoimgHandler implements FormatHandler {
             const viewportAtRequestedScale = page.getViewport({ scale });
             const requestedMP = (viewportAtRequestedScale.width * viewportAtRequestedScale.height) / 1_000_000;
 
-            // Target sensible screen resolution (Medium ~2.5MP) to avoid monster files
+            // Target sensible screen resolution (Medium ~1.8MP) 
             const targetMP = isExplicitDpi ? 25 : (QUALITY_TARGETS[quality ?? "medium"] ?? 12);
 
             let viewport = viewportAtRequestedScale;
             if (requestedMP > targetMP) {
               viewport = page.getViewport({ scale: scale * Math.sqrt(targetMP / requestedMP) });
-              const msg = `Automatically adjusted resolution for large pages.`;
-              if (!warnings.includes(msg)) warnings.push(msg);
             }
 
             totalMP += (viewport.width * viewport.height) / 1_000_000;
@@ -121,10 +118,6 @@ class pdftoimgHandler implements FormatHandler {
       } finally {
         await pdf.destroy();
       }
-    }
-
-    if (warnings.length > 0 && outputFiles.length > 0) {
-      outputFiles[0].warnings = warnings;
     }
 
     return outputFiles;
