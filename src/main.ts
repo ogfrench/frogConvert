@@ -42,8 +42,6 @@ import {
   initParallax,
   initFilesModal,
   initCustomCursor,
-  selectCategoryTab,
-  getFormatCategory,
   currentFiles,
   activeCategory,
   selectedFromIndex,
@@ -52,7 +50,6 @@ import {
   isLoadingPhase2,
   isLoadingHandlers,
   ui,
-  isCategoryVisible,
   formatMode,
   formatDisplayName,
   buildAcceptString,
@@ -237,13 +234,6 @@ initUploadZone(
       selectedFromIndex.value = matchIndex;
       showDetectedFormat(allOptionsRef.value[matchIndex].format.format, files.length);
 
-      // Dynamically select the tab related to the uploaded file
-      const category = getFormatCategory(allOptionsRef.value[matchIndex].format);
-      if (category && category !== activeCategory.value && selectedToIndex.value === null) {
-        if (isCategoryVisible(category, formatMode.value)) {
-          selectCategoryTab(category);
-        }
-      }
     } else {
       selectedFromIndex.value = null;
     }
@@ -364,12 +354,6 @@ async function refreshUI() {
     if (matchIndex >= 0) {
       selectedFromIndex.value = matchIndex;
       showDetectedFormat(allOptionsRef.value[matchIndex].format.format, currentFiles.value.length);
-      const category = getFormatCategory(allOptionsRef.value[matchIndex].format);
-      if (category && category !== activeCategory.value && selectedToIndex.value === null) {
-        if (isCategoryVisible(category, formatMode.value)) {
-          selectCategoryTab(category);
-        }
-      }
       updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
     }
   }
