@@ -536,21 +536,40 @@ export function initConvertButton() {
                 return;
             }
 
+
+
+            const conversionStartTime = performance.now();
+            resetCancellation();
+
             const inputOption = allOptionsRef.value[selectedFromIndex.value];
             const outputOption = allOptionsRef.value[selectedToIndex.value];
 
             const inputFormat = inputOption.format;
             const outputFormat = outputOption.format;
 
-            const conversionStartTime = performance.now();
-            resetCancellation();
+            const isSameFormatPick = inputFormat.mime === outputFormat.mime
+                && inputFormat.format === outputFormat.format;
 
-            _convertingTitle = `Converting your ${fileCount > 1 ? "files" : "file"}`;
+            const sameFormatDispatch = isSameFormatPick
+                ? resolveSameFormatHandler(inputFormat)
+                : null;
+
+            // Pure same-format batches get "Compressing" title immediately
+            const isPureCompression = sameFormatDispatch && fileCount > 0;
+            const modeLabel = isPureCompression ? "compress" : "convert";
+            const verbLabel = isPureCompression ? "Compressing" : "Converting";
+            const verbSubText = isPureCompression ? "compress" : "convert";
+
+            _convertingTitle = `${verbLabel} your ${fileCount > 1 ? "files" : "file"}`;
+
+            if (isPureCompression) {
+                setActiveConversionMode("compress");
+            }
 
             await waitForPaint();
 
             const startupStartTime = performance.now();
-            showConversionInProgress(`Reading your ${fileCount > 1 ? "files" : "file"}...<br><span class="conversion-path">getting ready to convert</span>`, _convertingTitle);
+            showConversionInProgress(`Reading your ${fileCount > 1 ? "files" : "file"}...<br><span class="conversion-path">getting ready to ${verbSubText}</span>`, _convertingTitle);
             await waitForPaint();
 
             const inputFileData: FileData[] = [];
@@ -559,8 +578,6 @@ export function initConvertButton() {
             // otherwise pushed through unchanged (today's "No conversion needed"
             // behaviour).
             const sameFormatRaw: { name: string; bytes: Uint8Array }[] = [];
-            const isSameFormatPick = inputFormat.mime === outputFormat.mime
-                && inputFormat.format === outputFormat.format;
 
             for (const inputFile of inputFiles) {
                 if (isCancelled) return;
@@ -587,16 +604,7 @@ export function initConvertButton() {
             // Each file ends up in allOutputFiles with either shrunk bytes
             // (+ originalBytes) or the original bytes when the 98% size-guard
             // fires or the handler throws.
-            const sameFormatDispatch = isSameFormatPick && sameFormatRaw.length > 0
-                ? resolveSameFormatHandler(inputFormat)
-                : null;
-
-            // Mode switch only for pure-compression runs; mixed batches end on
-            // a cross-format leg so "Converting / Cancel conversion" is accurate.
-            if (sameFormatDispatch && inputFileData.length === 0) {
-                setActiveConversionMode("compress");
-                _convertingTitle = `Compressing your ${fileCount > 1 ? "files" : "file"}`;
-            }
+            // sameFormatDispatch is already resolved above
 
             if (sameFormatDispatch) {
                 ensureCancelButton();
@@ -839,10 +847,10 @@ export function initConvertButton() {
                 const saved = totals.orig - totals.comp;
                 const pct = totals.orig > 0 ? Math.round((saved / totals.orig) * 100) : 0;
                 if (isBatch) {
-                    resultText = `<b>${compressedFiles.length} file${compressedFiles.length === 1 ? "" : "s"}</b> compressed, saved <b>${escapeHTML(formatBytes(saved))}</b> (${pct}% smaller). Downloading now.`;
+                    resultText = `<b>${compressedFiles.length} file${compressedFiles.length === 1 ? "" : "s"}</b> compressed, saved <b>${escapeHTML(formatBytes(saved))}</b> (${pct}% smaller) and is downloading now.`;
                 } else {
                     const first = compressedFiles[0];
-                    resultText = `<b>${escapeHTML(shortenFileName(first.name, 32))}</b> is smaller now: <b>${escapeHTML(formatBytes(first.originalBytes ?? 0))} to ${escapeHTML(formatBytes(first.bytes.byteLength))}</b> (${pct}% smaller). Downloading.`;
+                    resultText = `<b>${escapeHTML(shortenFileName(first.name, 32))}</b> is smaller now: <b>${escapeHTML(formatBytes(first.originalBytes ?? 0))} to ${escapeHTML(formatBytes(first.bytes.byteLength))}</b> (${pct}% smaller) and is downloading now.`;
                 }
             } else {
                 resultText = isBatch
