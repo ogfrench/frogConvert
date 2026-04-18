@@ -16,6 +16,30 @@
   border-radius: var(--radius-full);
 }
 
+/* --- Convert Hint (shown under format picker when same-format compression is available) --- */
+.convert-hint {
+  display: block;
+  max-width: 28rem;
+  margin: var(--space-3) auto 0;
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+  line-height: 1.4;
+}
+
+.convert-hint[hidden] {
+  display: none;
+}
+
+/* --- Compress mode: strike-through "Convert" next to "Compress" --- */
+.convert-strike {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  opacity: 0.55;
+  margin-right: var(--space-1);
+  font-weight: inherit;
+}
+
 /* --- Convert Notice (quality warning when a better handler isn't available) --- */
 .convert-notice {
   position: relative;

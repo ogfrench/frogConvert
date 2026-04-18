@@ -8,6 +8,41 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] - 2026-04-18
+
+Headline: smart compression that adapts to what the conversion actually is, never dead-ends the user, and tells them what happened when it had to adjust.
+
+### Added
+- **Same-format compression.** Picking the same input/output format (e.g. PNG to PNG, MP4 to MP4, MP3 to MP3) now re-encodes the file to reduce size instead of just passing it through. Gated by a **smart size-guard** that falls back to original bytes if the "compressed" result is larger or saves less than 2% of space.
+- **Visual "Compress" transition.** When a compressible same-format pairing is selected, the "Convert" button strikethrough-transforms into "Compress" with a contextual hint (e.g. "JPEG to JPEG? We'll compress it, not convert it.").
+- **Compression results in success popup.** Displays exact size deltas (e.g. "4.2 MB to 2.1 MB (50% smaller)") for all compressed files.
+- **Structured post-conversion notices.** New `Notice` type on `FileData` (`{ title, body, action? }`) carries concrete messages about what the handler adapted. The UI renders each notice as a `.convert-notice` card.
+- **Adaptive frame sampling for video-to-image.** Replaced the fixed `-r 1` default with duration-aware sampling aimed at 300 frames (medium).
+- **Video-to-GIF duration cap.** Medium: 60s, low: 30s, high: 180s, lossless: uncapped. 
+- **PDF auto-shrink.** Automated proportional scaling when projected megapixels exceed browser memory safety ceilings (600 MP).
+- **Quality preset exposed on MCP and REST.** The `convert_file` MCP tool and `POST /convert` REST endpoint now accept an optional `quality` argument (`low`, `medium`, `high`, `lossless`).
+
+### Changed
+- **Archetype-aware image planning.** `planImage` now takes an `ImageContext` with an `archetype` field (`singleton` / `document-page` / `animated-frame` / `video-frame`). A single hand-picked photo gets JPEG quality 90, a PDF page gets 87, a video frame gets 78.
+- **Looser defaults on single images.** Medium-preset JPEG quality 82 -> 90 for singletons, max-edge downscale threshold raised 16 MP -> 60 MP.
+- **Crisper PDF pages.** Medium preset `pdfMp` 1.8 -> 2.5 and `pdfDpi` 144 -> 160.
+- **Video-to-audio gets a quality bump.** Extracts audio one preset tier higher than the conversion request (medium stereo: 192 kbps -> 256 kbps).
+- **Audio channels are now probed.** ffprobe pass now detects mono and picks the right bitrate budget accordingly.
+- **Same-codec audio stream-copy.** MP3 -> MP3, AAC -> AAC, FLAC -> FLAC at medium/high/lossless now emit `-c:a copy` instead of re-encoding.
+- **Proactive sample-rate snap.** MP3/AAC/M4A encoders get `-ar <nearest-supported>` upfront when the source rate is outside the codec's whitelist.
+- **Video frame resolution cap.** Video-to-image frame extraction clamps each frame to 1920 px (medium) / 3840 px (high) via `-vf scale`.
+
+### Removed
+- **"Try lower quality" dead-ends.** The web UI has no quality selector by design; error messages telling users to "try lower quality" had nowhere to lead. Every such ceiling is now an adaptive degrade with a visible notice.
+- **Fixed JPEG q82 everywhere.** Replaced with archetype-aware baselines (see above).
+
+### Design
+- Post-conversion notices render as `.convert-notice` cards in the success popup, matching the same component already used in ConvertCard for "better handler available" hints.
+- Copy style: no em dashes, concrete numbers, action link only when there's a real escape hatch (see Known gaps below).
+
+### Integrations
+See [docs/INTEGRATIONS.md § Quality preset](docs/INTEGRATIONS.md#quality-preset) for details.
+
 ## [2.0.0] - 2026-04-17
 
 Headline: frogConvert **2.0.0** is here — transform your PDFs with the new **PDF Editor**, convert **70+ formats**, and enjoy a **proactive UX** built on a hardened, battle-tested core.

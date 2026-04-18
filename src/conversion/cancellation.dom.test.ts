@@ -3,13 +3,13 @@ import { ui } from "../components/store/store.ts";
 import { hidePopup } from "../components/Popup/Popup.ts";
 import {
     isCancelled,
-    isSoftCancelRequested,
-    setActiveBatchSize,
     showConversionInProgress,
     ensureCancelButton,
     removeCancelButton,
     resetCancellation,
     setCancelled,
+    setCanHardCancel,
+    setCurrentFileProgress,
     setWorkerCancelCallback,
     setForceCleanupCallback,
     triggerCancellation,
@@ -114,9 +114,7 @@ describe("cancellation DOM bindings", () => {
 
     it("showConversionInProgress updates spinner in-place when popup is already open", () => {
         showConversionInProgress("Step 1...", "My Title");
-        // popup is now open - next call should mutate rather than recreate
         showConversionInProgress("Step 2...", "My Title");
-        // Still only one spinner
         expect(ui.popupBox.querySelectorAll(".loader-gooey, .loader-spinner").length).toBe(1);
         expect(ui.popupBox.querySelector("p")?.innerHTML).toBe("Step 2...");
         expect(ui.popupBox.querySelector("h2")?.textContent).toBe("My Title");
@@ -129,139 +127,148 @@ describe("cancellation DOM bindings", () => {
         expect(actions).not.toBeNull();
         const cancelBtn = ui.popupBox.querySelector("#cancel-conversion-btn");
         expect(cancelBtn).not.toBeNull();
+        expect(cancelBtn?.textContent).toBe("Cancel conversion");
     });
 
-    describe("triggerCancellation — single-file (immediate hard cancel)", () => {
-        it("one click hard-cancels immediately: sets isCancelled, fires worker callback", () => {
+    describe("triggerCancellation (hard-cancellable path)", () => {
+        it("replaces popup with the Cancelling modal and fires worker callback", () => {
             const cb = vi.fn();
             setWorkerCancelCallback(cb);
-            setActiveBatchSize(1);
+            setCanHardCancel(true);
             showConversionInProgress("Working...");
             ensureCancelButton();
-            triggerCancellation();
-            expect(isCancelled).toBe(true);
-            expect(isSoftCancelRequested()).toBe(false);
-            expect(cb).toHaveBeenCalledOnce();
-            expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Cancelling conversion");
-            resetCancellation();
-        });
 
-        it("does not show the soft-cancel subtitle on single-file runs", () => {
-            setActiveBatchSize(1);
-            showConversionInProgress("Working...");
-            ensureCancelButton();
             triggerCancellation();
-            expect(ui.popupBox.querySelector(".conversion-wrap-up")).toBeNull();
-            resetCancellation();
-        });
-    });
 
-    describe("triggerCancellation — batch (two-stage)", () => {
-        it("first call is a soft cancel: isCancelled stays false, isSoftCancelRequested becomes true", () => {
-            setActiveBatchSize(3);
-            showConversionInProgress("Working...");
-            ensureCancelButton();
-            triggerCancellation();
-            expect(isSoftCancelRequested()).toBe(true);
-            expect(isCancelled).toBe(false);
-            resetCancellation();
-        });
-
-        it("first click relabels the cancel button to 'Stop now' and shows the wrap-up subtitle", () => {
-            setActiveBatchSize(3);
-            showConversionInProgress("Converting file 2 of 5...");
-            ensureCancelButton();
-            triggerCancellation();
-            const btn = ui.popupBox.querySelector("#cancel-conversion-btn") as HTMLButtonElement;
-            expect(btn.textContent).toBe("Stop now");
-            expect(ui.popupBox.querySelector(".conversion-wrap-up")).not.toBeNull();
-            resetCancellation();
-        });
-
-        it("soft-cancel subtitle survives subsequent showConversionInProgress updates", () => {
-            setActiveBatchSize(3);
-            showConversionInProgress("Converting file 2 of 5...");
-            ensureCancelButton();
-            triggerCancellation();
-            expect(ui.popupBox.querySelector(".conversion-wrap-up")).not.toBeNull();
-            showConversionInProgress("Converting file 2 of 5...<br><span class=\"muted-text\">path</span>");
-            expect(ui.popupBox.querySelector(".conversion-wrap-up")).not.toBeNull();
-            resetCancellation();
-        });
-
-        it("second call escalates to hard cancel: sets isCancelled, fires worker callback, shows Cancelling popup", () => {
-            const cb = vi.fn();
-            setWorkerCancelCallback(cb);
-            setActiveBatchSize(3);
-            showConversionInProgress("Working...");
-            ensureCancelButton();
-            triggerCancellation();               // soft
-            expect(cb).not.toHaveBeenCalled();
-            triggerCancellation();               // hard
             expect(isCancelled).toBe(true);
             expect(cb).toHaveBeenCalledOnce();
             expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Cancelling conversion");
-            // Callback is consumed - further calls must NOT re-fire it
+            expect(ui.popupBox.querySelector("p")?.textContent).toBe("Stopping now...");
+            expect(ui.popupBox.querySelector("#cancel-conversion-btn")).toBeNull();
+            resetCancellation();
+        });
+
+        it("is idempotent: a second call does not re-fire the worker callback", () => {
+            const cb = vi.fn();
+            setWorkerCancelCallback(cb);
+            setCanHardCancel(true);
+            showConversionInProgress("Working...");
+            ensureCancelButton();
+
             triggerCancellation();
+            triggerCancellation();
+
             expect(cb).toHaveBeenCalledTimes(1);
             resetCancellation();
         });
+    });
 
-        it("resetCancellation clears softCancelRequested and activeBatchSize", () => {
-            setActiveBatchSize(3);
+    describe("triggerCancellation (main-thread path, cannot interrupt mid-file)", () => {
+        it("updates status copy in place and removes the cancel button", () => {
+            setCanHardCancel(false);
+            setCurrentFileProgress(2, 3);
+            showConversionInProgress("Converting file 2 of 3...");
+            ensureCancelButton();
+
+            triggerCancellation();
+
+            expect(isCancelled).toBe(true);
+            expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Cancelling conversion");
+            const pHtml = ui.popupBox.querySelector("p")?.innerHTML ?? "";
+            expect(pHtml).toContain("Finishing file 2 of 3, then stopping.");
+            expect(pHtml).toContain("Can't stop mid-file.");
+            expect(ui.popupBox.querySelector("#cancel-conversion-btn")).toBeNull();
+            resetCancellation();
+        });
+
+        it("uses 'the current file' copy when there is only one file", () => {
+            setCanHardCancel(false);
+            setCurrentFileProgress(1, 1);
+            showConversionInProgress("Converting your file...");
+            ensureCancelButton();
+
+            triggerCancellation();
+
+            const pHtml = ui.popupBox.querySelector("p")?.innerHTML ?? "";
+            expect(pHtml).toContain("Finishing the current file, then stopping.");
+            resetCancellation();
+        });
+
+        it("does not fire the worker callback (nothing to terminate mid-render)", () => {
+            const cb = vi.fn();
+            setWorkerCancelCallback(cb);
+            setCanHardCancel(false);
+            setCurrentFileProgress(1, 1);
+            showConversionInProgress("Working...");
+            ensureCancelButton();
+
+            triggerCancellation();
+
+            expect(cb).not.toHaveBeenCalled();
+            resetCancellation();
+        });
+
+        it("subsequent showConversionInProgress calls from the still-running handler are suppressed", () => {
+            setCanHardCancel(false);
+            setCurrentFileProgress(2, 2);
+            showConversionInProgress("Converting file 2 of 2...");
+            ensureCancelButton();
+
+            triggerCancellation();
+
+            const cancelCopy = ui.popupBox.querySelector("p")?.innerHTML ?? "";
+            showConversionInProgress("Rendering page 4/12...");
+            expect(ui.popupBox.querySelector("p")?.innerHTML).toBe(cancelCopy);
+            resetCancellation();
+        });
+    });
+
+    describe("resetCancellation", () => {
+        it("clears isCancelled and restores default canHardCancel=true behavior", () => {
+            setCanHardCancel(false);
+            setCurrentFileProgress(2, 3);
             showConversionInProgress("Working...");
             ensureCancelButton();
             triggerCancellation();
-            expect(isSoftCancelRequested()).toBe(true);
-            resetCancellation();
-            expect(isSoftCancelRequested()).toBe(false);
-        });
 
-        it("resetCancellation removes DOM artifacts from a previous soft-cancel", () => {
-            setActiveBatchSize(3);
-            showConversionInProgress("Working...");
+            resetCancellation();
+
+            const cb = vi.fn();
+            setWorkerCancelCallback(cb);
+            showConversionInProgress("Working again...");
             ensureCancelButton();
-            triggerCancellation(); // soft — adds wrap-up subtitle + relabels button
+            triggerCancellation();
 
-            // Verify artifacts exist before reset
-            expect(ui.popupBox.querySelector(".conversion-wrap-up")).not.toBeNull();
-            expect(ui.popupBox.querySelector("#cancel-conversion-btn")?.textContent).toBe("Stop now");
-
+            expect(cb).toHaveBeenCalledOnce();
+            expect(ui.popupBox.querySelector("p")?.textContent).toBe("Stopping now...");
             resetCancellation();
-
-            // All artifacts should be cleaned up
-            expect(ui.popupBox.querySelector(".conversion-wrap-up")).toBeNull();
-            expect(ui.popupBox.querySelector("#cancel-conversion-btn")?.textContent).toBe("Cancel conversion");
         });
     });
 
     describe("completeCancellation", () => {
         it("is a no-op when not cancelling (cancelStartTime is null)", async () => {
-            // Should not throw and should not hide the popup
             ui.popupBox.classList.add("open");
             await completeCancellation();
             expect(ui.popupBox.classList.contains("open")).toBe(true);
         });
 
         it("is a no-op after resetCancellation()", async () => {
-            setActiveBatchSize(3);
+            setCanHardCancel(true);
             showConversionInProgress("Working...");
             ensureCancelButton();
-            triggerCancellation(); // soft
-            triggerCancellation(); // hard
-            resetCancellation(); // clears cancelStartTime
+            triggerCancellation();
+            resetCancellation();
             ui.popupBox.classList.add("open");
-            await completeCancellation(); // must be a true no-op now
+            await completeCancellation();
             expect(ui.popupBox.classList.contains("open")).toBe(true);
         });
 
-        it("hides the popup after the minimum cancel duration (two-stage cancel)", async () => {
+        it("hides the popup after the minimum cancel duration", async () => {
             vi.useFakeTimers();
-            setActiveBatchSize(3);
+            setCanHardCancel(true);
             showConversionInProgress("Working...");
             ensureCancelButton();
-            triggerCancellation(); // soft
-            triggerCancellation(); // hard — this is what arms cancelStartTime
+            triggerCancellation();
 
             const completion = completeCancellation();
             await vi.advanceTimersByTimeAsync(1100);
@@ -318,23 +325,19 @@ describe("cancellation DOM bindings", () => {
         expect(ui.popupBox.querySelector(".popup-actions-footer")).toBeNull();
     });
 
-    // Hard-cancel safety-net timer: fires forceCleanupCallback if the worker
-    // never acks a cancel request within the timeout window.
     describe("hard-cancel timeout", () => {
-        it("fires forceCleanupCallback if the worker never acks", async () => {
+        it("fires forceCleanupCallback if the worker never acks (hard-cancellable path)", async () => {
             vi.useFakeTimers();
             const forceCb = vi.fn();
             setForceCleanupCallback(forceCb);
-            setActiveBatchSize(1);
+            setCanHardCancel(true);
             showConversionInProgress("Working...");
             ensureCancelButton();
             triggerCancellation();
 
-            // Timer is 2 s. Advance just before and confirm no fire yet.
             await vi.advanceTimersByTimeAsync(1900);
             expect(forceCb).not.toHaveBeenCalled();
 
-            // Cross the boundary — callback must fire exactly once.
             await vi.advanceTimersByTimeAsync(200);
             expect(forceCb).toHaveBeenCalledOnce();
 
@@ -342,34 +345,32 @@ describe("cancellation DOM bindings", () => {
             resetCancellation();
         });
 
-        it("does not fire on soft cancel (batch, first click)", async () => {
+        it("fires forceCleanupCallback on main-thread path too (safety net if loop never breaks)", async () => {
             vi.useFakeTimers();
             const forceCb = vi.fn();
             setForceCleanupCallback(forceCb);
-            setActiveBatchSize(3);
+            setCanHardCancel(false);
+            setCurrentFileProgress(1, 1);
             showConversionInProgress("Working...");
             ensureCancelButton();
-            triggerCancellation(); // soft only
+            triggerCancellation();
 
-            await vi.advanceTimersByTimeAsync(3000);
-            expect(forceCb).not.toHaveBeenCalled();
+            await vi.advanceTimersByTimeAsync(2100);
+            expect(forceCb).toHaveBeenCalledOnce();
 
             vi.useRealTimers();
             resetCancellation();
         });
 
-        // cancel → reset → reconvert must not fire the old timer
         it("resetCancellation clears the pending hard-cancel timer", async () => {
             vi.useFakeTimers();
             const forceCb = vi.fn();
             setForceCleanupCallback(forceCb);
-            setActiveBatchSize(1);
+            setCanHardCancel(true);
             showConversionInProgress("Working...");
             ensureCancelButton();
             triggerCancellation();
 
-            // Reset before the 2 s threshold — simulates a retried conversion
-            // that reuses the module-level state. The old timer must not fire.
             await vi.advanceTimersByTimeAsync(500);
             resetCancellation();
             await vi.advanceTimersByTimeAsync(5000);
@@ -383,18 +384,16 @@ describe("cancellation DOM bindings", () => {
             const staleCb = vi.fn();
             const freshCb = vi.fn();
 
-            // Run 1: register stale cb, cancel, reset.
             setForceCleanupCallback(staleCb);
-            setActiveBatchSize(1);
+            setCanHardCancel(true);
             showConversionInProgress("Working...");
             ensureCancelButton();
             triggerCancellation();
             await vi.advanceTimersByTimeAsync(500);
             resetCancellation();
 
-            // Run 2: register fresh cb, cancel, let timer fire.
             setForceCleanupCallback(freshCb);
-            setActiveBatchSize(1);
+            setCanHardCancel(true);
             showConversionInProgress("Working...");
             ensureCancelButton();
             triggerCancellation();

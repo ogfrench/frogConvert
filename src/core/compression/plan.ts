@@ -55,17 +55,55 @@ export function planGif(inputBytes: number, preset: QualityPreset): CompressionP
   return { imgQuality: 82 };
 }
 
-export function planImage(pixelCount: number, preset: QualityPreset, outputLossless: boolean): CompressionPlan {
+/**
+ * Image output archetype. The same output file can mean very different
+ * things depending on where it comes from: a single hand-picked photo
+ * deserves max quality, one of 600 video frames doesn't. Handlers pass
+ * this alongside the pixel count so the planner can pick a budget that
+ * matches the user's real intent.
+ */
+export type ImageArchetype =
+  | "singleton"        // one image in → one image out (HEIC→JPEG, PNG→WebP)
+  | "document-page"    // PDF page rasterization; text-heavy, crispness matters
+  | "animated-frame"   // GIF/WebP/APNG frame extraction; ~tens to hundreds
+  | "video-frame";     // MP4→PNG/JPEG frame dump; potentially thousands
+
+export type ImageContext = {
+  pixelCount: number;
+  preset: QualityPreset;
+  outputLossless: boolean;
+  archetype: ImageArchetype;
+};
+
+export function planImage(ctx: ImageContext): CompressionPlan {
+  const { pixelCount, preset, outputLossless, archetype } = ctx;
   if (preset === "lossless") return { imgQuality: 100, imgMaxEdge: null };
+
+  const qBase =
+    archetype === "singleton"      ? 90 :
+    archetype === "document-page"  ? 87 :
+    archetype === "animated-frame" ? 82 :
+    /* video-frame */                78;
+
+  const q = outputLossless ? 100
+    : Math.min(95, Math.max(60,
+        preset === "low"  ? qBase - 8 :
+        preset === "high" ? qBase + 3 :
+        qBase));
+
+  // Video frames respect preset so a 4K source under `high` keeps its detail,
+  // while the web default (`medium`) still clamps to 1080p for ZIP sanity.
+  const hardEdge =
+    archetype === "video-frame"
+      ? (preset === "high" ? 3840 : 1920)
+      : archetype === "animated-frame" ? 1920
+      : null;
+
   const s = tierScale(preset);
-  const q = outputLossless ? 100 : (preset === "low" ? 70 : preset === "high" ? 90 : 82);
-  if (pixelCount > 40 * MB / s) {
-    return { imgMaxEdge: 2400, imgQuality: Math.max(q - 4, 60) };
+  if (pixelCount > 60 * MB / s) {
+    return { imgMaxEdge: Math.min(hardEdge ?? 2800, 2800), imgQuality: Math.max(q - 2, 70) };
   }
-  if (pixelCount > 16 * MB / s) {
-    return { imgMaxEdge: 3200, imgQuality: q };
-  }
-  return { imgMaxEdge: null, imgQuality: q };
+  return { imgMaxEdge: hardEdge, imgQuality: q };
 }
 
 /**

@@ -2,6 +2,7 @@ import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 import { extractQualityPreset } from "../core/FormatHandler/FormatHandler.ts";
 import { presetFor } from "../core/FormatHandler/qualityPresets.ts";
+import { planImage } from "../core/compression/plan.ts";
 import { imageToText, rgbaToGrayscale } from "./image-to-txt/src/convert.ts";
 import { encodeCanvasPalettePng } from "../tools/palettePng.ts";
 
@@ -40,7 +41,8 @@ class canvasToBlobHandler implements FormatHandler {
     args?: string[]
   ): Promise<FileData[]> {
 
-    const preset = presetFor(extractQualityPreset(args));
+    const qualityPreset = extractQualityPreset(args);
+    const preset = presetFor(qualityPreset);
     const usePalettePng =
       outputFormat.format === "png"
       && preset.pngCnum > 0
@@ -125,11 +127,19 @@ class canvasToBlobHandler implements FormatHandler {
         bytes = encodeCanvasPalettePng(this.#ctx, this.#canvas.width, this.#canvas.height, preset.pngCnum);
       }
       else {
+        const plan = planImage({
+          pixelCount: this.#canvas.width * this.#canvas.height,
+          preset: qualityPreset ?? "medium",
+          outputLossless: !!outputFormat.lossless,
+          archetype: "singleton",
+        });
+        const isLossy = !outputFormat.lossless && (outputFormat.format === "jpeg" || outputFormat.format === "webp");
+        const quality = isLossy ? plan.imgQuality / 100 : undefined;
         bytes = await new Promise((resolve, reject) => {
           this.#canvas!.toBlob((blob) => {
             if (!blob) return reject("Canvas output failed");
             blob.arrayBuffer().then(buf => resolve(new Uint8Array(buf)));
-          }, outputFormat.mime);
+          }, outputFormat.mime, quality);
         });
       }
 

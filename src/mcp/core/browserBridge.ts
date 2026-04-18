@@ -246,7 +246,8 @@ export async function convertViaBrowser(
     inputMime: string,
     inputExtension: string,
     outputMime: string,
-    outputExtension: string
+    outputExtension: string,
+    quality?: string
 ): Promise<BridgeResult[]> {
     await ensureInitialized();
 
@@ -256,15 +257,16 @@ export async function convertViaBrowser(
     // while the caller-facing result promise still rejects normally.
     const result = conversionQueue.then(() => {
         const evaluatePromise = bridgePage!.evaluate(
-            (fn, fm, b64, im, ie, om, oe) =>
-                (window as any)[fn](fm, b64, im, ie, om, oe),
+            (fn, fm, b64, im, ie, om, oe, q) =>
+                (window as any)[fn](fm, b64, im, ie, om, oe, q),
             "__frogConvertHeadless",
             fileName,
             base64Bytes,
             inputMime,
             inputExtension,
             outputMime,
-            outputExtension
+            outputExtension,
+            quality
         );
         let timeoutId: ReturnType<typeof setTimeout>;
         const timeoutPromise = new Promise<never>((_, reject) => {

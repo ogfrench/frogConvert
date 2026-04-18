@@ -1,10 +1,57 @@
 import type { FileData, FileFormat, FormatHandler, ProgressEvent, QualityPreset } from "../core/FormatHandler/FormatHandler.ts";
 import { extractQualityPreset } from "../core/FormatHandler/FormatHandler.ts";
 import { planVideo, planGif, planAudio, planImage, type CompressionPlan } from "../core/compression/plan.ts";
+import { attachNotice, API_DOCS_ACTION, fmtDuration } from "../core/compression/notices.ts";
 
-// Internal flag sentinels — stripped from args before forwarding to FFmpeg.
+// Internal flag sentinels: stripped from args before forwarding to FFmpeg.
 const NO_GIF_PALETTE = "--no-gif-palette";
 const NO_STREAM_COPY = "--no-stream-copy";
+
+/**
+ * Codecs that reject arbitrary sample rates. When the input rate isn't in
+ * this set we snap to the nearest allowed value via `-ar` upfront, instead
+ * of waiting for the encoder to fail and retrying with recovery args.
+ */
+const AUDIO_RATE_WHITELIST: Record<string, number[]> = {
+  mp3: [48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000],
+  aac: [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000],
+  m4a: [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000],
+};
+
+function nearestAllowedRate(codec: string, rate: number): number | null {
+  const allowed = AUDIO_RATE_WHITELIST[codec];
+  if (!allowed || !Number.isFinite(rate) || rate <= 0) return null;
+  if (allowed.includes(rate)) return null;
+  return allowed.reduce((best, r) => Math.abs(r - rate) < Math.abs(best - rate) ? r : best, allowed[0]);
+}
+
+/**
+ * Per-preset knobs for video-handling paths that don't fit in `planVideo` /
+ * `planGif` (which are byte-tier based). These govern adaptive frame
+ * sampling, video-to-GIF duration caps, and video-to-GIF scale/fps.
+ */
+const VIDEO_PRESETS: Record<QualityPreset, {
+  frameTarget: number;
+  gifCap: number;
+  gif: { maxEdge: number | null; fps: number | null };
+}> = {
+  low:      { frameTarget: 120,  gifCap: 30,                        gif: { maxEdge: 480,  fps: 12 } },
+  medium:   { frameTarget: 300,  gifCap: 60,                        gif: { maxEdge: 720,  fps: 18 } },
+  high:     { frameTarget: 1000, gifCap: 180,                       gif: { maxEdge: 1080, fps: 24 } },
+  lossless: { frameTarget: Number.POSITIVE_INFINITY, gifCap: Number.POSITIVE_INFINITY, gif: { maxEdge: null, fps: null } },
+};
+
+/** Ceiling 2 fps keeps short clips proportional, floor 0.05 stops multi-hour
+ * clips from producing zero frames. Returns null for `lossless` (native fps). */
+function adaptiveFps(duration: number, preset: QualityPreset): number | null {
+  const target = VIDEO_PRESETS[preset].frameTarget;
+  if (!Number.isFinite(target)) return null;
+  if (!Number.isFinite(duration) || duration <= 0) return 1;
+  return Math.min(2, Math.max(0.05, target / duration));
+}
+
+/** Hoisted to avoid recompiling the regex on every arg scan. */
+const VF_FPS_RE = /\bfps=/;
 
 /** 0–100 quality → 1–8 qscale (inverse: 100 → 1, 0 → 8). */
 function imgQualityToQscale(qualityPercent: number): number {
@@ -578,7 +625,68 @@ class FFmpegHandler implements FormatHandler {
       webm: { v: ["vp8","vp9","av1"],               a: ["opus","vorbis"] },
       mov:  { v: ["h264","hevc","prores","mpeg4"],  a: ["aac","mp3","alac"] },
     };
+    const preset = extractQualityPreset(args) ?? "medium";
+
+    // We probe the input once and extract whatever downstream consumers
+    // need: codecs (for remux eligibility), duration (adaptive -r and
+    // video-to-GIF trim), channels + sample rate (audio planning). Probe
+    // is skipped when nothing would use the result.
+    const outMime = outputFormat.mime ?? "";
+    // GIF output is in animatedFormats, so `extractFrames` is always false
+    // here; no need to guard against it.
+    const isVideoToGif =
+      !!inputFormat.mime?.startsWith("video/") && outputFormat.format === "gif";
+    const needsProbe = inputFiles.length === 1 && (
+      inputFormat.mime?.startsWith("audio/")
+      || (inputFormat.mime?.startsWith("video/") && (
+        outMime.startsWith("video/")    // remux eligibility
+        || outMime.startsWith("image/") // adaptive -r
+        || outMime.startsWith("audio/") // channels / sample rate
+        || outputFormat.format === "gif"// duration cap
+      ))
+    );
+    let probeStdout = "";
+    if (needsProbe) {
+      probeStdout = await this.getStdout(async () => {
+        try { await this.#ffmpeg.exec(["-hide_banner", "-i", `file_0.${inputFormat.extension}`]); }
+        catch { /* -i alone always exits non-zero */ }
+      });
+    }
+    let videoCodec: string | undefined;
+    let audioCodec: string | undefined;
+    let probedDuration = 0;
+    let probedChannels = 2;
+    let probedSampleRate = 0;
+    for (const line of probeStdout.split("\n")) {
+      const progress = parseFfmpegProgress(line);
+      if (progress?.durationMs !== undefined && probedDuration === 0) {
+        probedDuration = progress.durationMs / 1000;
+      }
+      const vm = !videoCodec ? line.match(/Stream #\d+:\d+.*?: Video: (\w+)/) : null;
+      if (vm) videoCodec = vm[1];
+      const am = !audioCodec ? line.match(/Stream #\d+:\d+.*?: Audio: (\w+)/) : null;
+      if (am) {
+        audioCodec = am[1];
+        const chan = line.match(/,\s*(mono|stereo|(\d+)\s*channels)/);
+        if (chan) probedChannels = chan[1] === "mono" ? 1 : chan[1] === "stereo" ? 2 : Number(chan[2]);
+        const rate = line.match(/,\s*(\d+)\s*Hz/);
+        if (rate) probedSampleRate = Number(rate[1]);
+      }
+    }
+
+    // Stream-copy fast path: video-to-video remux, OR same-codec audio at
+    // medium or above (low preset still re-encodes so "low" means smaller).
     let useStreamCopy = false;
+    const sameAudioCodec =
+      inputFormat.mime?.startsWith("audio/")
+      && outputFormat.mime?.startsWith("audio/")
+      && inputFormat.format === outputFormat.format;
+    const audioStreamCopyEligible = sameAudioCodec
+      && preset !== "low"
+      && !userHasEncoderFlag
+      && !args?.includes(NO_STREAM_COPY)
+      && inputFiles.length === 1;
+
     if (
       !extractFrames
       && inputFiles.length === 1
@@ -588,12 +696,6 @@ class FFmpegHandler implements FormatHandler {
       && !args?.includes(NO_STREAM_COPY)
       && REMUX_OK[outputFormat.format]
     ) {
-      const probeStdout = await this.getStdout(async () => {
-        try { await this.#ffmpeg.exec(["-hide_banner", "-i", `file_0.${inputFormat.extension}`]); }
-        catch { /* -i alone always exits non-zero */ }
-      });
-      const videoCodec = probeStdout.match(/Stream #\d+:\d+.*?: Video: (\w+)/)?.[1];
-      const audioCodec = probeStdout.match(/Stream #\d+:\d+.*?: Audio: (\w+)/)?.[1];
       const compat = REMUX_OK[outputFormat.format];
       if (
         videoCodec && compat.v.includes(videoCodec)
@@ -601,39 +703,86 @@ class FFmpegHandler implements FormatHandler {
       ) {
         useStreamCopy = true;
       }
+    } else if (audioStreamCopyEligible) {
+      useStreamCopy = true;
     }
 
-    const preset = extractQualityPreset(args) ?? "medium";
     const inputBytes = inputFiles.reduce((n, f) => n + f.bytes.length, 0);
-    const outMime = outputFormat.mime ?? "";
-    const plan: CompressionPlan | null = useStreamCopy
-      ? null
-      : outputFormat.format === "gif"
-        ? planGif(inputBytes, preset)
-        : outMime.startsWith("video/")
-          ? planVideo(inputBytes, preset)
-          : outMime.startsWith("audio/")
-            ? planAudio(!!outputFormat.lossless, 2, preset)
-            : outMime.startsWith("image/")
-              ? planImage(0, preset, !!outputFormat.lossless)
-              : null;
 
-    let appliedDefaultFpsCap = false;
+    // Video-to-audio extraction is usually a "save the audio from this
+    // music / concert / podcast" flow with a high-fidelity source.
+    // Nudge up one preset tier for lossy audio out.
+    const audioEffectivePreset: QualityPreset =
+      (inputFormat.mime?.startsWith("video/") && outMime.startsWith("audio/") && !outputFormat.lossless)
+        ? (preset === "low" ? "medium" : "high")
+        : preset;
+
+    let plan: CompressionPlan | null;
+    if (useStreamCopy) {
+      plan = null;
+    } else if (isVideoToGif) {
+      // planGif byte-tiers are meaningful only when input is a GIF; for
+      // MP4 input we pick scale/fps explicitly from VIDEO_PRESETS below.
+      plan = { imgQuality: 82 };
+    } else if (outputFormat.format === "gif") {
+      plan = planGif(inputBytes, preset);
+    } else if (outMime.startsWith("video/")) {
+      plan = planVideo(inputBytes, preset);
+    } else if (outMime.startsWith("audio/")) {
+      plan = planAudio(!!outputFormat.lossless, probedChannels, audioEffectivePreset);
+    } else if (outMime.startsWith("image/")) {
+      plan = planImage({
+        pixelCount: 0,
+        preset,
+        outputLossless: !!outputFormat.lossless,
+        archetype: extractFrames && inputFormat.mime?.startsWith("video/") ? "video-frame" : "singleton",
+      });
+    } else {
+      plan = null;
+    }
+
+    // Duration-aware fps for video-to-image keeps a 30-min clip from
+    // silently dumping 1800 files.
+    let adaptedFps: number | null = null;
     const command = ["-hide_banner", "-f", "concat", "-safe", "0", "-i", "list.txt"];
     if (extractFrames) {
       command.push("-f", "image2");
-      // For video→frames, default to 1 fps to avoid dumping 3600 PNGs from a
-      // 60s/60fps clip. Animated images (gif/webp/apng) keep their natural
-      // frame rate since they're typically short. User can override with -r.
-      const userHasR = args ? args.includes("-r") : false;
-      const inputIsVideo = inputFormat.mime?.startsWith("video/");
-      if (inputIsVideo && !userHasR) {
-        command.push("-r", "1");
-        appliedDefaultFpsCap = true;
+      const userHasR = !!args?.includes("-r");
+      const userHasVfFps = !!args?.some(a => VF_FPS_RE.test(a));
+      if (inputFormat.mime?.startsWith("video/") && !userHasR && !userHasVfFps) {
+        const fps = adaptiveFps(probedDuration, preset);
+        if (fps != null) {
+          command.push("-r", fps.toFixed(3));
+          adaptedFps = fps;
+        }
       }
     } else {
       command.push("-f", outputFormat.internal);
     }
+
+    // Video-to-GIF duration cap. Silent trim would be a hidden degradation;
+    // the notice at the end names what happened and where to override.
+    const gifCap = VIDEO_PRESETS[preset].gifCap;
+    const gifWasTrimmed =
+      isVideoToGif
+      && !args?.includes("-t") && !args?.includes("-to")
+      && Number.isFinite(gifCap)
+      && probedDuration > gifCap;
+    if (gifWasTrimmed) command.push("-ss", "0", "-t", String(gifCap));
+
+    // Proactive `-ar` for picky codecs avoids the encoder-reject retry.
+    let snappedRateTo: number | null = null;
+    if (
+      outMime.startsWith("audio/")
+      && !outputFormat.lossless
+      && !useStreamCopy
+      && !args?.includes("-ar")
+      && probedSampleRate > 0
+    ) {
+      snappedRateTo = nearestAllowedRate(outputFormat.format, probedSampleRate);
+      if (snappedRateTo !== null) command.push("-ar", String(snappedRateTo));
+    }
+
     if (useStreamCopy) {
       command.push("-c", "copy");
     } else if (outputFormat.mime === "video/mp4") {
@@ -643,11 +792,18 @@ class FFmpegHandler implements FormatHandler {
     } else if (outputFormat.internal === "vcd") {
       command.push("-vf", "scale=352:288,setsar=1", "-target", "pal-vcd", "-pix_fmt", "rgb24");
     } else if (outputFormat.format === "gif" && !extractFrames && !args?.includes(NO_GIF_PALETTE)) {
-      // Two-pass palette: without this, default 256-color palette bands gradients heavily.
-      // Planner may prepend fps/scale if the input is large enough to warrant it.
+      // Two-pass palette avoids the heavy banding a naive 256-color palette
+      // produces on gradients. GIF-to-GIF reuses planGif's byte-tier output;
+      // video-to-GIF picks scale/fps explicitly since MP4 bytes don't map.
       const gifParts: string[] = [];
-      if (plan?.gifFps) gifParts.push(`fps=${plan.gifFps}`);
-      if (plan?.gifScaleFilter) gifParts.push(plan.gifScaleFilter);
+      if (isVideoToGif) {
+        const { maxEdge, fps } = VIDEO_PRESETS[preset].gif;
+        if (fps) gifParts.push(`fps=${fps}`);
+        if (maxEdge) gifParts.push(`scale='min(${maxEdge},iw)':-1:flags=lanczos`);
+      } else {
+        if (plan?.gifFps) gifParts.push(`fps=${plan.gifFps}`);
+        if (plan?.gifScaleFilter) gifParts.push(plan.gifScaleFilter);
+      }
       const pre = gifParts.length ? gifParts.join(",") + "," : "";
       command.push(
         "-filter_complex",
@@ -666,6 +822,15 @@ class FFmpegHandler implements FormatHandler {
         && !args?.includes("-vf")
       ) {
         command.push("-vf", plan.videoScaleFilter);
+      }
+      // Cap frame resolution so video-frame ZIPs don't balloon to multi-GB.
+      if (
+        extractFrames
+        && plan.imgMaxEdge
+        && inputFormat.mime?.startsWith("video/")
+        && !args?.includes("-vf")
+      ) {
+        command.push("-vf", `scale='min(${plan.imgMaxEdge},iw)':-1:flags=lanczos`);
       }
     }
     // Forward remaining args but strip our custom `--quality <preset>` pair —
@@ -754,27 +919,39 @@ class FFmpegHandler implements FormatHandler {
 
       const oldArgs = args ? args : []
       let recoveryArgs: string[] | null = null;
-      let recoveryWarning: string | null = null;
+      let recoveryNotice: Parameters<typeof attachNotice>[1] | null = null;
 
       if (stdout.includes(" not divisible by") && !oldArgs.includes("-vf")) {
         const division = stdout.split(" not divisible by ")[1].split(" ")[0];
         recoveryArgs = [...oldArgs, "-vf", `pad=ceil(iw/${division})*${division}:ceil(ih/${division})*${division}`];
-        recoveryWarning = `Output dimensions padded to a multiple of ${division} - black borders added to satisfy codec constraints.`;
+        recoveryNotice = {
+          title: "Padded the output to fit the codec",
+          body: `The codec requires dimensions divisible by ${division}, so the frame was padded with black borders to the next valid size.`,
+        };
       } else if (stdout.includes("width and height must be a multiple of") && !oldArgs.includes("-vf")) {
         const division = stdout.split("width and height must be a multiple of ")[1].split(" ")[0];
         recoveryArgs = [...oldArgs, "-vf", `pad=ceil(iw/${division})*${division}:ceil(ih/${division})*${division}`];
-        recoveryWarning = `Output dimensions padded to a multiple of ${division} - black borders added to satisfy codec constraints.`;
+        recoveryNotice = {
+          title: "Padded the output to fit the codec",
+          body: `The codec requires dimensions divisible by ${division}, so the frame was padded with black borders to the next valid size.`,
+        };
       } else if (stdout.includes("Valid sizes are") && !oldArgs.includes("-s")) {
         const newSize = stdout.split("Valid sizes are ")[1].split(".")[0].split(" ").pop();
         if (typeof newSize !== "string") {
           throw new Error("FFmpeg conversion failed (could not parse valid sizes from output).", { cause: stdout });
         }
         recoveryArgs = [...oldArgs, "-s", newSize];
-        recoveryWarning = `Output resized to ${newSize} - codec rejected the original dimensions.`;
+        recoveryNotice = {
+          title: "Resized to a valid codec resolution",
+          body: `The codec rejected the original dimensions, so the output was resized to ${newSize}.`,
+        };
       } else if (stdout.includes("does not support that sample rate, choose from (") && !oldArgs.includes("-ar")) {
         const acceptedBitrate = stdout.split("does not support that sample rate, choose from (")[1].split(", ")[0];
         recoveryArgs = [...oldArgs, "-ar", acceptedBitrate];
-        recoveryWarning = `Audio sample rate changed to ${acceptedBitrate} Hz - encoder rejected the original.`;
+        recoveryNotice = {
+          title: "Adjusted the sample rate",
+          body: `The encoder rejected the original sample rate, so the output was resampled to ${acceptedBitrate} Hz.`,
+        };
       } else if (outputFormat.format === "gif" && !oldArgs.includes(NO_GIF_PALETTE) && stdout.includes("Aborted()")) {
         recoveryArgs = [...oldArgs, NO_GIF_PALETTE];
       } else if (useStreamCopy && !oldArgs.includes(NO_STREAM_COPY)) {
@@ -783,8 +960,8 @@ class FFmpegHandler implements FormatHandler {
 
       if (recoveryArgs) {
         const result = await this.doConvert(inputFiles, inputFormat, outputFormat, recoveryArgs, onProgress);
-        if (!recoveryWarning) return result;
-        return result.map(f => ({ ...f, warnings: [...(f.warnings ?? []), recoveryWarning]}));
+        if (recoveryNotice && result[0]) attachNotice(result[0], recoveryNotice);
+        return result;
       }
 
       // Extract the most relevant FFmpeg error line for the user-facing
@@ -828,9 +1005,14 @@ class FFmpegHandler implements FormatHandler {
       }
 
       await this.#ffmpeg.deleteFile("list.txt");
-      if (appliedDefaultFpsCap) {
-        const warn = "Extracted 1 frame per second (default). Pass -r N for a different rate.";
-        for (const f of results) (f.warnings ??= []).push(warn);
+      // Only notice when we're actually sampling below real-time. Short
+      // clips extracted at the 2 fps ceiling match user expectations.
+      if (adaptedFps !== null && adaptedFps < 1 && results[0]) {
+        attachNotice(results[0], {
+          title: `Sampled ${results.length} frames`,
+          body: `That works out to about one every ${fmtDuration(1 / adaptedFps)}. It keeps the download manageable. To pick a different rate, or grab every frame, use the API with an explicit -r value.`,
+          action: API_DOCS_ACTION,
+        });
       }
       return results;
     }
@@ -860,7 +1042,31 @@ class FFmpegHandler implements FormatHandler {
 
     const name = baseName + "." + outputFormat.extension;
 
-    return [{ bytes, name }];
+    const output: FileData = { bytes, name };
+
+    if (gifWasTrimmed) {
+      attachNotice(output, {
+        title: `Trimmed to the first ${gifCap} seconds`,
+        body: `GIF gets unwieldy past a minute of video (this source ran ${fmtDuration(probedDuration)}). To pick a different section, trim the source video first, or use the API with -ss and -t.`,
+        action: API_DOCS_ACTION,
+      });
+    }
+
+    if (useStreamCopy && sameAudioCodec) {
+      attachNotice(output, {
+        title: "Copied without re-encoding",
+        body: "Same codec in and out, so the audio stream was copied across as-is. No quality loss, and it was faster.",
+      });
+    }
+
+    if (snappedRateTo !== null) {
+      attachNotice(output, {
+        title: "Adjusted the sample rate",
+        body: `${probedSampleRate} Hz isn't supported by this format, so the output was resampled to ${snappedRateTo} Hz.`,
+      });
+    }
+
+    return [output];
 
   }
 

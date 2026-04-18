@@ -5,42 +5,57 @@ import { ModalManager } from "../components/utils/ModalManager.ts";
 import { ensureMinDuration } from "../components/utils/index.ts";
 
 export let isCancelled = false;
-let softCancelRequested = false;
-let _activeBatchSize = 0;
+let canHardCancel = true;
+let _currentFileIndex = 0;
+let _currentFileTotal = 0;
+
+export type ConversionMode = "convert" | "compress";
+let _activeMode: ConversionMode = "convert";
+export function setActiveConversionMode(mode: ConversionMode) {
+    _activeMode = mode;
+}
+function modeCopy() {
+    return _activeMode === "compress"
+        ? { verb: "compressed", cancelledTitle: "Compression cancelled", cancelButton: "Cancel compression" }
+        : { verb: "converted", cancelledTitle: "Conversion cancelled", cancelButton: "Cancel conversion" };
+}
 
 export function resetCancellation() {
     isCancelled = false;
-    softCancelRequested = false;
-    _activeBatchSize = 0;
+    canHardCancel = true;
+    _currentFileIndex = 0;
+    _currentFileTotal = 0;
+    _activeMode = "convert";
     cancelStartTime = null;
     if (hardCancelTimeoutId !== null) {
         clearTimeout(hardCancelTimeoutId);
         hardCancelTimeoutId = null;
     }
     forceCleanupCallback = null;
-    // Clear DOM artifacts from a previous soft-cancel so they don't leak
-    // into the next conversion if the popup is reused without a full rebuild.
-    ui.popupBox.querySelector(".conversion-wrap-up")?.remove();
-    const cancelBtn = ui.popupBox.querySelector<HTMLButtonElement>("#cancel-conversion-btn");
-    if (cancelBtn) cancelBtn.textContent = "Cancel conversion";
 }
 
-/** Tell the cancel system how many files are in the current batch. */
-export function setActiveBatchSize(n: number) {
-    _activeBatchSize = n;
+/**
+ * Tell the cancel system whether the current conversion path can be
+ * interrupted mid-file. True = every hop is worker-based (cancel terminates
+ * the worker instantly). False = path has at least one `requiresMainThread`
+ * handler, which can't be interrupted inside `doConvert`, so the loop has
+ * to wait for the current file to finish. Call this after every findConversionPath.
+ */
+export function setCanHardCancel(v: boolean) {
+    canHardCancel = v;
+}
+
+/**
+ * Tell the cancel system which file (1-based) is currently being converted
+ * and the total count, so the cancel copy can read "Finishing file 2 of 3".
+ */
+export function setCurrentFileProgress(current: number, total: number) {
+    _currentFileIndex = current;
+    _currentFileTotal = total;
 }
 
 export function setCancelled(val: boolean) {
     isCancelled = val;
-}
-
-/**
- * True once the user has clicked Cancel once. The batch loop stops starting
- * new files but lets the current one finish. A second click (or Escape)
- * escalates to a hard cancel that terminates the worker.
- */
-export function isSoftCancelRequested() {
-    return softCancelRequested;
 }
 
 let workerCancelCallback: (() => void) | null = null;
@@ -90,9 +105,6 @@ export function showConversionInProgress(messageHTML: string, title: string = "C
             if (p.classList.contains("muted-text")) {
                 p.classList.remove("muted-text");
             }
-            // Re-append the soft-cancel subtitle if the user has already clicked
-            // Cancel once — otherwise it would be wiped on every status update.
-            if (softCancelRequested) _appendWrapUpSubtitle();
         }
 
         // Ensure visibility is handled by ModalManager/classes
@@ -110,22 +122,9 @@ export function showConversionInProgress(messageHTML: string, title: string = "C
     }
 }
 
-/**
- * Cancel button handler. Behavior depends on batch size:
- *
- * **Single-file runs (`_activeBatchSize <= 1`):** one click = immediate hard
- * cancel. There's no "next file" to protect, so soft cancel is meaningless —
- * skipping the two-stage avoids a confusing no-op.
- *
- * **Batch runs (`_activeBatchSize > 1`):** two-stage:
- *   1st call → soft cancel. Current file finishes; batch loop breaks.
- *   2nd call → hard cancel. Worker terminated, in-progress file discarded.
- *
- * Escape also routes here, same rules apply.
- */
 // Hard-timeout for cancellation. If the worker doesn't yield (stuck inside a
-// synchronous WASM call), workerCancelCallback may never run — and the UI
-// stays on "Cancelling…" forever. After this window we give up waiting and
+// synchronous WASM call), workerCancelCallback may never run, and the UI
+// stays on "Cancelling..." forever. After this window we give up waiting and
 // force the finally path to run, even if the worker ack never arrives.
 const HARD_CANCEL_TIMEOUT_MS = 2000;
 let hardCancelTimeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -137,71 +136,73 @@ export function setForceCleanupCallback(cb: (() => void) | null) {
     forceCleanupCallback = cb;
 }
 
-export function triggerCancellation() {
-    if (isCancelled) return;  // guard against double-calls overwriting cancelStartTime
-
-    const isBatch = _activeBatchSize > 1;
-
-    if (isBatch && !softCancelRequested) {
-        // First click on a batch: soft cancel. Leave the worker running.
-        softCancelRequested = true;
-        _updateCancelButtonForSoftCancel();
-        _appendWrapUpSubtitle();
-        return;
-    }
-
-    // Hard cancel: single-file (any click) OR batch second click.
-    isCancelled = true;
-    workerCancelCallback?.();
-    workerCancelCallback = null;
-    cancelStartTime = performance.now();
-
-    // Arm the hard-timeout. If forceCleanupCallback fires before the worker
-    // unwinds naturally, we accept losing the in-flight output and return the
-    // UI to a usable state. Cleared in completeCancellation/resetCancellation.
+function armHardCancelTimer() {
     if (hardCancelTimeoutId !== null) clearTimeout(hardCancelTimeoutId);
     hardCancelTimeoutId = setTimeout(() => {
         hardCancelTimeoutId = null;
         if (forceCleanupCallback) {
-            console.warn("[cancellation] worker did not ack cancel within timeout — forcing cleanup");
+            console.warn("[cancellation] worker did not ack cancel within timeout, forcing cleanup");
             const fn = forceCleanupCallback;
             forceCleanupCallback = null;
             try { fn(); } catch (e) { console.error("[cancellation] forceCleanup threw:", e); }
         }
     }, HARD_CANCEL_TIMEOUT_MS);
-
-    const h2 = document.createElement("h2");
-    h2.textContent = "Cancelling conversion";
-
-    const spinner = document.createElement("div");
-    spinner.className = "loader-spinner";
-
-    const p = document.createElement("p");
-    p.innerHTML = `Stopping conversion...<br><span class="conversion-path">This may take a moment</span>`;
-
-    replacePopup([h2, spinner, p], true);
 }
 
-/** Swaps the cancel button label to "Stop now" in-place, without rebuilding the footer. */
-function _updateCancelButtonForSoftCancel() {
-    const btn = ui.popupBox.querySelector<HTMLButtonElement>("#cancel-conversion-btn");
-    if (btn) btn.textContent = "Stop now";
-}
+/**
+ * Single cancel handler. Behavior is path-aware, not click-count-aware:
+ *
+ * - **`canHardCancel = true`** (every hop runs in a worker): terminate the
+ *   worker, show the brief "Cancelling conversion / Stopping now..." popup.
+ *   The in-flight file is discarded; already-converted files are kept and
+ *   offered via the partial-download popup in the conversion's finally block.
+ *
+ * - **`canHardCancel = false`** (at least one hop is `requiresMainThread`,
+ *   e.g. pdftoimg): the current file can't be interrupted inside `doConvert`.
+ *   Update the status copy in place to say so honestly ("Finishing file N of M,
+ *   then stopping"), remove the cancel button, and let the loop exit naturally
+ *   on the next iteration when it sees `isCancelled`.
+ *
+ * Escape key routes here via ensureCancelButton().
+ */
+export function triggerCancellation() {
+    if (isCancelled) return;  // guard against double-calls overwriting cancelStartTime
+    isCancelled = true;
 
-/** Adds a muted "Wrapping up the current file..." subtitle under the existing status line. */
-function _appendWrapUpSubtitle() {
-    const existingSpinner = ui.popupBox.classList.contains("open")
-        ? ui.popupBox.querySelector(".loader-gooey, .loader-spinner")
-        : null;
-    if (!existingSpinner) return;
-    const p = existingSpinner.nextElementSibling as HTMLElement | null;
-    if (!p || p.tagName !== "P") return;
-    // Only append once even if triggerCancellation is called twice in quick succession.
-    if (p.querySelector(".conversion-wrap-up")) return;
-    const sub = document.createElement("span");
-    sub.className = "conversion-wrap-up muted-text";
-    sub.innerHTML = `<br>Wrapping up the current file. You'll be able to download what's been converted so far`;
-    p.appendChild(sub);
+    if (canHardCancel) {
+        cancelStartTime = performance.now();
+        workerCancelCallback?.();
+        workerCancelCallback = null;
+        armHardCancelTimer();
+
+        const h2 = document.createElement("h2");
+        h2.textContent = "Cancelling conversion";
+
+        const spinner = document.createElement("div");
+        spinner.className = "loader-spinner";
+
+        const p = document.createElement("p");
+        p.textContent = "Stopping now...";
+
+        replacePopup([h2, spinner, p], true);
+    } else {
+        // Update status copy in place BEFORE setting cancelStartTime. The
+        // guard at the top of showConversionInProgress bails once cancelStartTime
+        // is non-null, so we need to get the final update in first.
+        const fileRef = _currentFileTotal > 1
+            ? `file ${_currentFileIndex} of ${_currentFileTotal}`
+            : "the current file";
+        showConversionInProgress(
+            `Finishing ${fileRef}, then stopping.<br>` +
+            `<span class="conversion-path">Can't stop mid-file.</span>`,
+            "Cancelling conversion",
+        );
+        // Remove the cancel button so it doesn't sit there as a dead control
+        // (clicking it again hits the isCancelled guard and is a no-op).
+        removeCancelButton();
+        cancelStartTime = performance.now();
+        armHardCancelTimer();
+    }
 }
 
 export function removeCancelButton() {
@@ -222,7 +223,7 @@ export function ensureCancelButton() {
     }
 
     if (!actions.querySelector("#cancel-conversion-btn")) {
-        const btn = createPopupButton("Cancel conversion", "btn-secondary", () => triggerCancellation());
+        const btn = createPopupButton(modeCopy().cancelButton, "btn-secondary", () => triggerCancellation());
         btn.id = "cancel-conversion-btn";
         actions.appendChild(btn);
         ModalManager.updateTop({ onEscape: triggerCancellation });
@@ -299,11 +300,12 @@ function _updatePopupToEnginesReady() {
 }
 
 export function showPartialDownloadPopup(count: number, onDownload: () => void) {
+    const { cancelledTitle, verb } = modeCopy();
     const h2 = document.createElement("h2");
-    h2.textContent = "Conversion cancelled";
+    h2.textContent = cancelledTitle;
 
     const p = document.createElement("p");
-    p.textContent = `${count} file${count > 1 ? "s" : ""} ${count > 1 ? "were" : "was"} successfully converted before stopping.`;
+    p.textContent = `${count} file${count > 1 ? "s" : ""} ${count > 1 ? "were" : "was"} successfully ${verb} before stopping.`;
 
     const actions = document.createElement("div");
     actions.className = "popup-actions-footer";

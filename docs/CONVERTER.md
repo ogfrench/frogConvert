@@ -26,7 +26,9 @@ End-user guide for the file converter side of frogConvert. For the PDF editor, s
   - **All** - every supported format.
 - **Multiple files.** Use the file manager to review, add, remove, or replace individual files.
 - **Partial downloads.** Cancelled a batch mid-way? You can still download the files that finished.
-- **Quality presets.** Handlers like FFmpeg, ImageMagick, and pdftoimg accept low / medium / high / lossless presets via the UI.
+- **Quality presets.** Handlers like FFmpeg, ImageMagick, and pdftoimg accept low / medium / high / lossless presets. The web UI always uses `medium` (no selector on the page, by design); `low`, `high`, and `lossless` are available through the MCP `convert_file` tool and the REST `POST /convert` endpoint, both of which take an optional `quality` argument. See [INTEGRATIONS.md § Quality preset](INTEGRATIONS.md#quality-preset).
+- **Same-format compression.** Selecting identical input and output formats (e.g. JPG to JPG, MP4 to MP4) re-encodes the file to reduce its size. A **smart size-guard** ensures you never get a "compressed" file larger than the source; if the saver is less than 2%, the app fallback-returns the original file.
+- **Smart auto-adaptation.** When a conversion would hit a browser-memory or sanity ceiling (very large PDFs, long videos to GIF, thousands of frames extracted from a long video), the pipeline adjusts the output instead of erroring. Adjustments are explained in a post-conversion notice card. See [HANDLERS.md § Post-conversion notices](HANDLERS.md#post-conversion-notices) for how handlers emit these.
 - **Performance.** frogConvert detects available RAM and adjusts limits to prevent crashes on lower-end devices.
 
 ## Known limitations

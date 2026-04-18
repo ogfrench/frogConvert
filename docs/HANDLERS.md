@@ -98,15 +98,48 @@ export default dummyHandler;
 
 ### Quality presets
 
-Handlers that support variable output quality should check for a `--quality` flag in `args`. `extractQualityPreset(args)` returns `"low" | "medium" | "high" | "lossless"` or `undefined`. Map these to your tool's settings (FFmpeg to CRF/bitrate, ImageMagick to quality 60-100, pdftoimg to DPI and JPEG quality).
+Handlers that re-encode should parse the `--quality` flag from `args`. `extractQualityPreset(args)` returns `"low" | "medium" | "high" | "lossless"` or `undefined`. The web UI, MCP `convert_file` tool, and REST `POST /convert` all pipe this through; `undefined` means the caller didn't specify and the handler should use `"medium"` as the default.
+
+Don't hand-roll your own quality mapping. Route through the shared planner in `src/core/compression/plan.ts`:
+
+- `planVideo(inputBytes, preset)` for video output
+- `planGif(inputBytes, preset)` for GIF output
+- `planAudio(outputLossless, channels, preset)` for audio output
+- `planImage({ pixelCount, preset, outputLossless, archetype })` for image output
+
+**Image archetype** matters: the same image-output handler can be converting one hand-picked photo (`archetype: "singleton"`) or one of hundreds of frames extracted from a video (`archetype: "video-frame"`). Passing the right archetype keeps quality sensible for both cases. See `ImageArchetype` in `plan.ts` for the full list.
+
+**Same-format compression.** Conversion routes can include same-format requests (e.g. `JPG → JPG`). In these cases, the handler is called to re-encode the file using the specified `quality` preset (defaults to `"medium"`). Output files from these runs are subject to a **smart size-guard** in the conversion runner: if the result is larger than the original, it is discarded.
+
+PDF render knobs (DPI and megapixel caps) live in `src/core/FormatHandler/qualityPresets.ts` as `PRESETS[preset].pdfDpi` / `pdfMp` / `pngCnum`, consumed by `pdftoimg`.
 
 ### Multi-file output
 
 Some conversions produce multiple outputs (frame extraction from animated GIF, video to PNG sequence, multi-size ICO bundles). Return every file from `doConvert()` as a separate `FileData` entry. When there are multiple outputs, name them with an index suffix (`frame_1.png`, `frame_2.png`). The UI automatically zips multi-file results for download.
 
-### Conversion warnings
+### Post-conversion notices
 
-If a handler silently adjusts the output (padding dimensions, coercing sample rates, upscaling), add human-readable strings to `FileData.warnings`. These surface in the UI success popup and in MCP/API responses.
+If a handler auto-adapts to fit a ceiling (e.g. PDF shrunk to stay under the memory cap, video-to-GIF trimmed to a duration cap, video frames sampled adaptively, sample rate snapped to a codec's whitelist), report it with a structured notice. Import the helper:
+
+```ts
+import { attachNotice, API_DOCS_ACTION, fmtDuration } from "../core/compression/notices.ts";
+
+attachNotice(outputFile, {
+  title: "Trimmed to the first 60 seconds",
+  body: `GIF gets unwieldy past a minute of video (this source ran ${fmtDuration(probedDuration)}). To pick a different section, trim the source first, or use the API with -ss and -t.`,
+  action: API_DOCS_ACTION,
+});
+```
+
+Each notice becomes one `.convert-notice` card in the success popup (reuses the same component as the "better handler available" hint). `attachNotice` also mirrors the body into `FileData.warnings` so MCP / REST JSON consumers that read `warnings` still see it.
+
+**Copy rules**:
+- No em dashes. Use periods, commas, colons, or rephrase.
+- Specific numbers, not generic templates. "Sampled 300 frames" beats "Sampled some frames."
+- Name the real escape route. If there isn't one in the web UI, point at the API docs via `API_DOCS_ACTION`.
+- Informational tone, not apologetic.
+
+**Never throw "try lower quality" errors.** The web UI has no quality selector; those messages are dead ends. Adapt instead, then attach a notice explaining what was adjusted.
 
 ### Implementation rules
 

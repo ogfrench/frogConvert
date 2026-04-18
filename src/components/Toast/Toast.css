@@ -39,9 +39,19 @@
   color: var(--destructive);
 }
 
-/* On mobile, sit above the floating toolbar + tray */
+/* On mobile, sit above the floating toolbar + tray and stretch edge-to-edge
+   so multi-line messages don't get squeezed into an awkward pill shape. */
 @media (max-width: 800px) {
   .toast {
     bottom: calc(var(--space-6) + var(--space-12) + var(--space-3) + env(safe-area-inset-bottom, 0px));
+    left: calc(var(--space-4) + env(safe-area-inset-left, 0px));
+    right: calc(var(--space-4) + env(safe-area-inset-right, 0px));
+    max-width: none;
+    width: auto;
+    transform: translateY(calc(100% + var(--space-4)));
+    border-radius: var(--radius-lg);
+  }
+  .toast.open {
+    transform: translateY(0);
   }
 }

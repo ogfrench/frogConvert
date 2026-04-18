@@ -4,7 +4,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { CATEGORY_LABELS, ui, isLoadingHandlers } from "../store/store.ts";
+import { CATEGORY_LABELS, ui, isLoadingHandlers, allOptionsRef } from "../store/store.ts";
+import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 import { updateConvertButtonState } from "./FormatModal.ts";
 
 
@@ -155,6 +156,128 @@ describe("updateConvertButtonState (DOM)", () => {
 
         isLoadingHandlers.value = false;
         updateConvertButtonState(null, null);
+        expect(ui.convertButton.textContent).toBe("Convert");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// updateConvertButtonState - same-format compression relabel + helper
+// ---------------------------------------------------------------------------
+
+describe("updateConvertButtonState (same-format compression)", () => {
+    function makeFormat(mime: string, format: string, lossless = false): FileFormat {
+        return {
+            name: format.toUpperCase(),
+            format,
+            extension: format,
+            mime,
+            internal: format,
+            from: true,
+            to: true,
+            lossless,
+        };
+    }
+
+    function stubHandler(name: string, formats: FileFormat[]): FormatHandler {
+        return { name, supportedFormats: formats, ready: true } as unknown as FormatHandler;
+    }
+
+    beforeEach(() => {
+        document.body.innerHTML = `<button id="convert-button"></button>`;
+        ui.convertButton = document.getElementById("convert-button") as HTMLButtonElement;
+        isLoadingHandlers.value = false;
+    });
+
+    afterEach(() => {
+        document.body.innerHTML = "";
+        isLoadingHandlers.value = false;
+        allOptionsRef.value = [];
+        (window as { supportedFormatCache?: Map<string, FileFormat[]> }).supportedFormatCache = new Map();
+        (ui as any).convertButton = null;
+    });
+
+    it("relabels to 'Compress' and shows helper when PNG to PNG", () => {
+        const png = makeFormat("image/png", "png", true);
+        const handler = stubHandler("ImageMagick", [png]);
+        allOptionsRef.value = [{ format: png, handler }];
+        (window as any).supportedFormatCache = new Map([["ImageMagick", [png]]]);
+
+        updateConvertButtonState(0, 0);
+
+        expect(ui.convertButton.classList.contains("compress-mode")).toBe(true);
+        expect(ui.convertButton.textContent).toContain("Compress");
+        expect(ui.convertButton.querySelector(".convert-strike")?.textContent).toBe("Convert");
+        const hint = document.querySelector(".convert-hint") as HTMLElement;
+        expect(hint).not.toBeNull();
+        expect(hint.hidden).toBe(false);
+        expect(hint.textContent).toContain("PNG");
+        expect(hint.textContent).toContain("compress");
+        expect(hint.getAttribute("aria-live")).toBe("polite");
+    });
+
+    it("relabels to 'Compress' for MP4 to MP4", () => {
+        const mp4 = makeFormat("video/mp4", "mp4");
+        const handler = stubHandler("FFmpeg", [mp4]);
+        allOptionsRef.value = [{ format: mp4, handler }];
+        (window as any).supportedFormatCache = new Map([["FFmpeg", [mp4]]]);
+
+        updateConvertButtonState(0, 0);
+
+        expect(ui.convertButton.classList.contains("compress-mode")).toBe(true);
+        expect(ui.convertButton.textContent).toContain("Compress");
+        const hint = document.querySelector(".convert-hint") as HTMLElement;
+        expect(hint.textContent).toContain("MP4");
+    });
+
+    it("stays 'Convert' for PDF to PDF (not compressible)", () => {
+        const pdf = makeFormat("application/pdf", "pdf");
+        const handler = stubHandler("pdftoimg", [pdf]);
+        allOptionsRef.value = [{ format: pdf, handler }];
+        (window as any).supportedFormatCache = new Map([["pdftoimg", [pdf]]]);
+
+        updateConvertButtonState(0, 0);
+
+        expect(ui.convertButton.textContent).toBe("Convert");
+        const hint = document.querySelector(".convert-hint") as HTMLElement;
+        expect(hint.hidden).toBe(true);
+    });
+
+    it("stays 'Convert' for SVG to SVG (excluded from whitelist even though image)", () => {
+        const svg = makeFormat("image/svg+xml", "svg");
+        const handler = stubHandler("ImageMagick", [svg]);
+        allOptionsRef.value = [{ format: svg, handler }];
+        (window as any).supportedFormatCache = new Map([["ImageMagick", [svg]]]);
+
+        updateConvertButtonState(0, 0);
+
+        expect(ui.convertButton.textContent).toBe("Convert");
+    });
+
+    it("stays 'Convert' when input and output formats differ", () => {
+        const png = makeFormat("image/png", "png", true);
+        const jpeg = makeFormat("image/jpeg", "jpeg");
+        const handler = stubHandler("ImageMagick", [png, jpeg]);
+        allOptionsRef.value = [
+            { format: png, handler },
+            { format: jpeg, handler },
+        ];
+        (window as any).supportedFormatCache = new Map([["ImageMagick", [png, jpeg]]]);
+
+        updateConvertButtonState(0, 1);
+
+        expect(ui.convertButton.textContent).toBe("Convert");
+        const hint = document.querySelector(".convert-hint") as HTMLElement;
+        expect(hint.hidden).toBe(true);
+    });
+
+    it("stays 'Convert' when required handler is absent (fallback)", () => {
+        const png = makeFormat("image/png", "png", true);
+        const canvasHandler = stubHandler("canvasToBlob", [png]);
+        allOptionsRef.value = [{ format: png, handler: canvasHandler }];
+        (window as any).supportedFormatCache = new Map([["canvasToBlob", [png]]]);
+
+        updateConvertButtonState(0, 0);
+
         expect(ui.convertButton.textContent).toBe("Convert");
     });
 });

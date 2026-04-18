@@ -1,8 +1,13 @@
-import type { FormatHandler, FileData } from "../../core/FormatHandler/FormatHandler.ts";
+import type { FormatHandler, FileData, QualityPreset } from "../../core/FormatHandler/FormatHandler.ts";
 import type { TraversionGraph } from "../../core/TraversionGraph/TraversionGraph.ts";
 import { findFormatAndHandler, libreofficeHint } from "../../mcp/core/utils.ts";
 import { convertViaBrowser } from "../../mcp/core/browserBridge.ts";
 import mime from "mime";
+
+function parseQuality(raw: unknown): QualityPreset | undefined {
+    if (raw === "low" || raw === "medium" || raw === "high" || raw === "lossless") return raw;
+    return undefined;
+}
 
 async function runConversion(
     handlers: FormatHandler[],
@@ -13,8 +18,11 @@ async function runConversion(
     inputExt: string,
     outputMime: string,
     outputExt: string,
+    quality?: QualityPreset,
     allHandlers?: FormatHandler[]
 ): Promise<{ files: FileData[]; error?: never } | { error: string; status: number }> {
+    const effectiveQuality: QualityPreset = quality ?? "medium";
+    const hopArgs = ["--quality", effectiveQuality];
     const inputMatch = findFormatAndHandler(handlers, inputMime, inputExt, 'from');
     const outputMatch = findFormatAndHandler(handlers, outputMime, outputExt, 'to');
 
@@ -39,7 +47,7 @@ async function runConversion(
                     const stepHandler = path[i].handler;
                     const prevFormat = path[i - 1].format;
                     const nextFormat = path[i].format;
-                    currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat);
+                    currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat, hopArgs);
                 }
                 return { files: currentFiles };
             } catch {
@@ -52,7 +60,7 @@ async function runConversion(
     // The bridge loads ALL handlers including browser-only ones (requiresMainThread=true).
     try {
         const b64 = Buffer.from(bytes).toString("base64");
-        const bridgeResults = await convertViaBrowser(fileName, b64, inputMime, inputExt, outputMime, outputExt);
+        const bridgeResults = await convertViaBrowser(fileName, b64, inputMime, inputExt, outputMime, outputExt, effectiveQuality);
         const files: FileData[] = bridgeResults.map(r => ({
             name: r.fileName,
             bytes: new Uint8Array(Buffer.from(r.base64Bytes, "base64"))
@@ -93,6 +101,7 @@ export async function handleConvert(
         const file = formData.get("file");
         const outputMime = formData.get("outputMime");
         const outputExt = formData.get("outputExt");
+        const quality = parseQuality(formData.get("quality"));
 
         if (!(file instanceof File)) {
             return Response.json({ error: "Missing 'file' field (must be a file upload)" }, { status: 400 });
@@ -110,7 +119,7 @@ export async function handleConvert(
         const detectedMime = mime.getType(fileName) || "application/octet-stream";
         const bytes = new Uint8Array(await file.arrayBuffer());
 
-        const result = await runConversion(handlers, graph, fileName, bytes, detectedMime, ext, outputMime, outputExt, allHandlers);
+        const result = await runConversion(handlers, graph, fileName, bytes, detectedMime, ext, outputMime, outputExt, quality, allHandlers);
         if ("error" in result) {
             return Response.json({ error: result.error }, { status: result.status });
         }
@@ -137,7 +146,7 @@ export async function handleConvert(
             return Response.json({ error: "Invalid JSON body" }, { status: 400 });
         }
 
-        const { fileName, base64Bytes, inputMime, inputExt, outputMime, outputExt } = body;
+        const { fileName, base64Bytes, inputMime, inputExt, outputMime, outputExt, quality: qualityRaw } = body;
         if (!fileName || !base64Bytes || !inputMime || !inputExt || !outputMime || !outputExt) {
             return Response.json(
                 { error: "Body must include: fileName, base64Bytes, inputMime, inputExt, outputMime, outputExt" },
@@ -151,8 +160,9 @@ export async function handleConvert(
 
         const buffer = Buffer.from(base64Bytes, "base64");
         const bytes = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+        const quality = parseQuality(qualityRaw);
 
-        const result = await runConversion(handlers, graph, fileName, bytes, inputMime, inputExt, outputMime, outputExt, allHandlers);
+        const result = await runConversion(handlers, graph, fileName, bytes, inputMime, inputExt, outputMime, outputExt, quality, allHandlers);
         if ("error" in result) {
             return Response.json({ error: result.error }, { status: result.status });
         }

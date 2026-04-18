@@ -110,6 +110,21 @@ export class FormatDefinition implements IFormatDefinition {
 }
 
 
+/**
+ * Structured post-conversion notice. Rendered in the web UI via the
+ * `.convert-notice` pattern (title + body + optional action link).
+ * Used whenever the handler auto-adapted to avoid dead-ending the user
+ * (e.g. PDF shrunk to fit memory, video frames sampled, GIF trimmed).
+ */
+export type Notice = {
+  /** Short title line. Concrete, no em dashes. */
+  title: string;
+  /** One or two sentences. Include the specific numbers, name the escape route. */
+  body: string;
+  /** Optional inline link (usually to MCP/API docs for the real escape hatch). */
+  action?: { label: string; href: string };
+};
+
 export interface FileData {
   /** File name with extension. */
   name: string;
@@ -122,12 +137,23 @@ export interface FileData {
    */
   readonly bytes: Uint8Array;
   /**
-   * Optional warnings about silent quality mutations applied during the
-   * conversion (e.g. dimensions padded for codec constraints, sample rate
-   * coerced). Surfaced to the UI as a yellow banner so the user knows the
-   * output isn't a literal-faithful conversion.
+   * Legacy plain-string warnings. Consumed by MCP/API surfaces that emit
+   * JSON. New handler code should push a structured {@link Notice} into
+   * `notices` instead; for back-compat, the notice's `body` should also be
+   * pushed into `warnings` so programmatic consumers still see it.
    */
   warnings?: string[];
+  /**
+   * Structured notices rendered by the web UI. Each notice becomes one
+   * `.convert-notice` card in the post-conversion result area.
+   */
+  notices?: Notice[];
+  /**
+   * Byte count of the input file before compression. Set only by the
+   * same-format compression path so the success popup can show a size
+   * delta. Absent for normal cross-format conversions.
+   */
+  originalBytes?: number;
 }
 
 /**

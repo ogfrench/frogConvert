@@ -122,7 +122,8 @@ async function ensureHandlerReady(handler: FormatHandler): Promise<void> {
     inputMime: string,
     inputExt: string,
     outputMime: string,
-    outputExt: string
+    outputExt: string,
+    quality?: string
 ): Promise<Array<{ fileName: string; base64Bytes: string }>> => {
     if (!graph) {
         const initErr = (window as any).__headlessInitError;
@@ -163,6 +164,10 @@ async function ensureHandlerReady(handler: FormatHandler): Promise<void> {
     for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
 
     let currentFiles: FileData[] = [{ name: fileName, bytes }];
+    const validQuality = quality === "low" || quality === "high" || quality === "lossless"
+      ? quality
+      : "medium";
+    const hopArgs = ["--quality", validQuality];
 
     const conversionPromise = (async () => {
         for (let i = 1; i < path.length; i++) {
@@ -174,7 +179,7 @@ async function ensureHandlerReady(handler: FormatHandler): Promise<void> {
             // Throws clearly if init fails rather than silently continuing.
             await ensureHandlerReady(stepHandler);
 
-            currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat);
+            currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat, hopArgs);
         }
 
         const allWarnings = Array.from(new Set(currentFiles.flatMap(f => f.warnings ?? [])));

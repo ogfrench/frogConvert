@@ -2,6 +2,7 @@ import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatH
 import "./FormatModal.css";
 import { ui, CATEGORY_LABELS, formatDisplayName, formatMode, getFormatCategory, activeCategory, allOptionsRef, isLoadingPhase2, isLoadingHandlers, updateScrollLock, isFormatVisible, isCategoryVisible, reachableIdentifiers, selectedFromIndex } from "../store/store.ts";
 import { formatToIdentifier } from "../../core/TraversionGraph/TraversionGraph.ts";
+import { isSameFormatCompressible } from "../../conversion/actions.ts";
 
 // --- Format modal ---
 
@@ -133,14 +134,59 @@ export function clearFormatSelection(activeCategory: string = "") {
   ui.formatSelector.classList.remove("has-value");
 }
 
+/**
+ * Compression helper line shown under the Convert button when the user
+ * picks the same format for input and output AND that format supports
+ * same-format compression (see `resolveSameFormatHandler`). Lazy-created
+ * on first use so it only enters the DOM for users who hit the feature.
+ */
+let _convertHintEl: HTMLSpanElement | null = null;
+function ensureConvertHint(): HTMLSpanElement {
+  if (_convertHintEl && _convertHintEl.isConnected) return _convertHintEl;
+  const el = document.createElement("span");
+  el.className = "convert-hint";
+  el.setAttribute("role", "status");
+  el.setAttribute("aria-live", "polite");
+  el.hidden = true;
+  ui.convertButton.insertAdjacentElement("afterend", el);
+  _convertHintEl = el;
+  return el;
+}
+
 export function updateConvertButtonState(selectedFromIndex: number | null, selectedToIndex: number | null) {
+  const hint = ensureConvertHint();
+  let showCompress = false;
+  let formatLabel = "";
+
   if (selectedFromIndex !== null && selectedToIndex !== null) {
     ui.convertButton.classList.remove("disabled");
-    ui.convertButton.textContent = "Convert";
+    const fromOpt = allOptionsRef.value[selectedFromIndex];
+    const toOpt = allOptionsRef.value[selectedToIndex];
+    const samePick = fromOpt && toOpt
+      && fromOpt.format.mime === toOpt.format.mime
+      && fromOpt.format.format === toOpt.format.format;
+    showCompress = !!(samePick && isSameFormatCompressible(toOpt.format));
+    if (showCompress) formatLabel = toOpt.format.format.toUpperCase();
+    if (showCompress) {
+      ui.convertButton.innerHTML = `<span class="convert-strike">Convert</span> Compress`;
+    } else {
+      ui.convertButton.textContent = "Convert";
+    }
   } else {
     ui.convertButton.classList.add("disabled");
     ui.convertButton.textContent = isLoadingHandlers.value ? "Loading formats…" : "Convert";
   }
+
+  ui.convertButton.classList.toggle("compress-mode", showCompress);
+
+  if (showCompress) {
+    hint.textContent = `${formatLabel} \u2192 ${formatLabel}? We'll compress it, not convert it. Only some formats can do this.`;
+    hint.hidden = false;
+  } else {
+    hint.hidden = true;
+    hint.textContent = "";
+  }
+
   updateLibreofficeNoticeVisibility(selectedFromIndex, selectedToIndex);
 }
 

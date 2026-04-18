@@ -117,7 +117,7 @@ describe('handleConvert (JSON mode)', () => {
         expect(res.status).toBe(200);
         const body = await res.json();
         expect(body[0].fileName).toBe('bridge.png');
-        expect(convertViaBrowser).toHaveBeenCalledWith('test.jpg', 'aGVsbG8=', 'image/jpeg', 'jpeg', 'image/png', 'png');
+        expect(convertViaBrowser).toHaveBeenCalledWith('test.jpg', 'aGVsbG8=', 'image/jpeg', 'jpeg', 'image/png', 'png', 'medium');
     });
 
     it('falls back to bridge when input format is only browser-only (no native inputMatch)', async () => {

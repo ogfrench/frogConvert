@@ -62,6 +62,7 @@ Six tools, all over `stdio`. Three are format conversion; three are PDF editing.
      | `outputMime` | required | Output MIME type. |
      | `outputExtension` | required | Output format extension. |
      | `outputFilePath` | optional | Absolute path where the output file should be saved. **Strongly recommended for large outputs** - avoids returning megabytes of base64 through the context window. |
+     | `quality` | optional | Quality preset: `"low"`, `"medium"`, `"high"`, or `"lossless"`. Defaults to `"medium"` (matches the web UI). See [Quality preset](#quality-preset) for what each tier does. |
    - **Description**: The core execution tool. Routes the file through the handler chain and returns all output files.
    - **Returns**:
      - When `outputFilePath` is omitted - a JSON array of output files:
@@ -73,7 +74,7 @@ Six tools, all over `stdio`. Three are format conversion; three are PDF editing.
        { "savedTo": ["/path/to/output.pptx"] }
        ```
      The array contains multiple entries when a conversion produces multiple output files (e.g. a multi-page PDF split into individual images).
-     Both response shapes may include an optional `warnings` array of strings when the conversion required silent adjustments (e.g. dimension padding, sample-rate coercion, upscaling). Example: `{ "savedTo": [...], "warnings": ["Padded to 1920x1080 (multiple of 2 required)"] }`.
+     Both response shapes may include an optional `warnings` array of strings when the conversion adapted silently (dimension padding, sample-rate snap, large-PDF shrink, long video-to-GIF trim, adaptive frame sampling). Example: `{ "savedTo": [...], "warnings": ["Trimmed to the first 60 seconds. GIF gets unwieldy past a minute of video..."] }`.
    - **LibreOffice hint**: If conversion fails for office formats (DOCX, PPTX, XLSX, ODT, etc.) and LibreOffice is not installed, the error message includes a hint to install it from [libreoffice.org](https://www.libreoffice.org/).
    - **Large file guidance**: For files that are too large to embed in the context window, always use `filePath` (input) and `outputFilePath` (output) together:
      ```
@@ -161,20 +162,44 @@ curl -X POST http://127.0.0.1:3000/convert \
   -F 'file=@input.jpg' \
   -F 'outputMime=image/png' \
   -F 'outputExt=png' \
+  -F 'quality=high' \
   -o output.png
 ```
 - Input MIME/extension are auto-detected from the uploaded filename.
+- `quality` is optional (`"low"`, `"medium"`, `"high"`, `"lossless"`) and defaults to `"medium"`.
 - Response: raw binary of the first output file with `Content-Disposition: attachment; filename*=UTF-8''...` header. If conversion produces multiple files, the remaining filenames are listed in an `X-Extra-Files` JSON header - use the JSON API instead if you need all files.
 
 **Option B - application/json**:
 ```bash
 curl -X POST http://127.0.0.1:3000/convert \
   -H 'Content-Type: application/json' \
-  -d '{"fileName":"input.jpg","base64Bytes":"...","inputMime":"image/jpeg","inputExt":"jpg","outputMime":"image/png","outputExt":"png"}'
+  -d '{"fileName":"input.jpg","base64Bytes":"...","inputMime":"image/jpeg","inputExt":"jpg","outputMime":"image/png","outputExt":"png","quality":"high"}'
 ```
 - Response: `[{ "fileName": "output.png", "base64Bytes": "<base64>" }]` (array supports multi-file outputs)
+- `quality` field is optional; defaults to `"medium"`.
 
 Returns `400` on bad input, `413` if the file exceeds `MAX_UPLOAD_MB`, `415` if Content-Type is unsupported, `422` if no path found or conversion fails.
+
+#### Quality preset
+
+Both `POST /convert` and the MCP `convert_file` tool accept an optional `quality` preset. When omitted, both default to `"medium"` (the same profile the web UI uses).
+
+| Preset | JPEG singleton | PDF page render cap | Video-frame cap | Video-to-GIF cap | Audio (stereo lossy) | Auto-adaptation |
+|---|---|---|---|---|---|---|
+| `low` | q82 | 1.2 MP | ~120 frames | 30s | 128 kbps | Fires earliest |
+| `medium` | q90 | 2.5 MP | ~300 frames, 1920 px | 60s | 192 kbps | Default |
+| `high` | q93 | 5.0 MP | ~1000 frames, 3840 px | 180s | 256 kbps | Fires latest |
+| `lossless` | q100 | 25 MP | no cap | no cap | uncompressed | Disabled |
+
+### Same-format compression
+
+Both `POST /convert` and the MCP `convert_file` tool support **same-format compression**. Passing identical input and output formats (e.g. `inputExt: png`, `outputExt: png`) re-encodes the file using the specified `quality` preset to reduce its size. 
+
+A **smart size-guard** is active: if the "compressed" result is larger than the original or saves less than 2% of the space, once conversion is complete, the original file is returned instead. This ensures you never pay for a re-encode with a larger file.
+
+Adaptive-cap behavior (frame sampling, GIF trim, PDF auto-shrink) applies at all lossy presets. `lossless` disables all of them, so it can produce very large outputs.
+
+Handlers ignore the preset when it doesn't apply to them (lossless codecs, structural conversions like DOCX→PDF, etc.).
 
 ### PDF editor endpoints
 

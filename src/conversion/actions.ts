@@ -1,7 +1,7 @@
 import normalizeMimeType from "../core/utils/normalizeMimeType.ts";
 import { downloadFile, downloadAsZip } from "./download.ts";
 import { isSafari } from "../tools/pdfThumbnails.ts";
-import type { FileFormat, FormatHandler, FileData, ConvertPathNode, ProgressEvent, QualityPreset } from "../core/FormatHandler/FormatHandler.ts";
+import type { FileFormat, FormatHandler, FileData, ConvertPathNode, ProgressEvent, QualityPreset, Notice } from "../core/FormatHandler/FormatHandler.ts";
 import { triggerConfetti } from "../effects/Confetti/Confetti.ts";
 import {
     ui,
@@ -20,12 +20,13 @@ import {
 } from "../components/Popup/Popup.ts";
 import {
     isCancelled,
-    isSoftCancelRequested,
-    setActiveBatchSize,
     resetCancellation,
     showConversionInProgress,
     setWorkerCancelCallback,
     setForceCleanupCallback,
+    setCanHardCancel,
+    setCurrentFileProgress,
+    setActiveConversionMode,
     completeCancellation,
     showPartialDownloadPopup,
     showEnginesLoadingPopup,
@@ -33,7 +34,7 @@ import {
     removeCancelButton,
 } from "./cancellation.ts";
 import { createDancingFrog } from "../components/Frogsworth/DancingFrog.ts";
-import { shortenFileName, ensureMinDuration, toUserErrorText } from "../components/utils/index.ts";
+import { shortenFileName, ensureMinDuration, toUserErrorText, formatBytes } from "../components/utils/index.ts";
 
 // --- Helpers ---
 
@@ -53,6 +54,15 @@ let isConverting = false;
 export const getIsConverting = () => isConverting;
 
 let _convertingTitle = "Converting...";
+
+/**
+ * True when every hop in the path runs in a worker. If any hop has
+ * requiresMainThread=true (e.g. pdftoimg) it can't be interrupted inside
+ * doConvert, so mid-file cancel has to wait for the current file to finish.
+ */
+function pathSupportsHardCancel(path: ConvertPathNode[]): boolean {
+    return path.every(node => !node.handler?.requiresMainThread);
+}
 
 // Tracks the last runtime error from a handler (distinct from "no path exists")
 let _lastConversionError: string | null = null;
@@ -102,6 +112,79 @@ export function findMatchingFormat(
     }
 
     return -1;
+}
+
+// --- Same-format compression ---
+
+type SameFormatDispatch = { handler: FormatHandler; args: string[] };
+
+const SAME_FORMAT_IMAGE_WHITELIST = new Set([
+    "png", "jpeg", "jpg", "webp", "tiff", "tif", "bmp",
+]);
+const SAME_FORMAT_ANIMATED = new Set(["gif", "apng"]);
+
+function findHandlerByName(name: string): FormatHandler | null {
+    for (const opt of allOptionsRef.value) {
+        if (opt.handler.name === name) return opt.handler;
+    }
+    return null;
+}
+
+function handlerSupportsFormat(handler: FormatHandler, format: FileFormat): FileFormat | null {
+    const cached = window.supportedFormatCache?.get(handler.name);
+    const formats = cached ?? handler.supportedFormats ?? [];
+    return formats.find(f =>
+        f.mime === format.mime
+        && f.format === format.format
+        && f.from
+        && f.to,
+    ) ?? null;
+}
+
+/**
+ * Route a same-format pick (png→png, mp4→mp4, etc.) to a compressing
+ * handler. Returns null when the format isn't a compressible raster/media
+ * type or when the required handler isn't loaded. Whitelist-based on
+ * purpose: SVG/PSD/raw etc. would get rasterised or flattened, so they
+ * stay in pass-through mode.
+ */
+function resolveSameFormatHandler(format: FileFormat): SameFormatDispatch | null {
+    const fmt = (format.format || "").toLowerCase();
+    const mime = (format.mime || "").toLowerCase();
+    const quality: QualityPreset = format.lossless ? "lossless" : "medium";
+    const baseArgs = ["--quality", quality];
+
+    if (SAME_FORMAT_ANIMATED.has(fmt)) {
+        const h = findHandlerByName("FFmpeg");
+        if (!h || !handlerSupportsFormat(h, format)) return null;
+        return { handler: h, args: baseArgs };
+    }
+
+    if (SAME_FORMAT_IMAGE_WHITELIST.has(fmt) && mime.startsWith("image/")) {
+        const h = findHandlerByName("ImageMagick");
+        if (!h || !handlerSupportsFormat(h, format)) return null;
+        return { handler: h, args: baseArgs };
+    }
+
+    if (mime.startsWith("video/")) {
+        const h = findHandlerByName("FFmpeg");
+        if (!h || !handlerSupportsFormat(h, format)) return null;
+        // Force re-encode: stream-copy fast path would remux without shrinking.
+        return { handler: h, args: [...baseArgs, "--no-stream-copy"] };
+    }
+
+    if (mime.startsWith("audio/")) {
+        const h = findHandlerByName("FFmpeg");
+        if (!h || !handlerSupportsFormat(h, format)) return null;
+        return { handler: h, args: baseArgs };
+    }
+
+    return null;
+}
+
+/** Category-agnostic check, used by the format modal to decide whether to show the "Compress" button copy. */
+export function isSameFormatCompressible(format: FileFormat): boolean {
+    return resolveSameFormatHandler(format) !== null;
 }
 
 // --- Download & converted-file tracking ---
@@ -471,35 +554,142 @@ export function initConvertButton() {
             await waitForPaint();
 
             const inputFileData: FileData[] = [];
+            // Files picked with input format === output format. Compressed inline
+            // by the same-format dispatcher when a compressor is available,
+            // otherwise pushed through unchanged (today's "No conversion needed"
+            // behaviour).
+            const sameFormatRaw: { name: string; bytes: Uint8Array }[] = [];
+            const isSameFormatPick = inputFormat.mime === outputFormat.mime
+                && inputFormat.format === outputFormat.format;
 
             for (const inputFile of inputFiles) {
                 if (isCancelled) return;
                 const inputBuffer = await inputFile.arrayBuffer();
                 if (isCancelled) return;
                 const inputBytes = new Uint8Array(inputBuffer);
-                if (
-                    inputFormat.mime === outputFormat.mime
-                    && inputFormat.format === outputFormat.format
-                ) {
-                    allOutputFiles.push({ name: inputFile.name, bytes: inputBytes });
-                    continue;
+                if (isSameFormatPick) {
+                    sameFormatRaw.push({ name: inputFile.name, bytes: inputBytes });
+                } else {
+                    inputFileData.push({ name: inputFile.name, bytes: inputBytes });
                 }
-                inputFileData.push({ name: inputFile.name, bytes: inputBytes });
             }
 
             // Enforce minimum startup/warming-up phase duration (includes file reading time)
             await ensureMinDuration(startupStartTime, 1000);
 
-            if (allOutputFiles.length === fileCount && inputFileData.length === 0) {
-                const fmt = outputFormat.format.toUpperCase();
-                if (fileCount === 1) {
-                    const truncName = shortenFileName(inputFiles[0].name, 32);
-                    downloadFile(allOutputFiles[0].bytes, allOutputFiles[0].name);
-                    showAlertPopup("No conversion needed", `<b>${escapeHTML(truncName)}</b> is already a <b>${escapeHTML(fmt)}</b> file, so there's nothing to convert. Downloading the original for you.`);
-                    return;
+            // Suppress the "may take a while" fallback once a handler reports
+            // real progress. Ratio 0 is a reset hint and must NOT suppress.
+            const makeProgressSink = (slowHandle: SlowTimerHandle) => (p: ProgressEvent) => {
+                if (typeof p.ratio === "number" && p.ratio > 0) slowHandle.suppress();
+            };
+
+            // Runs before path-finding because the graph has no self-loops.
+            // Each file ends up in allOutputFiles with either shrunk bytes
+            // (+ originalBytes) or the original bytes when the 98% size-guard
+            // fires or the handler throws.
+            const sameFormatDispatch = isSameFormatPick && sameFormatRaw.length > 0
+                ? resolveSameFormatHandler(inputFormat)
+                : null;
+
+            // Mode switch only for pure-compression runs; mixed batches end on
+            // a cross-format leg so "Converting / Cancel conversion" is accurate.
+            if (sameFormatDispatch && inputFileData.length === 0) {
+                setActiveConversionMode("compress");
+                _convertingTitle = `Compressing your ${fileCount > 1 ? "files" : "file"}`;
+            }
+
+            if (sameFormatDispatch) {
+                ensureCancelButton();
+                const { handler, args } = sameFormatDispatch;
+
+                let initOk = handler.ready;
+                if (!initOk) {
+                    try {
+                        await handler.init();
+                        initOk = handler.ready;
+                        if (initOk && handler.supportedFormats) {
+                            window.supportedFormatCache.set(handler.name, handler.supportedFormats);
+                        }
+                    } catch (e) {
+                        console.error(handler.name, "same-format init failed", e);
+                    }
+                }
+
+                const handlerInputFmt = initOk ? handlerSupportsFormat(handler, inputFormat) : null;
+                const handlerOutputFmt = initOk ? handlerSupportsFormat(handler, outputFormat) : null;
+
+                if (initOk && handlerInputFmt && handlerOutputFmt) {
+                    const totalSame = sameFormatRaw.length;
+                    for (let i = 0; i < totalSame; i++) {
+                        if (isCancelled) break;
+                        const file = sameFormatRaw[i];
+                        setCurrentFileProgress(i + 1, fileCount);
+                        const progressMsg = totalSame > 1
+                            ? `Compressing file ${i + 1} of ${totalSame}...`
+                            : `Compressing your file...`;
+                        const slowHandle = startSlowConversionTimer(progressMsg, `${inputFormat.format.toUpperCase()} compression`);
+                        showConversionInProgress(
+                            `${progressMsg}<br><span class="muted-text">${escapeHTML(inputFormat.format.toUpperCase())} compression</span>`,
+                            _convertingTitle,
+                        );
+
+                        const originalSize = file.bytes.byteLength;
+                        let compressed: FileData | null = null;
+                        try {
+                            const result = handler.requiresMainThread
+                                ? await handler.doConvert([file], handlerInputFmt, handlerOutputFmt, args, makeProgressSink(slowHandle))
+                                : await runInWorker(handler.name, [file], handlerInputFmt, handlerOutputFmt, args, makeProgressSink(slowHandle));
+                            if (result && result.length && result[0].bytes.byteLength > 0) {
+                                compressed = result[0];
+                            }
+                        } catch (e) {
+                            console.error(handler.name, "same-format compression threw", e);
+                        }
+                        slowHandle.cancel();
+
+                        if (compressed && compressed.bytes.byteLength < originalSize * 0.98) {
+                            allOutputFiles.push({
+                                name: file.name,
+                                bytes: compressed.bytes,
+                                warnings: compressed.warnings,
+                                notices: compressed.notices,
+                                originalBytes: originalSize,
+                            });
+                        } else {
+                            allOutputFiles.push({ name: file.name, bytes: file.bytes });
+                        }
+                    }
                 } else {
-                    showAlertPopup("No conversion needed", `These <b>${fileCount} files</b> are already in <b>${escapeHTML(fmt)}</b> format, so there's nothing to convert. Downloading the originals for you.`);
-                    await downloadAsZip(allOutputFiles, `original-files-${getFormattedDate()}.zip`);
+                    for (const f of sameFormatRaw) allOutputFiles.push(f);
+                }
+            } else {
+                for (const f of sameFormatRaw) allOutputFiles.push(f);
+            }
+
+            if (isCancelled) return;
+
+            // Pure same-format batch: skip path-finding. Fall through to the
+            // success popup when at least one file actually shrunk; otherwise
+            // show a friendly terminal popup and bail.
+            if (inputFileData.length === 0) {
+                const anyShrunk = allOutputFiles.some(f => f.originalBytes != null);
+                if (!(sameFormatDispatch && anyShrunk)) {
+                    await ensureMinDuration(conversionStartTime);
+                    const title = sameFormatDispatch ? "Already nicely squished 🐸" : "No conversion needed";
+                    const fmt = outputFormat.format.toUpperCase();
+                    const singleBody = sameFormatDispatch
+                        ? `Couldn't shave any more bytes off <b>${escapeHTML(shortenFileName(inputFiles[0].name, 32))}</b> without losing quality. Downloading the original.`
+                        : `<b>${escapeHTML(shortenFileName(inputFiles[0].name, 32))}</b> is already a <b>${escapeHTML(fmt)}</b> file, so there's nothing to convert. Downloading the original for you.`;
+                    const batchBody = sameFormatDispatch
+                        ? `Couldn't shave any more bytes off these <b>${fileCount} files</b> without losing quality. Downloading the originals.`
+                        : `These <b>${fileCount} files</b> are already in <b>${escapeHTML(fmt)}</b> format, so there's nothing to convert. Downloading the originals for you.`;
+                    if (fileCount === 1) {
+                        downloadFile(allOutputFiles[0].bytes, allOutputFiles[0].name);
+                        showAlertPopup(title, singleBody);
+                    } else {
+                        showAlertPopup(title, batchBody);
+                        await downloadAsZip(allOutputFiles, `original-files-${getFormattedDate()}.zip`);
+                    }
                     return;
                 }
             }
@@ -516,34 +706,27 @@ export function initConvertButton() {
                 "PDF conversion has limited support on Safari due to browser restrictions. For best results, use Chrome or Firefox. Frogsworth is sorry ₍𝄐~𝄐₎",
             );
 
-            // Find the conversion path during warming-up (cancel is now available).
-            let conversionPath = await findConversionPath(inputOption, outputOption);
-            if (!conversionPath) {
-                if (isCancelled) return;
-                showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
-                return;
-            }
-            if (isSafariBrowser && pathUsesPdfHandler(conversionPath)) {
-                showSafariPdfPopup();
-                return;
-            }
-
-            // Suppress the "may take a while" fallback once a handler reports
-            // real progress. Ratio 0 is a reset hint and must NOT suppress.
-            const makeProgressSink = (slowHandle: SlowTimerHandle) => (p: ProgressEvent) => {
-                if (typeof p.ratio === "number" && p.ratio > 0) slowHandle.suppress();
-            };
-
-            // Tell the cancel system whether this is a batch or single-file run,
-            // so it knows whether to use two-stage (batch) or one-click (single) cancel.
-            setActiveBatchSize(inputFileData.length);
-
+            // Path-finding and the conversion loop only run when there are
+            // cross-format files left. A pure same-format batch has already
+            // been handled above.
             const conversionLoopStartTime = performance.now();
+            if (inputFileData.length > 0) {
+                let conversionPath = await findConversionPath(inputOption, outputOption);
+                if (!conversionPath) {
+                    if (isCancelled) return;
+                    showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
+                    return;
+                }
+                if (isSafariBrowser && pathUsesPdfHandler(conversionPath)) {
+                    showSafariPdfPopup();
+                    return;
+                }
+                setCanHardCancel(pathSupportsHardCancel(conversionPath));
+
             for (let i = 0; i < inputFileData.length; i++) {
                 if (isCancelled) break;
-                // Soft cancel: finish what we have, stop before starting the next file.
-                if (isSoftCancelRequested()) break;
                 const fileNum = i + 1 + (fileCount - inputFileData.length);
+                setCurrentFileProgress(fileNum, fileCount);
                 const batchMsg = `Converting file ${fileNum} of ${fileCount}...`;
 
                 // After 10s, alternate between path info and a "taking a while" notice every 10s.
@@ -581,6 +764,7 @@ export function initConvertButton() {
                         showSafariPdfPopup();
                         return;
                     }
+                    setCanHardCancel(pathSupportsHardCancel(conversionPath));
                     const retryPathStr = conversionPath.map(c => c.format.format).join(" → ");
                     const retrySlowHandle = startSlowConversionTimer(batchMsg, retryPathStr);
 
@@ -609,26 +793,12 @@ export function initConvertButton() {
                 allOutputFiles.push(...result.files);
                 if (isCancelled) break;
             }
+            } // close `if (inputFileData.length > 0)` guard
 
             // Enforce minimum duration for the conversion loop
             await ensureMinDuration(conversionLoopStartTime, 1000);
 
             if (isCancelled) return;
-
-            // Soft cancel: batch stopped early but finished cleanly. Route to
-            // the partial-download popup instead of claiming "all done! 🎉".
-            if (isSoftCancelRequested() && allOutputFiles.length < inputFileData.length) {
-                setLastConvertedFiles(allOutputFiles);
-                removeCancelButton();
-                if (allOutputFiles.length > 0) {
-                    showPartialDownloadPopup(allOutputFiles.length, () => {
-                        downloadAllConvertedFiles();
-                    });
-                } else {
-                    hidePopup();
-                }
-                return;
-            }
 
             setLastConvertedFiles(allOutputFiles);
 
@@ -650,10 +820,35 @@ export function initConvertButton() {
             if (isCancelled) return;
 
             const isBatch = allOutputFiles.length > 1;
-            const successTitle = isBatch ? "Files converted! 🎉" : "File converted! 🎉";
-            const resultText = isBatch
-                ? `${allOutputFiles.length} files converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and zipped up for you, downloading now.`
-                : `<b>${escapeHTML(shortenFileName(inputFiles[0].name, 32))}</b> has been converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and is downloading now.`;
+            // Compression summary: built when at least one file was successfully
+            // compressed by the same-format dispatcher (`originalBytes` set).
+            const compressedFiles = allOutputFiles.filter(f => f.originalBytes != null);
+            const didCompress = compressedFiles.length > 0;
+            const successTitle = didCompress
+                ? (isBatch ? "Files compressed! 🎉" : "File compressed! 🎉")
+                : (isBatch ? "Files converted! 🎉" : "File converted! 🎉");
+            let resultText: string;
+            if (didCompress) {
+                const totals = compressedFiles.reduce(
+                    (acc, f) => ({
+                        orig: acc.orig + (f.originalBytes ?? 0),
+                        comp: acc.comp + f.bytes.byteLength,
+                    }),
+                    { orig: 0, comp: 0 },
+                );
+                const saved = totals.orig - totals.comp;
+                const pct = totals.orig > 0 ? Math.round((saved / totals.orig) * 100) : 0;
+                if (isBatch) {
+                    resultText = `<b>${compressedFiles.length} file${compressedFiles.length === 1 ? "" : "s"}</b> compressed, saved <b>${escapeHTML(formatBytes(saved))}</b> (${pct}% smaller). Downloading now.`;
+                } else {
+                    const first = compressedFiles[0];
+                    resultText = `<b>${escapeHTML(shortenFileName(first.name, 32))}</b> is smaller now: <b>${escapeHTML(formatBytes(first.originalBytes ?? 0))} to ${escapeHTML(formatBytes(first.bytes.byteLength))}</b> (${pct}% smaller). Downloading.`;
+                }
+            } else {
+                resultText = isBatch
+                    ? `${allOutputFiles.length} files converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and zipped up for you, downloading now.`
+                    : `<b>${escapeHTML(shortenFileName(inputFiles[0].name, 32))}</b> has been converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and is downloading now.`;
+            }
 
             const h2 = document.createElement("h2");
             h2.textContent = successTitle;
@@ -661,46 +856,82 @@ export function initConvertButton() {
             const p = document.createElement("p");
             p.innerHTML = resultText;
 
-            // Surface handler warnings per file. Dedupe identical warnings
-            // across files by grouping them so the user can see which file
-            // hit each caveat instead of one flat "something happened" list.
-            //   - `warningToFiles`: warning text → list of files that emitted it
-            //   - if every file emitted the same warning, show it once as
-            //     "across N files" rather than repeating the same filename list
-            const warningToFiles = new Map<string, string[]>();
+            // Structured notices take priority; `warnings` strings already
+            // covered by a notice body are skipped. Two passes so the order
+            // that files emit notices vs warnings doesn't leak through.
+            // Body-only dedup is enough since every body carries the
+            // specific numbers that make it effectively unique.
+            const noticeMap = new Map<string, { notice: Notice; files: string[] }>();
             for (const f of allOutputFiles) {
-                for (const w of (f.warnings ?? [])) {
-                    if (!warningToFiles.has(w)) warningToFiles.set(w, []);
-                    warningToFiles.get(w)!.push(f.name);
+                for (const n of (f.notices ?? [])) {
+                    const existing = noticeMap.get(n.body);
+                    if (existing) existing.files.push(f.name);
+                    else noticeMap.set(n.body, { notice: n, files: [f.name] });
                 }
             }
-            const warningNode = warningToFiles.size > 0
-                ? (() => {
-                    const div = document.createElement("div");
-                    div.className = "conversion-warnings";
-                    const lines: string[] = [];
-                    for (const [warning, names] of warningToFiles) {
-                        if (allOutputFiles.length > 1 && names.length === allOutputFiles.length) {
-                            lines.push(`<li>${escapeHTML(warning)} <span class="muted-text">(all ${names.length} files)</span></li>`);
-                        } else if (allOutputFiles.length > 1 && names.length > 1) {
-                            lines.push(`<li>${escapeHTML(warning)} <span class="muted-text">(${names.length} files)</span></li>`);
-                        } else if (allOutputFiles.length > 1) {
-                            lines.push(`<li>${escapeHTML(warning)} <span class="muted-text">(${escapeHTML(shortenFileName(names[0], 32))})</span></li>`);
-                        } else {
-                            lines.push(`<li>${escapeHTML(warning)}</li>`);
-                        }
-                    }
-                    div.innerHTML = `<strong>Heads up:</strong><ul>${lines.join("")}</ul>`;
-                    return div;
-                })()
-                : null;
+            const legacyWarnings = new Map<string, string[]>();
+            for (const f of allOutputFiles) {
+                for (const w of (f.warnings ?? [])) {
+                    if (noticeMap.has(w)) continue;
+                    const existing = legacyWarnings.get(w);
+                    if (existing) existing.push(f.name);
+                    else legacyWarnings.set(w, [f.name]);
+                }
+            }
+
+            const buildNoticeCard = (title: string | null, body: string, files: string[], action?: Notice["action"]) => {
+                const card = document.createElement("div");
+                card.className = "convert-notice";
+                const bodyWrap = document.createElement("div");
+                bodyWrap.className = "convert-notice-body";
+                if (title) {
+                    const t = document.createElement("span");
+                    t.className = "convert-notice-title";
+                    t.textContent = title;
+                    bodyWrap.appendChild(t);
+                }
+                const p = document.createElement("p");
+                p.className = "convert-notice-text";
+                p.textContent = body;
+                if (allOutputFiles.length > 1) {
+                    const scope = files.length === allOutputFiles.length
+                        ? ` (all ${files.length} files)`
+                        : files.length > 1
+                            ? ` (${files.length} files)`
+                            : ` (${shortenFileName(files[0], 32)})`;
+                    const span = document.createElement("span");
+                    span.className = "muted-text";
+                    span.textContent = scope;
+                    p.appendChild(span);
+                }
+                bodyWrap.appendChild(p);
+                card.appendChild(bodyWrap);
+                if (action) {
+                    const a = document.createElement("a");
+                    a.className = "convert-notice-link";
+                    a.textContent = action.label;
+                    a.href = action.href;
+                    a.target = "_blank";
+                    a.rel = "noopener";
+                    card.appendChild(a);
+                }
+                return card;
+            };
+
+            const noticeCards: HTMLElement[] = [];
+            for (const { notice, files } of noticeMap.values()) {
+                noticeCards.push(buildNoticeCard(notice.title, notice.body, files, notice.action));
+            }
+            for (const [body, files] of legacyWarnings) {
+                noticeCards.push(buildNoticeCard(null, body, files));
+            }
 
             const actions = document.createElement("div");
             actions.className = "popup-actions-footer";
             actions.appendChild(createPopupButton("Download again", "btn-primary", () => downloadAllConvertedFiles()));
             actions.appendChild(createPopupButton("Done", "btn-secondary", () => hidePopup()));
             const popupChildren: HTMLElement[] = [h2, frogDiv, p];
-            if (warningNode) popupChildren.push(warningNode);
+            if (noticeCards.length > 0) popupChildren.push(...noticeCards);
             popupChildren.push(actions);
             replacePopup(popupChildren);
             // Show confetti faster for immediate celebration

@@ -142,7 +142,7 @@ describe('convertViaBrowser — successful path through mocked Puppeteer', () =>
         expect(_mockPage.evaluate).toHaveBeenCalledWith(
             expect.any(Function),
             '__frogConvertHeadless',
-            'test.jpg', 'aGVsbG8=', 'image/jpeg', 'jpeg', 'image/png', 'png'
+            'test.jpg', 'aGVsbG8=', 'image/jpeg', 'jpeg', 'image/png', 'png', undefined
         );
     });
 });

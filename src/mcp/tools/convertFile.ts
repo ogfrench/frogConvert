@@ -52,9 +52,10 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
             inputExtension: z.string().describe("Input format extension"),
             outputMime: z.string().describe("Output MIME type"),
             outputExtension: z.string().describe("Output format extension"),
-            outputFilePath: z.string().optional().describe("Absolute path where the output file should be saved. If omitted, the result is returned as base64.")
+            outputFilePath: z.string().optional().describe("Absolute path where the output file should be saved. If omitted, the result is returned as base64."),
+            quality: z.enum(["low", "medium", "high", "lossless"]).optional().describe("Quality preset. Defaults to 'medium' (same as the web UI). 'low' trades quality for smaller output; 'high' raises quality and relaxes adaptive caps; 'lossless' disables lossy compression where the codec supports it. Only affects handlers that re-encode (FFmpeg, ImageMagick, pdftoimg).")
         },
-        async ({ fileName, base64Bytes, filePath, inputMime, inputExtension, outputMime, outputExtension, outputFilePath }) => {
+        async ({ fileName, base64Bytes, filePath, inputMime, inputExtension, outputMime, outputExtension, outputFilePath, quality }) => {
             let bytes: Uint8Array;
             let resolvedName: string;
             try {
@@ -72,6 +73,8 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
 
             const inputMatch = findFormatAndHandler(handlers, inputMime, inputExtension, 'from');
             const outputMatch = findFormatAndHandler(handlers, outputMime, outputExtension, 'to');
+
+            const hopArgs = ["--quality", quality ?? "medium"];
 
             // Try native path when both formats are known to native handlers
             if (inputMatch && outputMatch) {
@@ -92,7 +95,7 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
                             const stepHandler = path[i].handler;
                             const prevFormat = path[i - 1].format;
                             const nextFormat = path[i].format;
-                            currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat);
+                            currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat, hopArgs);
                         }
 
                         return await serializeResults(currentFiles, outputFilePath);
@@ -108,7 +111,7 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
             try {
                 const bridgeBase64 = Buffer.from(bytes).toString('base64');
                 const bridgeResults = await convertViaBrowser(
-                    resolvedName, bridgeBase64, inputMime, inputExtension, outputMime, outputExtension
+                    resolvedName, bridgeBase64, inputMime, inputExtension, outputMime, outputExtension, quality ?? "medium"
                 );
                 if (outputFilePath && bridgeResults.length > 0) {
                     return await serializeResults(

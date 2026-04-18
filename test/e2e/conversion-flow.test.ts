@@ -96,8 +96,15 @@ describe("E2E Conversion Flow", () => {
             // Choose HTML format
             await page.waitForSelector("#format-modal", { visible: true });
 
-            // No need to search, just wait a bit for rendering
-            await new Promise(r => setTimeout(r, 300));
+            // Wait for at least one format option to actually render (handlers load async;
+            // a fixed timeout races the warm-cache fetch + phase-1 handler init on slow CI).
+            await page.waitForFunction(() => {
+                const opts = document.querySelectorAll<HTMLElement>('.format-option[data-index]');
+                for (const el of opts) {
+                    if (el.style.display !== "none") return true;
+                }
+                return false;
+            }, { timeout: 15000 });
 
             // Click the first visible format option
             const formatOptions = await page.$$('.format-option[data-index]');

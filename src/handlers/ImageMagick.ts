@@ -13,16 +13,21 @@ import normalizeMimeType from "../core/utils/normalizeMimeType.ts";
 import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
 import type { FileData, FileFormat, FormatHandler, QualityPreset } from "../core/FormatHandler/FormatHandler.ts";
 import { extractQualityPreset } from "../core/FormatHandler/FormatHandler.ts";
-import { planImage } from "../core/compression/plan.ts";
+import { planImage, type ImageArchetype } from "../core/compression/plan.ts";
 
 /**
  * Smart planner integration: decide per-image whether to downscale and at
  * what JPEG quality, based on the image's pixel count and the user's
  * quality preset. ICO has its own sizing path and is left alone.
  */
-function applyPlan(image: IMagickImage, preset: QualityPreset, outputFormat: FileFormat) {
+function applyPlan(image: IMagickImage, preset: QualityPreset, outputFormat: FileFormat, archetype: ImageArchetype) {
   if (outputFormat.format === "ico") return;
-  const plan = planImage(image.width * image.height, preset, !!outputFormat.lossless);
+  const plan = planImage({
+    pixelCount: image.width * image.height,
+    preset,
+    outputLossless: !!outputFormat.lossless,
+    archetype,
+  });
   if (!outputFormat.lossless && !["png", "bmp", "tiff"].includes(outputFormat.format)) {
     image.quality = plan.imgQuality;
   }
@@ -136,7 +141,7 @@ class ImageMagickHandler implements FormatHandler {
             const list: Uint8Array[] = [];
             for (const image of fileCollection) {
               image.autoOrient();
-              applyPlan(image, qualityPreset, outputFormat);
+              applyPlan(image, qualityPreset, outputFormat, "animated-frame");
               if (outputFormat.format === "ico" && (image.width > 256 || image.height > 256)) {
                 const geometry = new MagickGeometry(256, 256);
                 image.resize(geometry);
@@ -215,7 +220,7 @@ class ImageMagickHandler implements FormatHandler {
               const image = fileCollection.shift();
               if (!image) break;
               image.autoOrient();
-              applyPlan(image, qualityPreset, outputFormat);
+              applyPlan(image, qualityPreset, outputFormat, "singleton");
               outputCollection.push(image);
             }
           });
