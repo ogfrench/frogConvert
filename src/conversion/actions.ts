@@ -33,7 +33,7 @@ import {
     removeCancelButton,
 } from "./cancellation.ts";
 import { createDancingFrog } from "../components/Frogsworth/DancingFrog.ts";
-import { shortenFileName, ensureMinDuration } from "../components/utils/index.ts";
+import { shortenFileName, ensureMinDuration, toUserErrorText } from "../components/utils/index.ts";
 
 // --- Helpers ---
 
@@ -327,7 +327,7 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
             let hopArgs: string[] | undefined;
             if (isLastHop) {
                 const target = path[i + 1].format;
-                const quality: QualityPreset = target.lossless ? "lossless" : "high";
+                const quality: QualityPreset = target.lossless ? "lossless" : "medium";
                 hopArgs = ["--quality", quality];
             }
 
@@ -351,7 +351,7 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
             if (isCancelled) return null;
             console.error(handler.name, `${path[i].format.format} \u2192 ${path[i + 1].format.format}`, e);
 
-            _lastConversionError = String(e);
+            _lastConversionError = toUserErrorText(e);
             const deadEndPath = path.slice(0, i + 2);
             window.traversionGraph.addDeadEndPath(deadEndPath);
 
@@ -413,7 +413,7 @@ function startSlowConversionTimer(batchMsg: string, pathStr: string): SlowTimerH
 }
 
 function showConversionFailedPopup(fromFormat: string, toFormat: string, error: string) {
-    const detail = error.length > 0 ? `<span class="muted-text error-detail">${escapeHTML(error.slice(0, 300))}</span>` : "";
+    const detail = error.length > 0 ? `<span class="muted-text error-detail">${escapeHTML(error)}</span>` : "";
     showAlertPopup(
         "Conversion failed",
         `Something went wrong converting <b>${fromFormat}</b> to <b>${toFormat}</b>. The file may be corrupted, password-protected, or too complex for the converter.${detail}`,
@@ -715,7 +715,12 @@ export function initConvertButton() {
         } catch (e) {
             if (isCancelled) return;
             console.error(e);
-            showAlertPopup("Something went wrong", escapeHTML(String(e)));
+            const detail = toUserErrorText(e);
+            const detailHTML = detail ? `<span class="muted-text error-detail">${escapeHTML(detail)}</span>` : "";
+            showAlertPopup(
+                "Something went wrong",
+                `Frogsworth hit an unexpected snag. Try again, or reload if it sticks.${detailHTML}`,
+            );
         } finally {
             // Split cleanup and state-reset: anything in the cleanup block can
             // throw (completeCancellation awaits UI animations; user callbacks

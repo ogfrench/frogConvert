@@ -1,16 +1,18 @@
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 import { extractQualityPreset } from "../core/FormatHandler/FormatHandler.ts";
+import { presetFor } from "../core/FormatHandler/qualityPresets.ts";
+import { planImage } from "../core/compression/plan.ts";
 import { isSafari } from "../tools/pdfThumbnails.ts";
 import { rethrowIfPasswordProtected } from "./_pdfErrors.ts";
 
 import * as pdfjsLib from 'pdfjs-dist';
 import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { encodeCanvasPalettePng } from "../tools/palettePng.ts";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
-const MAX_TOTAL_MEGAPIXELS = 1000;
-const QUALITY_TARGETS: Record<string, number> = { low: 0.8, medium: 1.8, high: 6.0, lossless: 50 };
+const MAX_TOTAL_MEGAPIXELS = 600;
 
 class pdftoimgHandler implements FormatHandler {
 
@@ -45,24 +47,29 @@ class pdftoimgHandler implements FormatHandler {
     ) throw new Error("That output format isn't supported for PDF conversion");
 
     const quality = extractQualityPreset(args);
+    const preset = presetFor(quality);
+
     const dpiIdx = args ? args.indexOf("--dpi") : -1;
     const isExplicitDpi = dpiIdx >= 0;
-
-    const dpiFromPreset: Record<string, number> = { low: 72, medium: 144, high: 300, lossless: 600 };
-    const defaultDpi = (quality ? dpiFromPreset[quality] : undefined) ?? 144;
-    const rawDpi = (isExplicitDpi && args && dpiIdx + 1 < args.length) ? Number(args[dpiIdx + 1]) : defaultDpi;
-    const dpi = Number.isFinite(rawDpi) ? Math.min(600, Math.max(36, rawDpi)) : defaultDpi;
+    const rawDpi = (isExplicitDpi && args && dpiIdx + 1 < args.length) ? Number(args[dpiIdx + 1]) : preset.pdfDpi;
+    const dpi = Number.isFinite(rawDpi) ? Math.min(600, Math.max(36, rawDpi)) : preset.pdfDpi;
     const scale = dpi / 72;
 
-    const jpegFromPreset: Record<string, number> = { low: 0.7, medium: 0.92, high: 0.97, lossless: 1 };
     const qIdx = args ? args.indexOf("--quality") : -1;
     const qualityRaw = (args && qIdx >= 0 && qIdx + 1 < args.length) ? args[qIdx + 1] : undefined;
     const numQ = qualityRaw ? Number(qualityRaw) : NaN;
-    const jpegQuality: number | undefined = (quality ? jpegFromPreset[quality] : undefined)
-      ?? (Number.isFinite(numQ) && numQ > 0 && numQ <= 1 ? numQ : undefined);
+    const jpegPlan = planImage(0, quality ?? "medium", false);
+    const jpegQuality: number = Number.isFinite(numQ) && numQ > 0 && numQ <= 1
+      ? numQ
+      : jpegPlan.imgQuality / 100;
+
+    const isPng = outputFormat.format === "png";
+    const pngCnum = isPng ? preset.pngCnum : 0;
 
     const outputFiles: FileData[] = [];
     const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas 2D context unavailable");
 
     for (const inputFile of inputFiles) {
       let pdf;
@@ -87,8 +94,7 @@ class pdftoimgHandler implements FormatHandler {
             const viewportAtRequestedScale = page.getViewport({ scale });
             const requestedMP = (viewportAtRequestedScale.width * viewportAtRequestedScale.height) / 1_000_000;
 
-            // Target sensible screen resolution (Medium ~1.8MP) 
-            const targetMP = isExplicitDpi ? 25 : (QUALITY_TARGETS[quality ?? "medium"] ?? 12);
+            const targetMP = isExplicitDpi ? 25 : preset.pdfMp;
 
             let viewport = viewportAtRequestedScale;
             if (requestedMP > targetMP) {
@@ -105,10 +111,16 @@ class pdftoimgHandler implements FormatHandler {
 
             await page.render({ canvas, viewport }).promise;
 
-            const blob = await new Promise<Blob>((resolve, reject) =>
-              canvas.toBlob(b => b ? resolve(b) : reject(new Error("Canvas toBlob failed")), outputFormat.mime, jpegQuality)
-            );
-            const bytes = new Uint8Array(await blob.arrayBuffer());
+            let bytes: Uint8Array;
+            if (isPng && pngCnum > 0) {
+              bytes = encodeCanvasPalettePng(ctx, canvas.width, canvas.height, pngCnum);
+            } else {
+              const blob = await new Promise<Blob>((resolve, reject) =>
+                canvas.toBlob(b => b ? resolve(b) : reject(new Error("Canvas toBlob failed")), outputFormat.mime, jpegQuality)
+              );
+              bytes = new Uint8Array(await blob.arrayBuffer());
+            }
+
             const suffix = pdf.numPages > 1 ? `_${pageNum}` : "";
             outputFiles.push({ bytes, name: `${baseName}${suffix}.${outputFormat.extension}` });
           } finally {

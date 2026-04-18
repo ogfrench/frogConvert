@@ -38,3 +38,43 @@ export async function ensureMinDuration(startTime: number, minMs: number = 600):
 export function safeLocalStorageSet(key: string, value: string): void {
     try { localStorage.setItem(key, value); } catch { /* quota or disabled */ }
 }
+
+/**
+ * Normalises an arbitrary thrown value into a short, user-facing string
+ * suitable for display in popups. Strips stack frames, file URLs, and the
+ * "Error:" prefix; maps a few known error shapes to friendlier copy; and
+ * truncates to ~200 chars. Returns "" if nothing meaningful remains.
+ */
+export function toUserErrorText(err: unknown): string {
+    if (err == null) return "";
+    let raw: string;
+    if (err instanceof Error) raw = err.message;
+    else if (typeof err === "string") raw = err;
+    else {
+        try { raw = String(err); } catch { raw = ""; }
+    }
+
+    if (!raw) return "";
+
+    let text = raw
+        .split(/\r?\n/)
+        .filter(line => !/^\s*at\s/.test(line))
+        .join(" ")
+        .replace(/https?:\/\/\S+/g, "")
+        .replace(/file:\/\/\/\S+/g, "")
+        .replace(/^\s*\w*Error:\s*/i, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    if (!text) return "";
+
+    if (/password/i.test(text)) return "Looks password-protected.";
+    if (/worker crashed/i.test(text)) return "The converter crashed midway.";
+    if (/tim(ed)?\s*out/i.test(text)) return "Conversion timed out.";
+    if (/^cancell?ed\b/i.test(text)) return "Cancelled.";
+    if (/not ready after init|doesn'?t support|no conversion path/i.test(text)) return "Unsupported file shape for this converter.";
+    if (/output is empty/i.test(text)) return "Converter produced an empty result.";
+
+    if (text.length > 200) text = text.slice(0, 197).trimEnd() + "...";
+    return text;
+}

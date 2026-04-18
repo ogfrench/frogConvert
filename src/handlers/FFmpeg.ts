@@ -1,38 +1,41 @@
 import type { FileData, FileFormat, FormatHandler, ProgressEvent, QualityPreset } from "../core/FormatHandler/FormatHandler.ts";
 import { extractQualityPreset } from "../core/FormatHandler/FormatHandler.ts";
+import { planVideo, planGif, planAudio, planImage, type CompressionPlan } from "../core/compression/plan.ts";
 
 // Internal flag sentinels — stripped from args before forwarding to FFmpeg.
 const NO_GIF_PALETTE = "--no-gif-palette";
 const NO_STREAM_COPY = "--no-stream-copy";
 
+/** 0–100 quality → 1–8 qscale (inverse: 100 → 1, 0 → 8). */
+function imgQualityToQscale(qualityPercent: number): number {
+  const qscale = 8 - (qualityPercent / 100) * 7;
+  return Math.max(1, Math.min(8, Math.round(qscale)));
+}
+
 /**
- * Map a quality preset to FFmpeg encoder flags for the output container.
- * Return is a flat arg array, already pre-filtered so nothing is appended
- * on lossless-capable containers where the preset doesn't make sense.
+ * Translate a planned compression profile into FFmpeg encoder flags for the
+ * output container. The scale filter lives separately — it's only emitted
+ * when the planner decided the input is big enough to downscale.
  */
-function ffmpegQualityArgs(preset: QualityPreset, outputFormat: FileFormat): string[] {
+function ffmpegPlanArgs(plan: CompressionPlan, outputFormat: FileFormat): string[] {
   const mime = outputFormat.mime ?? "";
-  // Video containers: CRF-based rate control. Lower = better quality.
   if (mime.startsWith("video/")) {
-    // GIF / APNG don't honor CRF (palette-based); skip.
     if (outputFormat.format === "gif" || outputFormat.format === "apng") return [];
-    const crf = preset === "low" ? "32" : preset === "high" ? "18" : preset === "lossless" ? "0" : "23";
-    return ["-crf", crf];
+    const args: string[] = [];
+    if (plan.videoCrf !== undefined) args.push("-crf", String(plan.videoCrf));
+    if (plan.videoMaxrate) {
+      args.push("-maxrate", plan.videoMaxrate, "-bufsize", `${parseInt(plan.videoMaxrate) * 2}M`);
+    }
+    return args;
   }
-  // Audio containers: bitrate target.
   if (mime.startsWith("audio/")) {
-    // Lossless audio formats (FLAC/ALAC/WAV) don't take a bitrate.
     if (outputFormat.format === "flac" || outputFormat.format === "wav" || outputFormat.format === "alac") return [];
-    if (preset === "lossless") return []; // Caller should have picked a lossless format; fall through to default.
-    const bitrate = preset === "low" ? "96k" : preset === "high" ? "320k" : "192k";
-    return ["-b:a", bitrate];
+    if (plan.audioKbps == null) return [];
+    return ["-b:a", `${plan.audioKbps}k`];
   }
-  // Image containers: `-q:v` where lower qscale = higher quality.
   if (mime.startsWith("image/")) {
-    // PNG / BMP / TIFF are already lossless — skip the flag.
     if (outputFormat.lossless) return [];
-    const q = preset === "low" ? "8" : preset === "high" ? "2" : preset === "lossless" ? "1" : "4";
-    return ["-q:v", q];
+    return ["-q:v", String(imgQualityToQscale(plan.imgQuality))];
   }
   return [];
 }
@@ -600,6 +603,21 @@ class FFmpegHandler implements FormatHandler {
       }
     }
 
+    const preset = extractQualityPreset(args) ?? "medium";
+    const inputBytes = inputFiles.reduce((n, f) => n + f.bytes.length, 0);
+    const outMime = outputFormat.mime ?? "";
+    const plan: CompressionPlan | null = useStreamCopy
+      ? null
+      : outputFormat.format === "gif"
+        ? planGif(inputBytes, preset)
+        : outMime.startsWith("video/")
+          ? planVideo(inputBytes, preset)
+          : outMime.startsWith("audio/")
+            ? planAudio(!!outputFormat.lossless, 2, preset)
+            : outMime.startsWith("image/")
+              ? planImage(0, preset, !!outputFormat.lossless)
+              : null;
+
     let appliedDefaultFpsCap = false;
     const command = ["-hide_banner", "-f", "concat", "-safe", "0", "-i", "list.txt"];
     if (extractFrames) {
@@ -626,16 +644,29 @@ class FFmpegHandler implements FormatHandler {
       command.push("-vf", "scale=352:288,setsar=1", "-target", "pal-vcd", "-pix_fmt", "rgb24");
     } else if (outputFormat.format === "gif" && !extractFrames && !args?.includes(NO_GIF_PALETTE)) {
       // Two-pass palette: without this, default 256-color palette bands gradients heavily.
+      // Planner may prepend fps/scale if the input is large enough to warrant it.
+      const gifParts: string[] = [];
+      if (plan?.gifFps) gifParts.push(`fps=${plan.gifFps}`);
+      if (plan?.gifScaleFilter) gifParts.push(plan.gifScaleFilter);
+      const pre = gifParts.length ? gifParts.join(",") + "," : "";
       command.push(
         "-filter_complex",
-        "split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle"
+        `${pre}split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`
       );
     }
-    // Map the quality preset to encoder-specific flags (CRF, bitrate, qscale).
-    // Stream-copy bypasses encoding entirely so quality flags are irrelevant.
-    if (!useStreamCopy) {
-      const preset = extractQualityPreset(args);
-      if (preset) command.push(...ffmpegQualityArgs(preset, outputFormat));
+    if (plan) {
+      command.push(...ffmpegPlanArgs(plan, outputFormat));
+      if (
+        plan.videoScaleFilter
+        && outputFormat.mime?.startsWith("video/")
+        && outputFormat.format !== "gif"
+        && outputFormat.format !== "apng"
+        && outputFormat.internal !== "dvd"
+        && outputFormat.internal !== "vcd"
+        && !args?.includes("-vf")
+      ) {
+        command.push("-vf", plan.videoScaleFilter);
+      }
     }
     // Forward remaining args but strip our custom `--quality <preset>` pair —
     // it's not a real FFmpeg flag.

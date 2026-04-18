@@ -1,6 +1,12 @@
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import { extractQualityPreset } from "../core/FormatHandler/FormatHandler.ts";
+import { presetFor } from "../core/FormatHandler/qualityPresets.ts";
 import { imageToText, rgbaToGrayscale } from "./image-to-txt/src/convert.ts";
+import { encodeCanvasPalettePng } from "../tools/palettePng.ts";
+
+/** Inputs that are document-like (text/vector) — palette-PNG compresses them well. */
+const DOCUMENT_LIKE_INPUTS = new Set(["text", "svg"]);
 
 class canvasToBlobHandler implements FormatHandler {
 
@@ -30,8 +36,15 @@ class canvasToBlobHandler implements FormatHandler {
   async doConvert(
     inputFiles: FileData[],
     inputFormat: FileFormat,
-    outputFormat: FileFormat
+    outputFormat: FileFormat,
+    args?: string[]
   ): Promise<FileData[]> {
+
+    const preset = presetFor(extractQualityPreset(args));
+    const usePalettePng =
+      outputFormat.format === "png"
+      && preset.pngCnum > 0
+      && DOCUMENT_LIKE_INPUTS.has(inputFormat.format);
 
     if (!this.#canvas || !this.#ctx) {
       throw "Handler not initialized.";
@@ -107,6 +120,9 @@ class canvasToBlobHandler implements FormatHandler {
             return rgbaToGrayscale(pixels.data[index] / 255, pixels.data[index + 1] / 255, pixels.data[index + 2] / 255, pixels.data[index + 3] / 255);
           }
         }));
+      }
+      else if (usePalettePng) {
+        bytes = encodeCanvasPalettePng(this.#ctx, this.#canvas.width, this.#canvas.height, preset.pngCnum);
       }
       else {
         bytes = await new Promise((resolve, reject) => {

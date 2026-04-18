@@ -13,22 +13,27 @@ import normalizeMimeType from "../core/utils/normalizeMimeType.ts";
 import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
 import type { FileData, FileFormat, FormatHandler, QualityPreset } from "../core/FormatHandler/FormatHandler.ts";
 import { extractQualityPreset } from "../core/FormatHandler/FormatHandler.ts";
+import { planImage } from "../core/compression/plan.ts";
 
-/** Map a quality preset to ImageMagick's 0–100 quality value. */
-function magickQuality(preset: QualityPreset, format: string): number | undefined {
-  // Lossless formats (PNG, BMP, TIFF) don't use quality.
-  if (["png", "bmp", "tiff"].includes(format)) return undefined;
-  if (preset === "low") return 60;
-  if (preset === "high") return 95;
-  if (preset === "lossless") return 100;
-  return 82; // medium — same ballpark as Magick default
-}
-
-/** Apply quality preset to an image if relevant. */
-function applyQuality(image: IMagickImage, preset: QualityPreset | undefined, format: string) {
-  if (!preset) return;
-  const q = magickQuality(preset, format);
-  if (q !== undefined) image.quality = q;
+/**
+ * Smart planner integration: decide per-image whether to downscale and at
+ * what JPEG quality, based on the image's pixel count and the user's
+ * quality preset. ICO has its own sizing path and is left alone.
+ */
+function applyPlan(image: IMagickImage, preset: QualityPreset, outputFormat: FileFormat) {
+  if (outputFormat.format === "ico") return;
+  const plan = planImage(image.width * image.height, preset, !!outputFormat.lossless);
+  if (!outputFormat.lossless && !["png", "bmp", "tiff"].includes(outputFormat.format)) {
+    image.quality = plan.imgQuality;
+  }
+  if (plan.imgMaxEdge != null) {
+    const maxEdge = Math.max(image.width, image.height);
+    if (maxEdge > plan.imgMaxEdge) {
+      const scale = plan.imgMaxEdge / maxEdge;
+      const geom = new MagickGeometry(Math.round(image.width * scale), Math.round(image.height * scale));
+      image.resize(geom);
+    }
+  }
 }
 
 class ImageMagickHandler implements FormatHandler {
@@ -107,7 +112,7 @@ class ImageMagickHandler implements FormatHandler {
 
     const inputMagickFormat = inputFormat.internal as MagickFormat;
     const outputMagickFormat = outputFormat.internal as MagickFormat;
-    const qualityPreset = extractQualityPreset(args);
+    const qualityPreset = extractQualityPreset(args) ?? "medium";
 
     const inputSettings = new MagickReadSettings();
     inputSettings.format = inputMagickFormat;
@@ -131,7 +136,7 @@ class ImageMagickHandler implements FormatHandler {
             const list: Uint8Array[] = [];
             for (const image of fileCollection) {
               image.autoOrient();
-              applyQuality(image, qualityPreset, outputFormat.format);
+              applyPlan(image, qualityPreset, outputFormat);
               if (outputFormat.format === "ico" && (image.width > 256 || image.height > 256)) {
                 const geometry = new MagickGeometry(256, 256);
                 image.resize(geometry);
@@ -210,7 +215,7 @@ class ImageMagickHandler implements FormatHandler {
               const image = fileCollection.shift();
               if (!image) break;
               image.autoOrient();
-              applyQuality(image, qualityPreset, outputFormat.format);
+              applyPlan(image, qualityPreset, outputFormat);
               outputCollection.push(image);
             }
           });
