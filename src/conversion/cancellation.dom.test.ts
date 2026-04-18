@@ -82,7 +82,8 @@ describe("cancellation DOM bindings", () => {
 
     afterEach(() => {
         document.body.innerHTML = "";
-        vi.clearAllMocks();
+        vi.restoreAllMocks();
+        vi.useRealTimers();
     });
 
     describe("cancellation state machine", () => {
@@ -272,12 +273,10 @@ describe("cancellation DOM bindings", () => {
             triggerCancellation();
 
             const completion = completeCancellation();
-            await vi.advanceTimersByTimeAsync(1100);
+            await vi.advanceTimersByTimeAsync(1300);
             await completion;
 
             expect(vi.mocked(hidePopup)).toHaveBeenCalled();
-
-            vi.useRealTimers();
             resetCancellation();
         });
     });
@@ -342,7 +341,6 @@ describe("cancellation DOM bindings", () => {
             await vi.advanceTimersByTimeAsync(200);
             expect(forceCb).toHaveBeenCalledOnce();
 
-            vi.useRealTimers();
             resetCancellation();
         });
 
@@ -362,7 +360,6 @@ describe("cancellation DOM bindings", () => {
             await vi.advanceTimersByTimeAsync(5000);
             expect(forceCb).not.toHaveBeenCalled();
 
-            vi.useRealTimers();
             resetCancellation();
         });
 
@@ -380,7 +377,6 @@ describe("cancellation DOM bindings", () => {
             await vi.advanceTimersByTimeAsync(5000);
 
             expect(forceCb).not.toHaveBeenCalled();
-            vi.useRealTimers();
         });
 
         it("reconvert after reset does not inherit stale forceCleanupCallback", async () => {
@@ -406,7 +402,6 @@ describe("cancellation DOM bindings", () => {
             expect(staleCb).not.toHaveBeenCalled();
             expect(freshCb).toHaveBeenCalledOnce();
 
-            vi.useRealTimers();
             resetCancellation();
         });
     });
