@@ -22,7 +22,7 @@ frogConvert runs entirely in your browser. Convert between 70+ file formats or e
 
 ## Recent changes
 
-Headline of 2.0.0: the **PDF Editor** (merge, reorder/rotate, extract) lands in-browser and over MCP/REST, alongside a major codebase refactor. Full history in [CHANGELOG.md](CHANGELOG.md).
+Headline of **2.1.0**: **Same-format compression** lands—convert JPEG to JPEG, MP4 to MP4, or PNG to PNG to reduce size with a smart 2% size-guard, alongside the new **PDF Editor** and proactive UX polishes. Full history in [CHANGELOG.md](CHANGELOG.md).
 
 ## Docs
 

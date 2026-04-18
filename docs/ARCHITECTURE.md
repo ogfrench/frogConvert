@@ -45,6 +45,14 @@ flowchart TD
     E --> I[Output file ready]
     H --> I
     I --> J[Browser downloads the file]
+
+    subgraph " "
+    K[Same Format Picked\ne.g. JPEG → JPEG] --> L{Is it compressible?}
+    L -- Yes --> M[Run Compression Path\nEnforce 2% size-guard]
+    L -- No --> N[Pass through original bytes]
+    M --> I
+    N --> I
+    end
 ```
 
 ---
