@@ -32,6 +32,7 @@ import {
     showEnginesLoadingPopup,
     ensureCancelButton,
     removeCancelButton,
+    modeCopy,
 } from "./cancellation.ts";
 import { createDancingFrog } from "../components/Frogsworth/DancingFrog.ts";
 import { shortenFileName, ensureMinDuration, toUserErrorText, formatBytes } from "../components/utils/index.ts";
@@ -329,7 +330,7 @@ async function findConversionPath(
 ): Promise<ConvertPathNode[] | null> {
     if (!preserveDeadEnds) window.traversionGraph.clearDeadEndPaths();
 
-    const warmingMsg = `Warming up the engines...<br><span class="conversion-path">finding the best conversion route</span>`;
+    const warmingMsg = `Warming up the engines...<br><span class="conversion-path">finding the best ${modeCopy().routeLabel}</span>`;
     showConversionInProgress(warmingMsg, _convertingTitle);
 
     const searchListener = (state: string, _path: ConvertPathNode[]) => {
@@ -355,7 +356,7 @@ async function findConversionPath(
                 const cat = Array.isArray(outputFormat.category) ? outputFormat.category[0] : outputFormat.category;
                 const label = (cat && CATEGORY_LABELS[cat]) ? CATEGORY_LABELS[cat].toLowerCase() : "file";
                 showConversionInProgress(
-                    `Downloading the ${label} converter...<br><span class="conversion-path">this happens once and may take a moment</span>`,
+                    `Downloading the ${label} ${modeCopy().toolLabel}...<br><span class="conversion-path">this happens once and may take a moment</span>`,
                     _convertingTitle,
                 );
             });
@@ -498,8 +499,8 @@ function startSlowConversionTimer(batchMsg: string, pathStr: string): SlowTimerH
 function showConversionFailedPopup(fromFormat: string, toFormat: string, error: string) {
     const detail = error.length > 0 ? `<span class="muted-text error-detail">${escapeHTML(error)}</span>` : "";
     showAlertPopup(
-        "Conversion failed",
-        `Something went wrong converting <b>${fromFormat}</b> to <b>${toFormat}</b>. The file may be corrupted, password-protected, or too complex for the converter.${detail}`,
+        modeCopy().failedTitle,
+        `Something went wrong ${modeCopy().verbIng} <b>${fromFormat}</b> to <b>${toFormat}</b>. The file may be corrupted, password-protected, or too complex for the ${modeCopy().toolLabel}.${detail}`,
     );
 }
 
@@ -854,8 +855,8 @@ export function initConvertButton() {
                 }
             } else {
                 resultText = isBatch
-                    ? `${allOutputFiles.length} files converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and zipped up for you, downloading now.`
-                    : `<b>${escapeHTML(shortenFileName(inputFiles[0].name, 32))}</b> has been converted to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and is downloading now.`;
+                    ? `${allOutputFiles.length} files ${modeCopy().verb} to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and zipped up for you, downloading now.`
+                    : `<b>${escapeHTML(shortenFileName(inputFiles[0].name, 32))}</b> has been ${modeCopy().verb} to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and is downloading now.`;
             }
 
             const h2 = document.createElement("h2");

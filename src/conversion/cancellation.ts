@@ -14,10 +14,32 @@ let _activeMode: ConversionMode = "convert";
 export function setActiveConversionMode(mode: ConversionMode) {
     _activeMode = mode;
 }
-function modeCopy() {
+export function modeCopy() {
     return _activeMode === "compress"
-        ? { verb: "compressed", cancelledTitle: "Compression cancelled", cancelButton: "Cancel compression" }
-        : { verb: "converted", cancelledTitle: "Conversion cancelled", cancelButton: "Cancel conversion" };
+        ? {
+            verb: "compressed",
+            verbIng: "compressing",
+            action: "compression",
+            failedTitle: "Compression failed",
+            routeLabel: "compression route",
+            toolLabel: "compressor",
+            readyLabel: "Ready to compress!",
+            cancellingTitle: "Cancelling compression",
+            cancelledTitle: "Compression cancelled",
+            cancelButton: "Cancel compression"
+        }
+        : {
+            verb: "converted",
+            verbIng: "converting",
+            action: "conversion",
+            failedTitle: "Conversion failed",
+            routeLabel: "conversion route",
+            toolLabel: "converter",
+            readyLabel: "Ready to convert!",
+            cancellingTitle: "Cancelling conversion",
+            cancelledTitle: "Conversion cancelled",
+            cancelButton: "Cancel conversion"
+        };
 }
 
 export function resetCancellation() {
@@ -176,7 +198,7 @@ export function triggerCancellation() {
         armHardCancelTimer();
 
         const h2 = document.createElement("h2");
-        h2.textContent = "Cancelling conversion";
+        h2.textContent = modeCopy().cancellingTitle;
 
         const spinner = document.createElement("div");
         spinner.className = "loader-spinner";
@@ -195,7 +217,7 @@ export function triggerCancellation() {
         showConversionInProgress(
             `Finishing ${fileRef}, then stopping.<br>` +
             `<span class="conversion-path">Can't stop mid-file.</span>`,
-            "Cancelling conversion",
+            modeCopy().cancellingTitle,
         );
         // Remove the cancel button so it doesn't sit there as a dead control
         // (clicking it again hits the isCancelled guard and is a no-op).
@@ -245,7 +267,7 @@ export function showEnginesLoadingPopup() {
     showPopup(
         `<h2>Wow, you're fast! ⚡</h2>` +
         `<div class="loader-spinner"></div>` +
-        `<p>Engines are starting up. This only happens on first load, so it'll be instant next time!</p>` +
+        `<p>${modeCopy().action} engines are starting up. This only happens on first load, so it'll be instant next time!</p>` +
         `<div class="popup-actions">` +
         `<button class="btn-secondary" id="engines-dismiss-btn">Dismiss</button>` +
         `</div>`,
@@ -284,8 +306,8 @@ function _updatePopupToEnginesReady() {
     icon.className = "engines-ready-icon";
     spinner.replaceWith(icon);
 
-    if (h2) h2.textContent = "Engines ready!";
-    if (p) p.textContent = "All conversion engines loaded. Ready to convert!";
+    if (h2) h2.textContent = `${modeCopy().action} engines ready!`;
+    if (p) p.textContent = `All ${modeCopy().action} engines loaded. ${modeCopy().readyLabel}`;
     if (actions) {
         actions.innerHTML = "";
         const btn = document.createElement("button");
