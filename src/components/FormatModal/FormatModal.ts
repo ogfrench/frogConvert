@@ -180,7 +180,7 @@ export function updateConvertButtonState(selectedFromIndex: number | null, selec
   ui.convertButton.classList.toggle("compress-mode", showCompress);
 
   if (showCompress) {
-    hint.textContent = `${formatLabel} \u2192 ${formatLabel}? We'll compress it, not convert it. Only some formats can do this.`;
+    hint.textContent = `${formatLabel} \u2192 ${formatLabel}? We'll compress it, not convert it. Available for select formats.`;
     hint.hidden = false;
   } else {
     hint.hidden = true;

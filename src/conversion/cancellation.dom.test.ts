@@ -176,7 +176,8 @@ describe("cancellation DOM bindings", () => {
             expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Cancelling conversion");
             const pHtml = ui.popupBox.querySelector("p")?.innerHTML ?? "";
             expect(pHtml).toContain("Finishing file 2 of 3, then stopping.");
-            expect(pHtml).toContain("Can't stop mid-file.");
+            expect(pHtml).toContain("This step can't be interrupted mid-file.");
+            expect(pHtml).toContain("Refresh the page if you need to stop right now.");
             expect(ui.popupBox.querySelector("#cancel-conversion-btn")).toBeNull();
             resetCancellation();
         });
@@ -345,7 +346,7 @@ describe("cancellation DOM bindings", () => {
             resetCancellation();
         });
 
-        it("fires forceCleanupCallback on main-thread path too (safety net if loop never breaks)", async () => {
+        it("does NOT fire forceCleanupCallback on main-thread path (honors 'finishing the current file' promise)", async () => {
             vi.useFakeTimers();
             const forceCb = vi.fn();
             setForceCleanupCallback(forceCb);
@@ -355,8 +356,11 @@ describe("cancellation DOM bindings", () => {
             ensureCancelButton();
             triggerCancellation();
 
-            await vi.advanceTimersByTimeAsync(2100);
-            expect(forceCb).toHaveBeenCalledOnce();
+            // Soft cancel cannot terminate the work; the watchdog exists only for
+            // stuck workers. Firing it here would cut the current file short and
+            // contradict the UI copy.
+            await vi.advanceTimersByTimeAsync(5000);
+            expect(forceCb).not.toHaveBeenCalled();
 
             vi.useRealTimers();
             resetCancellation();

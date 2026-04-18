@@ -14,9 +14,11 @@ Headline: smart compression that adapts to what the conversion actually is, neve
 
 ### Added
 - **Same-format compression.** Picking the same input/output format (e.g. PNG to PNG, MP4 to MP4, MP3 to MP3) now re-encodes the file to reduce size instead of just passing it through. Gated by a **smart size-guard** that falls back to original bytes if the "compressed" result is larger or saves less than 2% of space.
-- **Visual "Compress" transition.** When a compressible same-format pairing is selected, the "Convert" button strikethrough-transforms into "Compress" with a contextual hint (e.g. "JPEG to JPEG? We'll compress it, not convert it.").
+- **Visual "Compress" transition.** When a compressible same-format pairing is selected, the "Convert" button strikethrough-transforms into "Compress" with a contextual hint (e.g. "PNG → PNG? We'll compress it, not convert it. Available for select formats.").
 - **Compression results in success popup.** Displays exact size deltas (e.g. "4.2 MB to 2.1 MB (50% smaller)") for all compressed files.
 - **Structured post-conversion notices.** New `Notice` type on `FileData` (`{ title, body, action? }`) carries concrete messages about what the handler adapted. The UI renders each notice as a `.convert-notice` card.
+- **Live progress on long conversions.** After 10s, the startup copy is replaced by a live notice with elapsed time, an optional handler-supplied detail line (`Page 12 of 50`, `Encoded 3.2s of 8.7s`, `Image 4 of 18`), and a rotating reassurance line after 20s letting users know they can switch tabs. Handlers opt in by calling `onProgress?.({ detail: "..." })` inside their loops; silent handlers still get elapsed + reassurance. FFmpeg, pdftoimg, pdftotxt, and comics wired up.
+- **Honest mid-cancel popup.** The partial-download popup now only counts files that were genuinely produced — files cancelled mid-compression no longer appear as "1 file was successfully compressed". Soft-cancel copy explains the step can't be interrupted mid-file and points at page refresh as the escape hatch.
 - **Adaptive frame sampling for video-to-image.** Replaced the fixed `-r 1` default with duration-aware sampling aimed at 300 frames (medium).
 - **Video-to-GIF duration cap.** Medium: 60s, low: 30s, high: 180s, lossless: uncapped. 
 - **PDF auto-shrink.** Automated proportional scaling when projected megapixels exceed browser memory safety ceilings (600 MP).

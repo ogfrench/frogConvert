@@ -2,6 +2,8 @@ import normalizeMimeType from "../core/utils/normalizeMimeType.ts";
 import { downloadFile, downloadAsZip } from "./download.ts";
 import { isSafari } from "../tools/pdfThumbnails.ts";
 import type { FileFormat, FormatHandler, FileData, ConvertPathNode, ProgressEvent, QualityPreset, Notice } from "../core/FormatHandler/FormatHandler.ts";
+import { withQualityArg } from "../core/FormatHandler/FormatHandler.ts";
+import { DEFAULT_PRESET } from "../core/FormatHandler/qualityPresets.ts";
 import { triggerConfetti } from "../effects/Confetti/Confetti.ts";
 import {
     ui,
@@ -27,15 +29,19 @@ import {
     setCanHardCancel,
     setCurrentFileProgress,
     setActiveConversionMode,
+    getActiveConversionMode,
     completeCancellation,
     showPartialDownloadPopup,
     showEnginesLoadingPopup,
     ensureCancelButton,
     removeCancelButton,
     modeCopy,
+    updateCancelProgress,
 } from "./cancellation.ts";
 import { createDancingFrog } from "../components/Frogsworth/DancingFrog.ts";
 import { shortenFileName, ensureMinDuration, toUserErrorText, formatBytes } from "../components/utils/index.ts";
+import { probeInputQuality } from "../core/compression/inputQuality.ts";
+import { tierDown } from "../core/compression/tierDown.ts";
 
 // --- Helpers ---
 
@@ -152,7 +158,7 @@ function handlerSupportsFormat(handler: FormatHandler, format: FileFormat): File
 function resolveSameFormatHandler(format: FileFormat): SameFormatDispatch | null {
     const fmt = (format.format || "").toLowerCase();
     const mime = (format.mime || "").toLowerCase();
-    const quality: QualityPreset = format.lossless ? "lossless" : "medium";
+    const quality: QualityPreset = format.lossless ? "lossless" : DEFAULT_PRESET;
     const baseArgs = ["--quality", quality];
 
     if (SAME_FORMAT_ANIMATED.has(fmt)) {
@@ -256,7 +262,7 @@ async function runInWorker(handlerName: string, inputFiles: FileData[], inputFor
             const msg = ev.data;
             if (msg.id !== id) return;
             if (msg.type === "progress") {
-                if (onProgress && typeof msg.ratio === "number") onProgress({ ratio: msg.ratio });
+                onProgress?.({ ratio: msg.ratio, detail: msg.detail });
                 return;
             }
             cleanup();
@@ -311,7 +317,7 @@ async function preInitPath(path: ConvertPathNode[], onProgress?: (outputFormat: 
                 if (handler.supportedFormats) {
                     window.supportedFormatCache.set(handler.name, handler.supportedFormats);
                 }
-                await ensureMinDuration(downloadStart, 500);
+                await ensureMinDuration(downloadStart, 1200);
             } catch (e) {
                 // Swallow - attemptConvertPath retries init and handles failures
             }
@@ -351,7 +357,7 @@ async function findConversionPath(
                 path[path.length - 1] = to;
             }
 
-            await ensureMinDuration(searchStartTime, 1000);
+            await ensureMinDuration(searchStartTime, 1200);
             await preInitPath(path, (outputFormat) => {
                 const cat = Array.isArray(outputFormat.category) ? outputFormat.category[0] : outputFormat.category;
                 const label = (cat && CATEGORY_LABELS[cat]) ? CATEGORY_LABELS[cat].toLowerCase() : "file";
@@ -411,7 +417,7 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], ba
             let hopArgs: string[] | undefined;
             if (isLastHop) {
                 const target = path[i + 1].format;
-                const quality: QualityPreset = target.lossless ? "lossless" : "medium";
+                const quality: QualityPreset = target.lossless ? "lossless" : DEFAULT_PRESET;
                 hopArgs = ["--quality", quality];
             }
 
@@ -454,53 +460,74 @@ function showConversionNotFoundPopup(fromFormat: string, toFormat: string) {
     );
 }
 
+const REASSURANCE_LINE = "Feel free to switch tabs. This keeps running in the background.";
+
+function mmss(totalSec: number): string {
+    const m = Math.floor(totalSec / 60);
+    const s = Math.floor(totalSec % 60);
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 /**
- * Starts a slow-conversion notice after 10s, alternating with path info every 10s.
- * The returned handle exposes `cancel()` to stop the timer, and `suppress()` which
- * the caller invokes once a real progress bar has appeared — the "may take a while"
- * fallback is only useful when we have no determinate signal.
+ * After 10s the startup copy is replaced by a live notice (elapsed, optional
+ * handler detail, a reassurance line once elapsed >= 20s). `update(detail)` is
+ * how handlers feed the middle line; `cancel()` tears down both timers.
  */
-type SlowTimerHandle = { cancel: () => void; suppress: () => void };
-function startSlowConversionTimer(batchMsg: string, pathStr: string): SlowTimerHandle {
-    let showingSlowNotice = false;
-    let alternateTimer: ReturnType<typeof setInterval> | null = null;
-    let suppressed = false;
-    const slowTimer = setTimeout(() => {
-        if (isCancelled || suppressed) return;
-        showingSlowNotice = true;
-        showConversionInProgress(
-            `${batchMsg}<br><span class="muted-text">Large file - this may take a while...</span>`,
-            _convertingTitle,
-        );
-        alternateTimer = setInterval(() => {
-            if (isCancelled || suppressed) { clearInterval(alternateTimer!); alternateTimer = null; return; }
-            showingSlowNotice = !showingSlowNotice;
-            showConversionInProgress(
-                showingSlowNotice
-                    ? `${batchMsg}<br><span class="muted-text">Large file - this may take a while...</span>`
-                    : `${batchMsg}<br><span class="muted-text">${pathStr}</span>`,
-                _convertingTitle,
-            );
-        }, 10000);
-    }, 10000);
-    const cancel = () => {
-        clearTimeout(slowTimer);
-        if (alternateTimer) { clearInterval(alternateTimer); alternateTimer = null; }
+type SlowTimerHandle = {
+    cancel: () => void;
+    update: (detail: string) => void;
+};
+function startSlowConversionTimer(batchMsg: string): SlowTimerHandle {
+    // Anchor elapsed to the call site, not the 10s kickoff, so the first
+    // visible tick reads ~00:10 — the user's felt wait, not "just started".
+    const startedAt = Date.now();
+    let tickTimer: ReturnType<typeof setInterval> | null = null;
+    let latestDetail: string | undefined;
+    let lastRenderedHTML: string | null = null;
+
+    const render = () => {
+        const elapsedSec = Math.max(0, (Date.now() - startedAt) / 1000);
+        const lines: string[] = [batchMsg];
+        lines.push(`<span class="muted-text">Working on it. ${mmss(elapsedSec)} elapsed.</span>`);
+        if (latestDetail) {
+            lines.push(`<span class="muted-text">${escapeHTML(latestDetail)}</span>`);
+        }
+        if (elapsedSec >= 20) {
+            lines.push(`<span class="muted-text">${REASSURANCE_LINE}</span>`);
+        }
+        const html = lines.join("<br>");
+        if (html === lastRenderedHTML) return;
+        lastRenderedHTML = html;
+        showConversionInProgress(html, _convertingTitle);
     };
+
+    const slowTimer = setTimeout(() => {
+        if (isCancelled) return;
+        render();
+        tickTimer = setInterval(() => {
+            if (isCancelled) { clearInterval(tickTimer!); tickTimer = null; return; }
+            render();
+        }, 1000);
+    }, 10000);
+
     return {
-        cancel,
-        suppress: () => {
-            suppressed = true;
-            cancel();
+        cancel: () => {
+            clearTimeout(slowTimer);
+            if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+        },
+        update: (detail) => {
+            latestDetail = detail;
+            updateCancelProgress(detail);
         },
     };
 }
 
 function showConversionFailedPopup(fromFormat: string, toFormat: string, error: string) {
     const detail = error.length > 0 ? `<span class="muted-text error-detail">${escapeHTML(error)}</span>` : "";
+    const copy = modeCopy();
     showAlertPopup(
-        modeCopy().failedTitle,
-        `Something went wrong ${modeCopy().verbIng} <b>${fromFormat}</b> to <b>${toFormat}</b>. The file may be corrupted, password-protected, or too complex for the ${modeCopy().toolLabel}.${detail}`,
+        copy.failedTitle,
+        `Something went wrong ${copy.verbIng} <b>${fromFormat}</b> to <b>${toFormat}</b>. The file may be corrupted, password-protected, or too complex for the ${copy.toolLabel}.${detail}`,
     );
 }
 
@@ -537,8 +564,6 @@ export function initConvertButton() {
                 return;
             }
 
-
-
             const conversionStartTime = performance.now();
             resetCancellation();
 
@@ -555,17 +580,13 @@ export function initConvertButton() {
                 ? resolveSameFormatHandler(inputFormat)
                 : null;
 
-            // Pure same-format batches get "Compressing" title immediately
-            const isPureCompression = sameFormatDispatch && fileCount > 0;
-            const modeLabel = isPureCompression ? "compress" : "convert";
+            const isPureCompression = Boolean(sameFormatDispatch);
             const verbLabel = isPureCompression ? "Compressing" : "Converting";
             const verbSubText = isPureCompression ? "compress" : "convert";
 
             _convertingTitle = `${verbLabel} your ${fileCount > 1 ? "files" : "file"}`;
 
-            if (isPureCompression) {
-                setActiveConversionMode("compress");
-            }
+            setActiveConversionMode(isPureCompression ? "compress" : "convert");
 
             await waitForPaint();
 
@@ -593,19 +614,20 @@ export function initConvertButton() {
             }
 
             // Enforce minimum startup/warming-up phase duration (includes file reading time)
-            await ensureMinDuration(startupStartTime, 1000);
+            await ensureMinDuration(startupStartTime, 1200);
 
-            // Suppress the "may take a while" fallback once a handler reports
-            // real progress. Ratio 0 is a reset hint and must NOT suppress.
+            // slowHandle.update fans out to both the in-progress notice and
+            // (when cancel is active) the cancel popup sub-line.
             const makeProgressSink = (slowHandle: SlowTimerHandle) => (p: ProgressEvent) => {
-                if (typeof p.ratio === "number" && p.ratio > 0) slowHandle.suppress();
+                if (typeof p.detail === "string") {
+                    slowHandle.update(p.detail);
+                }
             };
 
             // Runs before path-finding because the graph has no self-loops.
             // Each file ends up in allOutputFiles with either shrunk bytes
             // (+ originalBytes) or the original bytes when the 98% size-guard
             // fires or the handler throws.
-            // sameFormatDispatch is already resolved above
 
             if (sameFormatDispatch) {
                 ensureCancelButton();
@@ -628,6 +650,10 @@ export function initConvertButton() {
                 const handlerOutputFmt = initOk ? handlerSupportsFormat(handler, outputFormat) : null;
 
                 if (initOk && handlerInputFmt && handlerOutputFmt) {
+                    // Same-format loop never runs findConversionPath, so the
+                    // default `canHardCancel = true` would leak through and
+                    // show "Stopping now..." even for main-thread handlers.
+                    setCanHardCancel(!handler.requiresMainThread);
                     const totalSame = sameFormatRaw.length;
                     for (let i = 0; i < totalSame; i++) {
                         if (isCancelled) break;
@@ -636,25 +662,58 @@ export function initConvertButton() {
                         const progressMsg = totalSame > 1
                             ? `Compressing file ${i + 1} of ${totalSame}...`
                             : `Compressing your file...`;
-                        const slowHandle = startSlowConversionTimer(progressMsg, `${inputFormat.format.toUpperCase()} compression`);
+                        const slowHandle = startSlowConversionTimer(progressMsg);
                         showConversionInProgress(
                             `${progressMsg}<br><span class="muted-text">${escapeHTML(inputFormat.format.toUpperCase())} compression</span>`,
                             _convertingTitle,
                         );
 
+                        // Lossless inputs stay on their preset; re-encoding would lose information.
+                        let perFileArgs = args;
+                        let alreadyMinimal = false;
+                        if (!inputFormat.lossless) {
+                            const probe = await probeInputQuality(file.bytes, inputFormat.mime ?? "");
+                            const next = tierDown(probe.inputTier);
+                            if (next.kind === "skip") {
+                                alreadyMinimal = true;
+                            } else {
+                                perFileArgs = withQualityArg(args, next.tier);
+                            }
+                        }
+
+                        if (alreadyMinimal) {
+                            slowHandle.cancel();
+                            allOutputFiles.push({
+                                name: file.name,
+                                bytes: file.bytes,
+                                notices: [{
+                                    title: "Already nicely squished 🐸",
+                                    body: `${file.name} is already at minimum useful quality. Kept original to avoid further loss.`,
+                                }],
+                            });
+                            continue;
+                        }
+
                         const originalSize = file.bytes.byteLength;
                         let compressed: FileData | null = null;
                         try {
                             const result = handler.requiresMainThread
-                                ? await handler.doConvert([file], handlerInputFmt, handlerOutputFmt, args, makeProgressSink(slowHandle))
-                                : await runInWorker(handler.name, [file], handlerInputFmt, handlerOutputFmt, args, makeProgressSink(slowHandle));
+                                ? await handler.doConvert([file], handlerInputFmt, handlerOutputFmt, perFileArgs, makeProgressSink(slowHandle))
+                                : await runInWorker(handler.name, [file], handlerInputFmt, handlerOutputFmt, perFileArgs, makeProgressSink(slowHandle));
                             if (result && result.length && result[0].bytes.byteLength > 0) {
                                 compressed = result[0];
                             }
                         } catch (e) {
-                            console.error(handler.name, "same-format compression threw", e);
+                            // Cancellation rejects the worker promise as an error; don't log it
+                            // as a real failure.
+                            if (!isCancelled) console.error(handler.name, "same-format compression threw", e);
                         }
                         slowHandle.cancel();
+
+                        // Cancelled mid-file with no output: drop it. Don't fall through to
+                        // pushing the original bytes as if the file had been processed —
+                        // that would feed a lie into the partial-download popup.
+                        if (compressed === null && isCancelled) break;
 
                         if (compressed && compressed.bytes.byteLength < originalSize * 0.98) {
                             allOutputFiles.push({
@@ -738,10 +797,7 @@ export function initConvertButton() {
                 setCurrentFileProgress(fileNum, fileCount);
                 const batchMsg = `Converting file ${fileNum} of ${fileCount}...`;
 
-                // After 10s, alternate between path info and a "taking a while" notice every 10s.
-                // Suppressed automatically once determinate progress arrives.
-                const pathStr = conversionPath.map(c => c.format.format).join(" → ");
-                const slowHandle = startSlowConversionTimer(batchMsg, pathStr);
+                const slowHandle = startSlowConversionTimer(batchMsg);
 
                 let result = await attemptConvertPath(
                     [inputFileData[i]],
@@ -774,8 +830,7 @@ export function initConvertButton() {
                         return;
                     }
                     setCanHardCancel(pathSupportsHardCancel(conversionPath));
-                    const retryPathStr = conversionPath.map(c => c.format.format).join(" → ");
-                    const retrySlowHandle = startSlowConversionTimer(batchMsg, retryPathStr);
+                    const retrySlowHandle = startSlowConversionTimer(batchMsg);
 
                     result = await attemptConvertPath(
                         [inputFileData[i]],
@@ -805,7 +860,7 @@ export function initConvertButton() {
             } // close `if (inputFileData.length > 0)` guard
 
             // Enforce minimum duration for the conversion loop
-            await ensureMinDuration(conversionLoopStartTime, 1000);
+            await ensureMinDuration(conversionLoopStartTime, 1200);
 
             if (isCancelled) return;
 
@@ -821,7 +876,7 @@ export function initConvertButton() {
                 await waitForPaint();
 
                 // Enforce minimum duration for packing phase
-                await ensureMinDuration(packingStartTime, 1000);
+                await ensureMinDuration(packingStartTime, 1200);
             }
 
             await ensureMinDuration(conversionStartTime);
@@ -833,9 +888,10 @@ export function initConvertButton() {
             // compressed by the same-format dispatcher (`originalBytes` set).
             const compressedFiles = allOutputFiles.filter(f => f.originalBytes != null);
             const didCompress = compressedFiles.length > 0;
-            const successTitle = didCompress
-                ? (isBatch ? "Files compressed! 🎉" : "File compressed! 🎉")
-                : (isBatch ? "Files converted! 🎉" : "File converted! 🎉");
+            // Title follows user intent (_activeMode), not byte shrinkage. A
+            // cross-format convert that happens to shrink shouldn't rename
+            // itself "File compressed!" on the success popup.
+            const successTitle = isBatch ? modeCopy().successTitleBatch : modeCopy().successTitleSingle;
             let resultText: string;
             if (didCompress) {
                 const totals = compressedFiles.reduce(
@@ -967,12 +1023,21 @@ export function initConvertButton() {
             // can throw), but `isConverting = false` MUST run or the whole app
             // freezes in "Converting…" state with no path back.
             try {
-                const hasConvertedFiles = allOutputFiles.length > 0;
-                const shouldHide = !isCancelled || !hasConvertedFiles;
+                // In compression mode, "successfully compressed" only describes
+                // files that actually shrunk (originalBytes set). Pass-through
+                // and already-minimal files are in allOutputFiles too but don't
+                // count — the user already has those bytes. In convert mode,
+                // every entry is a real conversion output so all of them count.
+                const isCompressionMode = getActiveConversionMode() === "compress";
+                const meaningfulFiles = isCompressionMode
+                    ? allOutputFiles.filter(f => f.originalBytes != null)
+                    : allOutputFiles;
+                const hasMeaningfulFiles = meaningfulFiles.length > 0;
+                const shouldHide = !isCancelled || !hasMeaningfulFiles;
                 await completeCancellation(shouldHide);
-                if (isCancelled && hasConvertedFiles) {
-                    setLastConvertedFiles(allOutputFiles);
-                    showPartialDownloadPopup(allOutputFiles.length, () => {
+                if (isCancelled && hasMeaningfulFiles) {
+                    setLastConvertedFiles(meaningfulFiles);
+                    showPartialDownloadPopup(meaningfulFiles.length, () => {
                         downloadAllConvertedFiles();
                     });
                 }

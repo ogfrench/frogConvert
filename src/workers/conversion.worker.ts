@@ -1,4 +1,4 @@
-import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import type { FileData, FileFormat, FormatHandler, ProgressEvent } from "../core/FormatHandler/FormatHandler.ts";
 import handlers, { loadBackgroundHandlers } from "../handlers/index.ts";
 
 export type ConvertRequestMessage = {
@@ -12,7 +12,8 @@ export type ConvertRequestMessage = {
 
 export type ConvertResponseMessage =
     | { id: number; type: "success"; outputFiles: FileData[]; }
-    | { id: number; type: "error"; error: string; };
+    | { id: number; type: "error"; error: string; }
+    | { id: number; type: "progress"; ratio?: number; detail?: string; };
 
 // Shared promise so concurrent requests don't trigger multiple background loads
 let backgroundHandlersPromise: Promise<void> | null = null;
@@ -57,7 +58,11 @@ self.onmessage = async (ev: MessageEvent<ConvertRequestMessage>) => {
             throw new Error(`Handler "${handlerName}" requires the main thread and cannot be run in a worker.`);
         }
 
-        const outputFiles = await handler.doConvert(inputFiles, inputFormat, outputFormat, args);
+        const onProgress = (p: ProgressEvent) => {
+            const msg: ConvertResponseMessage = { id, type: "progress", ratio: p.ratio, detail: p.detail };
+            (self as any).postMessage(msg);
+        };
+        const outputFiles = await handler.doConvert(inputFiles, inputFormat, outputFormat, args, onProgress);
 
         // Transfer ArrayBuffers back to main thread to avoid copy overhead
         const transferables = outputFiles

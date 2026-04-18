@@ -858,16 +858,23 @@ class FFmpegHandler implements FormatHandler {
     // events on WASM don't flood postMessage.
     let durationMs: number | null = null;
     let lastEmit = 0;
-    const emitRatio = onProgress
-      ? (ratio: number) => {
+    // Format an "Encoded Xs of Ys" detail line when both times are known.
+    // Skipped once durationMs is unknown — the elapsed line alone is fine.
+    const formatDetail = (timeMs: number): string | undefined => {
+      if (!durationMs || durationMs <= 0) return undefined;
+      return `Encoded ${(timeMs / 1000).toFixed(1)}s of ${(durationMs / 1000).toFixed(1)}s of video.`;
+    };
+    const emitProgress = onProgress
+      ? (ratio: number, timeMs?: number) => {
         const now = Date.now();
         if (now - lastEmit < 250) return;
         lastEmit = now;
-        onProgress({ ratio: Math.min(1, Math.max(0, ratio)) });
+        const detail = typeof timeMs === "number" ? formatDetail(timeMs) : undefined;
+        onProgress({ ratio: Math.min(1, Math.max(0, ratio)), detail });
       }
       : undefined;
 
-    const progressTap = emitRatio
+    const progressTap = emitProgress
       ? (line: string) => {
         const parsed = parseFfmpegProgress(line);
         if (!parsed) return;
@@ -876,7 +883,7 @@ class FFmpegHandler implements FormatHandler {
           return;
         }
         if (parsed.timeMs !== undefined && durationMs && durationMs > 0) {
-          emitRatio(parsed.timeMs / durationMs);
+          emitProgress(parsed.timeMs / durationMs, parsed.timeMs);
         }
       }
       : undefined;
@@ -885,11 +892,13 @@ class FFmpegHandler implements FormatHandler {
     // child-process adapter's `on("progress", ...)` is not implemented and
     // would be a no-op if we called it, so we gate on an instanceof check.
     let wasmProgressListener: ((ev: { progress: number; time: number }) => void) | null = null;
-    if (emitRatio && this.#ffmpeg instanceof FFmpegWASM) {
+    if (emitProgress && this.#ffmpeg instanceof FFmpegWASM) {
       wasmProgressListener = (ev) => {
         // ev.progress is 0..1 (sometimes > 1 briefly at the very end).
+        // ev.time is microseconds of encoded source media.
         if (typeof ev.progress === "number" && isFinite(ev.progress)) {
-          emitRatio(ev.progress);
+          const timeMs = typeof ev.time === "number" && isFinite(ev.time) ? ev.time / 1000 : undefined;
+          emitProgress(ev.progress, timeMs);
         }
       };
       this.#ffmpeg.on("progress", wasmProgressListener);

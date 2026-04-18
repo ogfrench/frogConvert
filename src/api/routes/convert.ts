@@ -2,6 +2,7 @@ import type { FormatHandler, FileData, QualityPreset } from "../../core/FormatHa
 import type { TraversionGraph } from "../../core/TraversionGraph/TraversionGraph.ts";
 import { findFormatAndHandler, libreofficeHint } from "../../mcp/core/utils.ts";
 import { convertViaBrowser } from "../../mcp/core/browserBridge.ts";
+import { resolveEffectiveQuality } from "../../core/compression/resolveEffectiveQuality.ts";
 import mime from "mime";
 
 function parseQuality(raw: unknown): QualityPreset | undefined {
@@ -21,7 +22,12 @@ async function runConversion(
     quality?: QualityPreset,
     allHandlers?: FormatHandler[]
 ): Promise<{ files: FileData[]; error?: never } | { error: string; status: number }> {
-    const effectiveQuality: QualityPreset = quality ?? "medium";
+    const resolved = await resolveEffectiveQuality(quality, bytes, inputMime, outputMime);
+    if (resolved === null) {
+        // Already-minimal: return the input unchanged.
+        return { files: [{ name: fileName, bytes }] };
+    }
+    const effectiveQuality: QualityPreset = resolved;
     const hopArgs = ["--quality", effectiveQuality];
     const inputMatch = findFormatAndHandler(handlers, inputMime, inputExt, 'from');
     const outputMatch = findFormatAndHandler(handlers, outputMime, outputExt, 'to');

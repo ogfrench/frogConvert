@@ -823,10 +823,15 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   padding: var(--space-6);
 }
 
+.ws-processing h2 {
+  margin: 0;
+}
+
 .ws-processing p {
   margin: 0;
   font-size: var(--text-md);
-  color: var(--foreground);
+  color: var(--muted-foreground);
+  text-align: center;
 }
 
 .ws-spinner {

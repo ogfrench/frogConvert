@@ -14,6 +14,9 @@ let _activeMode: ConversionMode = "convert";
 export function setActiveConversionMode(mode: ConversionMode) {
     _activeMode = mode;
 }
+export function getActiveConversionMode(): ConversionMode {
+    return _activeMode;
+}
 export function modeCopy() {
     return _activeMode === "compress"
         ? {
@@ -26,7 +29,11 @@ export function modeCopy() {
             readyLabel: "Ready to compress!",
             cancellingTitle: "Cancelling compression",
             cancelledTitle: "Compression cancelled",
-            cancelButton: "Cancel compression"
+            cancelButton: "Cancel compression",
+            titleIng: "Compressing...",
+            actionButton: "Compress now",
+            successTitleSingle: "File compressed! 🎉",
+            successTitleBatch: "Files compressed! 🎉",
         }
         : {
             verb: "converted",
@@ -38,7 +45,11 @@ export function modeCopy() {
             readyLabel: "Ready to convert!",
             cancellingTitle: "Cancelling conversion",
             cancelledTitle: "Conversion cancelled",
-            cancelButton: "Cancel conversion"
+            cancelButton: "Cancel conversion",
+            titleIng: "Converting...",
+            actionButton: "Convert now",
+            successTitleSingle: "File converted! 🎉",
+            successTitleBatch: "Files converted! 🎉",
         };
 }
 
@@ -87,7 +98,7 @@ export function setWorkerCancelCallback(cb: (() => void) | null) {
 }
 
 let cancelStartTime: number | null = null;
-const CANCEL_MIN_MS = 1000;
+const CANCEL_MIN_MS = 1200;
 
 export async function completeCancellation(shouldHide = true) {
     if (cancelStartTime === null) return;
@@ -101,7 +112,7 @@ export async function completeCancellation(shouldHide = true) {
 // Safari's blur+contrast filter doesn't sharpen gooey edges cleanly - fall back to the plain spinner.
 const CONVERSION_SPINNER_CLASS = navigator.vendor === 'Apple Computer, Inc.' ? "loader-spinner" : "loader-gooey";
 
-export function showConversionInProgress(messageHTML: string, title: string = "Converting...") {
+export function showConversionInProgress(messageHTML: string, title: string = modeCopy().titleIng) {
     // If cancellation is in progress, don't overwrite the popup
     if (cancelStartTime !== null) {
         return;
@@ -216,15 +227,52 @@ export function triggerCancellation() {
             : "the current file";
         showConversionInProgress(
             `Finishing ${fileRef}, then stopping.<br>` +
-            `<span class="conversion-path">Can't stop mid-file.</span>`,
+            `<span class="conversion-path">This step can't be interrupted mid-file. Refresh the page if you need to stop right now.</span>`,
             modeCopy().cancellingTitle,
         );
         // Remove the cancel button so it doesn't sit there as a dead control
         // (clicking it again hits the isCancelled guard and is a no-op).
         removeCancelButton();
         cancelStartTime = performance.now();
-        armHardCancelTimer();
+        // No watchdog here: soft cancel promises to finish the current file.
+        // The hard-cancel watchdog exists to rescue a stuck worker that never
+        // acks terminate(). Main-thread handlers can't be terminated, so firing
+        // it would break the "finish the current file" promise; users who
+        // really need out are told to refresh.
     }
+}
+
+/**
+ * Keep the UI alive during a soft cancel: the cancel title + "Finishing file
+ * N of M" line stay locked, but the handler can push its live progress (page
+ * counter, encode timestamp) into a sub-line so the user sees the work is
+ * actually still happening.
+ *
+ * Called via `slowHandle.update({ detail })` — the same channel that feeds the
+ * normal slow-conversion notice. No-op when cancel isn't active.
+ */
+export function updateCancelProgress(detail: string) {
+    if (cancelStartTime === null) return;
+    if (!ui.popupBox.classList.contains("open")) return;
+    if (!detail) return;
+    const messageP = ui.popupBox.querySelector("p");
+    if (!messageP) return;
+    let liveSpan = messageP.querySelector<HTMLElement>(".cancel-live-progress");
+    if (!liveSpan) {
+        liveSpan = document.createElement("span");
+        liveSpan.className = "cancel-live-progress muted-text";
+        // Insert before the trailing "refresh the page" note.
+        const footnote = messageP.querySelector(".conversion-path");
+        const br = document.createElement("br");
+        if (footnote) {
+            messageP.insertBefore(br, footnote);
+            messageP.insertBefore(liveSpan, footnote);
+        } else {
+            messageP.appendChild(br);
+            messageP.appendChild(liveSpan);
+        }
+    }
+    liveSpan.textContent = detail;
 }
 
 export function removeCancelButton() {
@@ -283,7 +331,7 @@ export function showEnginesLoadingPopup() {
         if (window.traversionGraph.nodeCount > 0) {
             clearInterval(_enginesLoadingPollId!);
             _enginesLoadingPollId = null;
-            await ensureMinDuration(popupStartTime, 1000);
+            await ensureMinDuration(popupStartTime, 1200);
             _updatePopupToEnginesReady();
         }
     }, 200);
@@ -312,7 +360,7 @@ function _updatePopupToEnginesReady() {
         actions.innerHTML = "";
         const btn = document.createElement("button");
         btn.className = "btn-primary";
-        btn.textContent = "Convert now";
+        btn.textContent = modeCopy().actionButton;
         btn.addEventListener("click", () => {
             hidePopup();
             ui.convertButton.click();

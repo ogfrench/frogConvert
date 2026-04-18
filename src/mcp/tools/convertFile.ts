@@ -8,6 +8,7 @@ import type { McpContext } from "../core/types.ts";
 import { findFormatAndHandler, libreofficeHint } from "../core/utils.ts";
 import { convertViaBrowser } from "../core/browserBridge.ts";
 import { resolveBytes } from "../core/fileInput.ts";
+import { resolveEffectiveQuality } from "../../core/compression/resolveEffectiveQuality.ts";
 
 async function serializeResults(files: FileData[], outputFilePath?: string) {
     // Collect warnings from all files (deduped).
@@ -53,7 +54,7 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
             outputMime: z.string().describe("Output MIME type"),
             outputExtension: z.string().describe("Output format extension"),
             outputFilePath: z.string().optional().describe("Absolute path where the output file should be saved. If omitted, the result is returned as base64."),
-            quality: z.enum(["low", "medium", "high", "lossless"]).optional().describe("Quality preset. Defaults to 'medium' (same as the web UI). 'low' trades quality for smaller output; 'high' raises quality and relaxes adaptive caps; 'lossless' disables lossy compression where the codec supports it. Only affects handlers that re-encode (FFmpeg, ImageMagick, pdftoimg).")
+            quality: z.enum(["low", "medium", "high", "lossless"]).optional().describe("Quality preset. When omitted for cross-format conversion defaults to 'medium'. When omitted for same-format compression, the input is probed and the next lower tier is picked automatically (matching the web UI behavior). 'low' trades quality for smaller output; 'high' raises quality and relaxes adaptive caps; 'lossless' disables lossy compression where the codec supports it. Only affects handlers that re-encode (FFmpeg, ImageMagick, pdftoimg).")
         },
         async ({ fileName, base64Bytes, filePath, inputMime, inputExtension, outputMime, outputExtension, outputFilePath, quality }) => {
             let bytes: Uint8Array;
@@ -74,7 +75,11 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
             const inputMatch = findFormatAndHandler(handlers, inputMime, inputExtension, 'from');
             const outputMatch = findFormatAndHandler(handlers, outputMime, outputExtension, 'to');
 
-            const hopArgs = ["--quality", quality ?? "medium"];
+            const resolved = await resolveEffectiveQuality(quality, bytes, inputMime, outputMime);
+            if (resolved === null) {
+                return await serializeResults([{ name: resolvedName, bytes }], outputFilePath);
+            }
+            const hopArgs = ["--quality", resolved];
 
             // Try native path when both formats are known to native handlers
             if (inputMatch && outputMatch) {
@@ -111,7 +116,7 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
             try {
                 const bridgeBase64 = Buffer.from(bytes).toString('base64');
                 const bridgeResults = await convertViaBrowser(
-                    resolvedName, bridgeBase64, inputMime, inputExtension, outputMime, outputExtension, quality ?? "medium"
+                    resolvedName, bridgeBase64, inputMime, inputExtension, outputMime, outputExtension, resolved
                 );
                 if (outputFilePath && bridgeResults.length > 0) {
                     return await serializeResults(

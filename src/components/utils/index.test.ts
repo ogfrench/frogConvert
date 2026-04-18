@@ -25,14 +25,14 @@ describe("ensureMinDuration", () => {
         expect(waited).toBeLessThan(50);
     });
 
-    it("uses default minMs of 600", async () => {
-        const startTime = performance.now() - 590; // pretend 590ms elapsed
+    it("uses default minMs of 1200", async () => {
+        const startTime = performance.now() - 1190; // pretend 1190ms elapsed
 
         const before = performance.now();
         await ensureMinDuration(startTime);
         const waited = performance.now() - before;
 
-        // Should wait roughly 10ms (600 - 590), but at least resolve
+        // Should wait roughly 10ms (1200 - 1190), but at least resolve
         expect(waited).toBeGreaterThanOrEqual(0);
         expect(waited).toBeLessThan(100);
     });

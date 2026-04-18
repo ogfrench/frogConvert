@@ -28,7 +28,8 @@ export interface FormatHandler {
         inputFiles: FileData[],
         inputFormat: FileFormat,
         outputFormat: FileFormat,
-        args?: string[]
+        args?: string[],
+        onProgress?: (p: ProgressEvent) => void,
     ) => Promise<FileData[]>;
 }
 ```
@@ -86,7 +87,9 @@ class dummyHandler implements FormatHandler {
   async doConvert (
     inputFiles: FileData[],
     inputFormat: FileFormat,
-    outputFormat: FileFormat
+    outputFormat: FileFormat,
+    args?: string[],
+    onProgress?: (p: ProgressEvent) => void,
   ): Promise<FileData[]> {
     const outputFiles: FileData[] = [];
     return outputFiles;
@@ -112,6 +115,19 @@ Don't hand-roll your own quality mapping. Route through the shared planner in `s
 **Same-format compression.** Conversion routes can include same-format requests (e.g. `JPG → JPG`). In these cases, the handler is called to re-encode the file using the specified `quality` preset (defaults to `"medium"`). Output files from these runs are subject to a **smart size-guard** in the conversion runner: if the result is larger than the original, it is discarded.
 
 PDF render knobs (DPI and megapixel caps) live in `src/core/FormatHandler/qualityPresets.ts` as `PRESETS[preset].pdfDpi` / `pdfMp` / `pngCnum`, consumed by `pdftoimg`.
+
+### Progress reporting
+
+After 10 seconds the UI shows a live "Working on it..." notice with elapsed time and a rotating reassurance line. Handlers that have an internal counter (page loop, frame loop, image loop) should call `onProgress?.({ detail: "..." })` once per iteration so the notice can surface a concrete fact like `Page 12 of 50`, `Encoded 3.2s of 8.7s`, or `Image 4 of 18`. Keep the string under ~40 characters; it's rendered verbatim. Handlers with nothing meaningful to say should simply not emit — the elapsed line alone is fine.
+
+```ts
+for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+  onProgress?.({ detail: `Page ${pageNum} of ${pdf.numPages}` });
+  // ...do slow work for this page...
+}
+```
+
+`ratio` (0..1) is also supported for progress-bar style signals. FFmpeg emits both; the slow-conversion notice falls back to a `"N% done"` line when a handler emits ratio without detail.
 
 ### Multi-file output
 

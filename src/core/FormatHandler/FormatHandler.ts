@@ -158,12 +158,20 @@ export interface FileData {
 
 /**
  * Progress update emitted by a handler during a conversion.
- * Kept deliberately minimal: a single ratio is enough to drive a progress bar
- * without introducing technical readouts that would clash with the friendly UI.
+ * `ratio` drives anything bar-like; `detail` is an optional plain-text fact
+ * the slow-conversion notice renders verbatim so silent handlers stay silent
+ * and chatty ones can surface useful counters.
  */
 export type ProgressEvent = {
   /** 0..1 when known. Omit for indeterminate — caller falls back to spinner. */
   ratio?: number;
+  /**
+   * Optional short human-readable fact for the UI to surface verbatim
+   * (e.g. "Page 12 of 50", "Encoded 3.2s of 8.7s", "Image 4 of 18").
+   * Keep under ~40 chars. Handlers that have nothing meaningful to say
+   * simply omit this.
+   */
+  detail?: string;
 };
 
 /**
@@ -182,6 +190,15 @@ export function extractQualityPreset(args?: string[]): QualityPreset | undefined
   const val = args[idx + 1];
   if (val === "low" || val === "medium" || val === "high" || val === "lossless") return val;
   return undefined;
+}
+
+/** Rebuild an args array with the given `--quality` preset, appending if absent. */
+export function withQualityArg(args: string[], quality: QualityPreset): string[] {
+  const idx = args.indexOf("--quality");
+  if (idx < 0 || idx + 1 >= args.length) return [...args, "--quality", quality];
+  const next = [...args];
+  next[idx + 1] = quality;
+  return next;
 }
 
 /**

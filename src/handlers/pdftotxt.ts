@@ -1,5 +1,5 @@
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
-import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import type { FileData, FileFormat, FormatHandler, ProgressEvent } from "../core/FormatHandler/FormatHandler.ts";
 import { rethrowIfPasswordProtected } from "./_pdfErrors.ts";
 
 import * as pdfjsLib from 'pdfjs-dist';
@@ -26,7 +26,9 @@ class pdftotxtHandler implements FormatHandler {
   async doConvert (
     inputFiles: FileData[],
     inputFormat: FileFormat,
-    outputFormat: FileFormat
+    outputFormat: FileFormat,
+    _args?: string[],
+    onProgress?: (p: ProgressEvent) => void,
   ): Promise<FileData[]> {
 
     if (inputFormat.format !== "pdf") throw "Invalid input format.";
@@ -54,6 +56,7 @@ class pdftotxtHandler implements FormatHandler {
 
       try {
         for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
+          onProgress?.({ detail: `Page ${pageNum} of ${pdfDocument.numPages}.` });
           const page = await pdfDocument.getPage(pageNum);
           try {
             const textContent = await page.getTextContent();

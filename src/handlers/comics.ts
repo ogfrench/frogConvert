@@ -1,6 +1,6 @@
 // file: comics.ts
 
-import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import type { FileData, FileFormat, FormatHandler, ProgressEvent } from "../core/FormatHandler/FormatHandler.ts";
 import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
 
 import {
@@ -73,7 +73,9 @@ class comicsHandler implements FormatHandler {
     async doConvert (
         inputFiles: FileData[],
         inputFormat: FileFormat,
-        outputFormat: FileFormat
+        outputFormat: FileFormat,
+        _args?: string[],
+        onProgress?: (p: ProgressEvent) => void,
     ): Promise<FileData[]> {
         const outputFiles: FileData[] = [];
         
@@ -92,6 +94,7 @@ class comicsHandler implements FormatHandler {
             // Add files to archive
             let iterations = 0;
             for (const file of inputFiles) {
+                onProgress?.({ detail: `Image ${iterations + 1} of ${inputFiles.length}.` });
                 if (outputFormat.internal === "cbz") {
                     zip.file("Page "+String(iterations)+"."+inputFormat.extension, file.bytes);
                 }
@@ -110,23 +113,28 @@ class comicsHandler implements FormatHandler {
                 const zip = new JSZip();
                 await zip.loadAsync(file.bytes);
 
+                // Count up front so the detail line has a real denominator.
+                const entries = Object.entries(zip.files).filter(([, e]) => !e.dir);
+                const total = entries.length;
+                let done = 0;
+
                 // Extract all files from ZIP
-                for (const [filename, zipEntry] of Object.entries(zip.files)) {
-                    if (!zipEntry.dir) {
-                        if (inputFormat.internal === "cbz" && filename.endsWith(".xml")) {
-                            // Ignore .xml files in comic book archives.
-                        }
-                        else if (filename.endsWith("."+outputFormat.extension) === false) {
-                            throw new Error("Archive contains multiple file types; abort.");
-                        }
-                        else {
-                            const data = await zipEntry.async("uint8array");
-                            outputFiles.push({
-                                name: filename,
-                                bytes: data
-                            });
-                        }
+                for (const [filename, zipEntry] of entries) {
+                    if (inputFormat.internal === "cbz" && filename.endsWith(".xml")) {
+                        // Ignore .xml files in comic book archives.
                     }
+                    else if (filename.endsWith("."+outputFormat.extension) === false) {
+                        throw new Error("Archive contains multiple file types; abort.");
+                    }
+                    else {
+                        onProgress?.({ detail: `Image ${done + 1} of ${total}.` });
+                        const data = await zipEntry.async("uint8array");
+                        outputFiles.push({
+                            name: filename,
+                            bytes: data
+                        });
+                    }
+                    done += 1;
                 }
             }
             

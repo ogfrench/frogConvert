@@ -501,7 +501,7 @@ function handleRemoveSelectedFiles(): void {
 
 async function handleMerge() {
   if (files.length < 2) return;
-  await runWithPopup('Merging', 'Merge failed. Try removing a file and re-adding it.', async () => {
+  await runWithPopup('Merging', 'Stitching your pages into one PDF. This only takes a moment.', 'Merge failed. Try removing a file and re-adding it.', async () => {
     const r = await merge(files);
     lastPdfResult = [{ bytes: r.bytes, name: r.name }];
     lastPdfZipName = null;
@@ -1230,7 +1230,7 @@ function updateMergeSelectionVisuals() {
 
 async function handleSave() {
   if (!pages.length) return;
-  await runWithPopup('Saving', 'Save failed. Try with fewer pages or a smaller file.', async () => {
+  await runWithPopup('Saving', 'Packing up your PDF with the latest page order. Hold tight.', 'Save failed. Try with fewer pages or a smaller file.', async () => {
     const r = await organize(files, pages);
     lastPdfResult = [{ bytes: r.bytes, name: r.name }];
     lastPdfZipName = null;
@@ -1276,7 +1276,7 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
   if (files.length === 0 || indices.length === 0) return;
   const extractCount = indices.length;
   const sorted = [...indices].sort((a, b) => a - b);
-  await runWithPopup('Extracting', 'Extract failed. The PDF might be damaged or unsupported.',
+  await runWithPopup('Extracting', 'Pulling the selected pages into a new file. Almost there.', 'Extract failed. The PDF might be damaged or unsupported.',
     async () => {
       const byFile = new Map<number, number[]>();
       for (const idx of sorted) {
@@ -1766,14 +1766,16 @@ function parseSelectionRange(text: string): Set<number> | null {
 
 async function runWithPopup<T>(
   verb: string,
+  subtext: string,
   fallback: string,
   fn: () => Promise<T>,
   onSuccess?: (result: T) => void,
-  minMs: number = 600,
+  minMs: number = 1200,
 ): Promise<void> {
   const wrap = el('div', { className: 'ws-processing' });
+  wrap.appendChild(el('h2', { textContent: `${verb}...` }));
   wrap.appendChild(el('div', { className: 'ws-spinner' }));
-  wrap.appendChild(el('p', { textContent: `${verb}...` }));
+  wrap.appendChild(el('p', { textContent: subtext }));
   showPopup(wrap, true);
   const startTime = performance.now();
   try {

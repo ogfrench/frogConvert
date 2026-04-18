@@ -12,6 +12,7 @@ function normalizeMimeType(mime: string) {
     case "image/aseprite": return "image/x-aseprite";
     case "application/x-aseprite": return "image/x-aseprite";
     case "image/qoi": return "image/x-qoi";
+    case "image/jpg": return "image/jpeg";
     case "video/bink": return "video/vnd.radgamettools.bink";
     case "video/binka": return "audio/vnd.radgamettools.bink";
     case "video/brstm": return "audio/brstm";

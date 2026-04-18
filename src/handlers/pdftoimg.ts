@@ -1,5 +1,5 @@
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
-import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import type { FileData, FileFormat, FormatHandler, ProgressEvent } from "../core/FormatHandler/FormatHandler.ts";
 import { extractQualityPreset } from "../core/FormatHandler/FormatHandler.ts";
 import { presetFor } from "../core/FormatHandler/qualityPresets.ts";
 import { planImage } from "../core/compression/plan.ts";
@@ -36,7 +36,8 @@ class pdftoimgHandler implements FormatHandler {
     inputFiles: FileData[],
     inputFormat: FileFormat,
     outputFormat: FileFormat,
-    args?: string[]
+    args?: string[],
+    onProgress?: (p: ProgressEvent) => void,
   ): Promise<FileData[]> {
 
     if (isSafari())
@@ -126,6 +127,7 @@ class pdftoimgHandler implements FormatHandler {
         // Pass 2: render at the cached per-page scale, times the global
         // shrink factor if the total was over budget.
         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+          onProgress?.({ detail: `Page ${pageNum} of ${pdf.numPages}.` });
           const page = await pdf.getPage(pageNum);
           try {
             const viewport = page.getViewport({ scale: perPageScale[pageNum - 1] * shrink });
