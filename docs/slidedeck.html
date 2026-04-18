@@ -517,7 +517,6 @@
     <div class="big-num" style="margin-top:0.3em;">70+</div>
     <p style="color:#999;">format conversions</p>
   </div>
-  <!-- COPY OPTION A (feature grid, currently live). Delete to swap to Option B below. -->
   <div style="display:grid; gap:1em;">
     <div class="features">
       <div class="feat">
@@ -546,28 +545,6 @@
       <p>"pdf to docx? attempting to undo what adobe hath wrought."</p>
     </div>
   </div>
-  <!-- COPY OPTION B (condensed: conversion + single PDF cell, since there's a dedicated PDF slide next). To use, replace the Option A block above with:
-  <div style="display:grid; gap:1em;">
-    <div class="features">
-      <div class="feat">
-        <div class="feat-title">Any device</div>
-        <div class="feat-desc">Mobile-first, fully responsive</div>
-      </div>
-      <div class="feat">
-        <div class="feat-title">Chain formats</div>
-        <div class="feat-desc">WAV &rarr; PDF? It finds a path.</div>
-      </div>
-      <div class="feat" style="grid-column:1 / -1;">
-        <div class="feat-title">PDF workspace</div>
-        <div class="feat-desc">Merge, organize, extract. Covered next slide.</div>
-      </div>
-    </div>
-    <div class="frogsworth-quote">
-      <span class="kaomoji">(~ _ ~)</span>
-      <p>"pdf to docx? attempting to undo what adobe hath wrought."</p>
-    </div>
-  </div>
-  -->
 </div>
 
 <!-- ─── Slide 9: PDF editor deep dive ─── -->
@@ -601,7 +578,43 @@
   </div>
 </div>
 
-<!-- ─── Slide 10: Three ways to use it ─── -->
+<!-- ─── Slide 10: Smart conversion ─── -->
+<div class="slide layout-split">
+  <div class="glow glow-1" style="top:-15%;right:-10%;"></div>
+  <div class="glow glow-3" style="bottom:-20%;left:-5%;"></div>
+  <div>
+    <div class="tag">v2.1</div>
+    <h2 style="margin-top:0.8em;">Conversion that<br><span class="green">thinks for itself</span></h2>
+    <p style="margin-top:0.8em;">
+      PNG to PNG? It compresses instead of passing through unchanged, and tells you exactly how much it saved.
+      Long conversion? A live progress line keeps you in the loop.
+    </p>
+    <p style="margin-top:0.8em;">
+      No dead-ends. Every quality ceiling is an automatic degrade with a visible notice, not an error.
+    </p>
+  </div>
+  <div style="display:grid; gap:0.8em;">
+    <div class="feat">
+      <div class="feat-title">Same-format compression</div>
+      <div class="feat-desc">Re-encodes to shrink. Falls back to original if the result is larger.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-title">Live progress</div>
+      <div class="feat-desc">Elapsed time and handler detail after 10s. Reassurance after 20s.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-title">Archetype-aware quality</div>
+      <div class="feat-desc">Single photo, PDF page, video frame each get their own quality baseline.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-title">Post-conversion notices</div>
+      <div class="feat-desc">Concrete cards describing what the handler adapted, not vague warnings.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Slide 11: Three ways to use it ─── -->
+<!-- NOTE: was slide 10 before v2.1 smart-conversion slide was inserted -->
 <div class="slide layout-left">
   <div class="glow glow-3" style="top:-10%;right:-15%;"></div>
   <div class="glow glow-1" style="bottom:-25%;left:-10%;"></div>
@@ -631,7 +644,7 @@
   </div>
 </div>
 
-<!-- ─── Slide 11: Demo ─── -->
+<!-- ─── Slide 12: Demo ─── -->
 <div class="slide layout-center">
   <div class="glow glow-1" style="top:-10%;left:20%;"></div>
   <div class="glow glow-2" style="bottom:-20%;right:15%;"></div>
@@ -652,7 +665,7 @@
   </div>
 </div>
 
-<!-- ─── Slide 12: Takeaway ─── -->
+<!-- ─── Slide 13: Takeaway ─── -->
 <div class="slide layout-center">
   <div class="glow glow-1" style="top:-15%;right:-10%;"></div>
   <div class="glow glow-2" style="bottom:-15%;left:-10%;"></div>
@@ -675,7 +688,7 @@
 
 <!-- ─── Nav ─── -->
 <div class="nav">
-  <span class="slide-count" id="slideCount">1/12</span>
+  <span class="slide-count" id="slideCount">1/13</span>
   <button id="prev" aria-label="Previous">&#8592;</button>
   <button id="next" aria-label="Next">&#8594;</button>
 </div>

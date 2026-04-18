@@ -10,126 +10,77 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [2.1.0] - 2026-04-18
 
-Headline: smart compression that adapts to what the conversion actually is, never dead-ends the user, and tells them what happened when it had to adjust.
+Smart compression that adapts to what the conversion is, never dead-ends the user, and reports back when it had to adjust.
 
 ### Added
-- **Same-format compression.** Picking the same input/output format (e.g. PNG to PNG, MP4 to MP4, MP3 to MP3) now re-encodes the file to reduce size instead of just passing it through. Gated by a **smart size-guard** that falls back to original bytes if the "compressed" result is larger or saves less than 2% of space.
-- **Visual "Compress" transition.** When a compressible same-format pairing is selected, the "Convert" button strikethrough-transforms into "Compress" with a contextual hint (e.g. "PNG → PNG? We'll compress it, not convert it. Available for select formats.").
-- **Compression results in success popup.** Displays exact size deltas (e.g. "4.2 MB to 2.1 MB (50% smaller)") for all compressed files.
-- **Structured post-conversion notices.** New `Notice` type on `FileData` (`{ title, body, action? }`) carries concrete messages about what the handler adapted. The UI renders each notice as a `.convert-notice` card.
-- **Live progress on long conversions.** After 10s, the startup copy is replaced by a live notice with elapsed time, an optional handler-supplied detail line (`Page 12 of 50`, `Encoded 3.2s of 8.7s`, `Image 4 of 18`), and a rotating reassurance line after 20s letting users know they can switch tabs. Handlers opt in by calling `onProgress?.({ detail: "..." })` inside their loops; silent handlers still get elapsed + reassurance. FFmpeg, pdftoimg, pdftotxt, and comics wired up.
-- **Honest mid-cancel popup.** The partial-download popup now only counts files that were genuinely produced — files cancelled mid-compression no longer appear as "1 file was successfully compressed". Soft-cancel copy explains the step can't be interrupted mid-file and points at page refresh as the escape hatch.
-- **Adaptive frame sampling for video-to-image.** Replaced the fixed `-r 1` default with duration-aware sampling aimed at 300 frames (medium).
-- **Video-to-GIF duration cap.** Medium: 60s, low: 30s, high: 180s, lossless: uncapped. 
-- **PDF auto-shrink.** Automated proportional scaling when projected megapixels exceed browser memory safety ceilings (600 MP).
-- **Quality preset exposed on MCP and REST.** The `convert_file` MCP tool and `POST /convert` REST endpoint now accept an optional `quality` argument (`low`, `medium`, `high`, `lossless`).
+- **Same-format compression.** PNG to PNG, MP4 to MP4, MP3 to MP3 now re-encodes to reduce file size instead of passing through unchanged. A size guard falls back to the original if the result is larger or saves less than 2%.
+- **"Compress" button transition.** When a compressible same-format pairing is selected, the Convert button transforms into Compress with a contextual hint.
+- **Compression results in success popup.** Exact size delta shown for every compressed file (e.g. "4.2 MB to 2.1 MB, 50% smaller").
+- **Post-conversion notices.** New `Notice` type on `FileData` carries messages about what the handler adapted. The UI renders each as a `.convert-notice` card using the same component as the "better handler" hints in ConvertCard.
+- **Live progress on long conversions.** After 10s, elapsed time and an optional handler-supplied detail line replace the startup copy. After 20s, a rotating reassurance line appears. Handlers opt in via `onProgress?.({ detail: "..." })`; FFmpeg, pdftoimg, pdftotxt, and comics wired up.
+- **Honest mid-cancel popup.** Only counts files genuinely produced. Soft-cancel copy explains the step cannot be interrupted mid-file.
+- **Adaptive video-to-image sampling.** Duration-aware sampling aimed at 300 frames replaces the fixed `-r 1` default.
+- **Video-to-GIF duration cap.** Low 30s / medium 60s / high 180s / lossless uncapped.
+- **PDF auto-shrink.** Proportional scaling when projected megapixels exceed the 600 MP browser safety ceiling.
+- **Quality preset on MCP and REST.** `convert_file` and `POST /convert` now accept an optional `quality` argument (`low`, `medium`, `high`, `lossless`). See [docs/INTEGRATIONS.md § Quality preset](docs/INTEGRATIONS.md#quality-preset).
 
 ### Changed
-- **Archetype-aware image planning.** `planImage` now takes an `ImageContext` with an `archetype` field (`singleton` / `document-page` / `animated-frame` / `video-frame`). A single hand-picked photo gets JPEG quality 90, a PDF page gets 87, a video frame gets 78.
-- **Looser defaults on single images.** Medium-preset JPEG quality 82 -> 90 for singletons, max-edge downscale threshold raised 16 MP -> 60 MP.
-- **Crisper PDF pages.** Medium preset `pdfMp` 1.8 -> 2.5 and `pdfDpi` 144 -> 160.
-- **Video-to-audio gets a quality bump.** Extracts audio one preset tier higher than the conversion request (medium stereo: 192 kbps -> 256 kbps).
-- **Audio channels are now probed.** ffprobe pass now detects mono and picks the right bitrate budget accordingly.
-- **Same-codec audio stream-copy.** MP3 -> MP3, AAC -> AAC, FLAC -> FLAC at medium/high/lossless now emit `-c:a copy` instead of re-encoding.
-- **Proactive sample-rate snap.** MP3/AAC/M4A encoders get `-ar <nearest-supported>` upfront when the source rate is outside the codec's whitelist.
-- **Video frame resolution cap.** Video-to-image frame extraction clamps each frame to 1920 px (medium) / 3840 px (high) via `-vf scale`.
+- **Archetype-aware image quality.** Single photos get JPEG quality 90; PDF pages get 87; video frames get 78. Medium-preset max-edge downscale threshold raised from 16 MP to 60 MP.
+- **Crisper PDF pages.** Medium preset DPI raised from 144 to 160.
+- **Video-to-audio quality bump.** Audio extracted one preset tier higher than the conversion request (medium stereo: 192 kbps to 256 kbps).
+- **Audio channels probed.** ffprobe detects mono and picks bitrate budget accordingly.
+- **Same-codec stream-copy.** MP3, AAC, and FLAC at medium/high/lossless emit `-c:a copy` instead of re-encoding.
+- **Proactive sample-rate snap.** MP3/AAC/M4A encoders get `-ar <nearest-supported>` when the source rate is outside the codec whitelist.
+- **Video frame resolution cap.** Extraction clamps to 1920 px (medium) or 3840 px (high) via `-vf scale`.
 
 ### Removed
-- **"Try lower quality" dead-ends.** The web UI has no quality selector by design; error messages telling users to "try lower quality" had nowhere to lead. Every such ceiling is now an adaptive degrade with a visible notice.
-- **Fixed JPEG q82 everywhere.** Replaced with archetype-aware baselines (see above).
-
-### Design
-- Post-conversion notices render as `.convert-notice` cards in the success popup, matching the same component already used in ConvertCard for "better handler available" hints.
-- Copy style: no em dashes, concrete numbers, action link only when there's a real escape hatch (see Known gaps below).
-
-### Integrations
-See [docs/INTEGRATIONS.md § Quality preset](docs/INTEGRATIONS.md#quality-preset) for details.
+- **"Try lower quality" dead-ends.** Every quality ceiling is now an adaptive degrade with a visible notice instead of an instruction the UI cannot fulfill.
 
 ## [2.0.0] - 2026-04-17
 
-Headline: frogConvert **2.0.0** is here — transform your PDFs with the new **PDF Editor**, convert **70+ formats**, and enjoy a **proactive UX** built on a hardened, battle-tested core.
+PDF Editor, 70+ formats, and a hardened core.
 
 ### Security
-- Local HTTP API (`bun x frogconvert api`) now validates `Origin` / `Host` headers and rejects cross-origin requests — closes a DNS-rebinding exposure where a page the user visits could POST to `127.0.0.1:3000`.
-- `FROGCONVERT_SANDBOX_ROOT` env var constrains `filePath` / `outputFilePath` / `outputDir` arguments to a configured directory (defense-in-depth; loopback-only remains the primary guard).
-- POST bodies on `/pdf/merge`, `/pdf/organize`, `/pdf/extract` now validate shape before dispatch; malformed inputs return 400 instead of crashing deep.
-- Archive decompression-size cap on LZH, TAR, and 7z handlers — protects against zip-bomb inputs that would exhaust the browser WASM heap.
-- `svgForeignObject` HTML→SVG sanitiser now rewrites external `http(s)://` URLs in `<img>`, `<link>`, `<iframe>`, `srcset`, inline styles, and `<style>` blocks, so converting untrusted HTML no longer leaks network requests to third-party origins during bounding-box measurement.
-- LZH→ZIP output sanitises entry filenames against path-traversal sequences.
-- Netlify deploy now emits a matching CSP, `Permissions-Policy`, and explicit 404s for `/api/*` and `/.well-known/*` (previously fell through to SPA `index.html`).
-- Electron renderer: added `sandbox: true` alongside the existing `contextIsolation`/`nodeIntegration:false` baseline.
-- `xlsx` migrated to the patched SheetJS CDN tarball (0.20.3) — fixes prototype-pollution and ReDoS advisories on the XLSX parser path.
-- Production sourcemaps emitted as `hidden` (maps still uploadable to error trackers; no inline reference shipped).
-- `bun audit --level high` wired as a new `audit` npm script.
+- Local HTTP API now validates `Origin` and `Host` headers, closing a DNS-rebinding exposure on `127.0.0.1:3000`.
+- `FROGCONVERT_SANDBOX_ROOT` constrains file path arguments to a configured directory.
+- POST bodies on PDF endpoints validate shape before dispatch; malformed inputs return 400.
+- Archive decompression-size cap on LZH, TAR, and 7z guards against zip-bomb inputs.
+- HTML-to-SVG sanitiser rewrites external URLs in `<img>`, `<link>`, `<iframe>`, and inline styles to prevent network leaks during conversion.
+- LZH output sanitises entry filenames against path-traversal sequences.
+- `xlsx` migrated to patched SheetJS 0.20.3, fixing prototype-pollution and ReDoS advisories.
+- Netlify deploy emits a matching CSP, `Permissions-Policy`, and explicit 404s for `/api/*` and `/.well-known/*`.
 
 ### Reliability
-- `initConvertButton` cleanup wrapped in a nested try/finally so the `isConverting` flag and UI state reset even if `completeCancellation()` throws — eliminates "stuck at Converting…" dead ends.
-- Hard-cancel safety-net: if the worker doesn't acknowledge a cancel within 2 s, the force-cleanup path now terminates the worker and returns the UI to idle.
-- LibreOffice subprocess kill uses `SIGKILL` on timeout (previously `SIGTERM`, which a hung soffice can ignore); handler `init()` sweeps stale `libreoffice-node-*` temp dirs from prior crashes.
-- pdfjs `pdf.destroy()` + `page.cleanup()` wrapped in `try/finally` across `pdftoimg`, `pdftotxt`, `pdfparse` — prevents worker-side memory pinning when a page throws mid-parse.
-- Three.js geometry, material, and texture `dispose()` runs after each render in `threejs` handler — fixes long-session GPU memory accumulation.
-- `browserBridge` signal-handler registration flag anchored on `globalThis` so HMR / duplicate module instantiation no longer double-registers process exit handlers.
-- Worker reference cleared on bfcache restore (`pageshow` listener) so the first post-restore conversion re-spawns instead of posting to a zombie worker.
-- Global `unhandledrejection` / `error` listeners now surface a recovery popup with a Reload button so an unexpected error never leaves the UI silently stuck.
-
-### UX
-- Password-protected PDFs show a dedicated, actionable error ("Decrypt it with Adobe Acrobat or similar, then upload again") instead of a generic "Conversion failed" popup.
-- Downloaded filenames sanitised against Windows reserved names (`CON`, `NUL`, `PRN`, `COM1–9`, `LPT1–9`), control chars, NUL bytes, trailing dots/spaces, and length > 200 chars; ZIP entries deduplicated on collision.
-- Batch warnings surfaced per-file (or as "all N files" when universal) instead of one flat de-duplicated list.
-- MIME type preferred over filename extension when they disagree; names without an extension no longer accidentally match a format with that whole name.
-- `localStorage.setItem` sites wrapped against `QuotaExceededError` — a full storage quota no longer breaks page init.
-- Thumbnail render queue serialised so concurrent callers no longer race on the shared canvas.
-- Archive-bomb rejection uses neutral sizing language ("exceeds the N MB safety cap") rather than accusatory phrasing.
-
-### Developer experience
-- Three copy-paste clusters extracted into shared helpers: `src/handlers/_archiveGuard.ts`, `src/handlers/_pdfErrors.ts`, and `safeLocalStorageSet` in `src/components/utils/`.
-- jsdom canvas `getContext` stub added to `test/setup.ts` — fixes the Confetti test and unblocks future canvas-touching tests.
-- Four new tests for the hard-cancel timer and cancel-then-reconvert state reset in `src/conversion/cancellation.dom.test.ts`.
-
-Structural-refactor + PDF-editor details follow.
+- `initConvertButton` cleanup wrapped in `try/finally` so the `isConverting` flag resets even if cancellation throws.
+- Hard-cancel safety-net: worker force-terminated if it does not acknowledge cancel within 2s.
+- LibreOffice subprocess kill uses `SIGKILL` on timeout; `init()` sweeps stale temp dirs from prior crashes.
+- pdfjs `pdf.destroy()` and `page.cleanup()` wrapped in `try/finally` across `pdftoimg`, `pdftotxt`, `pdfparse`.
+- Global `unhandledrejection` / `error` listeners surface a recovery popup so unexpected errors never leave the UI stuck.
 
 ### Added
-- **PDF Editor** (frogConvert-original, not present in the upstream [Convert to it!](https://github.com/p2r3/convert) project): a full in-browser workspace for merging multiple PDFs, reordering and rotating pages, inserting blank pages, and extracting page ranges. Toggle between **Converter** and **PDF Editor** modes from the top bar. Powered by `pdf-lib` (write) and `pdfjs-dist` (thumbnails). See [docs/PDF_EDITOR.md](docs/PDF_EDITOR.md).
-- **PDF editor over MCP**: new MCP tools `pdf_merge`, `pdf_organize`, `pdf_extract`. See [docs/INTEGRATIONS.md § MCP Tools Reference](docs/INTEGRATIONS.md#mcp-tools-reference).
-- **PDF editor over REST**: new endpoints `POST /pdf/merge`, `POST /pdf/organize`, `POST /pdf/extract`. See [docs/INTEGRATIONS.md § REST API Reference](docs/INTEGRATIONS.md#rest-api-reference).
-- **Toast component** (`src/components/Toast/`): dismissable, `aria-live` polite, info/warn/error variants. Used across the PDF workspace and upload flow.
-- Docs restructured to be MECE: new [docs/CONVERTER.md](docs/CONVERTER.md), [docs/HANDLERS.md](docs/HANDLERS.md), [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), and root-level [SECURITY.md](SECURITY.md). Each doc now owns one audience/purpose.
-- Root-level [AGENTS.md](AGENTS.md) consolidating the agent workflow rules that previously lived at the bottom of `docs/CONTRIBUTING.md`.
+- **PDF Editor:** merge multiple PDFs, reorder and rotate pages, insert blanks, and extract page ranges. Runs entirely in-browser via `pdf-lib` and `pdfjs-dist`. See [docs/PDF_EDITOR.md](docs/PDF_EDITOR.md).
+- **PDF editor over MCP:** `pdf_merge`, `pdf_organize`, `pdf_extract`. See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
+- **PDF editor over REST:** `POST /pdf/merge`, `POST /pdf/organize`, `POST /pdf/extract`.
+- **Toast component** (`src/components/Toast/`): dismissable, `aria-live` polite, info/warn/error variants.
+- **Upload UX overhaul.** Unsupported files rejected upfront via dynamic `accept`, drag-reject visual, and a drop-time toast. Legacy Office formats surface a "save as .DOCX" hint.
+- **Upload summary modal.** Lists added vs skipped files with per-file reason tags and an overall limit line.
 
 ### Changed
-- **Structural refactor.** Conversion-flow orchestration lifted out of `src/components/` into its own `src/conversion/` layer: `ConversionActions.ts` → `actions.ts`, `ConversionModal.ts` → `cancellation.ts`, `ConversionModal.css` → `conversion.css`; circular-via-barrel imports eliminated. `src/components/` now contains only UI components.
-- **UI constants extracted** into `src/constants/ui.ts` (MOBILE_BREAKPOINT, PARALLAX_*, DEFAULT_UPLOAD_TEXT, FILES_PER_PAGE, ABSOLUTE_MAX_FILES) — previously mixed into `store.ts`.
-- **Handlers loader simplified** (`src/handlers/index.ts`): `lazy()` + `pushSafe()` helpers collapse ~60 lines of near-identical boilerplate and give each handler a named failure log.
-- **Tests colocated** under `src/**/*.test.ts`; `/test/` now holds only e2e, fixtures, and shared mocks.
-- **`src/components/utils.ts` merged** into `src/components/utils/` folder alongside existing `ModalManager.ts`.
-- **`src/core/index.ts` barrel added** for FormatHandler, TraversionGraph, CommonFormats, utils.
-- Format count advertised as **70+** (was 50+) across UI, metadata, and marketing copy.
-- Social metadata (OpenGraph, Twitter cards, JSON-LD) now advertises the PDF editor alongside the converter.
-- [package.json](package.json) description updated to cover both converter and PDF editor.
-- [README.md](README.md) slimmed to a landing page; feature details moved into their dedicated docs.
-- [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) scoped to PR workflow, testing, style; handler authoring extracted to [docs/HANDLERS.md](docs/HANDLERS.md).
+- **Structural refactor.** Conversion orchestration moved from `src/components/` into `src/conversion/`; circular-via-barrel imports eliminated.
+- Format count updated to **70+** across UI, metadata, and marketing copy.
+- **TraversionGraph** node lookup switched from O(N) `findIndex` to O(1) `Map.get`.
+- Docs restructured into focused files: [CONVERTER.md](docs/CONVERTER.md), [HANDLERS.md](docs/HANDLERS.md), [DEPLOYMENT.md](docs/DEPLOYMENT.md), [SECURITY.md](SECURITY.md), [AGENTS.md](AGENTS.md).
 
-### Performance
-- **TraversionGraph**: node lookup by identifier switched from O(N) `findIndex` scans to O(1) `Map.get`. Meaningful speedup at graph-init time with 70+ handlers.
-
-### Fixed
-- PDF workspace hero: "How will you shape your PDFs today?" (plural).
-- Homepage meta description trimmed.
-
-### Polish
-- **Upload UX overhaul.** Unsupported files now rejected upfront via dynamic `accept` attribute, drag-reject visual, and a drop-time toast or summary modal (replaces the old post-upload dead-end popup). Legacy Office formats (.doc/.xls/.ppt) surface an actionable "save as .DOCX" hint.
-- **Upload summary modal.** New read-only list of added vs skipped files with per-file reason tags (Not supported / Too large / Page limit / File limit / Not a PDF) and an overall limit line (e.g. "Limit: 200 pages total."). Replaces three separate truncation toasts.
-- **Mismatch picker** disables unsupported type groups, sorts supported first, scrolls internally with a pinned footer, and shows a concrete "Save as .DOCX" hint for legacy Office formats.
-- **PDF workspace limits.** Lowered to 200 pages / 500 MB total; breaches truncate gracefully instead of hard-rejecting.
-- **Mobile PDF toolbar.** Rebuilt to a two-row layout (Extract · ⋮ / Export PDF full-width); kebab swaps to × when the tray is open; tray overlay now dims the hamburger menu with the same backdrop-blur as other modals.
-- **Mobile tray body-scroll lock** reuses `updateScrollLock()`.
-- **Organize selection.** Plain tap/click toggles (unified with mobile); shift-click extends range to cover the full current selection (no more fragmented blocks). New pointer-driven rAF autoscroll when dragging near viewport edges.
-- **Filenames.** Merge/organize outputs named `*_pdfs.pdf` for clarity in downloads folder.
-- **Dark-mode secondary buttons** now show a visible border (root cause: `--secondary` and `--border` resolved to the same token).
-- **Warn toast styling** updated to use warning-colored border/text/tint so it actually looks like a warning.
-- **Blank-page thumb** follows theme toggle via a scoped MutationObserver.
-- **Thumbnail long-press / right-click** blocked on both mobile and desktop so the browser's native image menu no longer interrupts drag.
-- **Frogsworth** gains 11 new PDF-editor quips.
+### UX
+- Password-protected PDFs show an actionable error instead of a generic failure popup.
+- Downloaded filenames sanitised against Windows reserved names, control characters, and length limits.
+- Batch warnings surfaced per-file rather than a single de-duplicated list.
+- MIME type preferred over filename extension when they disagree.
+- **Mobile PDF toolbar** rebuilt to a two-row layout; kebab toggles to close icon when tray is open.
+- **Organize selection** unified: tap/click toggles, shift-click extends range, rAF autoscroll at viewport edges.
+- Dark-mode secondary buttons now show a visible border.
+- Warn toast updated to use warning-colored border and tint.
+- Frogsworth gains 11 new PDF-editor quips.
 
 ## [1.0.x and earlier]
 
