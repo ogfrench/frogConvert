@@ -460,7 +460,7 @@ function showConversionNotFoundPopup(fromFormat: string, toFormat: string) {
     );
 }
 
-const REASSURANCE_LINE = "Feel free to switch tabs. This keeps running in the background.";
+const REASSURANCE_LINE = "Feel free to switch tabs. We'll convert in the background.";
 
 function mmss(totalSec: number): string {
     const m = Math.floor(totalSec / 60);
@@ -482,19 +482,23 @@ function startSlowConversionTimer(batchMsg: string): SlowTimerHandle {
     // visible tick reads ~00:10 — the user's felt wait, not "just started".
     const startedAt = Date.now();
     let tickTimer: ReturnType<typeof setInterval> | null = null;
+    let toggleTimer: ReturnType<typeof setInterval> | null = null;
     let latestDetail: string | undefined;
     let lastRenderedHTML: string | null = null;
+    let showElapsed = false;
 
     const render = () => {
         const elapsedSec = Math.max(0, (Date.now() - startedAt) / 1000);
-        const lines: string[] = [batchMsg];
-        lines.push(`<span class="muted-text">Working on it. ${mmss(elapsedSec)} elapsed.</span>`);
-        if (latestDetail) {
-            lines.push(`<span class="muted-text">${escapeHTML(latestDetail)}</span>`);
+        const lines: string[] = [];
+        if (showElapsed) {
+            lines.push(`<span class="muted-text">Working on it. ${mmss(elapsedSec)} elapsed.</span>`);
+            if (latestDetail) {
+                lines.push(`<span class="muted-text">${escapeHTML(latestDetail)}</span>`);
+            }
+        } else {
+            lines.push(batchMsg);
         }
-        if (elapsedSec >= 20) {
-            lines.push(`<span class="muted-text">${REASSURANCE_LINE}</span>`);
-        }
+        lines.push(`<span class="muted-text">${REASSURANCE_LINE}</span>`);
         const html = lines.join("<br>");
         if (html === lastRenderedHTML) return;
         lastRenderedHTML = html;
@@ -503,17 +507,25 @@ function startSlowConversionTimer(batchMsg: string): SlowTimerHandle {
 
     const slowTimer = setTimeout(() => {
         if (isCancelled) return;
+        showElapsed = true;
         render();
         tickTimer = setInterval(() => {
             if (isCancelled) { clearInterval(tickTimer!); tickTimer = null; return; }
             render();
         }, 1000);
+        toggleTimer = setInterval(() => {
+            if (isCancelled) { clearInterval(toggleTimer!); toggleTimer = null; return; }
+            showElapsed = !showElapsed;
+            lastRenderedHTML = null;
+            render();
+        }, 10000);
     }, 10000);
 
     return {
         cancel: () => {
             clearTimeout(slowTimer);
             if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+            if (toggleTimer) { clearInterval(toggleTimer); toggleTimer = null; }
         },
         update: (detail) => {
             latestDetail = detail;

@@ -5,3 +5,4 @@ dist
 release
 # cache.json (removed to allow pre-generated cache)
 .bridge-cache
+CLAUDE.md
