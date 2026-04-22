@@ -663,7 +663,6 @@ class FFmpegHandler implements FormatHandler {
       !!inputFormat.mime?.startsWith("audio/")
       && outMime.startsWith("video/")
       && outputFormat.format !== "gif"
-      && inputFiles.length === 1
       && !!placeholderCodec;
     const needsProbe = inputFiles.length === 1 && (
       inputFormat.mime?.startsWith("audio/")
@@ -1108,10 +1107,7 @@ class FFmpegHandler implements FormatHandler {
     const output: FileData = { bytes, name };
 
     if (isAudioToVideo) {
-      attachNotice(output, {
-        title: "Added a placeholder visual",
-        body: "MP4 (and similar video containers) need a video track. We added a black frame with an audio icon so the file uploads cleanly to YouTube and other platforms. Audio quality is unchanged.",
-      });
+      // Notification removed
     }
 
     if (gifWasTrimmed) {

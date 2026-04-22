@@ -492,7 +492,7 @@ function startSlowConversionTimer(batchMsg: string): SlowTimerHandle {
         const elapsedSec = Math.max(0, (Date.now() - startedAt) / 1000);
         const lines: string[] = [];
         if (showElapsed) {
-            lines.push(`<span class="muted-text">Working on it. ${mmss(elapsedSec)} elapsed.</span>`);
+            lines.push(`Working on it. ${mmss(elapsedSec)} elapsed.`);
             if (latestDetail) {
                 lines.push(`<span class="muted-text">${escapeHTML(latestDetail)}</span>`);
             }
