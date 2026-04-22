@@ -337,11 +337,11 @@ async function findConversionPath(
     if (!preserveDeadEnds) window.traversionGraph.clearDeadEndPaths();
 
     const warmingMsg = `Warming up the engines...<br><span class="conversion-path">finding the best ${modeCopy().routeLabel}</span>`;
-    showConversionInProgress(warmingMsg, _convertingTitle);
+    showConversionInProgress(warmingMsg, _convertingTitle, "idle");
 
     const searchListener = (state: string, _path: ConvertPathNode[]) => {
         if (state === "searching") {
-            showConversionInProgress(warmingMsg, _convertingTitle);
+            showConversionInProgress(warmingMsg, _convertingTitle, "idle");
         }
     };
 
@@ -364,6 +364,7 @@ async function findConversionPath(
                 showConversionInProgress(
                     `Downloading the ${label} ${modeCopy().toolLabel}...<br><span class="conversion-path">this happens once and may take a moment</span>`,
                     _convertingTitle,
+                    "idle",
                 );
             });
             if (isCancelled) return null;
@@ -603,7 +604,7 @@ export function initConvertButton() {
             await waitForPaint();
 
             const startupStartTime = performance.now();
-            showConversionInProgress(`Reading your ${fileCount > 1 ? "files" : "file"}...<br><span class="conversion-path">getting ready to ${verbSubText}</span>`, _convertingTitle);
+            showConversionInProgress(`Reading your ${fileCount > 1 ? "files" : "file"}...<br><span class="conversion-path">getting ready to ${verbSubText}</span>`, _convertingTitle, "idle");
             await waitForPaint();
 
             const inputFileData: FileData[] = [];

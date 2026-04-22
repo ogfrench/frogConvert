@@ -112,20 +112,29 @@ export async function completeCancellation(shouldHide = true) {
 // Safari's blur+contrast filter doesn't sharpen gooey edges cleanly - fall back to the plain spinner.
 const CONVERSION_SPINNER_CLASS = navigator.vendor === 'Apple Computer, Inc.' ? "loader-spinner" : "loader-gooey";
 
-export function showConversionInProgress(messageHTML: string, title: string = modeCopy().titleIng) {
+export type ProgressPhase = "idle" | "converting";
+
+export function showConversionInProgress(
+    messageHTML: string,
+    title: string = modeCopy().titleIng,
+    phase: ProgressPhase = "converting",
+) {
     // If cancellation is in progress, don't overwrite the popup
     if (cancelStartTime !== null) {
         return;
     }
 
+    // Idle phases (pathfinding, WASM download, file reading) get the plain
+    // rotating ring so users can tell we're not encoding yet.
+    const targetClass = phase === "idle" ? "loader-spinner" : CONVERSION_SPINNER_CLASS;
+
     const existingSpinner = ui.popupBox.classList.contains("open")
         ? ui.popupBox.querySelector(".loader-gooey, .loader-spinner")
         : null;
     if (existingSpinner) {
-        // Ensure we are using the right loader for conversions
-        if (!existingSpinner.classList.contains(CONVERSION_SPINNER_CLASS)) {
+        if (!existingSpinner.classList.contains(targetClass)) {
             existingSpinner.classList.remove("loader-gooey", "loader-spinner");
-            existingSpinner.classList.add(CONVERSION_SPINNER_CLASS);
+            existingSpinner.classList.add(targetClass);
         }
 
         const h2 = ui.popupBox.querySelector("h2");
@@ -146,7 +155,7 @@ export function showConversionInProgress(messageHTML: string, title: string = mo
         h2.textContent = title;
 
         const spinner = document.createElement("div");
-        spinner.className = CONVERSION_SPINNER_CLASS;
+        spinner.className = targetClass;
 
         const p = document.createElement("p");
         p.innerHTML = messageHTML;

@@ -2,10 +2,29 @@ import type { FileData, FileFormat, FormatHandler, ProgressEvent, QualityPreset 
 import { extractQualityPreset } from "../core/FormatHandler/FormatHandler.ts";
 import { planVideo, planGif, planAudio, planImage, type CompressionPlan } from "../core/compression/plan.ts";
 import { attachNotice, API_DOCS_ACTION, fmtDuration } from "../core/compression/notices.ts";
+import audioPlaceholderUrl from "../assets/audio-placeholder.png";
 
 // Internal flag sentinels: stripped from args before forwarding to FFmpeg.
 const NO_GIF_PALETTE = "--no-gif-palette";
 const NO_STREAM_COPY = "--no-stream-copy";
+
+// Output containers that accept a synthesized placeholder video track for
+// audio-only inputs. Mapped to the video codec used when we add the
+// placeholder stream so callers like MP3→MP4 produce a YouTube-uploadable
+// file instead of an audio-only MP4.
+const VIDEO_CODEC_FOR_CONTAINER: Record<string, string> = {
+  mp4: "libx264", mov: "libx264", mkv: "libx264", m4v: "libx264",
+  avi: "libx264", flv: "libx264", ts: "libx264", mts: "libx264",
+  webm: "libvpx-vp9",
+};
+
+let _audioPlaceholderBytes: Uint8Array | null = null;
+async function getAudioPlaceholder(): Promise<Uint8Array> {
+  if (_audioPlaceholderBytes) return _audioPlaceholderBytes;
+  const res = await fetch(audioPlaceholderUrl);
+  _audioPlaceholderBytes = new Uint8Array(await res.arrayBuffer());
+  return _audioPlaceholderBytes;
+}
 
 /**
  * Codecs that reject arbitrary sample rates. When the input rate isn't in
@@ -636,6 +655,16 @@ class FFmpegHandler implements FormatHandler {
     // here; no need to guard against it.
     const isVideoToGif =
       !!inputFormat.mime?.startsWith("video/") && outputFormat.format === "gif";
+    // Audio-only input → video container. MP4/MOV/etc. need a video stream
+    // or platforms like YouTube reject the file. We synthesize one from a
+    // bundled still image, held for the audio's duration via -shortest.
+    const placeholderCodec = VIDEO_CODEC_FOR_CONTAINER[outputFormat.format];
+    const isAudioToVideo =
+      !!inputFormat.mime?.startsWith("audio/")
+      && outMime.startsWith("video/")
+      && outputFormat.format !== "gif"
+      && inputFiles.length === 1
+      && !!placeholderCodec;
     const needsProbe = inputFiles.length === 1 && (
       inputFormat.mime?.startsWith("audio/")
       || (inputFormat.mime?.startsWith("video/") && (
@@ -745,6 +774,10 @@ class FFmpegHandler implements FormatHandler {
     // silently dumping 1800 files.
     let adaptedFps: number | null = null;
     const command = ["-hide_banner", "-f", "concat", "-safe", "0", "-i", "list.txt"];
+    if (isAudioToVideo) {
+      await this.#ffmpeg.writeFile("placeholder.png", await getAudioPlaceholder());
+      command.push("-loop", "1", "-framerate", "1", "-i", "placeholder.png");
+    }
     if (extractFrames) {
       command.push("-f", "image2");
       const userHasR = !!args?.includes("-r");
@@ -785,6 +818,9 @@ class FFmpegHandler implements FormatHandler {
 
     if (useStreamCopy) {
       command.push("-c", "copy");
+    } else if (isAudioToVideo) {
+      // Map + encode handled in the audio→video block below; the existing
+      // "video/mp4" branch would double-set -pix_fmt.
     } else if (outputFormat.mime === "video/mp4") {
       command.push("-pix_fmt", "yuv420p");
     } else if (outputFormat.internal === "dvd") {
@@ -841,6 +877,18 @@ class FFmpegHandler implements FormatHandler {
         if (args[i] === NO_GIF_PALETTE || args[i] === NO_STREAM_COPY) continue;
         command.push(args[i]);
       }
+    }
+    if (isAudioToVideo) {
+      command.push(
+        "-map", "0:a:0",
+        "-map", "1:v:0",
+        "-c:v", placeholderCodec,
+        ...(placeholderCodec === "libx264" ? ["-tune", "stillimage"] : []),
+        "-pix_fmt", "yuv420p",
+        "-c:a", outputFormat.format === "webm" ? "libopus" : "aac",
+        "-b:a", "192k",
+        "-shortest",
+      );
     }
     command.push(outputFileName);
 
@@ -1014,6 +1062,9 @@ class FFmpegHandler implements FormatHandler {
       }
 
       await this.#ffmpeg.deleteFile("list.txt");
+      if (isAudioToVideo) {
+        try { await this.#ffmpeg.deleteFile("placeholder.png"); } catch { /* ignore */ }
+      }
       // Only notice when we're actually sampling below real-time. Short
       // clips extracted at the 2 fps ceiling match user expectations.
       if (adaptedFps !== null && adaptedFps < 1 && results[0]) {
@@ -1048,10 +1099,20 @@ class FFmpegHandler implements FormatHandler {
 
     await this.#ffmpeg.deleteFile("output");
     await this.#ffmpeg.deleteFile("list.txt");
+    if (isAudioToVideo) {
+      try { await this.#ffmpeg.deleteFile("placeholder.png"); } catch { /* ignore */ }
+    }
 
     const name = baseName + "." + outputFormat.extension;
 
     const output: FileData = { bytes, name };
+
+    if (isAudioToVideo) {
+      attachNotice(output, {
+        title: "Added a placeholder visual",
+        body: "MP4 (and similar video containers) need a video track. We added a black frame with an audio icon so the file uploads cleanly to YouTube and other platforms. Audio quality is unchanged.",
+      });
+    }
 
     if (gifWasTrimmed) {
       attachNotice(output, {

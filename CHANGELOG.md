@@ -8,6 +8,16 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.1.1] - 2026-04-22
+
+Audio-to-video uploadability and phase-aware progress UI.
+
+### Fixed
+- **Audio → video produces a real video stream**: MP3 → MP4 (and MOV, MKV, M4V, AVI, FLV, TS, MTS, WebM) now embed a bundled placeholder frame so the output is accepted by YouTube and similar platforms. Previously the container held an audio track only.
+
+### Changed
+- **Phase-aware spinner**: The pathfinding, WASM handler download, and file-reading phases now show the plain rotating spinner. The gooey spinner stays for the actual encode/compress phase so the UI reflects what the app is really doing.
+
 ## [2.1.0] - 2026-04-18
 
 Adaptive compression and live conversion feedback.
