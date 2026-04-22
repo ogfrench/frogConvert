@@ -2,7 +2,6 @@ import type { FileData, FileFormat, FormatHandler, ProgressEvent, QualityPreset 
 import { extractQualityPreset } from "../core/FormatHandler/FormatHandler.ts";
 import { planVideo, planGif, planAudio, planImage, type CompressionPlan } from "../core/compression/plan.ts";
 import { attachNotice, API_DOCS_ACTION, fmtDuration } from "../core/compression/notices.ts";
-import audioPlaceholderUrl from "../assets/audio-placeholder.png";
 
 // Internal flag sentinels: stripped from args before forwarding to FFmpeg.
 const NO_GIF_PALETTE = "--no-gif-palette";
@@ -17,14 +16,6 @@ const VIDEO_CODEC_FOR_CONTAINER: Record<string, string> = {
   avi: "libx264", flv: "libx264", ts: "libx264", mts: "libx264",
   webm: "libvpx-vp9",
 };
-
-let _audioPlaceholderBytes: Uint8Array | null = null;
-async function getAudioPlaceholder(): Promise<Uint8Array> {
-  if (_audioPlaceholderBytes) return _audioPlaceholderBytes;
-  const res = await fetch(audioPlaceholderUrl);
-  _audioPlaceholderBytes = new Uint8Array(await res.arrayBuffer());
-  return _audioPlaceholderBytes;
-}
 
 /**
  * Codecs that reject arbitrary sample rates. When the input rate isn't in
@@ -54,9 +45,9 @@ const VIDEO_PRESETS: Record<QualityPreset, {
   gifCap: number;
   gif: { maxEdge: number | null; fps: number | null };
 }> = {
-  low:      { frameTarget: 120,  gifCap: 30,                        gif: { maxEdge: 480,  fps: 12 } },
-  medium:   { frameTarget: 300,  gifCap: 60,                        gif: { maxEdge: 720,  fps: 18 } },
-  high:     { frameTarget: 1000, gifCap: 180,                       gif: { maxEdge: 1080, fps: 24 } },
+  low: { frameTarget: 120, gifCap: 30, gif: { maxEdge: 480, fps: 12 } },
+  medium: { frameTarget: 300, gifCap: 60, gif: { maxEdge: 720, fps: 18 } },
+  high: { frameTarget: 1000, gifCap: 180, gif: { maxEdge: 1080, fps: 24 } },
   lossless: { frameTarget: Number.POSITIVE_INFINITY, gifCap: Number.POSITIVE_INFINITY, gif: { maxEdge: null, fps: null } },
 };
 
@@ -639,10 +630,10 @@ class FFmpegHandler implements FormatHandler {
       || args.includes("-vcodec") || args.includes("-acodec")
     ) : false;
     const REMUX_OK: Record<string, { v: string[]; a: string[] }> = {
-      mp4:  { v: ["h264","hevc","av1","mpeg4"], a: ["aac","mp3","ac3"] },
-      mkv:  { v: ["h264","hevc","av1","vp9","mpeg4"], a: ["aac","mp3","ac3","opus","flac","vorbis"] },
-      webm: { v: ["vp8","vp9","av1"],               a: ["opus","vorbis"] },
-      mov:  { v: ["h264","hevc","prores","mpeg4"],  a: ["aac","mp3","alac"] },
+      mp4: { v: ["h264", "hevc", "av1", "mpeg4"], a: ["aac", "mp3", "ac3"] },
+      mkv: { v: ["h264", "hevc", "av1", "vp9", "mpeg4"], a: ["aac", "mp3", "ac3", "opus", "flac", "vorbis"] },
+      webm: { v: ["vp8", "vp9", "av1"], a: ["opus", "vorbis"] },
+      mov: { v: ["h264", "hevc", "prores", "mpeg4"], a: ["aac", "mp3", "alac"] },
     };
     const preset = extractQualityPreset(args) ?? "medium";
 
@@ -774,8 +765,7 @@ class FFmpegHandler implements FormatHandler {
     let adaptedFps: number | null = null;
     const command = ["-hide_banner", "-f", "concat", "-safe", "0", "-i", "list.txt"];
     if (isAudioToVideo) {
-      await this.#ffmpeg.writeFile("placeholder.png", await getAudioPlaceholder());
-      command.push("-loop", "1", "-framerate", "1", "-i", "placeholder.png");
+      command.push("-f", "lavfi", "-i", "color=c=black:s=1280x720:r=1");
     }
     if (extractFrames) {
       command.push("-f", "image2");
@@ -879,8 +869,8 @@ class FFmpegHandler implements FormatHandler {
     }
     if (isAudioToVideo) {
       command.push(
-        "-map", "0:a:0",
         "-map", "1:v:0",
+        "-map", "0:a:0",
         "-c:v", placeholderCodec,
         ...(placeholderCodec === "libx264" ? ["-tune", "stillimage"] : []),
         "-pix_fmt", "yuv420p",
@@ -1061,9 +1051,6 @@ class FFmpegHandler implements FormatHandler {
       }
 
       await this.#ffmpeg.deleteFile("list.txt");
-      if (isAudioToVideo) {
-        try { await this.#ffmpeg.deleteFile("placeholder.png"); } catch { /* ignore */ }
-      }
       // Only notice when we're actually sampling below real-time. Short
       // clips extracted at the 2 fps ceiling match user expectations.
       if (adaptedFps !== null && adaptedFps < 1 && results[0]) {
@@ -1098,17 +1085,10 @@ class FFmpegHandler implements FormatHandler {
 
     await this.#ffmpeg.deleteFile("output");
     await this.#ffmpeg.deleteFile("list.txt");
-    if (isAudioToVideo) {
-      try { await this.#ffmpeg.deleteFile("placeholder.png"); } catch { /* ignore */ }
-    }
 
     const name = baseName + "." + outputFormat.extension;
 
     const output: FileData = { bytes, name };
-
-    if (isAudioToVideo) {
-      // Notification removed
-    }
 
     if (gifWasTrimmed) {
       attachNotice(output, {

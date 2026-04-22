@@ -808,7 +808,8 @@ export function initConvertButton() {
                 if (isCancelled) break;
                 const fileNum = i + 1 + (fileCount - inputFileData.length);
                 setCurrentFileProgress(fileNum, fileCount);
-                const batchMsg = `Converting file ${fileNum} of ${fileCount}...`;
+                const pathStr = conversionPath.map(n => n.format.format).join(" \u2192 ");
+                const batchMsg = `Converting file ${fileNum} of ${fileCount} (${pathStr})...`;
 
                 const slowHandle = startSlowConversionTimer(batchMsg);
 
