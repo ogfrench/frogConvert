@@ -177,8 +177,8 @@ describe("cancellation DOM bindings", () => {
             expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Cancelling conversion");
             const pHtml = ui.popupBox.querySelector("p")?.innerHTML ?? "";
             expect(pHtml).toContain("Finishing file 2 of 3, then stopping.");
-            expect(pHtml).toContain("This step can't be interrupted mid-file.");
-            expect(pHtml).toContain("Refresh the page if you need to stop right now.");
+            expect(pHtml).toContain("this step can't be interrupted mid-file -");
+            expect(pHtml).toContain("refresh the page if you need to stop right now.");
             expect(ui.popupBox.querySelector("#cancel-conversion-btn")).toBeNull();
             resetCancellation();
         });

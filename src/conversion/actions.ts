@@ -456,7 +456,7 @@ function showConversionNotFoundPopup(fromFormat: string, toFormat: string) {
     );
 }
 
-const REASSURANCE_LINE = "Feel free to switch tabs";
+const REASSURANCE_LINE = "feel free to switch tabs";
 
 function mmss(totalSec: number): string {
     const m = Math.floor(totalSec / 60);
@@ -660,7 +660,7 @@ export function initConvertButton() {
                             main: totalSame > 1
                                 ? `Compressing file ${i + 1} of ${totalSame}...`
                                 : `Compressing your file...`,
-                            subtitle: `${inputFormat.format.toUpperCase()} compression`,
+                            subtitle: `${inputFormat.format.toLowerCase()} compression`,
                         });
 
                         // Lossless inputs stay on their preset; re-encoding would lose information.

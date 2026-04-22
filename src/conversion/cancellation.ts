@@ -250,7 +250,7 @@ export function triggerCancellation() {
             : "the current file";
         showConversionInProgress(
             `Finishing ${fileRef}, then stopping.<br>` +
-            `<span class="conversion-path">This step can't be interrupted mid-file. Refresh the page if you need to stop right now.</span>`,
+            `<span class="conversion-path">this step can't be interrupted mid-file - refresh the page if you need to stop right now.</span>`,
             modeCopy().cancellingTitle,
         );
         // Remove the cancel button so it doesn't sit there as a dead control
