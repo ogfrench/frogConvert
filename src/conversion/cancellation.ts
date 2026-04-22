@@ -114,6 +114,9 @@ const CONVERSION_SPINNER_CLASS = navigator.vendor === 'Apple Computer, Inc.' ? "
 
 export type ProgressPhase = "idle" | "converting";
 
+let lastShownTitle: string | null = null;
+let lastShownMessage: string | null = null;
+
 export function showConversionInProgress(
     messageHTML: string,
     title: string = modeCopy().titleIng,
@@ -137,12 +140,21 @@ export function showConversionInProgress(
             existingSpinner.classList.add(targetClass);
         }
 
-        const h2 = ui.popupBox.querySelector("h2");
-        if (h2) h2.textContent = title;
+        // Hot path: pathfinding fires every "searching" tick with constant
+        // content. Skip DOM writes when nothing changed so we don't reparse
+        // the message subtree on every event.
+        if (title !== lastShownTitle) {
+            const h2 = ui.popupBox.querySelector("h2");
+            if (h2) h2.textContent = title;
+            lastShownTitle = title;
+        }
 
         const p = existingSpinner.nextElementSibling as HTMLElement;
         if (p && p.tagName === "P") {
-            p.innerHTML = messageHTML;
+            if (messageHTML !== lastShownMessage) {
+                p.innerHTML = messageHTML;
+                lastShownMessage = messageHTML;
+            }
             // If the status paragraph was muted (from cancellation popup), make it normal
             if (p.classList.contains("muted-text")) {
                 p.classList.remove("muted-text");
@@ -161,6 +173,8 @@ export function showConversionInProgress(
         p.innerHTML = messageHTML;
 
         showPopup([h2, spinner, p], true);
+        lastShownTitle = title;
+        lastShownMessage = messageHTML;
     }
 }
 

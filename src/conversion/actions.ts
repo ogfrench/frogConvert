@@ -71,6 +71,10 @@ function pathSupportsHardCancel(path: ConvertPathNode[]): boolean {
     return path.every(node => !node.handler?.requiresMainThread);
 }
 
+function formatConversionPath(path: ConvertPathNode[]): string {
+    return path.map(n => n.format.format).join(" → ");
+}
+
 // Tracks the last runtime error from a handler (distinct from "no path exists")
 let _lastConversionError: string | null = null;
 
@@ -337,12 +341,11 @@ async function findConversionPath(
     if (!preserveDeadEnds) window.traversionGraph.clearDeadEndPaths();
 
     const warmingMsg = `Warming up the engines...<br><span class="conversion-path">finding the best ${modeCopy().routeLabel}</span>`;
-    showConversionInProgress(warmingMsg, _convertingTitle, "idle");
+    const showWarming = () => showConversionInProgress(warmingMsg, _convertingTitle, "idle");
+    showWarming();
 
     const searchListener = (state: string, _path: ConvertPathNode[]) => {
-        if (state === "searching") {
-            showConversionInProgress(warmingMsg, _convertingTitle, "idle");
-        }
+        if (state === "searching") showWarming();
     };
 
     window.traversionGraph.addPathEventListener(searchListener);
@@ -377,17 +380,9 @@ async function findConversionPath(
     }
 }
 
-async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], batchMsg?: string, onProgress?: (p: ProgressEvent) => void) {
-    const pathString = path.map(c => c.format.format).join(" \u2192 ");
-
+async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], onProgress?: (p: ProgressEvent) => void) {
     _lastConversionError = null;
     ensureCancelButton();
-
-    // Show status + path immediately - path is already validated by findConversionPath
-    const messageHTML = batchMsg
-        ? `${batchMsg}<br><span class="muted-text">${pathString}</span>`
-        : `<span class="conversion-path">${pathString}</span>`;
-    showConversionInProgress(messageHTML, _convertingTitle);
 
     for (let i = 0; i < path.length - 1; i++) {
         if (isCancelled) return null;
@@ -461,7 +456,7 @@ function showConversionNotFoundPopup(fromFormat: string, toFormat: string) {
     );
 }
 
-const REASSURANCE_LINE = "Feel free to switch tabs. We'll convert in the background.";
+const REASSURANCE_LINE = "Feel free to switch tabs";
 
 function mmss(totalSec: number): string {
     const m = Math.floor(totalSec / 60);
@@ -470,43 +465,38 @@ function mmss(totalSec: number): string {
 }
 
 /**
- * After 10s the startup copy is replaced by a live notice (elapsed, optional
- * handler detail, a reassurance line once elapsed >= 20s). `update(detail)` is
- * how handlers feed the middle line; `cancel()` tears down both timers.
+ * Owns the conversion modal for the duration of one file's work. Three slots:
+ * main line (stable), muted format/path subtitle, muted live-status line (shows
+ * reassurance text, or latest handler detail when one was reported, with a
+ * ` · MM:SS` elapsed suffix once the timer has been running ≥10s).
  */
-type SlowTimerHandle = {
+type StatusHandle = {
     cancel: () => void;
     update: (detail: string) => void;
 };
-function startSlowConversionTimer(batchMsg: string): SlowTimerHandle {
-    // Anchor elapsed to the call site, not the 10s kickoff, so the first
-    // visible tick reads ~00:10 — the user's felt wait, not "just started".
+function startConversionStatus({ main, subtitle }: { main: string; subtitle: string }): StatusHandle {
     const startedAt = Date.now();
     let tickTimer: ReturnType<typeof setInterval> | null = null;
-    let toggleTimer: ReturnType<typeof setInterval> | null = null;
     let latestDetail: string | undefined;
-    let lastRenderedHTML: string | null = null;
+    let lastHTML: string | null = null;
     let showElapsed = false;
 
     const render = () => {
-        const elapsedSec = Math.max(0, (Date.now() - startedAt) / 1000);
-        const lines: string[] = [];
-        if (showElapsed) {
-            lines.push(`Working on it. ${mmss(elapsedSec)} elapsed.`);
-            if (latestDetail) {
-                lines.push(`<span class="muted-text">${escapeHTML(latestDetail)}</span>`);
-            }
-        } else {
-            lines.push(batchMsg);
-        }
-        lines.push(`<span class="muted-text">${REASSURANCE_LINE}</span>`);
-        const html = lines.join("<br>");
-        if (html === lastRenderedHTML) return;
-        lastRenderedHTML = html;
+        const leading = latestDetail ? escapeHTML(latestDetail) : REASSURANCE_LINE;
+        const suffix = showElapsed ? ` · ${mmss((Date.now() - startedAt) / 1000)}` : "";
+        const html = [
+            main,
+            `<span class="muted-text">${escapeHTML(subtitle)}</span>`,
+            `<span class="muted-text">${leading}${suffix}</span>`,
+        ].join("<br>");
+        if (html === lastHTML) return;
+        lastHTML = html;
         showConversionInProgress(html, _convertingTitle);
     };
 
-    const slowTimer = setTimeout(() => {
+    render(); // initial paint — callers no longer paint the modal themselves
+
+    const slowKick = setTimeout(() => {
         if (isCancelled) return;
         showElapsed = true;
         render();
@@ -514,23 +504,17 @@ function startSlowConversionTimer(batchMsg: string): SlowTimerHandle {
             if (isCancelled) { clearInterval(tickTimer!); tickTimer = null; return; }
             render();
         }, 1000);
-        toggleTimer = setInterval(() => {
-            if (isCancelled) { clearInterval(toggleTimer!); toggleTimer = null; return; }
-            showElapsed = !showElapsed;
-            lastRenderedHTML = null;
-            render();
-        }, 10000);
     }, 10000);
 
     return {
         cancel: () => {
-            clearTimeout(slowTimer);
+            clearTimeout(slowKick);
             if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
-            if (toggleTimer) { clearInterval(toggleTimer); toggleTimer = null; }
         },
         update: (detail) => {
             latestDetail = detail;
             updateCancelProgress(detail);
+            render();
         },
     };
 }
@@ -631,9 +615,9 @@ export function initConvertButton() {
 
             // slowHandle.update fans out to both the in-progress notice and
             // (when cancel is active) the cancel popup sub-line.
-            const makeProgressSink = (slowHandle: SlowTimerHandle) => (p: ProgressEvent) => {
+            const makeProgressSink = (status: StatusHandle) => (p: ProgressEvent) => {
                 if (typeof p.detail === "string") {
-                    slowHandle.update(p.detail);
+                    status.update(p.detail);
                 }
             };
 
@@ -672,14 +656,12 @@ export function initConvertButton() {
                         if (isCancelled) break;
                         const file = sameFormatRaw[i];
                         setCurrentFileProgress(i + 1, fileCount);
-                        const progressMsg = totalSame > 1
-                            ? `Compressing file ${i + 1} of ${totalSame}...`
-                            : `Compressing your file...`;
-                        const slowHandle = startSlowConversionTimer(progressMsg);
-                        showConversionInProgress(
-                            `${progressMsg}<br><span class="muted-text">${escapeHTML(inputFormat.format.toUpperCase())} compression</span>`,
-                            _convertingTitle,
-                        );
+                        const status = startConversionStatus({
+                            main: totalSame > 1
+                                ? `Compressing file ${i + 1} of ${totalSame}...`
+                                : `Compressing your file...`,
+                            subtitle: `${inputFormat.format.toUpperCase()} compression`,
+                        });
 
                         // Lossless inputs stay on their preset; re-encoding would lose information.
                         let perFileArgs = args;
@@ -695,7 +677,7 @@ export function initConvertButton() {
                         }
 
                         if (alreadyMinimal) {
-                            slowHandle.cancel();
+                            status.cancel();
                             allOutputFiles.push({
                                 name: file.name,
                                 bytes: file.bytes,
@@ -711,8 +693,8 @@ export function initConvertButton() {
                         let compressed: FileData | null = null;
                         try {
                             const result = handler.requiresMainThread
-                                ? await handler.doConvert([file], handlerInputFmt, handlerOutputFmt, perFileArgs, makeProgressSink(slowHandle))
-                                : await runInWorker(handler.name, [file], handlerInputFmt, handlerOutputFmt, perFileArgs, makeProgressSink(slowHandle));
+                                ? await handler.doConvert([file], handlerInputFmt, handlerOutputFmt, perFileArgs, makeProgressSink(status))
+                                : await runInWorker(handler.name, [file], handlerInputFmt, handlerOutputFmt, perFileArgs, makeProgressSink(status));
                             if (result && result.length && result[0].bytes.byteLength > 0) {
                                 compressed = result[0];
                             }
@@ -721,7 +703,7 @@ export function initConvertButton() {
                             // as a real failure.
                             if (!isCancelled) console.error(handler.name, "same-format compression threw", e);
                         }
-                        slowHandle.cancel();
+                        status.cancel();
 
                         // Cancelled mid-file with no output: drop it. Don't fall through to
                         // pushing the original bytes as if the file had been processed —
@@ -808,19 +790,17 @@ export function initConvertButton() {
                 if (isCancelled) break;
                 const fileNum = i + 1 + (fileCount - inputFileData.length);
                 setCurrentFileProgress(fileNum, fileCount);
-                const pathStr = conversionPath.map(n => n.format.format).join(" \u2192 ");
-                const batchMsg = `Converting file ${fileNum} of ${fileCount} (${pathStr})...`;
+                const main = `Converting file ${fileNum} of ${fileCount}...`;
 
-                const slowHandle = startSlowConversionTimer(batchMsg);
+                const status = startConversionStatus({ main, subtitle: formatConversionPath(conversionPath) });
 
                 let result = await attemptConvertPath(
                     [inputFileData[i]],
                     conversionPath,
-                    batchMsg,
-                    makeProgressSink(slowHandle),
+                    makeProgressSink(status),
                 );
 
-                slowHandle.cancel();
+                status.cancel();
 
                 if (!result) {
                     if (isCancelled) break;
@@ -844,16 +824,15 @@ export function initConvertButton() {
                         return;
                     }
                     setCanHardCancel(pathSupportsHardCancel(conversionPath));
-                    const retrySlowHandle = startSlowConversionTimer(batchMsg);
+                    const retryStatus = startConversionStatus({ main, subtitle: formatConversionPath(conversionPath) });
 
                     result = await attemptConvertPath(
                         [inputFileData[i]],
                         conversionPath,
-                        batchMsg,
-                        makeProgressSink(retrySlowHandle),
+                        makeProgressSink(retryStatus),
                     );
 
-                    retrySlowHandle.cancel();
+                    retryStatus.cancel();
 
                     if (!result) {
                         if (isCancelled) break;

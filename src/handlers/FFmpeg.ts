@@ -653,7 +653,6 @@ class FFmpegHandler implements FormatHandler {
     const isAudioToVideo =
       !!inputFormat.mime?.startsWith("audio/")
       && outMime.startsWith("video/")
-      && outputFormat.format !== "gif"
       && !!placeholderCodec;
     const needsProbe = inputFiles.length === 1 && (
       inputFormat.mime?.startsWith("audio/")
@@ -807,10 +806,7 @@ class FFmpegHandler implements FormatHandler {
 
     if (useStreamCopy) {
       command.push("-c", "copy");
-    } else if (isAudioToVideo) {
-      // Map + encode handled in the audio→video block below; the existing
-      // "video/mp4" branch would double-set -pix_fmt.
-    } else if (outputFormat.mime === "video/mp4") {
+    } else if (outputFormat.mime === "video/mp4" && !isAudioToVideo) {
       command.push("-pix_fmt", "yuv420p");
     } else if (outputFormat.internal === "dvd") {
       command.push("-vf", "setsar=1", "-target", "ntsc-dvd", "-pix_fmt", "rgb24");
