@@ -196,6 +196,29 @@ class libreofficeHandler implements FormatHandler {
         from: true, to: false, internal: "ods",
         category: ["spreadsheet", "document"], lossless: false
       },
+      // Plain-text and markup inputs that soffice reads natively.
+      // Useful as fallback PDF routes when Pandoc's office-format writers
+      // are not the cheapest option (e.g. md -> html -> pdf alongside
+      // md -> docx -> pdf).
+      CommonFormats.HTML.builder("html").allowFrom(),
+      {
+        name: "Rich Text Format",
+        format: "rtf",
+        extension: "rtf",
+        mime: "application/rtf",
+        from: true, to: false, internal: "rtf",
+        category: "document", lossless: false
+      },
+      CommonFormats.TEXT.builder("text").allowFrom(),
+      CommonFormats.CSV.builder("csv").allowFrom(),
+      {
+        name: "EPUB",
+        format: "epub",
+        extension: "epub",
+        mime: "application/epub+zip",
+        from: true, to: false, internal: "epub",
+        category: "document", lossless: false
+      },
       // Output
       CommonFormats.PDF.builder("pdf").allowTo()
     ];
