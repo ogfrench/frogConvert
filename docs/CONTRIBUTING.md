@@ -14,6 +14,19 @@ For **authoring a new format handler**, see [HANDLERS.md](HANDLERS.md). For **sy
 
 ---
 
+## Reporting bugs and giving feedback
+
+Found a bug, want a new format added, or have feedback on the converter or PDF editor? Email **francois.prevot@frog.co**. Include:
+
+- The input file format (and output format, for conversion bugs).
+- The browser and OS you're on.
+- A short description of what you expected vs. what happened.
+- If possible, a sample file that reproduces the issue (do not send anything sensitive — frogConvert is fully client-side, but email isn't).
+
+Same address handles security reports — see [../SECURITY.md](../SECURITY.md) for the disclosure policy.
+
+---
+
 ## 1. Directory structure
 
 The codebase is a vanilla TypeScript Vite project. Detailed responsibilities are in [ARCHITECTURE.md](ARCHITECTURE.md).

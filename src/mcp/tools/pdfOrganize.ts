@@ -3,7 +3,8 @@ import { z } from "zod";
 import { writeFile } from "fs/promises";
 import { organize } from "../../tools/pdfOrganize.ts";
 import type { CorePageEntry } from "../../tools/types.ts";
-import { buildSourceFiles } from "../core/fileInput.ts";
+import { buildSourceFiles, ValidationError } from "../core/fileInput.ts";
+import { toUserErrorText, appendSupportContact, FEEDBACK_CONTACT_TEXT } from "../../components/utils/index.ts";
 
 const inputSchema = z.object({
     filePath: z.string().optional(),
@@ -35,7 +36,7 @@ export function registerPdfOrganizeTool(server: McpServer) {
                 const manifest: CorePageEntry[] = pages.map((p, idx) => {
                     const isBlank = p.blank || p.sourceIndex === -1;
                     if (!isBlank && (p.sourceIndex < 0 || p.sourceIndex >= inputs.length)) {
-                        throw new Error(`pages[${idx}].sourceIndex ${p.sourceIndex} out of range (inputs.length=${inputs.length})`);
+                        throw new ValidationError(`pages[${idx}].sourceIndex ${p.sourceIndex} out of range (inputs.length=${inputs.length})`);
                     }
                     return {
                         type: isBlank ? "blank" : "source",
@@ -63,8 +64,15 @@ export function registerPdfOrganizeTool(server: McpServer) {
                     }],
                 };
             } catch (err: any) {
+                if (err instanceof ValidationError) {
+                    return {
+                        content: [{ type: "text", text: `Error: ${err.message}` }],
+                        isError: true,
+                    };
+                }
+                const msg = toUserErrorText(err) || (err instanceof Error ? err.message : String(err));
                 return {
-                    content: [{ type: "text", text: `Error: ${err?.message ?? err}` }],
+                    content: [{ type: "text", text: appendSupportContact(`Error: ${msg}`, FEEDBACK_CONTACT_TEXT) }],
                     isError: true,
                 };
             }

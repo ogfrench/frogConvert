@@ -2,6 +2,7 @@ import type { FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 import type { TraversionGraph } from "../../core/TraversionGraph/TraversionGraph.ts";
 import { findFormatAndHandler } from "../../mcp/core/utils.ts";
 import { canConvertViaBrowser } from "../../mcp/core/browserBridge.ts";
+import { appendSupportContact, CONVERSION_NOT_AVAILABLE_TEXT } from "../../components/utils/index.ts";
 
 export async function handlePath(url: URL, handlers: FormatHandler[], graph: TraversionGraph): Promise<Response> {
     const inputMime = url.searchParams.get("inputMime");
@@ -19,11 +20,8 @@ export async function handlePath(url: URL, handlers: FormatHandler[], graph: Tra
     const inputMatch = findFormatAndHandler(handlers, inputMime, inputExt, 'from');
     const outputMatch = findFormatAndHandler(handlers, outputMime, outputExt, 'to');
 
-    if (!inputMatch) {
-        return Response.json({ error: `Input format ${inputMime} (${inputExt}) not found or not readable` }, { status: 404 });
-    }
-    if (!outputMatch) {
-        return Response.json({ error: `Output format ${outputMime} (${outputExt}) not found or not writable` }, { status: 404 });
+    if (!inputMatch || !outputMatch) {
+        return Response.json({ error: appendSupportContact(CONVERSION_NOT_AVAILABLE_TEXT) }, { status: 404 });
     }
 
     const pathsGenerator = graph.searchPath(
@@ -41,7 +39,7 @@ export async function handlePath(url: URL, handlers: FormatHandler[], graph: Tra
                 message: "No native path found. Conversion is available via the browser bridge."
             });
         }
-        return Response.json({ error: `No conversion path found between ${inputMime} and ${outputMime}` }, { status: 404 });
+        return Response.json({ error: appendSupportContact(CONVERSION_NOT_AVAILABLE_TEXT) }, { status: 404 });
     }
 
     const path = pathResult.value.map((p: any) => ({

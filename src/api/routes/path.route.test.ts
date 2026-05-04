@@ -79,7 +79,8 @@ describe('handlePath', () => {
         const res = await handlePath(makeUrl(defaultParams), [handler], makeGraph(null));
         expect(res.status).toBe(404);
         const body = await res.json();
-        expect(body.error).toMatch(/No conversion path/);
+        expect(body.error).toContain("This conversion isn't available yet.");
+        expect(body.error).toContain("francois.prevot@frog.co");
     });
 
     it('returns 404 when bridge check throws', async () => {
@@ -95,7 +96,8 @@ describe('handlePath', () => {
         const res = await handlePath(makeUrl(defaultParams), [], makeGraph(null));
         expect(res.status).toBe(404);
         const body = await res.json();
-        expect(body.error).toMatch(/Input format/);
+        expect(body.error).toContain("This conversion isn't available yet.");
+        expect(body.error).toContain("francois.prevot@frog.co");
         expect(canConvertViaBrowser).not.toHaveBeenCalled();
     });
 
@@ -104,7 +106,8 @@ describe('handlePath', () => {
         const res = await handlePath(makeUrl(defaultParams), [inputHandler], makeGraph(null));
         expect(res.status).toBe(404);
         const body = await res.json();
-        expect(body.error).toMatch(/Output format/);
+        expect(body.error).toContain("This conversion isn't available yet.");
+        expect(body.error).toContain("francois.prevot@frog.co");
         expect(canConvertViaBrowser).not.toHaveBeenCalled();
     });
 

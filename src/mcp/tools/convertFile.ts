@@ -9,6 +9,7 @@ import { findFormatAndHandler, libreofficeHint } from "../core/utils.ts";
 import { convertViaBrowser } from "../core/browserBridge.ts";
 import { resolveBytes } from "../core/fileInput.ts";
 import { resolveEffectiveQuality } from "../../core/compression/resolveEffectiveQuality.ts";
+import { appendSupportContact, toUserErrorInfo } from "../../components/utils/index.ts";
 
 async function serializeResults(files: FileData[], outputFilePath?: string) {
     // Collect warnings from all files (deduped).
@@ -74,6 +75,7 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
 
             const inputMatch = findFormatAndHandler(handlers, inputMime, inputExtension, 'from');
             const outputMatch = findFormatAndHandler(handlers, outputMime, outputExtension, 'to');
+            let nativeFailure: unknown = null;
 
             const resolved = await resolveEffectiveQuality(quality, bytes, inputMime, outputMime);
             if (resolved === null) {
@@ -105,6 +107,7 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
 
                         return await serializeResults(currentFiles, outputFilePath);
                     } catch (nativeErr: any) {
+                        nativeFailure = nativeErr;
                         // Native execution failed — log for diagnostics and fall through to browser bridge
                         process.stderr.write(`[mcp] Native conversion failed, trying browser bridge: ${nativeErr?.message ?? nativeErr}\n`);
                     }
@@ -129,11 +132,15 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
                 }
                 return { content: [{ type: "text", text: JSON.stringify(bridgeResults) }] };
             } catch (bridgeErr: any) {
-                let msg = `Error: ${bridgeErr?.message ?? `No conversion path found between ${inputMime} and ${outputMime}`}`;
-                const hint = libreofficeHint(allHandlers, inputExtension, outputExtension);
+                const bridgeInfo = toUserErrorInfo(bridgeErr);
+                const nativeInfo = nativeFailure ? toUserErrorInfo(nativeFailure) : null;
+                let msg = nativeInfo?.kind === "unknown" || nativeInfo?.kind === "runtime_failure"
+                    ? "Something went wrong while converting this file."
+                    : bridgeInfo.message || "Something went wrong while converting this file.";
+                const hint = allHandlers && libreofficeHint(allHandlers, inputExtension, outputExtension);
                 if (hint) msg += `\n${hint}`;
                 return {
-                    content: [{ type: "text", text: msg }],
+                    content: [{ type: "text", text: `Error: ${appendSupportContact(msg)}` }],
                     isError: true
                 };
             }

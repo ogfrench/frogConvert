@@ -180,7 +180,7 @@ export function updateConvertButtonState(selectedFromIndex: number | null, selec
   ui.convertButton.classList.toggle("compress-mode", showCompress);
 
   if (showCompress) {
-    hint.textContent = `${formatLabel} \u2192 ${formatLabel}? We'll compress it, not convert it. Available for select formats.`;
+    hint.textContent = `${formatLabel} \u2192 ${formatLabel}? This will compress it, not convert it. Available for select formats.`;
     hint.hidden = false;
   } else {
     hint.hidden = true;
@@ -352,14 +352,14 @@ export function renderFormatOptions(
   if (reachable && !anyAvailable && unavailableByCat.size > 0) {
     const empty = document.createElement("div");
     empty.className = "format-empty-state";
-    empty.textContent = `No conversion paths from ${sourceExt ? sourceExt.toUpperCase() : "this file"}. Try a different source file.`;
+    empty.textContent = `Conversions from ${sourceExt ? sourceExt.toUpperCase() : "this file"} aren't available yet. Try a different source file.`;
     ui.formatOptions.appendChild(empty);
   }
 
   if (unavailableByCat.size > 0) {
     const divider = document.createElement("div");
     divider.className = "format-group-header format-unavailable-header";
-    divider.textContent = `No available conversion path from ${sourceExt ? sourceExt.toUpperCase() : "this file"}`;
+    divider.textContent = `Not available from ${sourceExt ? sourceExt.toUpperCase() : "this file"}`;
     ui.formatOptions.appendChild(divider);
     for (const cat of categoryOrder) {
       const items = unavailableByCat.get(cat);

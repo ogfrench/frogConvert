@@ -2,7 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { writeFile } from "fs/promises";
 import { merge } from "../../tools/pdfMerge.ts";
-import { buildSourceFiles } from "../core/fileInput.ts";
+import { buildSourceFiles, ValidationError } from "../core/fileInput.ts";
+import { toUserErrorText, appendSupportContact, FEEDBACK_CONTACT_TEXT } from "../../components/utils/index.ts";
 
 const inputSchema = z.object({
     filePath: z.string().optional(),
@@ -38,8 +39,15 @@ export function registerPdfMergeTool(server: McpServer) {
                     }],
                 };
             } catch (err: any) {
+                if (err instanceof ValidationError) {
+                    return {
+                        content: [{ type: "text", text: `Error: ${err.message}` }],
+                        isError: true,
+                    };
+                }
+                const msg = toUserErrorText(err) || (err instanceof Error ? err.message : String(err));
                 return {
-                    content: [{ type: "text", text: `Error: ${err?.message ?? err}` }],
+                    content: [{ type: "text", text: appendSupportContact(`Error: ${msg}`, FEEDBACK_CONTACT_TEXT) }],
                     isError: true,
                 };
             }

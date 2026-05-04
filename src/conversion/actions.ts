@@ -39,7 +39,14 @@ import {
     updateCancelProgress,
 } from "./cancellation.ts";
 import { createDancingFrog } from "../components/Frogsworth/DancingFrog.ts";
-import { shortenFileName, ensureMinDuration, toUserErrorText, formatBytes } from "../components/utils/index.ts";
+import {
+    shortenFileName,
+    ensureMinDuration,
+    toUserErrorInfo,
+    SUPPORT_CONTACT_TEXT,
+    formatBytes,
+    type UserErrorInfo,
+} from "../components/utils/index.ts";
 import { probeInputQuality } from "../core/compression/inputQuality.ts";
 import { tierDown } from "../core/compression/tierDown.ts";
 
@@ -76,7 +83,7 @@ function formatConversionPath(path: ConvertPathNode[]): string {
 }
 
 // Tracks the last runtime error from a handler (distinct from "no path exists")
-let _lastConversionError: string | null = null;
+let _lastConversionError: UserErrorInfo | null = null;
 
 /** Called once after a conversion completes, then cleared. Used to defer work that is unsafe to run mid-conversion. */
 let onConversionEnd: (() => void) | null = null;
@@ -437,7 +444,7 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
             if (isCancelled) return null;
             console.error(handler.name, `${path[i].format.format} \u2192 ${path[i + 1].format.format}`, e);
 
-            _lastConversionError = toUserErrorText(e);
+            _lastConversionError = toUserErrorInfo(e);
             const deadEndPath = path.slice(0, i + 2);
             window.traversionGraph.addDeadEndPath(deadEndPath);
 
@@ -450,9 +457,10 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
 }
 
 function showConversionNotFoundPopup(fromFormat: string, toFormat: string) {
+    const contact = `<span class="muted-text error-detail">${escapeHTML(SUPPORT_CONTACT_TEXT)}</span>`;
     showAlertPopup(
-        "You found a missing feature 🔎",
-        `<b>${fromFormat}</b> to <b>${toFormat}</b> isn't available right now, but more formats are on the way!`,
+        "Conversion not available yet",
+        `<b>${fromFormat}</b> to <b>${toFormat}</b> isn't available yet.${contact}`,
     );
 }
 
@@ -519,12 +527,20 @@ function startConversionStatus({ main, subtitle }: { main: string; subtitle: str
     };
 }
 
-function showConversionFailedPopup(fromFormat: string, toFormat: string, error: string) {
-    const detail = error.length > 0 ? `<span class="muted-text error-detail">${escapeHTML(error)}</span>` : "";
+function showConversionFailedPopup(fromFormat: string, toFormat: string, error: UserErrorInfo) {
+    const detail = error.message.length > 0 ? `<span class="muted-text error-detail">${escapeHTML(error.message)}</span>` : "";
+    const contact = `<span class="muted-text error-detail">${escapeHTML(SUPPORT_CONTACT_TEXT)}</span>`;
+    if (error.kind === "not_available") {
+        showAlertPopup(
+            "Conversion not available yet",
+            `<b>${fromFormat}</b> to <b>${toFormat}</b> isn't available yet.${contact}`,
+        );
+        return;
+    }
     const copy = modeCopy();
     showAlertPopup(
         copy.failedTitle,
-        `Something went wrong ${copy.verbIng} <b>${fromFormat}</b> to <b>${toFormat}</b>. The file may be corrupted, password-protected, or too complex for the ${copy.toolLabel}.${detail}`,
+        `Something went wrong ${copy.verbIng} <b>${fromFormat}</b> to <b>${toFormat}</b>. The file may be corrupted, password-protected, or too complex for the ${copy.toolLabel}.${detail}${contact}`,
     );
 }
 
@@ -1004,11 +1020,11 @@ export function initConvertButton() {
         } catch (e) {
             if (isCancelled) return;
             console.error(e);
-            const detail = toUserErrorText(e);
-            const detailHTML = detail ? `<span class="muted-text error-detail">${escapeHTML(detail)}</span>` : "";
+            const detail = toUserErrorInfo(e).message || "Something went wrong while converting this file.";
+            const detailHTML = `<span class="muted-text error-detail">${escapeHTML(SUPPORT_CONTACT_TEXT)}</span>`;
             showAlertPopup(
                 "Something went wrong",
-                `Frogsworth hit an unexpected snag. Try again, or reload if it sticks.${detailHTML}`,
+                `${escapeHTML(detail)}${detailHTML}`,
             );
         } finally {
             // Split cleanup and state-reset: anything in the cleanup block can

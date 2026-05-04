@@ -149,7 +149,8 @@ describe('handleConvert (JSON mode)', () => {
         const res = await handleConvert(req, [], makeGraph(null));
         expect(res.status).toBe(422);
         const body = await res.json();
-        expect(body.error).toMatch(/not found/);
+        expect(body.error).toContain("This conversion isn't available yet.");
+        expect(body.error).toContain("francois.prevot@frog.co");
     });
 
     it('returns 422 when bridge fails for browser-only output format', async () => {
@@ -166,7 +167,8 @@ describe('handleConvert (JSON mode)', () => {
         const res = await handleConvert(req, [inputHandler], makeGraph(null));
         expect(res.status).toBe(422);
         const body = await res.json();
-        expect(body.error).toMatch(/not found/);
+        expect(body.error).toContain("This conversion isn't available yet.");
+        expect(body.error).toContain("francois.prevot@frog.co");
     });
 
     it('returns 422 when both formats found natively but bridge also fails', async () => {
@@ -183,7 +185,8 @@ describe('handleConvert (JSON mode)', () => {
         const res = await handleConvert(req, [handler], makeGraph(null));
         expect(res.status).toBe(422);
         const body = await res.json();
-        expect(body.error).toMatch(/No conversion path/);
+        expect(body.error).toContain("This conversion isn't available yet.");
+        expect(body.error).toContain("francois.prevot@frog.co");
     });
 
     it('returns 400 when required JSON fields are missing', async () => {
@@ -223,5 +226,30 @@ describe('handleConvert (JSON mode)', () => {
         const body = await res.json();
         expect(body[0].fileName).toBe('bridge.png');
         expect(convertViaBrowser).toHaveBeenCalled();
+    });
+
+    it('returns safe copy when native and bridge conversions both fail', async () => {
+        const handler = makeHandler('TestHandler', [jpegFormat, pngFormat]);
+        vi.mocked(handler.doConvert as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('bad data at file:///tmp/handler.ts:1:1'));
+        vi.mocked(convertViaBrowser).mockRejectedValue(new Error('Browser bridge requires a production build. Run `bun run build` first.'));
+        const path = [
+            { format: jpegFormat, handler },
+            { format: pngFormat,  handler },
+        ];
+
+        const req = makeJsonRequest({
+            fileName: 'test.jpg',
+            base64Bytes: Buffer.from('hello').toString('base64'),
+            inputMime: 'image/jpeg', inputExt: 'jpeg',
+            outputMime: 'image/png',  outputExt: 'png',
+        });
+
+        const res = await handleConvert(req, [handler], makeGraph(path));
+        expect(res.status).toBe(422);
+        const body = await res.json();
+        expect(body.error).toContain('Something went wrong while converting this file.');
+        expect(body.error).toContain('francois.prevot@frog.co');
+        expect(body.error).not.toContain('file:///');
+        expect(body.error).not.toContain('bun run build');
     });
 });

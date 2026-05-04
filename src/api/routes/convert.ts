@@ -3,6 +3,7 @@ import type { TraversionGraph } from "../../core/TraversionGraph/TraversionGraph
 import { findFormatAndHandler, libreofficeHint } from "../../mcp/core/utils.ts";
 import { convertViaBrowser } from "../../mcp/core/browserBridge.ts";
 import { resolveEffectiveQuality } from "../../core/compression/resolveEffectiveQuality.ts";
+import { appendSupportContact, toUserErrorInfo } from "../../components/utils/index.ts";
 import mime from "mime";
 
 function parseQuality(raw: unknown): QualityPreset | undefined {
@@ -31,6 +32,7 @@ async function runConversion(
     const hopArgs = ["--quality", effectiveQuality];
     const inputMatch = findFormatAndHandler(handlers, inputMime, inputExt, 'from');
     const outputMatch = findFormatAndHandler(handlers, outputMime, outputExt, 'to');
+    let nativeFailure: unknown = null;
 
     // Try native path when both formats are known to native handlers
     if (inputMatch && outputMatch) {
@@ -56,7 +58,8 @@ async function runConversion(
                     currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat, hopArgs);
                 }
                 return { files: currentFiles };
-            } catch {
+            } catch (nativeErr) {
+                nativeFailure = nativeErr;
                 // Native execution failed — fall through to browser bridge
             }
         }
@@ -73,10 +76,14 @@ async function runConversion(
         }));
         return { files };
     } catch (bridgeErr: any) {
-        let msg = bridgeErr?.message ?? `No conversion path found between ${inputMime} and ${outputMime}`;
+        const bridgeInfo = toUserErrorInfo(bridgeErr);
+        const nativeInfo = nativeFailure ? toUserErrorInfo(nativeFailure) : null;
+        let msg = nativeInfo?.kind === "unknown" || nativeInfo?.kind === "runtime_failure"
+            ? "Something went wrong while converting this file."
+            : bridgeInfo.message || "Something went wrong while converting this file.";
         const hint = allHandlers && libreofficeHint(allHandlers, inputExt, outputExt);
         if (hint) msg += ` ${hint}`;
-        return { error: msg, status: 422 };
+        return { error: appendSupportContact(msg), status: 422 };
     }
 }
 

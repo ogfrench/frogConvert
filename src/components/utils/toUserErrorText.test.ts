@@ -1,38 +1,38 @@
 import { describe, it, expect } from "vitest";
-import { toUserErrorText } from "./index.ts";
+import { appendSupportContact, SUPPORT_CONTACT_EMAIL, toUserErrorInfo, toUserErrorText } from "./index.ts";
 
 describe("toUserErrorText", () => {
-    it("unwraps Error.message and drops name/stack", () => {
+    it("maps unknown Error objects to generic copy without stack details", () => {
         const e = new Error("boom");
         e.stack = "Error: boom\n    at foo (file:///app/x.ts:1:1)\n    at bar";
-        expect(toUserErrorText(e)).toBe("boom");
+        expect(toUserErrorText(e)).toBe("Something went wrong while converting this file.");
     });
 
     it("passes through plain string throws", () => {
-        expect(toUserErrorText("Output is empty.")).toBe("Converter produced an empty result.");
+        expect(toUserErrorText("Output is empty.")).toBe("The converter finished, but came back empty. Try another file or format.");
     });
 
-    it("strips leading Error: prefix", () => {
-        expect(toUserErrorText("TypeError: bad input value")).toBe("bad input value");
+    it("maps unknown prefixed errors to generic copy", () => {
+        expect(toUserErrorText("TypeError: bad input value")).toBe("Something went wrong while converting this file.");
     });
 
-    it("strips stack-frame lines", () => {
+    it("maps unknown stack strings to generic copy", () => {
         const raw = "something broke\n    at Worker.onMessage (file:///app/x.ts:42:11)\n    at EventTarget.dispatch (http://x/y.js:1:1)";
-        expect(toUserErrorText(raw)).toBe("something broke");
+        expect(toUserErrorText(raw)).toBe("Something went wrong while converting this file.");
     });
 
     it("maps password errors to friendly copy", () => {
         expect(toUserErrorText(new Error(`"doc.pdf" is password-protected. Decrypt it with Adobe Acrobat or similar, then upload again.`)))
-            .toBe("Looks password-protected.");
+            .toBe("This file looks password-protected. Remove the password and upload it again.");
     });
 
     it("maps worker-crash errors", () => {
         expect(toUserErrorText(new Error("Conversion worker crashed: undefined is not a function at file:///app/worker.js:12:3")))
-            .toBe("The converter crashed midway.");
+            .toBe("The converter crashed while processing this file.");
     });
 
     it("maps timeout errors", () => {
-        expect(toUserErrorText(new Error("Conversion timed out after 5 minutes."))).toBe("Conversion timed out.");
+        expect(toUserErrorText(new Error("Conversion timed out after 5 minutes."))).toBe("This one took too long to finish. A smaller file or another format might work.");
     });
 
     it("maps cancellation", () => {
@@ -42,19 +42,30 @@ describe("toUserErrorText", () => {
 
     it("maps handler-not-ready errors", () => {
         expect(toUserErrorText(`Handler "ffmpeg" not ready after init.`))
-            .toBe("Unsupported file shape for this converter.");
+            .toBe("The converter is still warming up. Try again in a moment.");
     });
 
     it("maps unsupported-format errors", () => {
         expect(toUserErrorText(`Handler "magick" doesn't support input format "xyz" (image/xyz).`))
-            .toBe("Unsupported file shape for this converter.");
+            .toBe("This conversion isn't available yet.");
     });
 
-    it("truncates long unknown messages", () => {
+    it("maps no-path errors to unavailable copy", () => {
+        expect(toUserErrorInfo("No conversion path found between image/jpeg and application/pdf"))
+            .toEqual({ message: "This conversion isn't available yet.", kind: "not_available" });
+    });
+
+    it("appends support contact once", () => {
+        const withContact = appendSupportContact("Something failed.");
+        expect(withContact).toContain(SUPPORT_CONTACT_EMAIL);
+        expect(appendSupportContact(withContact)).toBe(withContact);
+    });
+
+    it("maps long unknown messages to generic copy", () => {
         const long = "x".repeat(500);
         const out = toUserErrorText(long);
         expect(out.length).toBeLessThanOrEqual(200);
-        expect(out.endsWith("...")).toBe(true);
+        expect(out).toBe("Something went wrong while converting this file.");
     });
 
     it("returns empty string for null/undefined/empty", () => {
@@ -63,7 +74,7 @@ describe("toUserErrorText", () => {
         expect(toUserErrorText("")).toBe("");
     });
 
-    it("stringifies raw objects", () => {
-        expect(toUserErrorText({ foo: "bar" })).toBe("[object Object]");
+    it("maps raw objects to generic copy", () => {
+        expect(toUserErrorText({ foo: "bar" })).toBe("Something went wrong while converting this file.");
     });
 });

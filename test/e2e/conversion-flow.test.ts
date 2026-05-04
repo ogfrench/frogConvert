@@ -106,17 +106,21 @@ describe("E2E Conversion Flow", () => {
                 return false;
             }, { timeout: 15000 });
 
-            // Click the first visible format option
-            const formatOptions = await page.$$('.format-option[data-index]');
-            let clicked = false;
-            for (const opt of formatOptions) {
-                const isVisible = await page.evaluate(el => el.style.display !== "none", opt);
-                if (isVisible) {
-                    await opt.click();
-                    clicked = true;
-                    break;
+            // Click the first visible format option in a single page-side evaluation.
+            // Doing the find+click via separate ElementHandle calls races the
+            // format-modal re-render (handlers finish loading mid-test and re-emit
+            // .format-option nodes), which detaches captured handles. Selecting
+            // and clicking inside one evaluate() avoids that race.
+            const clicked = await page.evaluate(() => {
+                const opts = document.querySelectorAll<HTMLElement>('.format-option[data-index]');
+                for (const el of opts) {
+                    if (el.style.display !== "none") {
+                        el.click();
+                        return true;
+                    }
                 }
-            }
+                return false;
+            });
             expect(clicked).toBe(true);
 
             // Wait for modal to close

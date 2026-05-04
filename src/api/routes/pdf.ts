@@ -5,32 +5,33 @@ import { organize } from "../../tools/pdfOrganize.ts";
 import { extract } from "../../tools/pdfExtract.ts";
 import type { CorePageEntry } from "../../tools/types.ts";
 import type { FileData } from "../../core/FormatHandler/FormatHandler.ts";
-import { resolveBytes, buildSourceFiles, stripExt, enforceSandboxedPath, type FileInputRef } from "../../mcp/core/fileInput.ts";
+import { resolveBytes, buildSourceFiles, stripExt, enforceSandboxedPath, ValidationError, type FileInputRef } from "../../mcp/core/fileInput.ts";
+import { toUserErrorText, appendSupportContact, FEEDBACK_CONTACT_TEXT } from "../../components/utils/index.ts";
 
 /** Reject requests whose body isn't a plain JSON object. */
 function assertObjectBody(body: unknown): asserts body is Record<string, unknown> {
     if (!body || typeof body !== "object" || Array.isArray(body)) {
-        throw new Error("Request body must be a JSON object");
+        throw new ValidationError("Request body must be a JSON object");
     }
 }
 
 /** Validate a FileInputRef shape before it reaches resolveBytes. */
 function assertFileInputRef(value: unknown, label: string): asserts value is FileInputRef {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
-        throw new Error(`${label} must be an object`);
+        throw new ValidationError(`${label} must be an object`);
     }
     const v = value as Record<string, unknown>;
     if (v.filePath !== undefined && typeof v.filePath !== "string") {
-        throw new Error(`${label}.filePath must be a string`);
+        throw new ValidationError(`${label}.filePath must be a string`);
     }
     if (v.base64Bytes !== undefined && typeof v.base64Bytes !== "string") {
-        throw new Error(`${label}.base64Bytes must be a string`);
+        throw new ValidationError(`${label}.base64Bytes must be a string`);
     }
     if (v.fileName !== undefined && typeof v.fileName !== "string") {
-        throw new Error(`${label}.fileName must be a string`);
+        throw new ValidationError(`${label}.fileName must be a string`);
     }
     if (!v.filePath && !v.base64Bytes) {
-        throw new Error(`${label} must have filePath or base64Bytes`);
+        throw new ValidationError(`${label} must have filePath or base64Bytes`);
     }
 }
 
@@ -64,7 +65,11 @@ export async function handlePdfMerge(req: Request): Promise<Response> {
         }
         return filesResponse([result]);
     } catch (err: any) {
-        return Response.json({ error: err?.message ?? String(err) }, { status: 400 });
+        if (err instanceof ValidationError) {
+            return Response.json({ error: err.message }, { status: 400 });
+        }
+        const msg = toUserErrorText(err) || (err?.message ?? String(err));
+        return Response.json({ error: appendSupportContact(msg, FEEDBACK_CONTACT_TEXT) }, { status: 400 });
     }
 }
 
@@ -90,11 +95,11 @@ export async function handlePdfOrganize(req: Request): Promise<Response> {
         }
         body.pages.forEach((p, idx) => {
             if (!p || typeof p !== "object") {
-                throw new Error(`pages[${idx}] must be an object`);
+                throw new ValidationError(`pages[${idx}] must be an object`);
             }
             const pp = p as Record<string, unknown>;
-            if (typeof pp.sourceIndex !== "number") throw new Error(`pages[${idx}].sourceIndex must be a number`);
-            if (typeof pp.pageNum !== "number") throw new Error(`pages[${idx}].pageNum must be a number`);
+            if (typeof pp.sourceIndex !== "number") throw new ValidationError(`pages[${idx}].sourceIndex must be a number`);
+            if (typeof pp.pageNum !== "number") throw new ValidationError(`pages[${idx}].pageNum must be a number`);
         });
         if (body.outputFilePath !== undefined && typeof body.outputFilePath !== "string") {
             return Response.json({ error: "outputFilePath must be a string" }, { status: 400 });
@@ -105,7 +110,7 @@ export async function handlePdfOrganize(req: Request): Promise<Response> {
         const manifest: CorePageEntry[] = pages.map((p, idx) => {
             const isBlank = p.blank || p.sourceIndex === -1;
             if (!isBlank && (p.sourceIndex < 0 || p.sourceIndex >= inputs.length)) {
-                throw new Error(`pages[${idx}].sourceIndex ${p.sourceIndex} out of range (inputs.length=${inputs.length})`);
+                throw new ValidationError(`pages[${idx}].sourceIndex ${p.sourceIndex} out of range (inputs.length=${inputs.length})`);
             }
             return {
                 type: isBlank ? "blank" : "source",
@@ -123,7 +128,11 @@ export async function handlePdfOrganize(req: Request): Promise<Response> {
         }
         return filesResponse([result]);
     } catch (err: any) {
-        return Response.json({ error: err?.message ?? String(err) }, { status: 400 });
+        if (err instanceof ValidationError) {
+            return Response.json({ error: err.message }, { status: 400 });
+        }
+        const msg = toUserErrorText(err) || (err?.message ?? String(err));
+        return Response.json({ error: appendSupportContact(msg, FEEDBACK_CONTACT_TEXT) }, { status: 400 });
     }
 }
 
@@ -172,6 +181,10 @@ export async function handlePdfExtract(req: Request): Promise<Response> {
         }
         return filesResponse(results);
     } catch (err: any) {
-        return Response.json({ error: err?.message ?? String(err) }, { status: 400 });
+        if (err instanceof ValidationError) {
+            return Response.json({ error: err.message }, { status: 400 });
+        }
+        const msg = toUserErrorText(err) || (err?.message ?? String(err));
+        return Response.json({ error: appendSupportContact(msg, FEEDBACK_CONTACT_TEXT) }, { status: 400 });
     }
 }

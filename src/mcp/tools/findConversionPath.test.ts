@@ -93,7 +93,8 @@ describe('registerFindConversionPathTool', () => {
         const result = await cb({ inputMime: 'image/jpeg', inputExtension: 'jpeg', outputMime: 'image/png', outputExtension: 'png' });
 
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/No path found/);
+        expect(result.content[0].text).toContain("This conversion isn't available yet.");
+        expect(result.content[0].text).toContain("francois.prevot@frog.co");
     });
 
     it('treats bridge check errors as "no bridge" and returns isError', async () => {
@@ -106,9 +107,10 @@ describe('registerFindConversionPathTool', () => {
 
         const result = await cb({ inputMime: 'image/jpeg', inputExtension: 'jpeg', outputMime: 'image/png', outputExtension: 'png' });
 
-        // .catch(() => false) means bridge error → isError with "No path found"
+        // .catch(() => false) means bridge error -> isError with unavailable copy.
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/No path found/);
+        expect(result.content[0].text).toContain("This conversion isn't available yet.");
+        expect(result.content[0].text).toContain("francois.prevot@frog.co");
     });
 
     it('returns input-not-found error immediately (no bridge check) when input format is unknown', async () => {
@@ -120,8 +122,8 @@ describe('registerFindConversionPathTool', () => {
         const result = await cb({ inputMime: 'image/jpeg', inputExtension: 'jpeg', outputMime: 'image/png', outputExtension: 'png' });
 
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/Input format/);
-        expect(result.content[0].text).toMatch(/not found or supported/);
+        expect(result.content[0].text).toContain("This conversion isn't available yet.");
+        expect(result.content[0].text).toContain("francois.prevot@frog.co");
         // Path queries don't spin up the browser for unknown formats
         expect(canConvertViaBrowser).not.toHaveBeenCalled();
     });
@@ -136,8 +138,8 @@ describe('registerFindConversionPathTool', () => {
         const result = await cb({ inputMime: 'image/jpeg', inputExtension: 'jpeg', outputMime: 'model/gltf+json', outputExtension: 'gltf' });
 
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/Output format/);
-        expect(result.content[0].text).toMatch(/not found or supported/);
+        expect(result.content[0].text).toContain("This conversion isn't available yet.");
+        expect(result.content[0].text).toContain("francois.prevot@frog.co");
         expect(canConvertViaBrowser).not.toHaveBeenCalled();
     });
 });

@@ -141,6 +141,11 @@ export default defineConfig({
   build: {
     sourcemap: 'hidden',
     target: "esnext",
+    // Vendor chunks (vexflow ~1.1 MB, font ~1.2 MB, docs/mermaid ~1.6 MB, three.js ~720 KB)
+    // are already lazy-loaded as separate chunks; further splitting yields no user-visible
+    // benefit. Raise the warning ceiling so legitimate vendor weight isn't reported as a
+    // problem on every build.
+    chunkSizeWarningLimit: 2000,
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),

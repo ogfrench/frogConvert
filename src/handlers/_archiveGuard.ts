@@ -17,7 +17,7 @@ export function assertDecompressedSizeSafe(
         const mb = (expandedSize / (1024 * 1024)).toFixed(0);
         const limitMb = (limit / (1024 * 1024)).toFixed(0);
         throw new Error(
-            `${archiveKind} archive would decompress to ~${mb} MB — exceeds the ${limitMb} MB safety cap. Try a smaller archive.`,
+            `${archiveKind} archive would decompress to ~${mb} MB, which exceeds the ${limitMb} MB safety cap. Try a smaller archive.`,
         );
     }
 }

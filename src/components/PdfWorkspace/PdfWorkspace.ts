@@ -11,7 +11,7 @@ import { downloadFile, downloadAsZip } from '../../conversion/download.ts';
 import { isTouchUi } from '../../core/utils/touchUi.ts';
 import { showToast } from '../Toast/Toast.ts';
 import { showPopup, hidePopup, replacePopup, createPopupButton, showUploadSummaryPopup, type UploadResult } from '../Popup/Popup.ts';
-import { formatBytes, escapeHTML, shortenFileName, ensureMinDuration } from '../utils/index.ts';
+import { formatBytes, escapeHTML, shortenFileName, ensureMinDuration, toUserErrorInfo, appendSupportContact, FEEDBACK_CONTACT_TEXT } from '../utils/index.ts';
 import { createDancingFrog } from '../Frogsworth/DancingFrog.ts';
 import { triggerConfetti } from '../../effects/Confetti/Confetti.ts';
 import { ui, updateScrollLock } from '../store/store.ts';
@@ -958,7 +958,8 @@ async function handleFiles(rawFiles: File[]) {
         id: getNextFileId(), name: file.name, size: file.size, bytes,
         pageCount: pdf.getPageCount(), firstPageThumb: null,
       });
-    } catch {
+    } catch (e) {
+      console.warn('[pdfWorkspace] failed to read PDF:', file.name, e);
       results.push({ name: file.name, status: 'skipped', reason: 'load-error' });
     }
   }
@@ -1784,8 +1785,11 @@ async function runWithPopup<T>(
     if (onSuccess) onSuccess(result);
     else hidePopup();
   } catch (e: any) {
+    console.error(`[pdfWorkspace] ${verb.toLowerCase()} failed:`, e);
     hidePopup();
-    showError(e?.message || fallback);
+    const info = toUserErrorInfo(e);
+    const message = info.message || fallback;
+    showError(appendSupportContact(message, FEEDBACK_CONTACT_TEXT));
   }
 }
 

@@ -8,10 +8,23 @@ export interface FileInputRef {
     fileName?: string;
 }
 
+/**
+ * Thrown for caller-supplied input that fails validation. Catch-alls in API
+ * routes and MCP tools surface its message verbatim instead of normalising it,
+ * because validation strings (e.g. "fileName required", "sourceIndex N out of
+ * range") are part of the developer-facing contract.
+ */
+export class ValidationError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "ValidationError";
+    }
+}
+
 export function enforceSize(byteLength: number) {
     const maxMb = Number(process.env.MAX_UPLOAD_MB ?? 4096);
     if (byteLength > maxMb * 1024 * 1024) {
-        throw new Error(`File too large (max ${maxMb} MB)`);
+        throw new ValidationError(`File too large (max ${maxMb} MB)`);
     }
 }
 
@@ -35,7 +48,7 @@ export function enforceSandboxedPath(inputPath: string): string {
         const resolved = resolvePath(root, inputPath);
         const rel = relativePath(root, resolved);
         if (rel.startsWith("..") || isAbsolute(rel)) {
-            throw new Error("Path escapes FROGCONVERT_SANDBOX_ROOT");
+            throw new ValidationError("Path escapes FROGCONVERT_SANDBOX_ROOT");
         }
         return resolved;
     }
@@ -56,8 +69,8 @@ export async function resolveBytes(input: FileInputRef): Promise<{ bytes: Uint8A
         const bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
         return { bytes, name: input.fileName ?? basename(safePath) };
     }
-    if (!input.base64Bytes) throw new Error("Input must have filePath or base64Bytes");
-    if (!input.fileName) throw new Error("fileName required when using base64Bytes");
+    if (!input.base64Bytes) throw new ValidationError("Input must have filePath or base64Bytes");
+    if (!input.fileName) throw new ValidationError("fileName required when using base64Bytes");
     // Compute decoded size from base64 length. Whitespace is legal in base64
     // strings and must be excluded from the count; padding (`=` chars) maps
     // to zero output bytes. Without this an attacker could pad a string with

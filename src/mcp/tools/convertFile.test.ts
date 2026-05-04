@@ -151,8 +151,7 @@ describe('registerConvertFileTool', () => {
         });
 
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/Input format/);
-        expect(result.content[0].text).toMatch(/not found/);
+        expect(result.content[0].text).toContain("This conversion isn't available yet.");
     });
 
     it('returns bridge error when bridge fails for browser-only output format', async () => {
@@ -171,8 +170,7 @@ describe('registerConvertFileTool', () => {
         });
 
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/Output format/);
-        expect(result.content[0].text).toMatch(/not found or not writable/);
+        expect(result.content[0].text).toContain("This conversion isn't available yet.");
     });
 
     it('returns bridge error when both formats exist natively but bridge also fails', async () => {
@@ -191,7 +189,8 @@ describe('registerConvertFileTool', () => {
         });
 
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/No conversion path found/);
+        expect(result.content[0].text).toContain("This conversion isn't available yet.");
+        expect(result.content[0].text).toContain("francois.prevot@frog.co");
     });
 
     it('returns error when neither base64Bytes nor filePath is provided', async () => {
@@ -356,5 +355,32 @@ describe('registerConvertFileTool', () => {
         const parsed = JSON.parse(result.content[0].text);
         expect(parsed[0].fileName).toBe('bridge.png');
         expect(convertViaBrowser).toHaveBeenCalled();
+    });
+
+    it('returns safe copy when native and bridge both fail', async () => {
+        const handler = makeHandler('TestHandler', [jpegFormat, pngFormat]);
+        vi.mocked(handler.doConvert as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('bad data at file:///tmp/handler.ts:1:1'));
+        vi.mocked(convertViaBrowser).mockRejectedValue(new Error('Browser bridge requires a production build. Run `bun run build` first.'));
+        const path = [
+            { format: jpegFormat, handler },
+            { format: pngFormat,  handler },
+        ];
+
+        const server = makeMockServer();
+        registerConvertFileTool(server, Promise.resolve({ handlers: [handler], graph: makeGraph(path) }));
+        const cb = getCallback(server);
+
+        const result = await cb({
+            fileName: 'test.jpg',
+            base64Bytes: Buffer.from('hello').toString('base64'),
+            inputMime: 'image/jpeg', inputExtension: 'jpeg',
+            outputMime: 'image/png',  outputExtension: 'png',
+        });
+
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('Something went wrong while converting this file.');
+        expect(result.content[0].text).toContain('francois.prevot@frog.co');
+        expect(result.content[0].text).not.toContain('file:///');
+        expect(result.content[0].text).not.toContain('bun run build');
     });
 });

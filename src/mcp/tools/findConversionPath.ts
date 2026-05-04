@@ -4,6 +4,7 @@ import type { McpContext } from "../core/types.ts";
 
 import { findFormatAndHandler, libreofficeHint } from "../core/utils.ts";
 import { canConvertViaBrowser } from "../core/browserBridge.ts";
+import { appendSupportContact, CONVERSION_NOT_AVAILABLE_TEXT } from "../../components/utils/index.ts";
 
 export function registerFindConversionPathTool(server: McpServer, initPromise: Promise<McpContext>) {
     server.tool(
@@ -21,12 +22,10 @@ export function registerFindConversionPathTool(server: McpServer, initPromise: P
             const inputMatch = findFormatAndHandler(handlers, inputMime, inputExtension, 'from');
             const outputMatch = findFormatAndHandler(handlers, outputMime, outputExtension, 'to');
 
-            // Unknown formats can't be resolved via the bridge — report immediately.
-            if (!inputMatch) {
-                return { content: [{ type: "text", text: `Error: Input format ${inputMime} (${inputExtension}) not found or supported.` }], isError: true };
-            }
-            if (!outputMatch) {
-                return { content: [{ type: "text", text: `Error: Output format ${outputMime} (${outputExtension}) not found or supported.` }], isError: true };
+            // Unknown formats can't be resolved via the bridge, but callers
+            // still get the same public no-conversion copy as other no-paths.
+            if (!inputMatch || !outputMatch) {
+                return { content: [{ type: "text", text: appendSupportContact(CONVERSION_NOT_AVAILABLE_TEXT) }], isError: true };
             }
 
             const { format: fromFormat, handler: fromHandler } = inputMatch;
@@ -48,10 +47,10 @@ export function registerFindConversionPathTool(server: McpServer, initPromise: P
                         content: [{ type: "text", text: `No native path found. A browser-assisted path is available - use convert_file to convert via the browser bridge.` }]
                     };
                 }
-                let msg = `No path found between ${inputMime} and ${outputMime}`;
-                const hint = libreofficeHint(allHandlers, inputExtension, outputExtension);
+                let msg = CONVERSION_NOT_AVAILABLE_TEXT;
+                const hint = allHandlers && libreofficeHint(allHandlers, inputExtension, outputExtension);
                 if (hint) msg += `\n${hint}`;
-                return { content: [{ type: "text", text: msg }], isError: true };
+                return { content: [{ type: "text", text: appendSupportContact(msg) }], isError: true };
             }
 
             const pathText = pathResult.value.map((p: any) => `${p.handler.name} (${p.format.mime})`).join(" -> ");

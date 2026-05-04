@@ -39,13 +39,26 @@ export function safeLocalStorageSet(key: string, value: string): void {
     try { localStorage.setItem(key, value); } catch { /* quota or disabled */ }
 }
 
-/**
- * Normalises an arbitrary thrown value into a short, user-facing string
- * suitable for display in popups. Strips stack frames, file URLs, and the
- * "Error:" prefix; maps a few known error shapes to friendlier copy; and
- * truncates to ~200 chars. Returns "" if nothing meaningful remains.
- */
-export function toUserErrorText(err: unknown): string {
+export const SUPPORT_CONTACT_EMAIL = "francois.prevot@frog.co";
+export const SUPPORT_CONTACT_TEXT = `Still stuck, or want this format added? Email ${SUPPORT_CONTACT_EMAIL}.`;
+export const FEEDBACK_CONTACT_TEXT = `Still stuck, or want to share feedback? Email ${SUPPORT_CONTACT_EMAIL}.`;
+
+export const CONVERSION_NOT_AVAILABLE_TEXT = "This conversion isn't available yet.";
+export const GENERIC_CONVERSION_ERROR_TEXT = "Something went wrong while converting this file.";
+
+export type UserErrorKind =
+    | "not_available"
+    | "input_issue"
+    | "runtime_failure"
+    | "cancelled"
+    | "unknown";
+
+export interface UserErrorInfo {
+    message: string;
+    kind: UserErrorKind;
+}
+
+function cleanErrorText(err: unknown): string {
     if (err == null) return "";
     let raw: string;
     if (err instanceof Error) raw = err.message;
@@ -56,7 +69,7 @@ export function toUserErrorText(err: unknown): string {
 
     if (!raw) return "";
 
-    let text = raw
+    return raw
         .split(/\r?\n/)
         .filter(line => !/^\s*at\s/.test(line))
         .join(" ")
@@ -65,16 +78,60 @@ export function toUserErrorText(err: unknown): string {
         .replace(/^\s*\w*Error:\s*/i, "")
         .replace(/\s+/g, " ")
         .trim();
+}
 
-    if (!text) return "";
+/**
+ * Normalises an arbitrary thrown value into a short, user-facing string
+ * suitable for display in popups. Strips stack frames, file URLs, and the
+ * "Error:" prefix; maps a few known error shapes to friendlier copy; and
+ * truncates to ~200 chars. Returns "" if nothing meaningful remains.
+ */
+export function toUserErrorInfo(err: unknown): UserErrorInfo {
+    let text = cleanErrorText(err);
 
-    if (/password/i.test(text)) return "Looks password-protected.";
-    if (/worker crashed/i.test(text)) return "The converter crashed midway.";
-    if (/tim(ed)?\s*out/i.test(text)) return "Conversion timed out.";
-    if (/^cancell?ed\b/i.test(text)) return "Cancelled.";
-    if (/not ready after init|doesn'?t support|no conversion path/i.test(text)) return "Unsupported file shape for this converter.";
-    if (/output is empty/i.test(text)) return "Converter produced an empty result.";
+    if (!text) return { message: "", kind: "unknown" };
 
-    if (text.length > 200) text = text.slice(0, 197).trimEnd() + "...";
-    return text;
+    if (/^cancell?ed\b/i.test(text)) return { message: "Cancelled.", kind: "cancelled" };
+    if (/password/i.test(text)) {
+        return {
+            message: "This file looks password-protected. Remove the password and upload it again.",
+            kind: "input_issue",
+        };
+    }
+    if (/^not found$/i.test(text) || /no conversion path|no path found|conversion isn'?t available|not found or not (readable|writable)|input format .+ not found|output format .+ not found|doesn'?t support/i.test(text)) {
+        return { message: CONVERSION_NOT_AVAILABLE_TEXT, kind: "not_available" };
+    }
+    if (/not ready after init|headless not yet initialized|headless initialization failed|browser bridge requires/i.test(text)) {
+        return {
+            message: "The converter is still warming up. Try again in a moment.",
+            kind: "runtime_failure",
+        };
+    }
+    if (/worker crashed/i.test(text)) {
+        return { message: "The converter crashed while processing this file.", kind: "runtime_failure" };
+    }
+    if (/tim(ed)?\s*out/i.test(text)) {
+        return { message: "This one took too long to finish. A smaller file or another format might work.", kind: "runtime_failure" };
+    }
+    if (/output is empty/i.test(text)) {
+        return { message: "The converter finished, but came back empty. Try another file or format.", kind: "input_issue" };
+    }
+    if (/invalid base64|could not be read|failed to parse|malformed|corrupt|damaged/i.test(text)) {
+        return { message: "This file couldn't be read. Try re-exporting it or uploading a fresh copy.", kind: "input_issue" };
+    }
+    if (/too large|safety cap|decompress/i.test(text)) {
+        return { message: text.length > 200 ? text.slice(0, 197).trimEnd() + "..." : text, kind: "input_issue" };
+    }
+
+    return { message: GENERIC_CONVERSION_ERROR_TEXT, kind: "unknown" };
+}
+
+export function toUserErrorText(err: unknown): string {
+    return toUserErrorInfo(err).message;
+}
+
+export function appendSupportContact(message: string, contactText: string = SUPPORT_CONTACT_TEXT): string {
+    if (!message) return contactText;
+    if (message.includes(SUPPORT_CONTACT_EMAIL)) return message;
+    return `${message} ${contactText}`;
 }

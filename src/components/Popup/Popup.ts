@@ -181,7 +181,7 @@ const SKIP_LABEL: Record<UploadSkipReason, string> = {
   "too-large":   "Too large",
   "page-limit":  "Page limit",
   "file-limit":  "File limit",
-  "load-error":  "Not a PDF",
+  "load-error":  "Couldn't read PDF",
 };
 
 export interface UploadLimits {

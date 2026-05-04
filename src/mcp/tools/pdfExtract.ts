@@ -3,7 +3,8 @@ import { z } from "zod";
 import { writeFile } from "fs/promises";
 import { join } from "path";
 import { extract } from "../../tools/pdfExtract.ts";
-import { resolveBytes, stripExt } from "../core/fileInput.ts";
+import { resolveBytes, stripExt, ValidationError } from "../core/fileInput.ts";
+import { toUserErrorText, appendSupportContact, FEEDBACK_CONTACT_TEXT } from "../../components/utils/index.ts";
 
 const inputSchema = z.object({
     filePath: z.string().optional(),
@@ -47,8 +48,15 @@ export function registerPdfExtractTool(server: McpServer) {
                     }],
                 };
             } catch (err: any) {
+                if (err instanceof ValidationError) {
+                    return {
+                        content: [{ type: "text", text: `Error: ${err.message}` }],
+                        isError: true,
+                    };
+                }
+                const msg = toUserErrorText(err) || (err instanceof Error ? err.message : String(err));
                 return {
-                    content: [{ type: "text", text: `Error: ${err?.message ?? err}` }],
+                    content: [{ type: "text", text: appendSupportContact(`Error: ${msg}`, FEEDBACK_CONTACT_TEXT) }],
                     isError: true,
                 };
             }
