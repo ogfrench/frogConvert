@@ -9,7 +9,7 @@
   /* Colors */
   --background: #ffffff;
   --foreground: #0a0a0a;
-  --card: #ffffff;
+  --card: #fdfdfd;
   --card-foreground: #0a0a0a;
   --primary: #0a0a0a;
   --primary-foreground: #fafafa;
@@ -128,9 +128,9 @@
 
 /* --- Design Tokens: Dark Theme --- */
 .dark {
-  --background: #0a0a0a;
+  --background: #000000;
   --foreground: #fafafa;
-  --card: #141414;
+  --card: #0a0a0a;
   --card-foreground: #fafafa;
   --primary: #fafafa;
   --primary-foreground: #0a0a0a;

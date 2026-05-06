@@ -10,6 +10,8 @@ _(Backup domain: [frogconvert.netlify.app](https://frogconvert.netlify.app/)) ·
 
 **Truly universal online file converter, plus a built-in PDF editor.**
 
+> Turn your file into the prince it always was.
+
 frogConvert runs entirely in your browser. Convert between 70+ file formats or edit PDFs (merge, reorder, extract pages) without uploading anything to a server. Also available as an MCP server and a local REST API for AI agents and scripts.
 
 ## Quick start
