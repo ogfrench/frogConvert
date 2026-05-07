@@ -117,6 +117,8 @@
 
 <body>
 
+  <a class="skip-link" href="#convert-card">Skip to content</a>
+
   <noscript>
     <style>
       #noscript-overlay {
@@ -213,7 +215,7 @@
         <span aria-hidden="true"></span>
         <span aria-hidden="true"></span>
       </button>
-      <div id="top-controls-menu">
+      <div id="top-controls-menu" role="dialog" aria-modal="true" aria-label="Settings menu">
         <button id="mode-toggle" title="Filter the formats you can select"
           aria-label="Toggle format filter: Core Formats"><svg class="mode-toggle-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg><span id="mode-toggle-text">Core Formats</span></button>
         <button id="theme-toggle" title="Toggle theme" aria-label="Toggle colour theme">&#9788;</button>
@@ -366,13 +368,13 @@
       <span class="word-entrance" style="animation-delay: 0.4s" aria-hidden="true">today?</span>
     </h1>
 
-    <nav id="pdf-editor-tabs" class="tab-bar entrance d4" aria-label="PDF tools">
-      <button class="cat-tab active" data-tool="merge">Merge</button>
-      <button class="cat-tab" data-tool="organize">Organize</button>
-      <button class="cat-tab" data-tool="watermark">Watermark</button>
+    <nav id="pdf-editor-tabs" class="tab-bar entrance d4" aria-label="PDF tools" role="tablist">
+      <button id="pdf-tab-merge" class="cat-tab active" data-tool="merge" role="tab" aria-selected="true" aria-controls="pdf-tool-content" tabindex="0">Merge</button>
+      <button id="pdf-tab-organize" class="cat-tab" data-tool="organize" role="tab" aria-selected="false" aria-controls="pdf-tool-content" tabindex="-1">Organize</button>
+      <button id="pdf-tab-watermark" class="cat-tab" data-tool="watermark" role="tab" aria-selected="false" aria-controls="pdf-tool-content" tabindex="-1">Watermark</button>
     </nav>
 
-    <div id="pdf-tool-content" class="entrance d5"></div>
+    <div id="pdf-tool-content" class="entrance d5" role="tabpanel" aria-labelledby="pdf-tab-merge"></div>
 
     <div id="workspace-error" style="display:none" role="alert"></div>
 <input id="workspace-file-input" type="file" multiple accept=".pdf,application/pdf" style="display:none">

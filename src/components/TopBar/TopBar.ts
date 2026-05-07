@@ -22,11 +22,19 @@ export function applyMode(mode: FormatMode) {
 export function initModeToggle(onModeChanged: () => void) {
   applyMode(formatMode.value);
 
+  // rAF-coalesced so a fast scroll fires the class toggle at most once per
+  // frame instead of per scroll event (40-100x reduction in style recalcs).
+  let scrollPending = false;
   window.addEventListener("scroll", () => {
-    if (ui.topBar) {
-      ui.topBar.classList.toggle("scrolled", window.scrollY > 20);
-    }
-  });
+    if (scrollPending) return;
+    scrollPending = true;
+    requestAnimationFrame(() => {
+      scrollPending = false;
+      if (ui.topBar) {
+        ui.topBar.classList.toggle("scrolled", window.scrollY > 20);
+      }
+    });
+  }, { passive: true });
 
   ui.modeToggleButton.addEventListener("click", () => {
     let nextMode: FormatMode;
@@ -47,23 +55,69 @@ export function initModeToggle(onModeChanged: () => void) {
   });
 }
 
-export function closeMenu() {
-  ui.topControls.classList.remove("menu-open");
+// Tracks the element that opened the menu so focus can be restored on close
+// (otherwise keyboard users land at <body> after Esc).
+let menuOpenedFrom: HTMLElement | null = null;
+
+function focusableInMenu(): HTMLElement[] {
+  const menu = document.getElementById("top-controls-menu");
+  if (!menu) return [];
+  return Array.from(menu.querySelectorAll<HTMLElement>(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+  )).filter(el => !el.hasAttribute("disabled") && el.offsetParent !== null);
+}
+
+function setMenuOpen(open: boolean) {
+  ui.topControls.classList.toggle("menu-open", open);
+  ui.hamburgerBtn.setAttribute("aria-expanded", String(open));
   updateScrollLock();
+  if (open) {
+    menuOpenedFrom = document.activeElement as HTMLElement | null;
+    requestAnimationFrame(() => focusableInMenu()[0]?.focus());
+  } else if (menuOpenedFrom) {
+    menuOpenedFrom.focus();
+    menuOpenedFrom = null;
+  }
+}
+
+export function closeMenu() {
+  if (!ui.topControls.classList.contains("menu-open")) return;
+  setMenuOpen(false);
 }
 
 export function initResponsiveMenu() {
   ui.hamburgerBtn.addEventListener("click", () => {
-    ui.topControls.classList.toggle("menu-open");
-    updateScrollLock();
+    setMenuOpen(!ui.topControls.classList.contains("menu-open"));
   });
 
   // Close menu when clicking outside
   document.addEventListener("click", (clickEvent) => {
     const target = clickEvent.target as HTMLElement;
     if (!ui.topControls.contains(target) && ui.topControls.classList.contains("menu-open")) {
-      ui.topControls.classList.remove("menu-open");
-      updateScrollLock();
+      setMenuOpen(false);
+    }
+  });
+
+  // Esc closes; Tab/Shift+Tab cycles within the menu (focus trap).
+  document.addEventListener("keydown", (e) => {
+    if (!ui.topControls.classList.contains("menu-open")) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setMenuOpen(false);
+      return;
+    }
+    if (e.key !== "Tab") return;
+    const focusables = focusableInMenu();
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+    if (e.shiftKey && active === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
     }
   });
 }

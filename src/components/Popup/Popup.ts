@@ -90,7 +90,7 @@ export function showSizeWarningPopup(
   p.textContent = body;
 
   const actions = document.createElement("div");
-  actions.className = "popup-actions";
+  actions.className = "popup-actions-footer";
 
   actions.appendChild(createPopupButton("Go back", "btn-secondary", () => hidePopup()));
   actions.appendChild(createPopupButton("Convert anyway", "btn-primary", () => {

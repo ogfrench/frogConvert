@@ -235,6 +235,22 @@ const MAX_TOTAL_PAGES = 300;
 
 export function getActiveTool(): Tool { return activeTool; }
 
+// Sync tab DOM with the active tool. Updates the .active class, aria-selected,
+// and tabindex (roving — only the selected tab is keyboard-tabbable). The
+// tabpanel's aria-labelledby tracks the active tab so SR announces the panel
+// header correctly after a switch.
+function syncTabsUI(t: Tool) {
+  const tabs = document.getElementById('pdf-editor-tabs');
+  if (!tabs) return;
+  for (const b of tabs.querySelectorAll<HTMLButtonElement>('.cat-tab')) {
+    const isActive = b.dataset.tool === t;
+    b.classList.toggle('active', isActive);
+    b.setAttribute('aria-selected', String(isActive));
+    b.tabIndex = isActive ? 0 : -1;
+  }
+  document.getElementById('pdf-tool-content')?.setAttribute('aria-labelledby', `pdf-tab-${t}`);
+}
+
 export function selectPdfTool(tool: string) {
   const t = tool as Tool;
   if (!(TOOLS as readonly string[]).includes(t)) return;
@@ -242,9 +258,7 @@ export function selectPdfTool(tool: string) {
   if (activeTool === t) return;
   activeTool = t;
 
-  const tabs = document.getElementById('pdf-editor-tabs')!;
-  for (const b of tabs.querySelectorAll('.cat-tab')) b.classList.remove('active');
-  tabs.querySelector(`.cat-tab[data-tool="${t}"]`)?.classList.add('active');
+  syncTabsUI(t);
 
   renderActiveTool();
 }
@@ -274,15 +288,31 @@ export function initPdfWorkspace() {
 
   // Apply pending tool
   const tabs = document.getElementById('pdf-editor-tabs')!;
-  for (const b of tabs.querySelectorAll('.cat-tab')) b.classList.remove('active');
-  tabs.querySelector(`.cat-tab[data-tool="${activeTool}"]`)?.classList.add('active');
+  syncTabsUI(activeTool);
 
   tabs.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest('.cat-tab') as HTMLButtonElement | null;
     if (!btn || btn.classList.contains('active')) return;
-    for (const b of tabs.querySelectorAll('.cat-tab')) b.classList.remove('active');
-    btn.classList.add('active');
     activeTool = btn.dataset.tool as Tool;
+    syncTabsUI(activeTool);
+    renderActiveTool();
+  });
+
+  // Arrow-key roving navigation across the tablist
+  tabs.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
+    const buttons = Array.from(tabs.querySelectorAll<HTMLButtonElement>('.cat-tab'));
+    const current = buttons.findIndex(b => b.dataset.tool === activeTool);
+    if (current < 0) return;
+    let next = current;
+    if (e.key === 'ArrowLeft') next = (current - 1 + buttons.length) % buttons.length;
+    else if (e.key === 'ArrowRight') next = (current + 1) % buttons.length;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = buttons.length - 1;
+    e.preventDefault();
+    activeTool = buttons[next].dataset.tool as Tool;
+    syncTabsUI(activeTool);
+    buttons[next].focus();
     renderActiveTool();
   });
 
@@ -578,8 +608,10 @@ function createFileCard(sf: SourceFile): HTMLElement {
   const card = el('div', { className: 'ws-file-card' });
   card.dataset.fileId = String(sf.id);
   if (selectedFiles.has(sf.id)) card.classList.add('ws-file-selected');
-  card.setAttribute('role', 'checkbox');
-  card.setAttribute('aria-checked', String(selectedFiles.has(sf.id)));
+  card.setAttribute('role', 'button');
+  card.setAttribute('tabindex', '0');
+  card.setAttribute('aria-pressed', String(selectedFiles.has(sf.id)));
+  card.setAttribute('aria-label', sf.name);
   card.addEventListener('contextmenu', (e) => e.preventDefault());
   card.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).closest('.ws-file-remove, .ws-file-list-remove')) return;
@@ -1074,8 +1106,8 @@ function renderWatermarkView() {
     const card = el('div', {
       className: 'ws-page-card ws-wm-page-card',
       dataset: { wmFlatIdx: String(idx) },
-      role: 'checkbox',
-      ariaChecked: String(wmSelected.has(idx)),
+      role: 'button',
+      ariaPressed: String(wmSelected.has(idx)),
       ariaLabel: `Page ${wmBadgeText(idx)}`,
     });
     card.tabIndex = 0;
@@ -1198,7 +1230,7 @@ function wmUpdateSelectionVisuals() {
     const idx = Number(card.dataset.wmFlatIdx);
     const sel = wmSelected.has(idx);
     card.classList.toggle('ws-page-selected', sel);
-    card.setAttribute('aria-checked', String(sel));
+    card.setAttribute('aria-pressed', String(sel));
   });
 }
 
@@ -1429,6 +1461,7 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
   actions.appendChild(dl);
 
   const status = el('p', { className: 'ws-wm-status ws-wm-error-msg', textContent: '', id: statusId });
+  status.setAttribute('aria-live', 'polite');
   actions.appendChild(status);
   panel.appendChild(actions);
 }
@@ -2389,7 +2422,7 @@ function updateSelectionVisuals() {
     card.classList.toggle('ws-page-selected', sel);
     card.classList.toggle('ws-first-selected', i === firstSelIdx);
     card.classList.toggle('ws-last-selected', i === lastSelIdx);
-    card.setAttribute('aria-checked', String(sel));
+    card.setAttribute('aria-pressed', String(sel));
   });
 }
 
@@ -2399,7 +2432,7 @@ function updateMergeSelectionVisuals() {
     const fid = Number(card.dataset.fileId);
     const sel = !isNaN(fid) && selectedFiles.has(fid);
     card.classList.toggle('ws-file-selected', sel);
-    card.setAttribute('aria-checked', String(sel));
+    card.setAttribute('aria-pressed', String(sel));
   });
 }
 
@@ -2930,6 +2963,10 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
     className: 'ws-page-card',
     dataset: { pageIdx: String(idx) },
   });
+  card.setAttribute('role', 'button');
+  card.setAttribute('tabindex', '0');
+  card.setAttribute('aria-pressed', selected.has(idx) ? 'true' : 'false');
+  card.setAttribute('aria-label', page.type === 'blank' ? `Blank page ${idx + 1}` : `Page ${idx + 1} of ${pages.length}`);
   card.addEventListener('contextmenu', (e) => e.preventDefault());
 
   const isBlank = page.type === 'blank';

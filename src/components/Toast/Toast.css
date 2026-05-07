@@ -20,6 +20,9 @@
   pointer-events: none;
   white-space: normal;
   text-align: center;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .toast.open {
@@ -39,17 +42,53 @@
   color: var(--destructive);
 }
 
-/* On mobile, sit above the floating toolbar + tray and stretch edge-to-edge
-   so multi-line messages don't get squeezed into an awkward pill shape. */
+/* Icon prefix on warn/error so severity isn't conveyed by color alone (WCAG 1.4.1). */
+.toast.variant-warn::before,
+.toast.variant-error::before {
+  content: "⚠";
+  font-size: var(--text-md);
+  flex-shrink: 0;
+}
+
+.toast-text { flex: 1; }
+
+.toast-dismiss {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: var(--text-lg);
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 var(--space-1);
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+}
+.toast-dismiss:hover { opacity: 1; }
+.toast-dismiss:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--primary);
+  border-radius: var(--radius-sm);
+}
+
+/* On mobile, default sits at safe-area bottom. When a fixed PDF toolbar is
+   mounted, lift the toast above it via :has(). The earlier blanket rule
+   floated toasts 84px above empty space on the converter route. */
 @media (max-width: 800px) {
   .toast {
-    bottom: calc(var(--space-6) + var(--space-12) + var(--space-3) + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
     left: calc(var(--space-4) + env(safe-area-inset-left, 0px));
     right: calc(var(--space-4) + env(safe-area-inset-right, 0px));
     max-width: none;
     width: auto;
     transform: translateY(calc(100% + var(--space-4)));
     border-radius: var(--radius-lg);
+  }
+  body:has(.ws-toolbar) .toast {
+    bottom: calc(var(--space-6) + var(--space-12) + var(--space-3) + env(safe-area-inset-bottom, 0px));
+  }
+  body:has(.ws-toolbar--organize) .toast {
+    bottom: calc(var(--space-6) + var(--space-12) + var(--space-12) + var(--space-4) + env(safe-area-inset-bottom, 0px));
   }
   .toast.open {
     transform: translateY(0);

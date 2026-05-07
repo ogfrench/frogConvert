@@ -99,10 +99,10 @@ describe("UploadZone DOM bindings", () => {
             expect(ui.uploadLabel.textContent).toBe("Ready to convert from MP3");
         });
 
-        it("shows '{n} files ready - converting from FORMAT' for multiple files", async () => {
+        it("shows '{n} files ready, converting from FORMAT' for multiple files", async () => {
             const { showDetectedFormat } = await import("./UploadZone.ts");
             showDetectedFormat("png", 3);
-            expect(ui.uploadLabel.textContent).toBe("3 files ready \u2014 converting from PNG");
+            expect(ui.uploadLabel.textContent).toBe("3 files ready, converting from PNG");
         });
     });
 

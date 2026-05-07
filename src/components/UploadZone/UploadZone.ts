@@ -162,7 +162,7 @@ export function showFileInUploadZone(files: File[]) {
 
 export function showDetectedFormat(formatName: string, fileCount: number = 1) {
   if (fileCount > 1) {
-    ui.uploadLabel.textContent = `${fileCount} files ready \u2014 converting from ${formatName.toUpperCase()}`;
+    ui.uploadLabel.textContent = `${fileCount} files ready, converting from ${formatName.toUpperCase()}`;
   } else {
     ui.uploadLabel.textContent = `Ready to convert from ${formatName.toUpperCase()}`;
   }

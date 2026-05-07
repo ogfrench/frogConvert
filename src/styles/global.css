@@ -16,7 +16,7 @@
   --secondary: #f4f4f5;
   --secondary-foreground: #18181b;
   --muted: #f4f4f5;
-  --muted-foreground: #71717a;
+  --muted-foreground: #5f5f6a;
   --accent: #e4e4e7;
   --accent-foreground: #18181b;
   --destructive: #ef4444;
@@ -277,7 +277,6 @@ html.scroll-lock {
   max-width: var(--tabs-max-width);
   position: relative;
   z-index: 2;
-  pointer-events: none;
 }
 
 
@@ -364,7 +363,6 @@ html.scroll-lock {
   font-size: var(--text-base);
   color: var(--muted-foreground);
   line-height: var(--leading-relaxed);
-  pointer-events: none;
 }
 
 #description a {
@@ -667,17 +665,9 @@ html.scroll-lock {
   filter: var(--blur-bg-visual);
   animation: float 20s ease-in-out infinite;
   transition: filter 0.5s cubic-bezier(0.2, 0, 0, 1), opacity 0.5s ease, transform 0.5s cubic-bezier(0.2, 0, 0, 1);
-  cursor: default;
-  pointer-events: auto;
+  pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
-}
-
-#bg-visuals span:hover {
-  filter: blur(0px);
-  opacity: 0.45;
-  scale: 1.15;
-  animation-play-state: paused;
 }
 
 /* --- Entrance animation --- */
@@ -994,4 +984,84 @@ html.scroll-lock {
   .icon-btn:active,
   .cat-tab:active,
   .format-option:active { transform: scale(0.96); }
+}
+
+/* --- prefers-reduced-motion: cap CSS animation/transition durations ---
+   Vestibular-disorder and motion-sensitive users get a near-still UI.
+   AmbientBackground.ts has a parallel JS guard since inline-style writes
+   bypass animation-duration. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  #bg-visuals span { animation: none !important; }
+}
+
+/* --- Skip-link for keyboard users ---
+   Hidden off-screen until focused, then jumps to top-left so the first Tab
+   from the URL bar reaches main content in one keystroke instead of ~10. */
+.skip-link {
+  position: absolute;
+  left: -10000px;
+  top: var(--space-4);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius);
+  font-weight: var(--font-semibold);
+  z-index: 10000;
+  text-decoration: none;
+}
+.skip-link:focus {
+  left: var(--space-4);
+}
+
+/* --- :focus-visible rings for affordances that strip native outline ---
+   Multiple components set outline:none and rely on color shifts that don't
+   show up on keyboard focus. Restore a visible ring on every interactive. */
+.icon-btn:focus-visible,
+.cat-tab:focus-visible,
+.format-option:focus-visible,
+.pill-option:focus-visible,
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.ws-btn:focus-visible,
+.close-btn:focus-visible,
+.close-btn-md:focus-visible,
+.close-btn-lg:focus-visible,
+.pagination-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--primary);
+}
+.ws-page-card:focus-visible,
+.ws-file-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.ws-wm-slider:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 4px;
+}
+
+/* --- Restore native I-beam on text inputs while custom cursor is active ---
+   Custom cursor uses `cursor: none !important` on every element, which strips
+   the I-beam from inputs. Users typing into format-search or watermark text
+   then have no caret-positioning hint. Selectively restore on text-entry
+   fields only — buttons/checkboxes/colors stay under the glass-bead cursor. */
+@media (pointer: fine) {
+  html.custom-cursor-active input[type="text"],
+  html.custom-cursor-active input[type="search"],
+  html.custom-cursor-active input[type="email"],
+  html.custom-cursor-active input[type="number"],
+  html.custom-cursor-active input[type="tel"],
+  html.custom-cursor-active input[type="url"],
+  html.custom-cursor-active input[type="password"],
+  html.custom-cursor-active textarea {
+    cursor: text !important;
+  }
 }

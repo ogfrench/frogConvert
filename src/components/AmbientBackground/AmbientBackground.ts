@@ -5,6 +5,10 @@ import { isTouchUi } from "../../core/utils/touchUi.ts";
 export function initParallax() {
   // Don't init on touch devices
   if (isTouchUi()) return;
+  // Honor system reduced-motion preference. The CSS gate caps animation/
+  // transition durations but doesn't catch this loop's inline-style writes,
+  // so we short-circuit at the JS level.
+  if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
   const bgSpans = Array.from(document.querySelectorAll("#bg-visuals span")) as HTMLElement[];
   if (bgSpans.length === 0) return;

@@ -78,9 +78,7 @@
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--border);
-  cursor: pointer;
   transition: background-color 0.1s ease;
-  user-select: none;
 }
 
 @media (max-width: 800px) {
