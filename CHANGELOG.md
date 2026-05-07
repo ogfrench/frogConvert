@@ -10,18 +10,56 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [2.2.1] - 2026-05-07
 
-Bug-fix release: three Critical-class data-loss paths closed, plus power-user keyboard productivity in the PDF Editor and Format modal.
+Audit-driven patch release. Three Critical-class data-loss paths closed, mobile-first touch and a11y sweep across both routes, watermark preview rebuilt on a synchronous bitmap cache, and power-user keyboard productivity in the PDF Editor and Format modal.
 
 ### Fixed
 - **App-mode switch no longer destroys PDF workspace state.** Toggling between Converter and PDF Editor used to call `resetAll()` on the workspace, wiping loaded files, page reorder, watermark settings, and the undo history. Users who organized a long PDF and tapped the mode toggle by mistake (or to glance at the converter copy) returned to an empty workspace with no recovery. The mode-out path now calls `cleanup()` instead — DOM listeners and the body-mounted toolbar/tray are torn down, but module state is preserved. `initPdfWorkspace()` re-renders on subsequent calls so coming back remounts the UI on the existing data.
 - **Success popup no longer eats your file when closed early.** The post-conversion popup launched a `setTimeout(downloadAllConvertedFiles, 400)` gated on `popupBox.classList.contains("open")`. Fast-clickers who tapped *Done* before 400 ms got confetti but no download. Blob URLs are independent of popup lifetime, so the guard was dropping the file for no reason. Removed; downloads now fire unconditionally. Confetti stays popup-anchored.
 - **Files modal no longer replaces your file list when you drop on its background.** Drops anywhere on the modal except the inner *Drop more PDFs* zone bubbled to UploadZone's window-level handler, which silently called `proceedWithFiles()` and replaced `currentFiles`. Capture-phase `dragover`/`drop` listeners on the modal element now claim drops while open and route to `addMoreFiles()`.
-- **Mascot apology removed from Safari PDF error popup.** The Safari-specific error message ended with `Frogsworth is sorry ₍𝄐~𝄐₎`, which violated the CLAUDE.md "no mascot catchphrases" rule inside a critical-error popup. The message already names the escape route (Chrome / Firefox); the kaomoji was noise.
+- **Mobile last grid row no longer hidden behind the fixed toolbar.** `.ws-grid-card` `padding-bottom` recomputed via `var(--space-12) + var(--space-6) + var(--space-3) + env(safe-area-inset-bottom)` (single-row toolbar) and `+ var(--space-12) + var(--space-4)` more for the Organize two-row variant, so the last row of thumbnails has 20 px of breathing room above the floating toolbar.
+- **Mascot apology removed from Safari PDF error popup.** The Safari-specific error message ended with `Frogsworth is sorry`, which violated the CLAUDE.md "no mascot catchphrases" rule inside a critical-error popup. The message already names the escape route (Chrome / Firefox); the kaomoji was noise.
+- **Em dash in `showDetectedFormat` copy** replaced with a comma per the project copy rule (no em dashes in user-facing strings).
+- **Files modal `.file-row` no longer pretends to be clickable.** `cursor: pointer` was set without a row-level click handler — only inner buttons were interactive. Pointer cursor dropped.
+- **`.popup-actions` vs `.popup-actions-footer` inconsistency.** `showSizeWarningPopup` migrated from the legacy ad-hoc class to the shared `.popup-actions-footer` so size-warning, success, and error popups render their action rows identically.
 
 ### Added
 - **Ctrl/Cmd+Click for non-contiguous page selection** in the PDF Editor's Organize tab. `toggleSelection()` takes a third `ctrl` flag that explicitly toggles the clicked page and overrides Shift, matching the Windows / macOS multi-select convention so power users can pick or unpick a single page without disturbing a Shift range. Plain click and Shift+Click behavior unchanged.
 - **Redo (Ctrl+Y / Ctrl+Shift+Z)** in the PDF Editor. A 30-snapshot redo stack runs alongside the existing undo history. New mutating actions clear the redo branch (same convention as code editors and image tools). `cleanup()` and `resetAll()` clear both stacks.
 - **Arrow-key navigation across the Format modal options.** ↓ from the search input pulls focus into the first visible option; ↑ from the first option pulls focus back into search. ↑/↓/Home/End move within the option list. Saves keyboard users ~70 Tab presses to reach the bottom of the All Formats list.
+- **Arrow-key navigation across the PDF Editor tab bar.** Arrow Left / Right / Home / End move focus between Merge / Organize / Watermark inside the new tablist.
+- **Move ▲ / ▼ buttons in the PDF mobile tray.** Touch users couldn't reorder pages because the long-press drag fought page scrolling and the move-row was hidden behind the desktop-only `body.ws-keyboard-mode`. The tray now exposes Move up / Move down buttons that reuse the existing `moveSelection()`, giving touch users a non-drag reorder path.
+- **Mobile dismiss button on toasts.** Toasts had click-to-dismiss but no announced affordance for screen-reader or keyboard users; a real `× Dismiss` button now lives inside every toast with `aria-label="Dismiss"`.
+- **Skip-link** for keyboard users. The first Tab from the address bar now reveals a visible "Skip to content" link that jumps to `<main>`, saving the previous ~10 Tab stops through nav controls.
+
+### Mobile
+- **Touch-target sweep across the app** under `@media (any-pointer: coarse)`. `--control-size` bumped from 36 px to 44 px (WCAG 2.5.5), `.icon-btn`, `.close-btn-md`, `.close-btn-lg`, `.pagination-btn`, the Files modal "Replace all"/"Remove all" buttons, `.cat-tab` rows, `.format-option` rows, the Watermark Customize summary, and the watermark slider hit area all hit 44 × 44. `(any-pointer: coarse)` was chosen over `(pointer: coarse)` so hybrid touch laptops get touch-density even when a mouse is also present.
+- **iOS focus-zoom killed without scaling the type system.** Inputs receive a surgical `font-size: 16px` under `(any-pointer: coarse)` that prevents Safari from zooming on focus. The 13 px `--text-base` token stays untouched, so the design scale is unchanged.
+- **Watermark slider hit area extended.** Slider track stays 4 px tall but the input element's hit area now spans 44 px so finger-drag on opacity / rotation actually works.
+- **UploadZone file-info row wraps actions to a second line on touch** so the three icon buttons (manage / replace / remove) never crowd the filename.
+- **Mobile toolbar tracks the virtual keyboard.** A `visualViewport` listener writes `--kb-offset` to the document element and `.ws-toolbar { bottom: ... + var(--kb-offset) }` slides the Export button above the on-screen keyboard. The Watermark text input no longer hides Export behind the keyboard.
+- **Watermark input quick-flow** + empty-text passthrough — typing nothing no longer blocks export; the source PDFs are saved unchanged.
+
+### Accessibility
+- **`prefers-reduced-motion` is now respected app-wide.** A global CSS gate caps every animation and transition to 0.01 ms. The AmbientBackground parallax loop has a parallel JS guard since inline-style writes bypass the CSS gate. Bg-emoji floats, frog-pulse, ws-shimmer, ws-spin, dot-pulse, files-error-slide-in, and the entrance animations all stop when the system pref is on.
+- **`:focus-visible` rings on every affordance that strips outline elsewhere.** `.icon-btn`, `.cat-tab`, `.format-option`, `.pill-option`, `.btn-primary`, `.btn-secondary`, `.ws-btn`, `.close-btn`, `.pagination-btn`, `.ws-page-card`, `.ws-file-card`, `.ws-wm-slider` — keyboard users now see a 2 px primary ring (with 2 px offset) on focus.
+- **PDF Editor tab bar marked as a `role="tablist"`** with `role="tab"` + `aria-selected` + `aria-controls` per button and roving `tabindex`. The active tab's id flows into `aria-labelledby` on the tabpanel. Screen readers announce "tab, 2 of 3, Organize, selected" instead of three loose buttons.
+- **Page cards and file cards moved to `role="button"` + `aria-pressed` + `tabindex=0` + `aria-label`** (e.g. "Page 5 of 12, not pressed"). Selection state is now announced; the previous mix of `aria-checked` without a matching role was inert for AT.
+- **Watermark `.ws-wm-status` gets `aria-live="polite"`** so SR users hear export progress and validation states.
+- **Toast role / live-region differs by variant.** `variant-error` uses `role="alert"` + `aria-live="assertive"`; info/warn use `role="status"` + `aria-live="polite"`. Severity is also conveyed beyond color: `⚠` icon prefix on warn / error variants (WCAG 1.4.1).
+- **Mobile menu marked as a `role="dialog" aria-modal="true"` with focus trap.** Tab and Shift+Tab cycle within the menu, Escape closes, focus restores to the hamburger button. The hamburger's `aria-expanded` now flips with menu state.
+- **Light-mode `--muted-foreground` bumped from `#71717a` to `#5f5f6a`** so 11 / 12 px muted text passes WCAG AA (≥ 4.5 contrast).
+- **Headlines selectable.** `.page-title`, `.page-description`, and `.footer-text` shed `pointer-events: none` (z-index already separates them from `#bg-visuals`).
+- **Background-emoji mouse-trap killed.** `#bg-visuals span` flipped to `pointer-events: none`; emojis no longer steal mouse events from interactive content under them.
+- **Native I-beam restored on text inputs while the custom cursor is active.** `html.custom-cursor-active *` set `cursor: none !important`, hiding the I-beam from `<input type="text">` and `<textarea>`. A targeted override under `(pointer: fine)` brings it back.
+
+### Performance
+- **Watermark preview rebuilt on a synchronous bitmap cache.** The previous URL cache + 250 ms debounce timer is gone. Each page is now rendered once via pdfjs (lazy, on intersection-observer entry) into an `ImageBitmap`, and every settings change composites that cached bitmap with a Canvas 2D watermark overlay synchronously on the next animation frame. No PDF round-trip per slider tick. LRU-bounded at 200 entries (~45 MB ceiling). Slider drag is now smooth instead of stuttering.
+- **TopBar scroll listener rAF-coalesced** so `.scrolled` class toggles fire at most once per frame instead of per scroll event (40-100× reduction in style recalcs on fast scroll).
+
+### Internal
+- **`--button-surface` token** added to the design system: light theme maps to `--secondary`, dark theme overrides to `--card`. ~25 button definitions across 9 components consolidate onto the single token, removing the `.dark .btn-secondary` override cascade. Top-bar buttons opt out and bind directly to `--card` so they always match the base card surface.
+- **`cleanup()` exported from PdfWorkspace** for app-mode switches that should preserve module state.
+- **Build hardening.** Puppeteer timeouts lengthened in the cache-build script and on-failure error surfacing so cold-start cache rebuilds don't fail silently in CI.
 
 ---
 
