@@ -29,23 +29,29 @@ const serverUrl = `http://localhost:${server.port}`;
 
 const browser = await puppeteer.launch({
   headless: true,
+  timeout: 120_000,
   args: ["--no-sandbox", "--disable-setuid-sandbox"]
 });
 
 try {
   const page = await browser.newPage();
+  page.setDefaultNavigationTimeout(120_000);
+  page.setDefaultTimeout(120_000);
+
+  page.on("pageerror", err => console.error("page error:", err.message));
 
   await Promise.all([
     new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("Timeout waiting for Phase 2")), 60000);
+      const timeout = setTimeout(() => reject(new Error("Timeout waiting for Phase 2")), 120_000);
       page.on("console", msg => {
+        if (msg.type() === "error") console.error("console error:", msg.text());
         if (msg.text().startsWith("Phase 2:")) {
           clearTimeout(timeout);
           resolve();
         }
       });
     }),
-    page.goto(`${serverUrl}/index.html`, { waitUntil: "networkidle0" })
+    page.goto(`${serverUrl}/index.html`, { waitUntil: "domcontentloaded" })
   ]);
 
   const cacheJSON = await page.evaluate((minify) => {
