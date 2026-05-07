@@ -71,7 +71,7 @@ function imgQualityToQscale(qualityPercent: number): number {
 
 /**
  * Translate a planned compression profile into FFmpeg encoder flags for the
- * output container. The scale filter lives separately — it's only emitted
+ * output container. The scale filter lives separately, it's only emitted
  * when the planner decided the input is big enough to downscale.
  */
 function ffmpegPlanArgs(plan: CompressionPlan, outputFormat: FileFormat): string[] {
@@ -173,7 +173,7 @@ class NativeFFmpegAdapter {
       if (staticPath) {
         await tryBinary(staticPath);
         this.#ffmpegBinary = staticPath;
-        console.warn("[FFmpeg] Native ffmpeg not found in PATH — using bundled ffmpeg-static. Some codecs (e.g. H.264, AAC) may be unavailable. Install ffmpeg for full support: https://ffmpeg.org/download.html");
+        console.warn("[FFmpeg] Native ffmpeg not found in PATH, using bundled ffmpeg-static. Some codecs (e.g. H.264, AAC) may be unavailable. Install ffmpeg for full support: https://ffmpeg.org/download.html");
         return;
       }
     } catch { /* fall through */ }
@@ -219,7 +219,7 @@ class NativeFFmpegAdapter {
       p.on("close", (code: number | null) => {
         if (to) clearTimeout(to);
         // code is null when the process was killed by a signal (e.g. our own
-        // timeout handler calling p.kill()). Treat that as already-rejected —
+        // timeout handler calling p.kill()). Treat that as already-rejected,
         // don't inject a second "Conversion failed!" or call reject() again.
         if (code !== null && code !== 0) {
           // Inject the "Conversion failed!" marker so the recovery-pattern
@@ -301,7 +301,7 @@ class FFmpegHandler implements FormatHandler {
   async getStdout(callback: () => void | Promise<void>, tap?: (line: string) => void) {
     if (!this.#ffmpeg) return "";
     this.clearStdout();
-    // Single handler that both accumulates the log and optionally feeds a tap —
+    // Single handler that both accumulates the log and optionally feeds a tap,
     // the NativeFFmpegAdapter supports only one listener, so we fan out here.
     const handler = (log: LogEvent | { message: string }) => {
       this.#stdout += log.message + "\n";
@@ -367,7 +367,7 @@ class FFmpegHandler implements FormatHandler {
     } catch (e) {
       // Retry on:
       //   - falsy rejection (the Promise.race timeout above rejects with undefined)
-      //   - any error whose stringified form mentions "out of bounds" — this is
+      //   - any error whose stringified form mentions "out of bounds", this is
       //     the WASM OOM signature, and it can arrive as either a raw string
       //     (older WASM builds) or an Error (the native adapter, future builds).
       if (attempts > 1 && (!e || String((e as { message?: string })?.message ?? e).includes("out of bounds"))) {
@@ -572,7 +572,7 @@ class FFmpegHandler implements FormatHandler {
     // Format metadata is parsed from FFmpeg's own `-formats` output and
     // from handler manifests; both are normally trusted but should not be
     // able to escape a quoted string OR cause a path traversal. Whitelist
-    // alphanumerics, dot, hyphen, underscore — covers every legitimate file
+    // alphanumerics, dot, hyphen, underscore, covers every legitimate file
     // extension and rejects `'`, newlines, `/`, `\`, `..`-only inputs, etc.
     const SAFE_EXT = /^[a-zA-Z0-9._-]{1,16}$/;
     const isSafeExt = (ext: string | undefined): boolean =>
@@ -588,7 +588,7 @@ class FFmpegHandler implements FormatHandler {
 
     let forceFPS = 0;
     if (inputFormat.mime === "image/png" || inputFormat.mime === "image/jpeg") {
-      // If user passed -r N in args, respect their choice — otherwise fall back
+      // If user passed -r N in args, respect their choice, otherwise fall back
       // to a heuristic that's honestly a coin flip but matches old behavior.
       const rIdx = args ? args.indexOf("-r") : -1;
       const userFPS = (args && rIdx >= 0 && rIdx + 1 < args.length) ? Number(args[rIdx + 1]) : NaN;
@@ -609,7 +609,7 @@ class FFmpegHandler implements FormatHandler {
     const animatedFormats = new Set(["gif", "webp", "apng"]);
     const inputIsMultiFrame = inputFormat.mime?.startsWith("video/")
       || animatedFormats.has(inputFormat.format);
-    // Only extract frames when the output is a static image format —
+    // Only extract frames when the output is a static image format,
     // animated-capable outputs (GIF, WebP, APNG) should stay as a single
     // animated file, not be split into individual frames.
     const outputIsStaticImage = outputFormat.mime?.startsWith("image/")
@@ -854,7 +854,7 @@ class FFmpegHandler implements FormatHandler {
         command.push("-vf", `scale='min(${plan.imgMaxEdge},iw)':-1:flags=lanczos`);
       }
     }
-    // Forward remaining args but strip our custom `--quality <preset>` pair —
+    // Forward remaining args but strip our custom `--quality <preset>` pair,
     // it's not a real FFmpeg flag.
     if (args) {
       for (let i = 0; i < args.length; i++) {
@@ -879,11 +879,11 @@ class FFmpegHandler implements FormatHandler {
 
     // Progress sources (two, both feed the same throttled emitter):
     //
-    //   1. FFmpegWASM's native `progress` event — guaranteed to fire in the
+    //   1. FFmpegWASM's native `progress` event, guaranteed to fire in the
     //      browser, gives us `{ progress, time }` directly. This is the
     //      primary source for the WASM path.
     //
-    //   2. Log-stream tap parsing `Duration:` / `time=` — works for the
+    //   2. Log-stream tap parsing `Duration:` / `time=`, works for the
     //      native child-process adapter (which doesn't emit a progress event)
     //      and as a belt-and-braces backup for WASM.
     //
@@ -892,7 +892,7 @@ class FFmpegHandler implements FormatHandler {
     let durationMs: number | null = null;
     let lastEmit = 0;
     // Format an "Encoded Xs of Ys" detail line when both times are known.
-    // Skipped once durationMs is unknown — the elapsed line alone is fine.
+    // Skipped once durationMs is unknown, the elapsed line alone is fine.
     const formatDetail = (timeMs: number): string | undefined => {
       if (!durationMs || durationMs <= 0) return undefined;
       return `Encoded ${(timeMs / 1000).toFixed(1)}s of ${(durationMs / 1000).toFixed(1)}s of video.`;
@@ -921,7 +921,7 @@ class FFmpegHandler implements FormatHandler {
       }
       : undefined;
 
-    // Native progress event — only the WASM adapter exposes this. The native
+    // Native progress event, only the WASM adapter exposes this. The native
     // child-process adapter's `on("progress", ...)` is not implemented and
     // would be a no-op if we called it, so we gate on an instanceof check.
     let wasmProgressListener: ((ev: { progress: number; time: number }) => void) | null = null;

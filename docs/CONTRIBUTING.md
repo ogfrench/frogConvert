@@ -21,9 +21,9 @@ Found a bug, want a new format added, or have feedback on the converter or PDF e
 - The input file format (and output format, for conversion bugs).
 - The browser and OS you're on.
 - A short description of what you expected vs. what happened.
-- If possible, a sample file that reproduces the issue (do not send anything sensitive — frogConvert is fully client-side, but email isn't).
+- If possible, a sample file that reproduces the issue (do not send anything sensitive, frogConvert is fully client-side, but email isn't).
 
-Same address handles security reports — see [../SECURITY.md](../SECURITY.md) for the disclosure policy.
+Same address handles security reports, see [../SECURITY.md](../SECURITY.md) for the disclosure policy.
 
 ---
 

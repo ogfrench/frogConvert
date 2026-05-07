@@ -173,6 +173,69 @@ describe("pick() - exclude parameter", () => {
     });
 });
 
+describe("pick() - pdf-editor tab awareness", () => {
+    const collect = (n: number, fn: () => string) => {
+        const out = new Set<string>();
+        for (let i = 0; i < n; i++) out.add(fn());
+        return out;
+    };
+
+    it("watermark tab returns watermark-flavored quips at least sometimes", () => {
+        const texts = collect(80, () => pick(null, null, null, "pdf-editor", "watermark").text);
+        const hit = [...texts].some(t =>
+            t.includes("watermark") || t.includes("DRAFT") || t.includes("opacity") ||
+            t.includes("confidential") || t.includes("brand") || t.includes("territory") ||
+            t.includes("diagonal") || t.includes("45 degrees") || t.includes("stamping") ||
+            t.includes("page corners")
+        );
+        expect(hit).toBe(true);
+    });
+
+    it("organize tab returns organize-flavored quips at least sometimes", () => {
+        // Matchers must be substrings that appear ONLY in PDF_ORGANIZE_QUIPS,
+        // not in PDF_GENERIC_QUIPS — otherwise the test would pass even if the
+        // organize pool were never consulted.
+        const texts = collect(80, () => pick(null, null, null, "pdf-editor", "organize").text);
+        const hit = [...texts].some(t =>
+            t.includes("career pivot") || t.includes("drag the pages") || t.includes("right place") ||
+            t.includes("three r's") || t.includes("sideways") || t.includes("page 47") ||
+            t.includes("reorder") || t.includes("thumbnails below") || t.includes("undo button")
+        );
+        expect(hit).toBe(true);
+    });
+
+    it("merge tab returns merge-flavored quips at least sometimes", () => {
+        const texts = collect(80, () => pick(null, null, null, "pdf-editor", "merge").text);
+        const hit = [...texts].some(t =>
+            t.includes("two pdfs") || t.includes("love story") || t.includes("combine") ||
+            t.includes("cell division") || t.includes("extracting pages")
+        );
+        expect(hit).toBe(true);
+    });
+
+    it("watermark tab never serves an organize-only quip", () => {
+        const organizeOnly = "i rearrange pages now. career pivot.";
+        for (let i = 0; i < 50; i++) {
+            expect(pick(null, null, null, "pdf-editor", "watermark").text).not.toBe(organizeOnly);
+        }
+    });
+
+    it("merge tab never serves a watermark-only quip", () => {
+        const watermarkOnly = "DRAFT. DRAFT. DRAFT. DRAFT.";
+        for (let i = 0; i < 50; i++) {
+            expect(pick(null, null, null, "pdf-editor", "merge").text).not.toBe(watermarkOnly);
+        }
+    });
+
+    it("pdf-editor with no tool still returns a pdf-editor quip", () => {
+        const result = pick(null, null, null, "pdf-editor");
+        expect(typeof result.text).toBe("string");
+        expect(result.text.length).toBeGreaterThan(0);
+        // should not be a convert-page IDLE quip about formats in general
+        expect(result.text).not.toBe("drop a file, pick a format");
+    });
+});
+
 describe("pick() - all results have valid face values", () => {
     it("all faces are one of the 5 valid values across varied inputs", () => {
         const inputs: [string | null, string | null][] = [

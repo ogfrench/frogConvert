@@ -12,7 +12,7 @@ _(Backup domain: [frogconvert.netlify.app](https://frogconvert.netlify.app/)) ·
 
 > Turn your file into the prince it always was.
 
-frogConvert runs entirely in your browser. Convert between 70+ file formats or edit PDFs (merge, reorder, extract pages) without uploading anything to a server. Also available as an MCP server and a local REST API for AI agents and scripts.
+frogConvert runs entirely in your browser. Convert between 70+ file formats or edit PDFs (merge, reorder, extract, watermark) without uploading anything to a server. Also available as an MCP server and a local REST API for AI agents and scripts.
 
 ## Quick start
 
@@ -45,7 +45,7 @@ Headline of **2.1.0**: **Same-format compression** lands—convert JPEG to JPEG,
 
 The **conversion pipeline** (route finder, format handlers, Dijkstra routing) is forked from [Convert to it!](https://p2r3.github.io/convert/) by p2r3 ([original repo](https://github.com/p2r3/convert)). Full credit for the core conversion engine goes to the original author. The fork reimagines the UI/UX with quality-of-life improvements.
 
-The **PDF editor** (merge, organize, extract), the **MCP server**, the **REST API**, and the **test infrastructure** (Vitest + Puppeteer) are frogConvert-original; they are not part of the upstream project.
+The **PDF editor** (merge, organize, extract, watermark), the **MCP server**, the **REST API**, and the **test infrastructure** (Vitest + Puppeteer) are frogConvert-original; they are not part of the upstream project.
 
 ## License
 

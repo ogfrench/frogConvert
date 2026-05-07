@@ -12,7 +12,7 @@ import normalizeMimeType from "../utils/normalizeMimeType.ts";
  * - Same-format requests (same input/output mime, after canonicalisation)
  *   run the input probe and pick the next lower tier, matching the web UI's
  *   silent auto-pick.
- * - Returns `null` when the input is already at minimum useful quality —
+ * - Returns `null` when the input is already at minimum useful quality,
  *   the caller should return the original bytes unchanged.
  */
 export async function resolveEffectiveQuality(

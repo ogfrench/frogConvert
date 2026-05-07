@@ -6,7 +6,7 @@ import { planImage } from "../core/compression/plan.ts";
 import { imageToText, rgbaToGrayscale } from "./image-to-txt/src/convert.ts";
 import { encodeCanvasPalettePng } from "../tools/palettePng.ts";
 
-/** Inputs that are document-like (text/vector) — palette-PNG compresses them well. */
+/** Inputs that are document-like (text/vector), palette-PNG compresses them well. */
 const DOCUMENT_LIKE_INPUTS = new Set(["text", "svg"]);
 
 class canvasToBlobHandler implements FormatHandler {

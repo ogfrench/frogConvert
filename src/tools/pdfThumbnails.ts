@@ -97,11 +97,22 @@ export function clearThumbnailCache() {
 }
 
 /**
- * Fallback thumbnail when real rendering fails.
- * Reads the current theme to pick appropriate stroke colors.
+ * Fallback thumbnail. Without a label, draws a generic page icon (used when
+ * pdfjs render fails). With a label, draws a labeled blank-page card.
  */
-export function mockPageThumb(): string {
+export function mockPageThumb(label?: string): string {
   const dark = document.documentElement.classList.contains('dark');
+  if (label) {
+    const bg = dark ? '#1e1e1e' : '#f8f8f8';
+    const border = dark ? '#444' : '#ddd';
+    const text = dark ? '#666' : '#999';
+    return `data:image/svg+xml,${encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="212" viewBox="0 0 150 212">' +
+      `<rect width="150" height="212" fill="${bg}" stroke="${border}"/>` +
+      `<text x="75" y="106" text-anchor="middle" fill="${text}" font-family="system-ui,sans-serif" font-size="14">${label}</text>` +
+      '</svg>'
+    )}`;
+  }
   const stroke = dark ? '#555' : '#bbb';
   const line = dark ? '#444' : '#ccc';
   return `data:image/svg+xml,${encodeURIComponent(

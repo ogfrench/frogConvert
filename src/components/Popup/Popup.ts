@@ -8,7 +8,7 @@ import { ModalManager } from "../utils/ModalManager.ts";
 
 /**
  * SECURITY: When content is a string it is injected via innerHTML.
- * Only pass hardcoded HTML strings — never pass user-supplied content.
+ * Only pass hardcoded HTML strings, never pass user-supplied content.
  * Prefer the Node | Node[] overload to avoid innerHTML entirely.
  */
 export function showPopup(content: string | Node | Node[], persistent = false, onEscape?: () => void) {

@@ -6,7 +6,7 @@ desc: Authoring a new format handler
 
 # Handlers: Authoring Guide
 
-How to add a new format conversion to frogConvert. If you are editing the PDF editor (merge, reorder, extract), you are in the wrong guide; see [ARCHITECTURE.md § PDF Workspace](ARCHITECTURE.md#pdf-workspace-editor-mode).
+How to add a new format conversion to frogConvert. If you are editing the PDF editor (merge, reorder, extract, watermark), you are in the wrong guide; see [ARCHITECTURE.md § PDF Workspace](ARCHITECTURE.md#pdf-workspace-editor-mode).
 
 For conversion-pipeline internals (TraversionGraph, cost model), see [ARCHITECTURE.md](ARCHITECTURE.md). For contribution process (PR flow, testing, style), see [CONTRIBUTING.md](CONTRIBUTING.md). For the rules every contributor and agent must follow, see [../AGENTS.md](../AGENTS.md).
 
@@ -118,7 +118,7 @@ PDF render knobs (DPI and megapixel caps) live in `src/core/FormatHandler/qualit
 
 ### Progress reporting
 
-After 10 seconds the UI shows a live "Working on it..." notice with elapsed time and a rotating reassurance line. Handlers that have an internal counter (page loop, frame loop, image loop) should call `onProgress?.({ detail: "..." })` once per iteration so the notice can surface a concrete fact like `Page 12 of 50`, `Encoded 3.2s of 8.7s`, or `Image 4 of 18`. Keep the string under ~40 characters; it's rendered verbatim. Handlers with nothing meaningful to say should simply not emit — the elapsed line alone is fine.
+After 10 seconds the UI shows a live "Working on it..." notice with elapsed time and a rotating reassurance line. Handlers that have an internal counter (page loop, frame loop, image loop) should call `onProgress?.({ detail: "..." })` once per iteration so the notice can surface a concrete fact like `Page 12 of 50`, `Encoded 3.2s of 8.7s`, or `Image 4 of 18`. Keep the string under ~40 characters; it's rendered verbatim. Handlers with nothing meaningful to say should simply not emit, the elapsed line alone is fine.
 
 ```ts
 for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {

@@ -116,7 +116,7 @@ describe('registerConvertFileTool', () => {
     });
 
     it('falls back to bridge when input format is only in browser-only handlers (native inputMatch=null)', async () => {
-        // No native handlers — inputMatch will be null
+        // No native handlers, inputMatch will be null
         vi.mocked(convertViaBrowser).mockResolvedValue([{ fileName: 'out.png', base64Bytes: 'eHl6' }]);
 
         const server = makeMockServer();

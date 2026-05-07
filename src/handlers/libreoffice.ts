@@ -8,7 +8,7 @@ class libreofficeHandler implements FormatHandler {
   // IMPORTANT: starts EMPTY. Populated inside init() only after the soffice
   // binary is detected. This mirrors FFmpeg's pattern (FFmpeg.ts:159) and
   // prevents the graph from creating libreoffice edges when the binary is
-  // not available — otherwise the graph would route through us and the
+  // not available, otherwise the graph would route through us and the
   // executor would throw "Handler not ready after init".
   public supportedFormats: FileFormat[] = [];
 
@@ -21,7 +21,7 @@ class libreofficeHandler implements FormatHandler {
    *   - "remote": running in a browser that has a localhost API server on
    *               /api with libreoffice available. doConvert() POSTs to
    *               /api/convert and the API server runs soffice natively.
-   *   - "disabled": neither available — graph gets no libreoffice edges.
+   *   - "disabled": neither available, graph gets no libreoffice edges.
    */
   #mode: "native" | "remote" | "disabled" = "disabled";
 
@@ -35,12 +35,12 @@ class libreofficeHandler implements FormatHandler {
     // supportedFormatCache to localStorage and falls back to a pre-built
     // cache.json. Both can contain stale entries for this handler:
     //   - cache.json is built in headless Chromium (no Node), so the entry
-    //     is empty there — but a present-but-empty entry still counts as a
+    //     is empty there, but a present-but-empty entry still counts as a
     //     cache HIT and prevents initCacheMissHandlers from running init().
     //   - localStorage may carry over stale entries from previous runs.
     // Removing the entry forces a cache MISS, which forces init() to run,
     // which performs the actual binary detection. The cost is one fast
-    // spawn() call — there's no real benefit to caching this handler.
+    // spawn() call, there's no real benefit to caching this handler.
     if (typeof window !== "undefined" && window.supportedFormatCache) {
       window.supportedFormatCache.delete("libreoffice");
     }
@@ -69,7 +69,7 @@ class libreofficeHandler implements FormatHandler {
       }
     }
 
-    // Neither mode available — stay disabled.
+    // Neither mode available, stay disabled.
     // supportedFormats remains empty, graph will not route through us.
   }
 
@@ -147,7 +147,7 @@ class libreofficeHandler implements FormatHandler {
       const data = await resp.json();
       const available = Array.isArray(data?.handlers) && data.handlers.includes("libreoffice");
       if (available) {
-        console.info("[LibreOffice] remote mode enabled via /api — using localhost API server.");
+        console.info("[LibreOffice] remote mode enabled via /api, using localhost API server.");
       }
       return available;
     } catch {
@@ -158,7 +158,7 @@ class libreofficeHandler implements FormatHandler {
   /** Populate supportedFormats. Shared between native and remote modes. */
   #populateFormats() {
     this.supportedFormats = [
-      // Inputs — Office formats that LibreOffice can convert to PDF
+      // Inputs, Office formats that LibreOffice can convert to PDF
       CommonFormats.PPTX.builder("pptx").allowFrom(),
       CommonFormats.DOCX.builder("docx").allowFrom(),
       CommonFormats.XLSX.builder("xlsx").allowFrom(),
@@ -248,7 +248,7 @@ class libreofficeHandler implements FormatHandler {
     const fsName = "fs/promises";
     const fs = await import(/* @vite-ignore */ fsName);
 
-    // Tier 1: well-known paths (use forward slashes — Bun mangles backslashes in spawn)
+    // Tier 1: well-known paths (use forward slashes, Bun mangles backslashes in spawn)
     const knownPaths = [
       "C:/Program Files/LibreOffice/program/soffice.exe",
       "C:/Program Files (x86)/LibreOffice/program/soffice.exe",
@@ -404,7 +404,7 @@ class libreofficeHandler implements FormatHandler {
     const cpName = "child_process";
     const { spawn } = await import(/* @vite-ignore */ cpName);
 
-    // Convert to file:// URI — Windows paths need the extra slash (file:///C:/...)
+    // Convert to file:// URI, Windows paths need the extra slash (file:///C:/...)
     // while Unix paths already start with / (file:///tmp/...)
     const normalized = this.#profileDir.replace(/\\/g, "/");
     const encoded = normalized.split("/").map(s => encodeURIComponent(s)).join("/");
@@ -427,7 +427,7 @@ class libreofficeHandler implements FormatHandler {
       p.stderr?.on("data", (data: any) => { stderr += data.toString(); });
 
       const timeout = setTimeout(() => {
-        // SIGKILL (not default SIGTERM) — a hung soffice may ignore SIGTERM,
+        // SIGKILL (not default SIGTERM), a hung soffice may ignore SIGTERM,
         // leaving the mutex permanently locked and temp dirs leaked.
         p.kill("SIGKILL");
         reject(new Error("LibreOffice conversion timed out (120s)"));
@@ -442,7 +442,7 @@ class libreofficeHandler implements FormatHandler {
             `LibreOffice exited with code ${code}${stderr ? ": " + stderr.trim() : ""}`
           ));
         }
-        // code === null means killed by signal — usually our timeout handler
+        // code === null means killed by signal, usually our timeout handler
         // (already rejected above), but could be an external kill. Reject to
         // avoid permanently locking the mutex.
         if (code === null) reject(new Error("LibreOffice process was killed by signal"));
@@ -460,7 +460,7 @@ class libreofficeHandler implements FormatHandler {
 export default libreofficeHandler;
 
 /**
- * Chunked base64 encoder — plain `btoa(String.fromCharCode(...bytes))` blows
+ * Chunked base64 encoder, plain `btoa(String.fromCharCode(...bytes))` blows
  * the argument stack for files larger than ~100KB. Chunk through
  * String.fromCharCode in 32KB blocks to stay safe for arbitrary file sizes.
  */

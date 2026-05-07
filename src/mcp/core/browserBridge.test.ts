@@ -10,12 +10,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  *
  * vi.mock() must be declared at the top level so Vitest can hoist them before
  * any imports. Per-test behavior is controlled by module-level variables that
- * the mock factories close over — the variable is read at call time, not at
+ * the mock factories close over, the variable is read at call time, not at
  * factory-registration time.
  */
 
 // ---------------------------------------------------------------------------
-// Control variables — updated per-test before vi.resetModules()
+// Control variables, updated per-test before vi.resetModules()
 // ---------------------------------------------------------------------------
 
 let _distDirExists = true;
@@ -80,7 +80,7 @@ vi.mock('http', async (importOriginal) => {
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
-    // Clear call history (but NOT implementations — those stay on the vi.fn()s).
+    // Clear call history (but NOT implementations, those stay on the vi.fn()s).
     vi.clearAllMocks();
 
     // Reset control variables to their safe defaults.
@@ -99,7 +99,7 @@ beforeEach(() => {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('canConvertViaBrowser — before bridge is initialized', () => {
+describe('canConvertViaBrowser, before bridge is initialized', () => {
     it('returns false when bridge is not initialized', async () => {
         vi.resetModules();
         const { canConvertViaBrowser } = await import('./browserBridge.ts');
@@ -115,7 +115,7 @@ describe('canConvertViaBrowser — before bridge is initialized', () => {
     });
 });
 
-describe('convertViaBrowser — dist/ directory missing', () => {
+describe('convertViaBrowser, dist/ directory missing', () => {
     it('rejects with a message instructing user to run bun run build', async () => {
         _distDirExists = false;
 
@@ -127,7 +127,7 @@ describe('convertViaBrowser — dist/ directory missing', () => {
     });
 });
 
-describe('convertViaBrowser — successful path through mocked Puppeteer', () => {
+describe('convertViaBrowser, successful path through mocked Puppeteer', () => {
     it('calls page.evaluate with __frogConvertHeadless and returns results', async () => {
         const mockResults = [{ fileName: 'output.png', base64Bytes: 'cG5n' }];
         _mockPage.evaluate.mockResolvedValue(mockResults);
@@ -147,7 +147,7 @@ describe('convertViaBrowser — successful path through mocked Puppeteer', () =>
     });
 });
 
-describe('canConvertViaBrowser — after bridge page is initialized', () => {
+describe('canConvertViaBrowser, after bridge page is initialized', () => {
     it('delegates to page.evaluate with __frogConvertCanConvert', async () => {
         _mockPage.evaluate
             .mockResolvedValueOnce([])    // first call: convertViaBrowser result

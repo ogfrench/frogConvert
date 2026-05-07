@@ -1,11 +1,19 @@
 import './PdfWorkspace.css';
 import Sortable from 'sortablejs';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 import type { PageEntry, SourceFile } from '../../tools/types.ts';
 import { getNextFileId } from '../../tools/types.ts';
 import { merge } from '../../tools/pdfMerge.ts';
 import { extract } from '../../tools/pdfExtract.ts';
 import { organize } from '../../tools/pdfOrganize.ts';
+import {
+  watermark,
+  hexToRgb,
+  applyWatermarkToPage,
+  WatermarkValidationError,
+  WATERMARK_DEFAULTS,
+  type PdfWatermarkOptions,
+} from '../../tools/pdfWatermark.ts';
 import { renderPageThumbnail, clearThumbnailCache, mockPageThumb } from '../../tools/pdfThumbnails.ts';
 import { downloadFile, downloadAsZip } from '../../conversion/download.ts';
 import { isTouchUi } from '../../core/utils/touchUi.ts';
@@ -17,10 +25,11 @@ import { triggerConfetti } from '../../effects/Confetti/Confetti.ts';
 import { ui, updateScrollLock } from '../store/store.ts';
 
 // ---------------------------------------------------------------------------
-// State — shared file pool, per-tab working state
+// State: shared file pool, per-tab working state
 // ---------------------------------------------------------------------------
 
-type Tool = 'merge' | 'organize';
+const TOOLS = ['merge', 'organize', 'watermark'] as const;
+type Tool = typeof TOOLS[number];
 
 let files: SourceFile[] = [];
 // Organize state (persists across tab switches)
@@ -37,9 +46,11 @@ function onFilesMutated(): void {
   for (const id of selectedFiles) {
     if (!fileIds.has(id)) selectedFiles.delete(id);
   }
+  // Watermark grid tracks a flat page list, rebuild it when files change.
+  wmRebuildFlatPages();
 }
 
-// File order changed but ids unchanged — preserve `selectedFiles`; only the
+// File order changed but ids unchanged, preserve `selectedFiles`; only the
 // derived page indices are invalid.
 function onFilesReordered(): void {
   organizeInitialized = false;
@@ -210,8 +221,6 @@ let toolContent: HTMLElement;
 let fileInput: HTMLInputElement;
 let errorEl: HTMLElement;
 
-const renderQueue: Array<{ bytes: Uint8Array; page: number; cb: (url: string) => void }> = [];
-let rendering = false;
 const EAGER_LIMIT = 50;
 
 const MAX_TOTAL_FILE_SIZE = 500 * 1024 * 1024; // 500 MB total
@@ -222,9 +231,11 @@ const MAX_TOTAL_PAGES = 300;
 // Init + Tab switching
 // ---------------------------------------------------------------------------
 
+export function getActiveTool(): Tool { return activeTool; }
+
 export function selectPdfTool(tool: string) {
   const t = tool as Tool;
-  if (!['merge', 'organize'].includes(t)) return;
+  if (!(TOOLS as readonly string[]).includes(t)) return;
   if (!initialized) { activeTool = t; return; }
   if (activeTool === t) return;
   activeTool = t;
@@ -252,7 +263,7 @@ export function initPdfWorkspace() {
     wasDark = isDark;
     requestAnimationFrame(() => {
       if (!gridEl) return;
-      const src = getBlankPageThumb();
+      const src = mockPageThumb('Blank');
       gridEl.querySelectorAll<HTMLImageElement>('.ws-page-card img[alt="Blank page"]').forEach(img => {
         img.src = src;
       });
@@ -312,11 +323,48 @@ function renderActiveTool() {
   toolContent.innerHTML = '';
   toolContent.classList.remove('ws-empty-layout', 'ws-extract-layout');
   if (activeTool === 'merge') renderMergeView();
+  else if (activeTool === 'watermark') renderWatermarkView();
   else renderOrganizeView();
 }
 
 // ---------------------------------------------------------------------------
-// MERGE VIEW — file-level cards
+// Shared sidebar primitives, used by all three tabs
+// ---------------------------------------------------------------------------
+
+interface SidebarFileRowOpts {
+  /** Optional letter prefix (e.g. "A") shown before the filename. */
+  letter?: string;
+  /** Optional meta line below the filename (e.g. "12 pages · 1.2 MB"). */
+  meta?: string;
+  /** When set, render a × button that calls this on click. */
+  onRemove?: () => void;
+}
+
+function makeSidebarFileRow(sf: SourceFile, opts: SidebarFileRowOpts = {}): HTMLElement {
+  const row = el('div', { className: 'ws-sidebar-file' });
+  const prefix = opts.letter ? `${opts.letter}: ` : '';
+  row.appendChild(el('span', { className: 'ws-sidebar-filename', textContent: prefix + sf.name, title: sf.name }));
+  if (opts.meta !== undefined) {
+    row.appendChild(el('span', { className: 'ws-sidebar-meta', textContent: opts.meta }));
+  }
+  if (opts.onRemove) {
+    const delBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-list-remove', innerHTML: '&times;', ariaLabel: `Remove ${sf.name}` });
+    delBtn.addEventListener('click', (e) => { e.stopPropagation(); opts.onRemove!(); });
+    row.appendChild(delBtn);
+  }
+  return row;
+}
+
+function makeSectionLabel(text: string): HTMLElement {
+  return el('p', { className: 'ws-sidebar-section-label', textContent: text });
+}
+
+function makeSidebarDivider(): HTMLElement {
+  return el('hr', { className: 'ws-divider' });
+}
+
+// ---------------------------------------------------------------------------
+// MERGE VIEW: file-level cards
 // ---------------------------------------------------------------------------
 
 function renderMergeView() {
@@ -417,7 +465,7 @@ function updateMergeContent() {
       const [moved] = files.splice(evt.oldIndex, 1);
       files.splice(evt.newIndex, 0, moved);
       onFilesReordered();
-      // Sortable already moved the DOM — keep the cards in place, just refresh
+      // Sortable already moved the DOM, keep the cards in place, just refresh
       // the sidebar (file-letter labels depend on order) and retune the delay
       // so momentum applies to the next drag.
       refreshMergeUi();
@@ -451,27 +499,19 @@ function updateMergeSidebarContent(sidebar: HTMLElement) {
 
   const fileList = el('div', { className: 'ws-sidebar-files' });
   for (const sf of files) {
-    const fileItem = el('div', { className: 'ws-sidebar-file' });
-    const letter = files.length > 1 ? String.fromCharCode(65 + (files.indexOf(sf) % 26)) + ': ' : '';
-    fileItem.appendChild(el('span', { className: 'ws-sidebar-filename', textContent: letter + sf.name, title: sf.name }));
-    if (files.length > 1) {
-      fileItem.appendChild(el('span', { className: 'ws-sidebar-meta', textContent: `${sf.pageCount} pages · ${formatBytes(sf.size)}` }));
-    }
-
-    const delFileBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-list-remove', innerHTML: '&times;', ariaLabel: `Remove ${sf.name}` });
-    delFileBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      files = files.filter(f => f.id !== sf.id);
-      onFilesMutated();
-      updateMergeContent();
-      if (files.length) kickMergeThumbs();
-    });
-    fileItem.appendChild(delFileBtn);
-    fileList.appendChild(fileItem);
+    const isMulti = files.length > 1;
+    fileList.appendChild(makeSidebarFileRow(sf, {
+      letter: isMulti ? String.fromCharCode(65 + (files.indexOf(sf) % 26)) : undefined,
+      meta: isMulti ? `${sf.pageCount} pages · ${formatBytes(sf.size)}` : undefined,
+      onRemove: () => {
+        files = files.filter(f => f.id !== sf.id);
+        onFilesMutated();
+        updateMergeContent();
+        if (files.length) kickMergeThumbs();
+      },
+    }));
   }
   sidebar.appendChild(fileList);
-
-  sidebar.appendChild(el('hr', { className: 'ws-divider' }));
 
   const bottom = el('div', { className: 'ws-sidebar-bottom' });
 
@@ -533,10 +573,7 @@ function createFileCard(sf: SourceFile): HTMLElement {
 
   const thumbWrap = el('div', { className: 'ws-file-thumb-wrap' });
   const thumb = el('div', { className: `ws-file-thumb${sf.firstPageThumb ? '' : ' ws-skeleton'}` });
-  if (sf.firstPageThumb) {
-    const img = el('img', { src: sf.firstPageThumb, alt: '', draggable: 'false' }) as HTMLImageElement;
-    thumb.appendChild(img);
-  }
+  if (sf.firstPageThumb) setThumb(thumb, sf.firstPageThumb);
   thumbWrap.appendChild(thumb);
 
   card.appendChild(thumbWrap);
@@ -565,6 +602,8 @@ function createFileCard(sf: SourceFile): HTMLElement {
   return card;
 }
 
+const PAGE_THUMB_WIDTH = 320;
+
 function kickMergeThumbs() {
   for (const sf of files) {
     if (sf.firstPageThumb) continue;
@@ -574,19 +613,13 @@ function kickMergeThumbs() {
       const idx = files.indexOf(sf);
       if (idx >= 0 && cards[idx]) {
         const thumb = cards[idx].querySelector('.ws-file-thumb');
-        if (thumb) {
-          thumb.classList.remove('ws-skeleton');
-          thumb.innerHTML = '';
-          const img = document.createElement('img');
-          img.src = url; img.alt = ''; img.draggable = false;
-          thumb.appendChild(img);
-        }
+        if (thumb) setThumb(thumb, url);
       }
-    });
+    }, PAGE_THUMB_WIDTH);
   }
 }
 
-function appendMobileToolbar_merge(gridCard: HTMLElement) {
+function appendMobileToolbar_merge(_gridCard: HTMLElement) {
   const toolbar = el('div', { className: 'ws-toolbar' });
   const iconBtn = el('button', { className: 'icon-btn ws-toolbar-icon', ariaLabel: 'More options' });
   iconBtn.innerHTML = MORE_SVG;
@@ -609,7 +642,920 @@ function appendMobileToolbar_merge(gridCard: HTMLElement) {
 }
 
 // ---------------------------------------------------------------------------
-// ORGANIZE VIEW — page-level (select, reorder, rotate, delete, extract)
+// WATERMARK VIEW: apply a text watermark to selected pages
+// ---------------------------------------------------------------------------
+
+interface WmSettings {
+  text: string;
+  fontSize: number;
+  colorHex: string;
+  opacity: number;        // 0-1
+  rotation: number;       // degrees
+  repeat: boolean;
+}
+
+const WM_DEFAULTS: WmSettings = {
+  text: 'CONFIDENTIAL',
+  fontSize: WATERMARK_DEFAULTS.fontSize,
+  colorHex: WATERMARK_DEFAULTS.colorHex,
+  opacity: WATERMARK_DEFAULTS.opacity,
+  rotation: WATERMARK_DEFAULTS.rotationDegrees,
+  repeat: WATERMARK_DEFAULTS.repeat,
+};
+
+interface WmPageEntry { fileId: number; pageNum: number; }
+
+let wmSettings: WmSettings = { ...WM_DEFAULTS };
+let wmFlatPages: WmPageEntry[] = [];
+let wmSelected: Set<number> = new Set();   // flat-index source of truth
+let wmLastClicked = -1;                     // for shift-click range
+let wmRenderToken = 0;
+let wmDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let wmTextEncodeFont: { font: any; doc: PDFDocument } | null = null;
+let wmGridEl: HTMLElement | null = null;
+let wmObserver: IntersectionObserver | null = null;
+const wmCardCache = new Map<number, { visualKey: string; url: string }>();
+// Per-file parsed PDFDocument cache. Reused by every card render so a settings
+// change re-stamps without re-parsing each source PDF once per visible card.
+// Cleared on file mutation, cleanup, and resetAll.
+const wmLoadedDocCache = new Map<number, Promise<PDFDocument>>();
+const WM_DEBOUNCE_MS = 250;
+let watermarkMobileTray: HTMLElement | null = null;
+// Per-panel id seq so desktop + mobile tray panels have unique ids for
+// aria-describedby wiring (both can live in the DOM at the same time on
+// mobile when the tray hasn't been opened yet).
+let wmPanelSeq = 0;
+
+/** Page numbers (1-indexed) of `sf` that the user has selected. */
+function wmEffectivePagesFor(sf: SourceFile): number[] {
+  const set = new Set<number>();
+  for (const idx of wmSelected) {
+    const entry = wmFlatPages[idx];
+    if (entry && entry.fileId === sf.id) set.add(entry.pageNum);
+  }
+  return [...set].sort((a, b) => a - b);
+}
+
+/** Range string view of `wmSelected` (1-indexed flat positions). */
+function wmSelectedToRangeString(): string {
+  return setToRangeString(wmSelected, wmFlatPages.length);
+}
+
+/**
+ * Parse a flat-index range string like "1-5, 8" into a Set of zero-indexed
+ * flat positions. Returns null if the syntax is invalid.
+ */
+function wmParseRangeToSelection(text: string): Set<number> | null {
+  const oneIndexed = parsePageRange(text, wmFlatPages.length);
+  if (!oneIndexed) return null;
+  const zeroIndexed = new Set<number>();
+  for (const n of oneIndexed) zeroIndexed.add(n - 1);
+  return zeroIndexed;
+}
+
+function wmRebuildFlatPages() {
+  // Idempotent: only rebuild when files actually changed shape, so re-entering
+  // the watermark tab doesn't blow away the rendered-thumbnail cache.
+  const expectedLen = files.reduce((s, f) => s + f.pageCount, 0);
+  let unchanged = wmFlatPages.length === expectedLen;
+  if (unchanged) {
+    let i = 0;
+    outer: for (const f of files) {
+      for (let p = 1; p <= f.pageCount; p++) {
+        const cur = wmFlatPages[i];
+        if (!cur || cur.fileId !== f.id || cur.pageNum !== p) { unchanged = false; break outer; }
+        i++;
+      }
+    }
+  }
+  if (unchanged) return;
+
+  wmFlatPages = [];
+  for (const f of files) {
+    for (let p = 1; p <= f.pageCount; p++) {
+      wmFlatPages.push({ fileId: f.id, pageNum: p });
+    }
+  }
+  // Flat order changed → cached URLs no longer map to the right page. Loaded-doc
+  // cache is keyed by fileId; a removed file's entry is now dead, so clear too.
+  wmCardCache.clear();
+  wmLoadedDocCache.clear();
+  wmRenderToken++;
+}
+
+/**
+ * Lazy per-file PDFDocument loader. Multiple watermark card renders sharing a
+ * file get one parse, not N. Failed parses self-evict so a retry can succeed.
+ */
+async function wmGetLoadedDoc(sf: SourceFile): Promise<PDFDocument> {
+  let p = wmLoadedDocCache.get(sf.id);
+  if (!p) {
+    p = PDFDocument.load(sf.bytes, { ignoreEncryption: true });
+    p.catch(() => wmLoadedDocCache.delete(sf.id));
+    wmLoadedDocCache.set(sf.id, p);
+  }
+  return p;
+}
+
+/** Badge: `1` (single file) or `A1` (multi-file, letter = upload order). */
+function wmBadgeText(idx: number): string {
+  const entry = wmFlatPages[idx];
+  if (!entry) return '';
+  if (files.length <= 1) return String(entry.pageNum);
+  const fileIdx = files.findIndex(f => f.id === entry.fileId);
+  const letter = String.fromCharCode(65 + (fileIdx % 26));
+  return `${letter}${entry.pageNum}`;
+}
+
+/** Visual key, fields that change the rendered watermark image (NOT range). */
+function wmVisualKey(): string {
+  const s = wmSettings;
+  return `${s.text}|${s.fontSize}|${s.colorHex}|${s.opacity}|${s.rotation}|${s.repeat}`;
+}
+
+function wmResetForFiles() {
+  wmRebuildFlatPages();
+  // Default selection on tab entry: every page across every file. Users who
+  // want a subset click pages off (or type a narrower range).
+  if (wmFlatPages.length > 0 && wmSelected.size === 0) {
+    wmSelected = new Set(wmFlatPages.map((_, i) => i));
+  } else {
+    // Drop indices that no longer exist (file removed shrinks wmFlatPages).
+    const valid = new Set<number>();
+    for (const idx of wmSelected) if (idx < wmFlatPages.length) valid.add(idx);
+    wmSelected = valid;
+  }
+  wmLastClicked = -1;
+}
+
+async function wmEnsureEncodeFont(): Promise<any | null> {
+  if (wmTextEncodeFont) return wmTextEncodeFont.font;
+  try {
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    wmTextEncodeFont = { font, doc };
+    return font;
+  } catch {
+    return null;
+  }
+}
+
+// Encoding probe is cheap but called once per visible card on every kick;
+// memoize so a 300-page grid runs encodeText() once per text change, not 300x.
+let _wmTextEncodeProbe: { text: string; bad: boolean } | null = null;
+function wmTextHasInvalidChars(): boolean {
+  if (!wmTextEncodeFont) return false;
+  if (_wmTextEncodeProbe?.text === wmSettings.text) return _wmTextEncodeProbe.bad;
+  let bad = false;
+  try { wmTextEncodeFont.font.encodeText(wmSettings.text); } catch { bad = true; }
+  _wmTextEncodeProbe = { text: wmSettings.text, bad };
+  return bad;
+}
+
+function wmDownloadDisabled(): { disabled: boolean; reason?: string } {
+  if (files.length === 0) return { disabled: true, reason: 'Add a PDF first' };
+  if (!wmSettings.text.trim()) return { disabled: true, reason: 'Enter watermark text' };
+  if (wmTextHasInvalidChars()) {
+    return { disabled: true, reason: "Some characters can't be rendered. Try basic Latin text." };
+  }
+  if (wmSelected.size === 0) return { disabled: true, reason: 'Pick at least one page' };
+  return { disabled: false };
+}
+
+/**
+ * Re-render all currently-mounted cards. Bumping `wmRenderToken` stales any
+ * in-flight watermark renders; visual cache entries that still match
+ * `wmVisualKey()` are reused, so range-only edits don't recompute pixels.
+ * Pass `immediate` to skip the input-debounce.
+ */
+function wmKickVisible(immediate = false) {
+  if (wmDebounceTimer) { clearTimeout(wmDebounceTimer); wmDebounceTimer = null; }
+  const fire = () => {
+    wmRenderToken++;
+    if (!wmGridEl) return;
+    wmGridEl.querySelectorAll<HTMLElement>('[data-wm-flat-idx]').forEach(card => {
+      const idx = Number(card.dataset.wmFlatIdx);
+      if (!Number.isNaN(idx)) void wmRenderCard(idx);
+    });
+  };
+  if (immediate) fire();
+  else wmDebounceTimer = setTimeout(fire, WM_DEBOUNCE_MS);
+}
+
+const wmKickVisibleImmediate = () => wmKickVisible(true);
+
+async function wmRenderCard(idx: number) {
+  const myToken = wmRenderToken;
+  const entry = wmFlatPages[idx];
+  if (!entry || !wmGridEl) return;
+  const sf = files.find(f => f.id === entry.fileId);
+  const thumb = wmGridEl.querySelector<HTMLElement>(`[data-wm-flat-idx="${idx}"] .ws-page-thumb`);
+  if (!sf || !thumb) return;
+
+  const inScope = wmEffectivePagesFor(sf).includes(entry.pageNum);
+  const wmApplicable = inScope && !!wmSettings.text.trim() && !wmTextHasInvalidChars();
+  const visualKey = wmVisualKey();
+  const cached = wmCardCache.get(idx);
+
+  // Exact cache hit, skip both passes.
+  if (wmApplicable && cached && cached.visualKey === visualKey) {
+    setThumb(thumb, cached.url);
+    return;
+  }
+
+  // Stale cache: keep the previous watermarked thumb on screen while we render
+  // the new one. Avoids flashing the plain page mid-drag.
+  if (wmApplicable && cached) {
+    setThumb(thumb, cached.url);
+  }
+
+  try {
+    // Plain pass only when there's nothing better to show. Organize-speed via
+    // the LRU in pdfThumbnails.ts.
+    if (!cached) {
+      const plainUrl = await renderPageThumbnail(sf.bytes, entry.pageNum, PAGE_THUMB_WIDTH);
+      if (myToken !== wmRenderToken) return;
+      if (plainUrl) setThumb(thumb, plainUrl);
+    }
+
+    if (!wmApplicable) return;
+
+    // Watermarked pass. Bail before the pdf-lib parse if we've been staled.
+    if (myToken !== wmRenderToken) return;
+    let color;
+    try { color = hexToRgb(wmSettings.colorHex); } catch { color = { r: 0.5, g: 0.5, b: 0.5 }; }
+    const temp = await PDFDocument.create();
+    const src = await wmGetLoadedDoc(sf);
+    const [copied] = await temp.copyPages(src, [entry.pageNum - 1]);
+    temp.addPage(copied);
+    await applyWatermarkToPage(temp, copied, {
+      source: { type: 'text', text: wmSettings.text, fontSize: wmSettings.fontSize, color },
+      opacity: wmSettings.opacity,
+      rotationDegrees: wmSettings.rotation,
+      repeat: wmSettings.repeat,
+    });
+    const bytes = new Uint8Array(await temp.save());
+    if (myToken !== wmRenderToken) return;
+    const url = await renderPageThumbnail(bytes, 1, PAGE_THUMB_WIDTH);
+    if (myToken !== wmRenderToken || !url) return;
+    wmCardCache.set(idx, { visualKey, url });
+    setThumb(thumb, url);
+  } catch (e) {
+    console.warn('[pdfWorkspace] watermark card render failed:', e);
+  }
+}
+
+function renderWatermarkView() {
+  cleanup();
+  toolContent.innerHTML = '';
+  toolContent.classList.remove('ws-empty-layout', 'ws-extract-layout');
+
+  wmResetForFiles();
+
+  if (files.length === 0) {
+    renderEmptyState('Drop PDFs to watermark', true);
+    return;
+  }
+
+  toolContent.classList.add('ws-extract-layout');
+
+  const leftCard = el('div', { className: 'card-base ws-grid-card ws-wm-preview-card' });
+  const rightCard = el('div', { className: 'card-base ws-sidebar-card ws-wm-panel-card' });
+
+  // ---- Left: 2-col page grid (Organize-style, capped at 2 cols) ----
+  const grid = el('div', { className: 'ws-wm-page-grid' });
+  wmFlatPages.forEach((_entry, idx) => {
+    const card = el('div', {
+      className: 'ws-page-card ws-wm-page-card',
+      dataset: { wmFlatIdx: String(idx) },
+      role: 'checkbox',
+      ariaChecked: String(wmSelected.has(idx)),
+      ariaLabel: `Page ${wmBadgeText(idx)}`,
+    });
+    card.tabIndex = 0;
+    if (wmSelected.has(idx)) card.classList.add('ws-page-selected');
+    card.addEventListener('contextmenu', (e) => e.preventDefault());
+    card.addEventListener('click', (e) => {
+      wmToggleSelection(idx, (e as MouseEvent).shiftKey);
+    });
+    card.addEventListener('keydown', (e) => {
+      if (e.key !== ' ' && e.key !== 'Enter') return;
+      e.preventDefault();
+      wmToggleSelection(idx, e.shiftKey);
+    });
+    const watermarkedTag = el('span', { className: 'ws-wm-watermarked-tag', textContent: 'Watermarked', ariaHidden: 'true' });
+    card.appendChild(watermarkedTag);
+    const thumbWrap = el('div', { className: 'ws-page-thumb-wrap' });
+    const thumb = el('div', { className: 'ws-page-thumb ws-skeleton' });
+    thumbWrap.appendChild(thumb);
+    card.appendChild(thumbWrap);
+    card.appendChild(el('span', { className: 'ws-page-badge', textContent: wmBadgeText(idx), ariaHidden: 'true' }));
+    grid.appendChild(card);
+  });
+
+  // Trailing "Drop more PDFs" dropzone card, same affordance as Merge / Organize.
+  const addCard = createDropzone('Drop more PDFs', true);
+  addCard.classList.add('ws-page-card', 'ws-page-add', 'ws-wm-page-card');
+  grid.appendChild(addCard);
+
+  leftCard.appendChild(grid);
+  wmGridEl = grid;
+
+  // ---- Right: settings panel ----
+  buildWatermarkPanel(rightCard);
+
+  toolContent.appendChild(leftCard);
+  toolContent.appendChild(rightCard);
+
+  // Mobile toolbar (sticky bottom) + tray with the same settings panel.
+  appendMobileToolbar_watermark(leftCard);
+
+  // Observe cards: render lazily as they enter the viewport. Unobserve once
+  // we kick a render so scroll-back doesn't re-trigger work; subsequent
+  // re-renders (settings/selection change) go via wmKickVisible which
+  // iterates every `[data-wm-flat-idx]` directly.
+  wmObserver?.disconnect();
+  wmObserver = new IntersectionObserver((entries, observer) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      const idx = Number((entry.target as HTMLElement).dataset.wmFlatIdx);
+      if (!Number.isNaN(idx)) {
+        void wmRenderCard(idx);
+        observer.unobserve(entry.target);
+      }
+    }
+  }, { rootMargin: '200px' });
+  grid.querySelectorAll<HTMLElement>('[data-wm-flat-idx]').forEach(c => wmObserver!.observe(c));
+
+  // Lazy-embed Helvetica for input validation, then kick the visible cards
+  // through their first paint.
+  void (async () => {
+    await wmEnsureEncodeFont();
+    rebuildWatermarkPanelDownloadState();
+    wmKickVisibleImmediate();
+  })();
+}
+
+function appendMobileToolbar_watermark(_gridCard: HTMLElement) {
+  const toolbar = el('div', { className: 'ws-toolbar' });
+  const iconBtn = el('button', { className: 'icon-btn ws-toolbar-icon', ariaLabel: 'More options' });
+  iconBtn.innerHTML = MORE_SVG;
+  const actionBtn = el('button', { className: 'btn-primary ws-toolbar-action ws-wm-download-btn', textContent: wmDownloadLabel() });
+  actionBtn.addEventListener('click', handleWatermarkExport);
+  toolbar.appendChild(actionBtn);
+  toolbar.appendChild(iconBtn);
+  document.body.appendChild(toolbar);
+
+  const tray = el('div', { className: 'ws-tray' });
+  watermarkMobileTray = tray;
+  buildWatermarkPanel(tray);
+  const overlay = el('div', { className: 'ws-tray-overlay' });
+  wireTrayToggle(tray, overlay, iconBtn);
+
+  document.body.appendChild(overlay);
+  document.body.appendChild(tray);
+}
+
+/** Refresh every range input on the page to mirror `wmSelected`. */
+function wmSyncRangeInputs(errorState = false) {
+  const text = wmSelectedToRangeString();
+  document.querySelectorAll<HTMLInputElement>('.ws-wm-range-input').forEach(ri => {
+    if (!errorState && ri.value !== text) ri.value = text;
+    ri.classList.toggle('ws-input-error', errorState);
+    if (errorState) ri.setAttribute('aria-invalid', 'true');
+    else ri.removeAttribute('aria-invalid');
+  });
+}
+
+/** Refresh `.ws-page-selected` class on every visible card to match `wmSelected`. */
+function wmUpdateSelectionVisuals() {
+  if (!wmGridEl) return;
+  wmGridEl.querySelectorAll<HTMLElement>('[data-wm-flat-idx]').forEach(card => {
+    const idx = Number(card.dataset.wmFlatIdx);
+    const sel = wmSelected.has(idx);
+    card.classList.toggle('ws-page-selected', sel);
+    card.setAttribute('aria-checked', String(sel));
+  });
+}
+
+/** Toggle / shift-range select and propagate to inputs + render. */
+function wmToggleSelection(idx: number, shift: boolean) {
+  if (shift && wmLastClicked >= 0) {
+    const lo = Math.min(idx, wmLastClicked);
+    const hi = Math.max(idx, wmLastClicked);
+    for (let i = lo; i <= hi; i++) wmSelected.add(i);
+  } else {
+    if (wmSelected.has(idx)) wmSelected.delete(idx);
+    else wmSelected.add(idx);
+  }
+  wmLastClicked = idx;
+  wmUpdateSelectionVisuals();
+  wmSyncRangeInputs();
+  rebuildWatermarkPanelDownloadState();
+  wmKickVisible();
+}
+
+function buildWatermarkPanel(panel: HTMLElement) {
+  panel.innerHTML = '';
+  if (files.length === 0) return;
+  const seq = ++wmPanelSeq;
+  const textErrId = `wm-text-err-${seq}`;
+  const statusId = `wm-status-${seq}`;
+  const textLblId = `wm-lbl-text-${seq}`;
+  const colorLblId = `wm-lbl-color-${seq}`;
+
+  // ---- BLOCK 1: count-row + file list (matches Merge / Organize sidebars) ----
+  const isMulti = files.length > 1;
+  const totalAcrossFiles = files.reduce((s, f) => s + f.pageCount, 0);
+  const countText = isMulti
+    ? `${files.length} files · ${totalAcrossFiles} pages`
+    : `${totalAcrossFiles} page${totalAcrossFiles !== 1 ? 's' : ''}`;
+  const countRow = el('div', { className: 'ws-sidebar-count-row' });
+  countRow.appendChild(el('p', { className: 'ws-sidebar-count', textContent: countText }));
+  const btnGroup = el('div', { className: 'ws-count-btn-group' });
+  btnGroup.appendChild(createAddFileButton());
+  countRow.appendChild(btnGroup);
+  panel.appendChild(countRow);
+
+  const fileList = el('div', { className: 'ws-sidebar-files' });
+  files.forEach((f, idx) => {
+    fileList.appendChild(makeSidebarFileRow(f, {
+      letter: isMulti ? String.fromCharCode(65 + (idx % 26)) : undefined,
+      meta: isMulti ? `${f.pageCount} pages · ${formatBytes(f.size)}` : undefined,
+      onRemove: () => {
+        files = files.filter(x => x.id !== f.id);
+        onFilesMutated();
+        renderActiveTool();
+      },
+    }));
+  });
+  panel.appendChild(fileList);
+  panel.appendChild(makeSidebarDivider());
+
+  // ---- BLOCK 2: Watermark (config), what to stamp ----
+  panel.appendChild(makeSectionLabel('Watermark'));
+
+  const textRow = el('div', { className: 'ws-wm-text-row' });
+  textRow.appendChild(el('span', { className: 'ws-wm-row-label', textContent: 'Text', id: textLblId }));
+  const ti = el('input', {
+    type: 'text',
+    className: 'ws-range-input ws-wm-text-input',
+    value: wmSettings.text,
+    maxLength: 200,
+    placeholder: 'Watermark text',
+    'aria-labelledby': textLblId,
+    'aria-describedby': textErrId,
+  }) as HTMLInputElement;
+  textRow.appendChild(ti);
+  const textErrEl = el('p', { className: 'ws-wm-text-error ws-wm-error-msg', textContent: '', id: textErrId });
+  ti.addEventListener('input', () => {
+    wmSettings.text = ti.value;
+    const bad = wmSettings.text && wmTextHasInvalidChars();
+    const invalid = !!bad || !wmSettings.text.trim();
+    document.querySelectorAll<HTMLInputElement>('.ws-wm-text-input').forEach(el => {
+      if (el !== ti && el.value !== wmSettings.text) el.value = wmSettings.text;
+      el.classList.toggle('ws-input-error', invalid);
+      if (invalid) el.setAttribute('aria-invalid', 'true');
+      else el.removeAttribute('aria-invalid');
+    });
+    document.querySelectorAll<HTMLElement>('.ws-wm-text-error').forEach(e => {
+      e.textContent = bad
+        ? "Some characters can't be rendered. Try basic Latin text."
+        : (!wmSettings.text.trim() ? 'Enter watermark text' : '');
+    });
+    rebuildWatermarkPanelDownloadState();
+    wmKickVisible();
+  });
+  panel.appendChild(textRow);
+  panel.appendChild(textErrEl);
+
+  // Size, Color, Opacity, Rotation, Repeat live behind a single "Customize"
+  // disclosure to keep the panel short. Native <details> handles a11y/keyboard.
+  const styleDetails = el('details', { className: 'ws-wm-style-details' }) as HTMLDetailsElement;
+  const styleSummary = el('summary', { className: 'ws-wm-style-summary', textContent: 'Customize' });
+  styleDetails.appendChild(styleSummary);
+  const styleBody = el('div', { className: 'ws-wm-style-body' });
+
+  // <details> unmounts its body instantly on close, so a CSS-only collapse
+  // keyframe never runs. Intercept close, play the fade-out, flip `open` after.
+  styleSummary.addEventListener('click', e => {
+    if (!styleDetails.open) return;
+    if (styleDetails.classList.contains('ws-wm-closing')) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    e.preventDefault();
+    styleDetails.classList.add('ws-wm-closing');
+    styleBody.style.animation = 'ws-wm-style-collapse 0.18s ease-in forwards';
+    styleBody.addEventListener('animationend', () => {
+      styleBody.style.animation = '';
+      styleDetails.classList.remove('ws-wm-closing');
+      styleDetails.open = false;
+    }, { once: true });
+  });
+
+  styleBody.appendChild(makeWmSlider({
+    label: 'Size',
+    min: 8, max: 256, step: 1, value: wmSettings.fontSize,
+    unit: 'pt',
+    onChange: v => { wmSettings.fontSize = v; wmKickVisible(); },
+  }));
+
+  styleBody.appendChild(makeWmColorRow(wmSettings.colorHex, hex => {
+    wmSettings.colorHex = hex;
+    wmKickVisible();
+  }, colorLblId));
+
+  styleBody.appendChild(makeWmSlider({
+    label: 'Opacity',
+    min: 0, max: 100, step: 1, value: Math.round(wmSettings.opacity * 100),
+    unit: '%',
+    onChange: v => { wmSettings.opacity = Math.max(0, Math.min(1, v / 100)); wmKickVisible(); },
+  }));
+
+  styleBody.appendChild(makeWmSlider({
+    label: 'Rotation',
+    min: -90, max: 90, step: 1, value: wmSettings.rotation,
+    unit: '°',
+    onChange: v => { wmSettings.rotation = v; wmKickVisible(); },
+  }));
+
+  // Repeat toggle, single zero-config switch.
+  // The wrapping <label> implicitly labels the checkbox via the sibling span,
+  // so an explicit aria-label here would shadow that visible text. Keep them
+  // in sync via a single source: the visible <span>.
+  const repeatRow = el('label', { className: 'ws-wm-repeat-row' });
+  const repeatChk = el('input', { type: 'checkbox', className: 'ws-wm-repeat-checkbox' }) as HTMLInputElement;
+  repeatChk.checked = wmSettings.repeat;
+  repeatChk.addEventListener('change', () => {
+    wmSettings.repeat = repeatChk.checked;
+    document.querySelectorAll<HTMLInputElement>('.ws-wm-repeat-checkbox').forEach(c => {
+      if (c !== repeatChk) c.checked = wmSettings.repeat;
+    });
+    wmKickVisible();
+  });
+  repeatRow.appendChild(repeatChk);
+  repeatRow.appendChild(el('span', { textContent: 'Repeat across page' }));
+  styleBody.appendChild(repeatRow);
+
+  styleDetails.appendChild(styleBody);
+  panel.appendChild(styleDetails);
+  panel.appendChild(makeSidebarDivider());
+
+  // ---- BLOCK 3: Pages, scope: which pages get the watermark ----
+  panel.appendChild(makeSectionLabel('Pages'));
+  const ri = el('input', {
+    type: 'text',
+    className: 'ws-range-input ws-wm-range-input',
+    placeholder: 'e.g. 1-5, 8, 12-20',
+    value: wmSelectedToRangeString(),
+    autocomplete: 'off',
+    ariaLabel: 'Page range',
+  }) as HTMLInputElement;
+  ri.addEventListener('input', () => {
+    const text = ri.value.trim();
+    if (!text) {
+      wmSelected.clear();
+      ri.classList.remove('ws-input-error');
+      ri.removeAttribute('aria-invalid');
+      wmUpdateSelectionVisuals();
+      wmSyncRangeInputs();
+      rebuildWatermarkPanelDownloadState();
+      wmKickVisible();
+      return;
+    }
+    const parsed = wmParseRangeToSelection(text);
+    if (!parsed) {
+      ri.classList.add('ws-input-error');
+      ri.setAttribute('aria-invalid', 'true');
+      return;
+    }
+    ri.classList.remove('ws-input-error');
+    ri.removeAttribute('aria-invalid');
+    wmSelected = parsed;
+    wmUpdateSelectionVisuals();
+    rebuildWatermarkPanelDownloadState();
+    wmKickVisible();
+  });
+  panel.appendChild(ri);
+
+  const btnRow = el('div', { className: 'ws-sidebar-btn-row' });
+  const selectAllBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Select all' });
+  selectAllBtn.addEventListener('click', () => {
+    wmSelected = new Set(wmFlatPages.map((_, i) => i));
+    wmUpdateSelectionVisuals();
+    wmSyncRangeInputs();
+    rebuildWatermarkPanelDownloadState();
+    wmKickVisible();
+  });
+  const deselectBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Deselect all' });
+  deselectBtn.addEventListener('click', () => {
+    wmSelected.clear();
+    wmUpdateSelectionVisuals();
+    wmSyncRangeInputs();
+    rebuildWatermarkPanelDownloadState();
+    wmKickVisible();
+  });
+  btnRow.appendChild(selectAllBtn);
+  btnRow.appendChild(deselectBtn);
+  panel.appendChild(btnRow);
+
+  // ---- Action ----
+  const actions = el('div', { className: 'ws-sidebar-bottom ws-wm-actions' });
+  const dl = el('button', {
+    className: 'btn-primary ws-action-btn ws-action-full ws-wm-download-btn',
+    textContent: wmDownloadLabel(),
+    'aria-describedby': statusId,
+  });
+  dl.addEventListener('click', handleWatermarkExport);
+  actions.appendChild(dl);
+
+  const status = el('p', { className: 'ws-wm-status ws-wm-error-msg', textContent: '', id: statusId });
+  actions.appendChild(status);
+  panel.appendChild(actions);
+}
+
+function wmDownloadLabel(): string {
+  return 'Export PDF';
+}
+
+function rebuildWatermarkPanelDownloadState() {
+  const state = wmDownloadDisabled();
+  const label = wmDownloadLabel();
+  const statusText = state.disabled ? (state.reason ?? '') : '';
+  document.querySelectorAll<HTMLButtonElement>('.ws-wm-download-btn').forEach(dl => {
+    if (dl.classList.contains('disabled') !== state.disabled) {
+      dl.classList.toggle('disabled', state.disabled);
+    }
+    const ariaNow = dl.getAttribute('aria-disabled');
+    if (state.disabled && ariaNow !== 'true') dl.setAttribute('aria-disabled', 'true');
+    else if (!state.disabled && ariaNow !== null) dl.removeAttribute('aria-disabled');
+    if (dl.textContent !== label) dl.textContent = label;
+  });
+  document.querySelectorAll<HTMLElement>('.ws-wm-status').forEach(status => {
+    if (status.textContent !== statusText) status.textContent = statusText;
+  });
+}
+
+interface SliderArgs {
+  label: string;
+  min: number; max: number; step: number; value: number;
+  unit: string;
+  onChange: (v: number) => void;
+}
+
+/** Slider + editable numeric input + unit label. Two-way bound. */
+function makeWmSlider(args: SliderArgs): HTMLElement {
+  const row = el('div', { className: 'ws-wm-slider-row' });
+  const labelId = `wm-slider-lbl-${++wmPanelSeq}`;
+  row.appendChild(el('span', { className: 'ws-wm-row-label', textContent: args.label, id: labelId }));
+
+  const slider = el('input', {
+    type: 'range',
+    min: String(args.min), max: String(args.max), step: String(args.step),
+    value: String(args.value),
+    className: 'ws-wm-slider',
+    'aria-labelledby': labelId,
+  }) as HTMLInputElement;
+
+  const num = el('input', {
+    type: 'number',
+    min: String(args.min), max: String(args.max), step: String(args.step),
+    value: String(args.value),
+    className: 'ws-range-input ws-wm-num-input',
+    // Keep aria-label here — `${label} value` distinguishes the numeric
+    // companion from the sibling slider; aria-labelledby would overwrite it.
+    ariaLabel: `${args.label} value`,
+  }) as HTMLInputElement;
+
+  const unit = el('span', { className: 'ws-wm-slider-unit', textContent: args.unit });
+
+  const clamp = (v: number) => Math.max(args.min, Math.min(args.max, v));
+
+  slider.addEventListener('input', () => {
+    const v = Number(slider.value);
+    num.value = String(v);
+    args.onChange(v);
+  });
+
+  num.addEventListener('input', () => {
+    const raw = Number(num.value);
+    if (!Number.isFinite(raw)) return;
+    const v = clamp(raw);
+    slider.value = String(v);
+    args.onChange(v);
+  });
+  num.addEventListener('blur', () => {
+    const raw = Number(num.value);
+    if (!Number.isFinite(raw)) {
+      num.value = String(args.value);
+      return;
+    }
+    const v = clamp(raw);
+    num.value = String(v);
+    slider.value = String(v);
+    args.onChange(v);
+  });
+
+  row.appendChild(slider);
+  row.appendChild(num);
+  row.appendChild(unit);
+  return row;
+}
+
+/** Hex text input + native color swatch. Two-way bound. */
+function makeWmColorRow(initial: string, onChange: (hex: string) => void, labelId: string): HTMLElement {
+  // role=group + aria-labelledby ties the two related controls (hex + swatch)
+  // to the visible "Color" label — AT announces "Color, group" on entry.
+  const row = el('div', { className: 'ws-wm-color-row', role: 'group', 'aria-labelledby': labelId });
+  row.appendChild(el('span', { className: 'ws-wm-row-label', textContent: 'Color', id: labelId }));
+
+  const hex = el('input', {
+    type: 'text',
+    className: 'ws-range-input ws-wm-color-hex',
+    value: initial,
+    maxLength: 7,
+    autocomplete: 'off',
+    spellcheck: false,
+    ariaLabel: 'Color hex',
+  }) as HTMLInputElement;
+
+  const swatch = el('input', {
+    type: 'color',
+    className: 'ws-wm-color-swatch',
+    value: initial,
+    ariaLabel: 'Color picker',
+  }) as HTMLInputElement;
+
+  // Validate via the engine's hexToRgb so the UI accepts #fff shorthand and
+  // bare hex (no leading #) the engine accepts. The swatch only renders
+  // #rrggbb, so normalize the input to its 7-char form for the swatch sync.
+  const normalizeHex = (raw: string): string | null => {
+    let s = raw.trim();
+    if (s && !s.startsWith('#')) s = '#' + s;
+    try { hexToRgb(s); } catch { return null; }
+    if (s.length === 4) s = '#' + s.slice(1).split('').map(c => c + c).join('');
+    return s.toLowerCase();
+  };
+
+  hex.addEventListener('input', () => {
+    const normalized = normalizeHex(hex.value);
+    if (normalized) {
+      hex.classList.remove('ws-input-error');
+      hex.removeAttribute('aria-invalid');
+      swatch.value = normalized;
+      onChange(normalized);
+    } else {
+      hex.classList.add('ws-input-error');
+      hex.setAttribute('aria-invalid', 'true');
+    }
+  });
+  hex.addEventListener('blur', () => {
+    if (!normalizeHex(hex.value)) hex.value = swatch.value;
+    hex.classList.remove('ws-input-error');
+    hex.removeAttribute('aria-invalid');
+  });
+
+  swatch.addEventListener('input', () => {
+    hex.value = swatch.value;
+    hex.classList.remove('ws-input-error');
+    hex.removeAttribute('aria-invalid');
+    onChange(swatch.value);
+  });
+
+  row.appendChild(hex);
+  row.appendChild(swatch);
+  return row;
+}
+
+async function handleWatermarkExport() {
+  if (files.length === 0) return;
+  const state = wmDownloadDisabled();
+  if (state.disabled) {
+    showError(state.reason ?? 'Cannot export');
+    return;
+  }
+
+  if (files.length === 1) {
+    void doWatermarkExportPerSource();
+    return;
+  }
+
+  showExportSplitModal({
+    title: `Export ${files.reduce((s, f) => s + f.pageCount, 0)} pages as`,
+    combinedLabel: 'Combined PDF',
+    splitLabel: 'One PDF per source file',
+    primary: 'split',
+    onCombined: () => void doWatermarkExportCombined(),
+    onSplit: () => void doWatermarkExportPerSource(),
+  });
+}
+
+async function doWatermarkExportPerSource() {
+  let color;
+  try {
+    color = hexToRgb(wmSettings.colorHex);
+  } catch (e: any) {
+    showError(e?.message || 'Invalid color');
+    return;
+  }
+
+  // Per-file: stamp the selected pages of each file. Files with no selected
+  // pages are skipped (they'd just be passthroughs).
+  const tasks: Array<{ file: SourceFile; opts: PdfWatermarkOptions }> = [];
+  for (const f of files) {
+    const pageNums = wmEffectivePagesFor(f);
+    if (pageNums.length === 0) continue;
+    tasks.push({
+      file: f,
+      opts: {
+        source: { type: 'text', text: wmSettings.text, fontSize: wmSettings.fontSize, color },
+        opacity: wmSettings.opacity,
+        rotationDegrees: wmSettings.rotation,
+        repeat: wmSettings.repeat,
+        pageNums,
+      },
+    });
+  }
+
+  if (tasks.length === 0) {
+    showError('No pages selected');
+    return;
+  }
+
+  const isBatch = tasks.length > 1;
+  const verb = isBatch ? `Watermarking ${tasks.length} PDFs` : 'Watermarking';
+
+  await runWithPopup(
+    verb,
+    'Stamping your pages. This only takes a moment.',
+    'Watermark failed. Try simpler text or fewer pages.',
+    async () => {
+      const results: { bytes: Uint8Array; name: string }[] = [];
+      for (const t of tasks) {
+        const r = await watermark(t.file.bytes, t.file.name, t.opts);
+        results.push({ bytes: r.bytes, name: r.name });
+      }
+      lastPdfResult = results;
+      lastPdfZipName = isBatch ? `watermarked_${Date.now()}.zip` : null;
+      return results;
+    },
+    (results) => {
+      if (isBatch) {
+        showPdfSuccessModal(
+          `${results.length} PDFs watermarked! \u{1F389}`,
+          `Your <b>${results.length}</b> watermarked PDFs are downloading as a zip.`,
+        );
+      } else {
+        showPdfSuccessModal(
+          'PDF watermarked! \u{1F389}',
+          `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is downloading now.`,
+        );
+      }
+    },
+  );
+}
+
+/** Combined-mode Watermark export: merge all source files, stamp selected indices, save as one PDF. */
+async function doWatermarkExportCombined() {
+  let color;
+  try {
+    color = hexToRgb(wmSettings.colorHex);
+  } catch (e: any) {
+    showError(e?.message || 'Invalid color');
+    return;
+  }
+
+  await runWithPopup(
+    'Watermarking',
+    'Merging your files and stamping the selected pages.',
+    'Watermark failed. Try simpler text or fewer pages.',
+    async () => {
+      const merged = await merge(files);
+
+      // wmSelected stores flat indices (zero-based). watermark() wants 1-indexed.
+      const pageNums = [...wmSelected].sort((a, b) => a - b).map(i => i + 1);
+
+      const r = await watermark(merged.bytes, files[0].name, {
+        source: { type: 'text', text: wmSettings.text, fontSize: wmSettings.fontSize, color },
+        opacity: wmSettings.opacity,
+        rotationDegrees: wmSettings.rotation,
+        repeat: wmSettings.repeat,
+        pageNums,
+      });
+      lastPdfResult = [{ bytes: r.bytes, name: r.name }];
+      lastPdfZipName = null;
+      return lastPdfResult;
+    },
+    (results) => {
+      showPdfSuccessModal(
+        'PDF watermarked! \u{1F389}',
+        `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is downloading now.`,
+      );
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ORGANIZE VIEW: page-level (select, reorder, rotate, delete, extract)
 // ---------------------------------------------------------------------------
 
 function renderOrganizeView() {
@@ -784,7 +1730,7 @@ function renderOrganizeView() {
         pages.push(...newOrder);
         selected.clear();
         multi.pages.forEach(p => { const ni = pages.indexOf(p); if (ni >= 0) selected.add(ni); });
-        // Full re-render — DOM has Sortable's single-element move, need to rebuild for multi
+        // Full re-render, DOM has Sortable's single-element move, need to rebuild for multi
         renderOrganizeView();
         return;
       } else if (evt.oldIndex != null && evt.newIndex != null && evt.oldIndex !== evt.newIndex) {
@@ -836,7 +1782,6 @@ function cleanup() {
   thumbnailObserver?.disconnect();
   thumbnailObserver = null;
   setKeyboardMode(false);
-  renderQueue.length = 0;
   saveBtn = null;
   extractBtn = null;
   rangeInput = null;
@@ -847,6 +1792,15 @@ function cleanup() {
   mergeSidebarCard = null;
   mergeMobileTray = null;
   organizeMobileTray = null;
+  // Watermark DOM refs, DOM is wiped by toolContent.innerHTML = ''. The card
+  // cache, loaded-doc cache, and embedded encode font are intentionally NOT
+  // cleared here so re-entering the tab keeps thumbnails warm. Caches are
+  // invalidated on file mutation (wmRebuildFlatPages) or full reset (resetAll).
+  wmGridEl = null;
+  wmObserver?.disconnect();
+  wmObserver = null;
+  watermarkMobileTray = null;
+  if (wmDebounceTimer) { clearTimeout(wmDebounceTimer); wmDebounceTimer = null; }
   // Remove body-appended mobile elements (toolbar, tray, overlay)
   document.querySelectorAll('.ws-toolbar, .ws-tray, .ws-tray-overlay').forEach(e => e.remove());
 }
@@ -861,6 +1815,14 @@ export function resetAll() {
   history.length = 0;
   setKeyboardMode(false);
   clearThumbnailCache();
+  // Reset watermark state
+  wmSettings = { ...WM_DEFAULTS };
+  wmFlatPages = [];
+  wmRenderToken = 0;
+  wmCardCache.clear();
+  wmLoadedDocCache.clear();
+  wmTextEncodeFont = null;
+  if (wmDebounceTimer) { clearTimeout(wmDebounceTimer); wmDebounceTimer = null; }
   renderActiveTool();
 }
 
@@ -870,7 +1832,7 @@ function createAddFileButton(): HTMLButtonElement {
   return btn;
 }
 
-/** Rebuild pages from original files — resets all reorder, rotation, deletion, blank inserts. */
+/** Rebuild pages from original files, resets all reorder, rotation, deletion, blank inserts. */
 function resetPages() {
   if (!files.length) return;
   organizeInitialized = false;
@@ -882,12 +1844,19 @@ function resetPages() {
 // ---------------------------------------------------------------------------
 
 function createDropzone(text: string, multi: boolean): HTMLElement {
-  const zone = el('div', { className: 'ws-dropzone' });
+  const zone = el('div', { className: 'ws-dropzone', role: 'button', ariaLabel: text });
+  zone.tabIndex = 0;
   const hint = isTouchUi() ? "or tap to browse" : "or click to browse";
   zone.innerHTML = `<p class="upload-text">${text}</p><p class="upload-hint">${hint}</p>`;
 
   let dragRejecting: boolean | null = null;
   zone.addEventListener('click', () => { fileInput.multiple = multi; fileInput.click(); });
+  zone.addEventListener('keydown', (e) => {
+    if (e.key !== ' ' && e.key !== 'Enter') return;
+    e.preventDefault();
+    fileInput.multiple = multi;
+    fileInput.click();
+  });
   zone.addEventListener('dragover', (e) => {
     e.preventDefault();
     const items = Array.from(e.dataTransfer?.items ?? []);
@@ -1001,6 +1970,9 @@ async function handleFiles(rawFiles: File[]) {
         pages.push({ type: 'source', sourceFileId: sf.id, sourcePageNum: p, thumbnail: null, rotation: 0, originalPos: nextPos++ });
     renderOrganizeView();
     kickPageThumbs(pages);
+  } else if (activeTool === 'watermark') {
+    onFilesMutated();
+    renderWatermarkView();
   } else {
     onFilesMutated();
     updateMergeContent();
@@ -1033,41 +2005,7 @@ function updateSidebar() {
 function updateSidebarContent(sidebar: HTMLElement) {
   sidebar.innerHTML = '';
 
-  // Range input
-  const ri = el('input', {
-    type: 'text', className: 'ws-range-input',
-    name: 'page-range', id: 'ws-range-input-sidebar',
-    autocomplete: 'off',
-    placeholder: 'e.g. 1-5, 8, 12-20',
-    ariaLabel: 'Page range',
-  }) as HTMLInputElement;
-  ri.value = selectedToRangeString();
-  ri.addEventListener('input', () => {
-    const text = ri.value.trim();
-    if (!text) { ri.classList.remove('ws-input-error'); selected.clear(); updateSelectionVisuals(); updateSidebar(); return; }
-    const parsed = parseSelectionRange(text);
-    if (!parsed) { ri.classList.add('ws-input-error'); return; }
-    ri.classList.remove('ws-input-error');
-    selected = parsed;
-    updateSelectionVisuals();
-    updateSidebar();
-  });
-  rangeInput = ri;
-  sidebar.appendChild(ri);
-
-  // Select / Deselect buttons
-  const btnRow = el('div', { className: 'ws-sidebar-btn-row' });
-  const selectAllBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Select all' });
-  selectAllBtn.addEventListener('click', () => { pages.forEach((_, i) => selected.add(i)); updateSelectionVisuals(); updateSidebar(); syncRangeInput(); });
-  const deselectBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Deselect all' });
-  deselectBtn.addEventListener('click', () => { selected.clear(); updateSelectionVisuals(); updateSidebar(); syncRangeInput(); });
-  btnRow.appendChild(selectAllBtn);
-  btnRow.appendChild(deselectBtn);
-  sidebar.appendChild(btnRow);
-
-  sidebar.appendChild(el('hr', { className: 'ws-divider' }));
-
-  // Count + Restore original
+  // ---- BLOCK 1: file context (count + Restore + Add, then file list) ----
   const modified = isPagesModified();
   const originalCount = files.reduce((s, f) => s + f.pageCount, 0);
   const diff = pages.length - originalCount;
@@ -1089,30 +2027,53 @@ function updateSidebarContent(sidebar: HTMLElement) {
   countRow.appendChild(btnGroup);
   sidebar.appendChild(countRow);
 
-  // File list
   const fileList = el('div', { className: 'ws-sidebar-files' });
   const uniqueFileIds = [...new Set(pages.filter(p => p.type !== 'blank').map(p => p.sourceFileId))];
   for (const fid of uniqueFileIds) {
     const sf = files.find(f => f.id === fid);
     if (!sf) continue;
-    const fileItem = el('div', { className: 'ws-sidebar-file' });
-    const letter = uniqueFileIds.length > 1 ? String.fromCharCode(65 + (uniqueFileIds.indexOf(fid) % 26)) + ': ' : '';
-    fileItem.appendChild(el('span', { className: 'ws-sidebar-filename', textContent: letter + sf.name, title: sf.name }));
-    if (uniqueFileIds.length > 1) {
-      fileItem.appendChild(el('span', { className: 'ws-sidebar-meta', textContent: `${sf.pageCount} pages · ${formatBytes(sf.size)}` }));
-    }
-
-    const delFileBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-list-remove', innerHTML: '&times;', ariaLabel: `Remove ${sf.name}` });
-    delFileBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      removeFile(fid);
-    });
-    fileItem.appendChild(delFileBtn);
-    fileList.appendChild(fileItem);
+    const isMulti = uniqueFileIds.length > 1;
+    fileList.appendChild(makeSidebarFileRow(sf, {
+      letter: isMulti ? String.fromCharCode(65 + (uniqueFileIds.indexOf(fid) % 26)) : undefined,
+      meta: isMulti ? `${sf.pageCount} pages · ${formatBytes(sf.size)}` : undefined,
+      onRemove: () => removeFile(fid),
+    }));
   }
   sidebar.appendChild(fileList);
 
-  sidebar.appendChild(el('hr', { className: 'ws-divider' }));
+  sidebar.appendChild(makeSidebarDivider());
+
+  // ---- BLOCK 2: Pages, what pages are in scope ----
+  sidebar.appendChild(makeSectionLabel('Pages'));
+  const ri = el('input', {
+    type: 'text', className: 'ws-range-input',
+    name: 'page-range', id: 'ws-range-input-sidebar',
+    autocomplete: 'off',
+    placeholder: 'e.g. 1-5, 8, 12-20',
+    ariaLabel: 'Page range',
+  }) as HTMLInputElement;
+  ri.value = selectedToRangeString();
+  ri.addEventListener('input', () => {
+    const text = ri.value.trim();
+    if (!text) { ri.classList.remove('ws-input-error'); selected.clear(); updateSelectionVisuals(); updateSidebar(); return; }
+    const parsed = parseSelectionRange(text);
+    if (!parsed) { ri.classList.add('ws-input-error'); return; }
+    ri.classList.remove('ws-input-error');
+    selected = parsed;
+    updateSelectionVisuals();
+    updateSidebar();
+  });
+  rangeInput = ri;
+  sidebar.appendChild(ri);
+
+  const btnRow = el('div', { className: 'ws-sidebar-btn-row' });
+  const selectAllBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Select all' });
+  selectAllBtn.addEventListener('click', () => { pages.forEach((_, i) => selected.add(i)); updateSelectionVisuals(); updateSidebar(); syncRangeInput(); });
+  const deselectBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Deselect all' });
+  deselectBtn.addEventListener('click', () => { selected.clear(); updateSelectionVisuals(); updateSidebar(); syncRangeInput(); });
+  btnRow.appendChild(selectAllBtn);
+  btnRow.appendChild(deselectBtn);
+  sidebar.appendChild(btnRow);
 
   const bottom = el('div', { className: 'ws-sidebar-bottom' });
 
@@ -1231,6 +2192,26 @@ function updateMergeSelectionVisuals() {
 
 async function handleSave() {
   if (!pages.length) return;
+
+  if (files.length === 1) {
+    void doOrganizeSaveCombined();
+    return;
+  }
+
+  const splitState = organizeAllowsPerSourceSplit();
+  const realPageCount = pages.filter(p => p.type !== 'blank').length;
+  showExportSplitModal({
+    title: `Export ${realPageCount} pages as`,
+    combinedLabel: 'Combined PDF',
+    splitLabel: 'One PDF per source file',
+    primary: 'combined',
+    splitDisabled: splitState.allowed ? undefined : { reason: splitState.reason },
+    onCombined: () => void doOrganizeSaveCombined(),
+    onSplit: () => void doOrganizeSavePerSource(),
+  });
+}
+
+async function doOrganizeSaveCombined() {
   await runWithPopup('Saving', 'Packing up your PDF with the latest page order. Hold tight.', 'Save failed. Try with fewer pages or a smaller file.', async () => {
     const r = await organize(files, pages);
     lastPdfResult = [{ bytes: r.bytes, name: r.name }];
@@ -1242,6 +2223,99 @@ async function handleSave() {
       `<b>${escapeHTML(shortenFileName(r.name, 32))}</b> is downloading now.`,
     );
   });
+}
+
+async function doOrganizeSavePerSource() {
+  const firstName = files[0].name.replace(/\.pdf$/i, '');
+  await runWithPopup('Saving', 'Packing each source file separately. Hold tight.', 'Save failed. Try with fewer pages or a smaller file.', async () => {
+    const out: { bytes: Uint8Array; name: string }[] = [];
+    for (const sf of files) {
+      const filtered = pages.filter(p => p.type === 'source' && p.sourceFileId === sf.id);
+      if (filtered.length === 0) continue;
+      const r = await organize([sf], filtered);
+      out.push({ bytes: r.bytes, name: r.name });
+    }
+    lastPdfResult = out;
+    lastPdfZipName = out.length > 1 ? `${firstName}_organized.zip` : null;
+    return out;
+  }, (results) => {
+    if (results.length > 1) {
+      showPdfSuccessModal(
+        `${results.length} PDFs saved! \u{1F389}`,
+        `Your <b>${results.length}</b> PDFs are downloading as a zip.`,
+      );
+    } else if (results.length === 1) {
+      showPdfSuccessModal(
+        'PDF saved! \u{1F389}',
+        `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is downloading now.`,
+      );
+    }
+  });
+}
+
+/**
+ * Per-source split is faithful only when each source's pages form a single
+ * contiguous block in `pages[]` and there are no blanks. Cross-file mixing or
+ * blanks would silently lose content in the per-source output.
+ */
+function organizeAllowsPerSourceSplit(): { allowed: true } | { allowed: false; reason: string } {
+  if (pages.some(p => p.type === 'blank')) {
+    return { allowed: false, reason: 'Remove blank pages to split per file, or use combined.' };
+  }
+  const closed = new Set<number>();
+  let open: number | null = null;
+  for (const p of pages) {
+    if (p.type === 'blank') continue;
+    if (p.sourceFileId !== open) {
+      if (open !== null) closed.add(open);
+      open = p.sourceFileId;
+      if (closed.has(open)) {
+        return { allowed: false, reason: 'Group each file\'s pages together to split per file, or use combined.' };
+      }
+    }
+  }
+  return { allowed: true };
+}
+
+interface ExportSplitOpts {
+  title: string;
+  combinedLabel: string;
+  splitLabel: string;
+  primary: 'combined' | 'split';
+  splitDisabled?: { reason: string };
+  onCombined: () => void;
+  onSplit: () => void;
+}
+
+function showExportSplitModal(opts: ExportSplitOpts): void {
+  const wrap = el('div', { className: 'popup-choices' });
+
+  const closeBtn = el('button', { className: 'close-btn close-btn-lg modal-close-btn', innerHTML: '&times;', ariaLabel: 'Close' });
+  closeBtn.addEventListener('click', () => hidePopup());
+  wrap.appendChild(closeBtn);
+
+  wrap.appendChild(el('p', { className: 'ws-sidebar-count', textContent: opts.title }));
+
+  const combClass = opts.primary === 'combined' ? 'btn-primary' : 'ws-btn';
+  const combBtn = el('button', { className: `${combClass} ws-action-btn ws-action-full`, textContent: opts.combinedLabel });
+  combBtn.addEventListener('click', () => { hidePopup(); opts.onCombined(); });
+  wrap.appendChild(combBtn);
+
+  const splitClass = opts.primary === 'split' ? 'btn-primary' : 'ws-btn';
+  const splitBtn = el('button', { className: `${splitClass} ws-action-btn ws-action-full`, textContent: opts.splitLabel });
+  if (opts.splitDisabled) {
+    splitBtn.classList.add('disabled');
+    splitBtn.setAttribute('aria-disabled', 'true');
+  } else {
+    splitBtn.addEventListener('click', () => { hidePopup(); opts.onSplit(); });
+  }
+  wrap.appendChild(splitBtn);
+
+  if (opts.splitDisabled) {
+    wrap.appendChild(el('p', { className: 'ws-sidebar-hint', textContent: opts.splitDisabled.reason }));
+  }
+
+  showPopup(wrap, false, () => hidePopup());
 }
 
 async function handleExtractClick() {
@@ -1277,7 +2351,7 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
   if (files.length === 0 || indices.length === 0) return;
   const extractCount = indices.length;
   const sorted = [...indices].sort((a, b) => a - b);
-  await runWithPopup('Extracting', 'Pulling the selected pages into a new file. Almost there.', 'Extract failed. The PDF might be damaged or unsupported.',
+  await runWithPopup('Extracting', 'Pulling the selected pages into a new file. Almost there.', 'Extract failed. The PDF might be damaged. Try re-exporting it from the source app.',
     async () => {
       const byFile = new Map<number, number[]>();
       for (const idx of sorted) {
@@ -1434,18 +2508,46 @@ const MORE_SVG  = '<svg width="18" height="18" viewBox="0 0 24 24" fill="current
 const CLOSE_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
 function wireTrayToggle(tray: HTMLElement, overlay: HTMLElement, iconBtn: HTMLElement) {
+  // Tray is a non-modal dialog: gives it semantics + ESC + focus return.
+  // We do NOT set aria-modal=true because we don't trap focus — claiming
+  // modal without a trap mis-states behavior to AT.
+  tray.setAttribute('role', 'dialog');
+  tray.setAttribute('aria-label', 'Options');
+  tray.tabIndex = -1;
+
+  let onKeyDown: ((e: KeyboardEvent) => void) | null = null;
+
   const setOpen = (open: boolean) => {
     tray.classList.toggle('ws-tray-open', open);
     overlay.classList.toggle('ws-tray-open', open);
     iconBtn.innerHTML = open ? CLOSE_SVG : MORE_SVG;
     iconBtn.setAttribute('aria-label', open ? 'Close options' : 'More options');
     updateScrollLock();
+    if (open) {
+      // Move focus into the tray. Prefer the first focusable; fall back to
+      // the tray container itself.
+      const first = tray.querySelector<HTMLElement>(
+        'button, [href], input:not([type="hidden"]), select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      (first ?? tray).focus();
+      onKeyDown = (e) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          setOpen(false);
+        }
+      };
+      document.addEventListener('keydown', onKeyDown);
+    } else {
+      if (onKeyDown) { document.removeEventListener('keydown', onKeyDown); onKeyDown = null; }
+      // Return focus to the trigger so keyboard users don't get stranded.
+      iconBtn.focus();
+    }
   };
   iconBtn.addEventListener('click', () => setOpen(!tray.classList.contains('ws-tray-open')));
   overlay.addEventListener('click', () => setOpen(false));
 }
 
-function appendMobileToolbar(gridCard: HTMLElement) {
+function appendMobileToolbar(_gridCard: HTMLElement) {
   const toolbar = el('div', { className: 'ws-toolbar ws-toolbar--organize' });
 
   // Top row: Extract n pages + triple-dot
@@ -1485,42 +2587,9 @@ function buildMobileTrayContent(tray: HTMLElement) {
   tray.innerHTML = '';
 
   const modified = isPagesModified();
-
-  // Range input
   const multiFile = files.length > 1;
-  const ri = el('input', {
-    type: 'text', className: 'ws-range-input',
-    name: 'page-range', id: 'ws-range-input-tray',
-    autocomplete: 'off',
-    placeholder: multiFile ? 'e.g. A1-A5, B3' : 'e.g. 1-5, 8',
-    ariaLabel: 'Page range',
-  }) as HTMLInputElement;
-  ri.value = selectedToRangeString();
-  ri.addEventListener('input', () => {
-    const text = ri.value.trim();
-    if (!text) { ri.classList.remove('ws-input-error'); selected.clear(); updateSelectionVisuals(); updateSidebar(); return; }
-    const parsed = parseSelectionRange(text);
-    if (!parsed) { ri.classList.add('ws-input-error'); return; }
-    ri.classList.remove('ws-input-error');
-    selected = parsed;
-    updateSelectionVisuals();
-    updateSidebar();
-  });
-  tray.appendChild(ri);
 
-  // Select / Deselect
-  const btnRow = el('div', { className: 'ws-sidebar-btn-row' });
-  const selAll = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Select all' });
-  selAll.addEventListener('click', () => { pages.forEach((_, i) => selected.add(i)); updateSelectionVisuals(); updateSidebar(); syncRangeInput(); });
-  const desel = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Deselect all' });
-  desel.addEventListener('click', () => { selected.clear(); updateSelectionVisuals(); updateSidebar(); syncRangeInput(); });
-  btnRow.appendChild(selAll);
-  btnRow.appendChild(desel);
-  tray.appendChild(btnRow);
-
-  tray.appendChild(el('hr', { className: 'ws-divider' }));
-
-  // Count row + Add (matches merge tray pattern)
+  // ---- BLOCK 1: file context (count + Restore + Add, then file list) ----
   const originalCount = files.reduce((s, f) => s + f.pageCount, 0);
   const diff = pages.length - originalCount;
   const countBase = `${files.length} file${files.length !== 1 ? 's' : ''} · ${pages.length} pages`;
@@ -1541,24 +2610,52 @@ function buildMobileTrayContent(tray: HTMLElement) {
   countRow.appendChild(trayBtnGroup);
   tray.appendChild(countRow);
 
-  // File list
   const fileList = el('div', { className: 'ws-sidebar-files' });
   const uniqueFileIds = [...new Set(pages.filter(p => p.type !== 'blank').map(p => p.sourceFileId))];
   for (const fid of uniqueFileIds) {
     const sf = files.find(f => f.id === fid);
     if (!sf) continue;
-    const fileItem = el('div', { className: 'ws-sidebar-file' });
-    const letter = uniqueFileIds.length > 1 ? String.fromCharCode(65 + (uniqueFileIds.indexOf(fid) % 26)) + ': ' : '';
-    fileItem.appendChild(el('span', { className: 'ws-sidebar-filename', textContent: letter + sf.name, title: sf.name }));
-    if (uniqueFileIds.length > 1) {
-      fileItem.appendChild(el('span', { className: 'ws-sidebar-meta', textContent: `${sf.pageCount} pages · ${formatBytes(sf.size)}` }));
-    }
-    const delFileBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-list-remove', innerHTML: '&times;', ariaLabel: `Remove ${sf.name}` });
-    delFileBtn.addEventListener('click', (e) => { e.stopPropagation(); removeFile(fid); });
-    fileItem.appendChild(delFileBtn);
-    fileList.appendChild(fileItem);
+    const isMulti = uniqueFileIds.length > 1;
+    fileList.appendChild(makeSidebarFileRow(sf, {
+      letter: isMulti ? String.fromCharCode(65 + (uniqueFileIds.indexOf(fid) % 26)) : undefined,
+      meta: isMulti ? `${sf.pageCount} pages · ${formatBytes(sf.size)}` : undefined,
+      onRemove: () => removeFile(fid),
+    }));
   }
   tray.appendChild(fileList);
+
+  tray.appendChild(makeSidebarDivider());
+
+  // ---- BLOCK 2: Pages, what pages are in scope ----
+  tray.appendChild(makeSectionLabel('Pages'));
+  const ri = el('input', {
+    type: 'text', className: 'ws-range-input',
+    name: 'page-range', id: 'ws-range-input-tray',
+    autocomplete: 'off',
+    placeholder: multiFile ? 'e.g. A1-A5, B3' : 'e.g. 1-5, 8',
+    ariaLabel: 'Page range',
+  }) as HTMLInputElement;
+  ri.value = selectedToRangeString();
+  ri.addEventListener('input', () => {
+    const text = ri.value.trim();
+    if (!text) { ri.classList.remove('ws-input-error'); selected.clear(); updateSelectionVisuals(); updateSidebar(); return; }
+    const parsed = parseSelectionRange(text);
+    if (!parsed) { ri.classList.add('ws-input-error'); return; }
+    ri.classList.remove('ws-input-error');
+    selected = parsed;
+    updateSelectionVisuals();
+    updateSidebar();
+  });
+  tray.appendChild(ri);
+
+  const btnRow = el('div', { className: 'ws-sidebar-btn-row' });
+  const selAll = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Select all' });
+  selAll.addEventListener('click', () => { pages.forEach((_, i) => selected.add(i)); updateSelectionVisuals(); updateSidebar(); syncRangeInput(); });
+  const desel = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Deselect all' });
+  desel.addEventListener('click', () => { selected.clear(); updateSelectionVisuals(); updateSidebar(); syncRangeInput(); });
+  btnRow.appendChild(selAll);
+  btnRow.appendChild(desel);
+  tray.appendChild(btnRow);
 }
 
 // ---------------------------------------------------------------------------
@@ -1573,14 +2670,6 @@ function getPageBadgeText(page: PageEntry): string {
   return `${letter}${page.sourcePageNum}`;
 }
 
-function getBlankPageThumb(): string {
-  const dark = document.documentElement.classList.contains('dark');
-  const bg = dark ? '#1e1e1e' : '#f8f8f8';
-  const border = dark ? '#444' : '#ddd';
-  const text = dark ? '#666' : '#999';
-  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="150" height="212" viewBox="0 0 150 212"><rect width="150" height="212" fill="${bg}" stroke="${border}"/><text x="75" y="106" text-anchor="middle" fill="${text}" font-family="system-ui,sans-serif" font-size="14">Blank</text></svg>`)}`;
-}
-
 function createPageCard(page: PageEntry, idx: number): HTMLElement {
   const card = el('div', {
     className: 'ws-page-card',
@@ -1590,11 +2679,12 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
 
   const isBlank = page.type === 'blank';
   const thumb = el('div', { className: `ws-page-thumb${page.thumbnail || isBlank ? '' : ' ws-skeleton'}` });
-  const imgSrc = isBlank ? getBlankPageThumb() : page.thumbnail;
+  const imgSrc = isBlank ? mockPageThumb('Blank') : page.thumbnail;
   if (imgSrc) {
-    const img = el('img', { src: imgSrc, alt: isBlank ? 'Blank page' : `Page ${page.sourcePageNum}`, draggable: 'false' }) as HTMLImageElement;
-    if (page.rotation) img.style.transform = `rotate(${page.rotation}deg)`;
-    thumb.appendChild(img);
+    setThumb(thumb, imgSrc, {
+      alt: isBlank ? 'Blank page' : `Page ${page.sourcePageNum}`,
+      rotation: page.rotation,
+    });
   }
   card.appendChild(thumb);
 
@@ -1659,14 +2749,7 @@ function queuePageThumb(p: PageEntry[], idx: number) {
     p[idx].thumbnail = url;
     if (!toolContent) return;
     const card = toolContent.querySelector(`[data-page-idx="${idx}"] .ws-page-thumb`);
-    if (card) {
-      card.classList.remove('ws-skeleton');
-      card.innerHTML = '';
-      const img = document.createElement('img');
-      img.src = url; img.alt = `Page ${p[idx].sourcePageNum}`; img.draggable = false;
-      if (p[idx].rotation) img.style.transform = `rotate(${p[idx].rotation}deg)`;
-      card.appendChild(img);
-    }
+    if (card) setThumb(card, url, { alt: `Page ${p[idx].sourcePageNum}`, rotation: p[idx].rotation });
   });
 }
 
@@ -1686,26 +2769,19 @@ function setupThumbnailObserver(container: HTMLElement, p: PageEntry[]) {
   });
 }
 
-function queueRender(bytes: Uint8Array, page: number, cb: (url: string) => void) {
-  renderQueue.push({ bytes, page, cb });
-  if (!rendering) processQueue();
-}
-
-async function processQueue() {
-  rendering = true;
-  let count = 0;
-  while (renderQueue.length > 0) {
-    const { bytes, page, cb } = renderQueue.shift()!;
-    try {
-      const url = await renderPageThumbnail(bytes, page);
-      cb(url || mockPageThumb());
-    } catch (e) {
-      console.warn('[pdfThumbnails] page', page, e);
-      cb(mockPageThumb());
-    }
-    if (++count % 3 === 0) await new Promise(r => requestAnimationFrame(r));
+/**
+ * Thin async wrapper around renderPageThumbnail. The internal queue inside
+ * pdfThumbnails.ts already serialises calls; this just handles errors and the
+ * empty-result fallback so call sites stay tidy.
+ */
+async function queueRender(bytes: Uint8Array, page: number, cb: (url: string) => void, maxWidth?: number) {
+  try {
+    const url = await renderPageThumbnail(bytes, page, maxWidth);
+    cb(url || mockPageThumb());
+  } catch (e) {
+    console.warn('[pdfThumbnails] page', page, e);
+    cb(mockPageThumb());
   }
-  rendering = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -1826,7 +2902,7 @@ function showError(msg: string) {
 
 function hideError() { errorEl.style.display = 'none'; errorEl.textContent = ''; }
 
-// Exposed for unit tests — do not use in production code.
+// Exposed for unit tests, do not use in production code.
 export const __testing = {
   reset() {
     files = [];
@@ -1834,6 +2910,13 @@ export const __testing = {
     selected = new Set();
     lastClickedIdx = -1;
     history.length = 0;
+    wmSettings = { ...WM_DEFAULTS };
+    wmFlatPages = [];
+    wmRenderToken = 0;
+    wmCardCache.clear();
+    wmLoadedDocCache.clear();
+    wmTextEncodeFont = null;
+    if (wmDebounceTimer) { clearTimeout(wmDebounceTimer); wmDebounceTimer = null; }
   },
   seed(seedPages: PageEntry[], seedFiles: SourceFile[] = [], seedSelected: number[] = []) {
     pages = seedPages;
@@ -1855,8 +2938,74 @@ export const __testing = {
     // Simulate: organize tool active, initialized already set by caller
     handleGlobalKeydown(e);
   },
-  setActiveTool(t: 'merge' | 'organize') { activeTool = t; },
+  setActiveTool(t: 'merge' | 'organize' | 'watermark') { activeTool = t; },
   setInitialized(v: boolean) { initialized = v; },
+  // Watermark seams
+  setWmSettings(partial: Partial<WmSettings>) { wmSettings = { ...wmSettings, ...partial }; },
+  getWmSettings: () => wmSettings,
+  triggerWmFilesMutated() { onFilesMutated(); },
+  setFiles(fs: SourceFile[]) { files = fs; },
+  getWmFlatPages: () => wmFlatPages,
+  wmBadgeText: (idx: number) => wmBadgeText(idx),
+  getWmSelected: () => wmSelected,
+  setWmSelected: (s: Iterable<number>) => { wmSelected = new Set(s); },
+  wmSelectedToRangeString: () => wmSelectedToRangeString(),
+  organizeAllowsPerSourceSplit: () => organizeAllowsPerSourceSplit(),
+  wmEffectivePagesFor: (sourceFile: SourceFile) => wmEffectivePagesFor(sourceFile),
+  wmDownloadDisabled: () => wmDownloadDisabled(),
+  wmDownloadLabel: () => wmDownloadLabel(),
+  /**
+   * Scaffold the DOM and module state for a tab, then render. Returns the
+   * `#pdf-tool-content` container so tests can query rendered nodes.
+   */
+  setupForTest(tab: 'merge' | 'organize' | 'watermark', sfs: SourceFile[]): HTMLElement {
+    document.querySelectorAll('.ws-toolbar, .ws-tray, .ws-tray-overlay').forEach(e => e.remove());
+    let tc = document.getElementById('pdf-tool-content');
+    if (!tc) {
+      tc = document.createElement('div');
+      tc.id = 'pdf-tool-content';
+      document.body.appendChild(tc);
+    }
+    let fi = document.getElementById('workspace-file-input') as HTMLInputElement | null;
+    if (!fi) {
+      fi = document.createElement('input');
+      fi.type = 'file';
+      fi.id = 'workspace-file-input';
+      document.body.appendChild(fi);
+    }
+    let er = document.getElementById('workspace-error');
+    if (!er) {
+      er = document.createElement('div');
+      er.id = 'workspace-error';
+      document.body.appendChild(er);
+    }
+    toolContent = tc;
+    fileInput = fi;
+    errorEl = er;
+    initialized = true;
+    activeTool = tab;
+    files = sfs;
+    pages = [];
+    selected = new Set();
+    selectedFiles = new Set();
+    lastClickedIdx = -1;
+    history.length = 0;
+    organizeInitialized = false;
+    wmFlatPages = [];
+    wmSelected = new Set();
+    wmCardCache.clear();
+    wmLoadedDocCache.clear();
+    if (tab === 'organize') {
+      let pos = 0;
+      for (const sf of sfs) {
+        for (let p = 1; p <= sf.pageCount; p++) {
+          pages.push({ type: 'source', sourceFileId: sf.id, sourcePageNum: p, thumbnail: null, rotation: 0, originalPos: ++pos });
+        }
+      }
+    }
+    renderActiveTool();
+    return tc;
+  },
 };
 
 function el(tag: string, props: Record<string, any> = {}): HTMLElement {
@@ -1866,7 +3015,31 @@ function el(tag: string, props: Record<string, any> = {}): HTMLElement {
     else if (key === 'className') elem.className = val;
     else if (key === 'textContent') elem.textContent = val;
     else if (key === 'innerHTML') elem.innerHTML = val;
+    else if (key === 'role') elem.setAttribute('role', String(val));
+    else if (/^aria[A-Z]/.test(key)) {
+      // ariaLabel → aria-label, ariaLabelledBy → aria-labelledby (no internal
+      // hyphens — ARIA attribute names are one lowercase token after `aria-`).
+      // setAttribute is the spec-compliant path; ARIAMixin IDL reflection is
+      // patchy in older Firefox/Safari and jsdom. Use the attribute directly.
+      elem.setAttribute('aria-' + key.slice(4).toLowerCase(), String(val));
+    }
+    else if (key.startsWith('aria-')) elem.setAttribute(key, String(val));
     else (elem as any)[key] = val;
   }
   return elem;
+}
+
+function setThumb(
+  host: Element,
+  src: string,
+  opts?: { alt?: string; rotation?: number }
+): void {
+  host.classList.remove('ws-skeleton');
+  host.replaceChildren();
+  const img = document.createElement('img');
+  img.src = src;
+  img.alt = opts?.alt ?? '';
+  img.draggable = false;
+  if (opts?.rotation) img.style.transform = `rotate(${opts.rotation}deg)`;
+  host.appendChild(img);
 }

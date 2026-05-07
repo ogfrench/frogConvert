@@ -1,14 +1,14 @@
 <!-- docs-frontmatter
 icon: 📄
 label: PDF Editor
-desc: Merge, organize, and extract PDFs in your browser
+desc: Merge, organize, extract, and watermark PDFs in your browser
 -->
 
 # PDF Editor
 
 frogConvert ships with a built-in **PDF editor** alongside the file converter. Unlike the converter (which originates from the [Convert to it!](https://github.com/p2r3/convert) fork), the PDF editor is **frogConvert-original**; it was designed and built specifically for this project and is not present in the upstream repo.
 
-It handles the three operations most people reach for a paid tool to do: merging, reordering pages, and extracting pages. Everything runs locally in your browser; no files are uploaded anywhere.
+It handles the operations most people reach for a paid tool to do: merging, reordering pages, extracting pages, and stamping a watermark. Everything runs locally in your browser; no files are uploaded anywhere.
 
 ## Switching to editor mode
 
@@ -41,6 +41,24 @@ Reshape a single PDF at the page level.
 
 Pull a page range out of a PDF as a new standalone file. Available from the Organize view: select the page range you want and export.
 
+### Watermark
+
+Stamp a text watermark across selected pages, drawn at the page center or tiled across the whole page.
+
+1. Drop one or more PDFs onto the workspace and switch to the **Watermark** tab.
+2. Type the watermark text (default `CONFIDENTIAL`).
+3. Adjust style: size, color, opacity, rotation. Toggle **Repeat across page** to tile the watermark across the page with internally-computed spacing.
+4. Choose **Pages** by typing a range like `1-3, 8, 10-12`. With multiple files the range is over the flattened page sequence (file A's pages first, then file B, etc.). **Select all** fills `1-N`; **Deselect all** clears.
+5. The preview is the actual output for the page being viewed; it updates as you adjust settings.
+6. Click **Export PDF**. With multiple files you'll be asked whether to produce one combined PDF or one watermarked PDF per source file (per-source delivers a zip).
+
+Watermarks are visual marks. They do not encrypt the PDF, prevent copying, or interfere with editing, they exist to discourage casual misuse and to label drafts.
+
+Caveats specific to watermark:
+
+- **Helvetica only**, text watermarks use the standard PDF Helvetica font (WinAnsi). Characters outside that set (CJK, emoji, some accented Eastern European glyphs) are rejected at input time.
+- **Page rotation inherits**, if a page was rotated via Organize, the watermark drawn into that page's content stream is rotated together with it.
+
 ## Inputs and limits
 
 - **Input**: one or more `.pdf` files.
@@ -59,7 +77,7 @@ Same guarantee as the converter: nothing leaves your device. The PDF editor uses
 
 ## Programmatic access
 
-Every PDF editor operation is also exposed via MCP and REST: `pdf_merge`, `pdf_organize`, `pdf_extract` (MCP tools) and `POST /pdf/{merge,organize,extract}` (REST). See [INTEGRATIONS.md § MCP Tools Reference](INTEGRATIONS.md#mcp-tools-reference) and [§ REST API Reference](INTEGRATIONS.md#rest-api-reference).
+Every PDF editor operation is also exposed via MCP and REST: `pdf_merge`, `pdf_organize`, `pdf_extract`, `pdf_watermark` (MCP tools) and `POST /pdf/{merge,organize,extract,watermark}` (REST). See [INTEGRATIONS.md § MCP Tools Reference](INTEGRATIONS.md#mcp-tools-reference) and [§ REST API Reference](INTEGRATIONS.md#rest-api-reference).
 
 ## See also
 

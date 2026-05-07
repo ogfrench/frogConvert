@@ -1,5 +1,6 @@
 import { readFile } from "fs/promises";
 import { basename, resolve as resolvePath, relative as relativePath, isAbsolute } from "path";
+import { z } from "zod";
 import type { CoreSourceFile } from "../../tools/types.ts";
 
 export interface FileInputRef {
@@ -7,6 +8,13 @@ export interface FileInputRef {
     base64Bytes?: string;
     fileName?: string;
 }
+
+/** Shared zod schema for the FileInputRef shape used by every PDF MCP tool. */
+export const fileInputSchema = z.object({
+    filePath: z.string().optional(),
+    base64Bytes: z.string().optional(),
+    fileName: z.string().optional(),
+});
 
 /**
  * Thrown for caller-supplied input that fails validation. Catch-alls in API
@@ -34,7 +42,7 @@ export function enforceSize(byteLength: number) {
  * When FROGCONVERT_SANDBOX_ROOT is set, every filePath / outputFilePath /
  * outputDir passed into an API route must resolve to a location inside that
  * root. This is defense-in-depth against DNS-rebinding or otherwise-untrusted
- * clients reaching the local API — combined with the Origin/Host check in
+ * clients reaching the local API, combined with the Origin/Host check in
  * src/api/index.ts.
  *
  * When FROGCONVERT_SANDBOX_ROOT is unset the check is a no-op so existing

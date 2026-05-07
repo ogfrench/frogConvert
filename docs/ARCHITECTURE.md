@@ -127,22 +127,23 @@ frogConvert ships a second workspace alongside the converter: an in-browser **PD
 
 **App-mode toggle.** [src/main.ts](../src/main.ts) and [src/router.ts](../src/router.ts) maintain an "app mode" state (`converter` vs `pdf`) that swaps which workspace section is visible in [index.html](../index.html). The converter workspace is `#convert-card`; the editor is `#pdf-workspace`.
 
-**Three operations**, each isolated in `src/tools/`:
+**Four operations**, each isolated in `src/tools/`:
 
 | File | Operation | Library |
 |------|-----------|---------|
 | [src/tools/pdfMerge.ts](../src/tools/pdfMerge.ts) | Concatenate multiple PDFs into one | `pdf-lib` |
 | [src/tools/pdfOrganize.ts](../src/tools/pdfOrganize.ts) | Reorder, rotate (±90°), insert blank pages | `pdf-lib` |
 | [src/tools/pdfExtract.ts](../src/tools/pdfExtract.ts) | Extract a page range as a new PDF | `pdf-lib` |
+| [src/tools/pdfWatermark.ts](../src/tools/pdfWatermark.ts) | Stamp text watermark across selected pages, single or tiled | `pdf-lib` |
 | [src/tools/pdfThumbnails.ts](../src/tools/pdfThumbnails.ts) | Render page previews (lazy, cached) | `pdfjs-dist` |
 
-**Orchestrator.** [src/components/PdfWorkspace/PdfWorkspace.ts](../src/components/PdfWorkspace/PdfWorkspace.ts) owns the editor UI: tab switching (Merge / Organize), drag-and-drop reorder via `sortablejs`, rotation accumulation, and download wiring.
+**Orchestrator.** [src/components/PdfWorkspace/PdfWorkspace.ts](../src/components/PdfWorkspace/PdfWorkspace.ts) owns the editor UI: tab switching (Merge / Organize / Watermark), drag-and-drop reorder via `sortablejs`, rotation accumulation, watermark live-preview, and download wiring.
 
-**Dependency split.** `pdf-lib` is the **write path** (creates new PDFs). `pdfjs-dist` is the **render path** (only used for thumbnails). Keep them separate; do not import `pdfjs-dist` in tool files.
+**Dependency split.** `pdf-lib` is the **write path** (creates new PDFs). `pdfjs-dist` is the **render path** (only used for thumbnails and the watermark preview). Keep them separate; do not import `pdfjs-dist` in tool files.
 
 **Safari note.** `pdfjs-dist` thumbnail rendering hits Safari JS-engine limits with PDF input. [src/tools/pdfThumbnails.ts](../src/tools/pdfThumbnails.ts) carries a fallback path; preserve it when refactoring.
 
-**Where to put new code.** A new conversion (e.g. PDF → CSV) is a new handler under `src/handlers/`. A new PDF editing operation (e.g. watermark, sign) is a new tool under `src/tools/` plus a new tab in `PdfWorkspace.ts`. They are not interchangeable.
+**Where to put new code.** A new conversion (e.g. PDF → CSV) is a new handler under `src/handlers/`. A new PDF editing operation (e.g. sign) is a new tool under `src/tools/` plus a new tab in `PdfWorkspace.ts`. They are not interchangeable.
 
 ---
 
@@ -176,7 +177,7 @@ frogConvert/
 │   │   ├── CommonFormats/  ← Registry of all MIME types and extensions
 │   │   ├── utils/          ← Shared core helpers
 │   │   └── index.ts        ← Barrel re-export
-│   ├── tools/              ← PDF editor ops (merge, organize, extract, thumbnails)
+│   ├── tools/              ← PDF editor ops (merge, organize, extract, watermark, thumbnails)
 │   ├── workers/
 │   │   ├── conversion.worker.ts   ← Runs handlers off the main thread
 │   │   └── route-search.worker.ts ← Runs pathfinding off the main thread
@@ -263,7 +264,19 @@ flowchart LR
     E --> O[Output Files]
 ```
 
-Both run 100% locally. The MCP server exposes 6 tools (`list_formats`, `find_conversion_path`, `convert_file`, `pdf_merge`, `pdf_organize`, `pdf_extract`). The REST API mirrors the same surface. See [INTEGRATIONS.md](INTEGRATIONS.md) for request/response shapes.
+Both run 100% locally. The MCP server exposes 7 tools (`list_formats`, `find_conversion_path`, `convert_file`, `pdf_merge`, `pdf_organize`, `pdf_extract`, `pdf_watermark`). The REST API mirrors the same surface. See [INTEGRATIONS.md](INTEGRATIONS.md) for request/response shapes.
+
+---
+
+## Surface vs engine seam
+
+Engine modules ([src/tools/pdfWatermark.ts](../src/tools/pdfWatermark.ts), [src/handlers/](../src/handlers/)) implement the full capability set. The three public surfaces, UI ([src/components/](../src/components/)), MCP ([src/mcp/tools/](../src/mcp/tools/)), and REST ([src/api/routes/](../src/api/routes/)), are curated views over that engine. The three surfaces stay aligned with each other for behavior-shaping fields; the engine may exceed them.
+
+Re-introducing a previously-removed surface feature is a wire change at the surface layer, not an engine rewrite. Example: `pdfWatermark.ts` retains image source and 5-placement support (`top-left`, `top-right`, `bottom-left`, `bottom-right`, `center`) even though the UI, MCP, and REST surfaces all expose only text + center. If image watermarks return to the UI, the engine work is already done, only the surface layers need wiring.
+
+Transport-affordance fields (`filePath`, `base64Bytes`, `outputFilePath`, `outputDir`) are an explicit carve-out: they are MCP/REST-only by necessity, since the browser UI has no filesystem to address. They do not violate alignment because they have no UI counterpart that could exist.
+
+See [AGENTS.md § rule 12](../AGENTS.md) for the enforcement rule.
 
 ---
 

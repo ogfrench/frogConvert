@@ -3,14 +3,8 @@ import { z } from "zod";
 import { writeFile } from "fs/promises";
 import { organize } from "../../tools/pdfOrganize.ts";
 import type { CorePageEntry } from "../../tools/types.ts";
-import { buildSourceFiles, ValidationError } from "../core/fileInput.ts";
+import { buildSourceFiles, fileInputSchema, ValidationError } from "../core/fileInput.ts";
 import { toUserErrorText, appendSupportContact, FEEDBACK_CONTACT_TEXT } from "../../components/utils/index.ts";
-
-const inputSchema = z.object({
-    filePath: z.string().optional(),
-    base64Bytes: z.string().optional(),
-    fileName: z.string().optional(),
-});
 
 const pageSchema = z.object({
     sourceIndex: z.number().int().describe("Index into inputs[], or -1 for a blank page"),
@@ -25,7 +19,7 @@ export function registerPdfOrganizeTool(server: McpServer) {
         "pdf_organize",
         "Build a new PDF by reordering, rotating, deleting, or inserting blank pages from one or more source PDFs.",
         {
-            inputs: z.array(inputSchema).min(1).describe("Source PDFs"),
+            inputs: z.array(fileInputSchema).min(1).describe("Source PDFs"),
             pages: z.array(pageSchema).min(1).describe("Ordered page manifest"),
             outputFilePath: z.string().optional(),
         },

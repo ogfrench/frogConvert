@@ -8,6 +8,39 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] - 2026-05-07
+
+Watermark tab for the PDF editor, plus a sweep of accessibility fixes across the workspace.
+
+### Added
+- **Watermark tab in the PDF Editor**: Stamp a text watermark on all pages or a custom range like `1-3, 8, 10-12`. Style controls: size, color (hex + swatch), opacity, rotation. Toggle **Repeat across page** to tile the watermark with internally-computed spacing. Live preview reflects the actual export and reserves aspect-ratio so the page renders instantly without layout shift. Helvetica-only text with character-set validation. Available in the UI, MCP (`pdf_watermark`), and REST (`POST /pdf/watermark`).
+- **Shared sidebar primitives** in `PdfWorkspace.ts` (`makeSidebarFileRow`, `makeSidebarDivider`, `makeSectionLabel`) so Merge / Organize / Watermark render the file row and divider markup from one source.
+
+### Changed
+- **Watermark UI unified with Merge/Organize**: same active-file row at the top of the sidebar, same Select all / Deselect all pattern, same sticky-bottom mobile toolbar + tray drawer.
+- **Watermark MCP/REST surface narrowed to text-only**: `source` discriminator and `placement` field removed from `pdf_watermark` and `POST /pdf/watermark`. `text`, `fontSize`, `colorHex` are now top-level fields; placement is always center. Image-source watermarks have been removed from the public API to match the UI.
+- **Watermark UI defaults aligned with engine**: the workspace now derives `fontSize` (`80`) and `opacity` (`0.5`) from `WATERMARK_DEFAULTS` in [src/tools/pdfWatermark.ts](src/tools/pdfWatermark.ts) instead of holding its own values (previously `64` / `0.2`). UI, MCP (`pdf_watermark`), and REST (`POST /pdf/watermark`) defaults are now identical.
+
+### Fixed
+- **Combined-mode watermark output filename**: `doWatermarkExportCombined` no longer double-suffixes (e.g. `report_watermarked_watermarked.pdf` → `report_watermarked.pdf`). Now reuses `merge()` from [src/tools/pdfMerge.ts](src/tools/pdfMerge.ts) instead of an inline `PDFDocument.create()` loop.
+
+### Accessibility
+- **Watermark tab is now keyboard- and screen-reader accessible**:
+  - Page cards are tabbable (`tabindex=0`), have programmatic names (`Page A1`, `Page B3`, etc.), and toggle on `Space` / `Enter` (matching the Organize tab).
+  - Sliders (`Size`, `Opacity`, `Rotation`) gained a thumb-bound `:focus-visible` ring (the previous `outline: none` left keyboard users with no visible focus indicator — WCAG 2.4.7).
+  - Inputs that surface error states (`Watermark text`, `Color hex`, `Page range`) now toggle `aria-invalid` alongside the existing red border. The text input is wired to its error message via `aria-describedby` so screen readers announce *why* the input is invalid.
+  - The disabled `Export PDF` button is wired via `aria-describedby` to its status paragraph, so AT users hear *why* it's disabled (e.g. "Pick at least one page").
+  - The `Color` row is now a `role="group"` labelled by the visible `Color` text, tying the hex field and swatch together for AT.
+  - Visible labels (`Text`, `Size`, `Color`, etc.) link to their inputs via `aria-labelledby`, eliminating drift between visible and announced names.
+- **PDF Workspace: cross-tab a11y improvements**:
+  - The mobile **More options** tray is now a proper `role="dialog"` with an accessible name, an `Escape` close handler; focus moves into the tray on open and returns to the trigger on close.
+  - Drop-zone "Add more PDFs" cards are now keyboard-activatable (`role="button"`, `tabindex=0`, `Space` / `Enter`), with a visible `:focus-visible` ring.
+  - Page cards across all tabs gained an on-brand `:focus-visible` ring.
+  - The internal `el()` helper now routes `role` and ARIA attributes via `setAttribute`, so the workspace no longer relies on ARIAMixin IDL reflection (patchy in older Firefox/Safari and jsdom).
+
+### Performance
+- **Watermark preview**: lazy-render observer unobserves cards after first paint (subsequent re-renders go through `wmKickVisible` directly), and the Helvetica encode probe is memoized per-text so a 300-page grid runs `font.encodeText()` once per text change instead of once per visible card.
+
 ## [2.1.3] - 2026-05-04
 
 Error-copy normalization, quality-resolution unification, and palette-PNG encoding.

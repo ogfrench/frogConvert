@@ -163,7 +163,7 @@ export interface FileData {
  * and chatty ones can surface useful counters.
  */
 export type ProgressEvent = {
-  /** 0..1 when known. Omit for indeterminate — caller falls back to spinner. */
+  /** 0..1 when known. Omit for indeterminate, caller falls back to spinner. */
   ratio?: number;
   /**
    * Optional short human-readable fact for the UI to surface verbatim
@@ -176,7 +176,7 @@ export type ProgressEvent = {
 
 /**
  * User-facing quality preset. Threaded through `doConvert` as the args flag
- * `--quality <preset>`. Each handler interprets it in its own native units —
+ * `--quality <preset>`. Each handler interprets it in its own native units,
  * FFmpeg maps to CRF / bitrate, ImageMagick to `-quality` / lossless WebP,
  * pdftoimg to DPI. Handlers that don't care simply ignore the flag.
  */

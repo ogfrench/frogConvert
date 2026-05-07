@@ -3,9 +3,9 @@ import { probeInputQuality, probeImage, probePdf, probeAudioVideo } from "./inpu
 
 // Build bytes that probeInputQuality will treat as a PDF: pad to >1MB (above
 // the probe-skip threshold) and stamp `/Count <n>` in the last 32KB so the
-// trailer scan finds it. Actual PDF syntax isn't needed — the probe only
+// trailer scan finds it. Actual PDF syntax isn't needed, the probe only
 // looks for /Count matches via regex.
-// Place the marker ~16 bytes from EOF — close enough to the tail to land
+// Place the marker ~16 bytes from EOF, close enough to the tail to land
 // inside the trailer scan window, far enough that there's room for a few
 // closing bytes without overlapping the marker itself.
 function makePdfBytes(pageCount: number, totalBytes: number): Uint8Array {

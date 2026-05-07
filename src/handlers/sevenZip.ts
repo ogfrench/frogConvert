@@ -140,7 +140,7 @@ class sevenZipHandler implements FormatHandler {
         sevenZip.FS.writeFile(inputFile.name, inputFile.bytes);
         sevenZip.callMain(["x", inputFile.name, `-odata`]);
 
-        // Bomb-check the extracted tree before repacking — walk /data and sum
+        // Bomb-check the extracted tree before repacking, walk /data and sum
         // file sizes, then validate the total.
         let expandedTotal = 0;
         const walk = (dir: string) => {

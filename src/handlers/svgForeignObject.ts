@@ -6,7 +6,7 @@ import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/
  *
  * The renderer injects this HTML into a hidden DOM element to measure its
  * bounding box. If we leave `<img src="https://attacker.example/px.gif">` in
- * place, the browser dispatches that request during measurement — the user's
+ * place, the browser dispatches that request during measurement, the user's
  * act of converting untrusted HTML leaks a network signal to any URL the
  * input chose. Strip or neutralise anything that could trigger a fetch.
  *

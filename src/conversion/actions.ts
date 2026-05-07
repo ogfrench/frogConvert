@@ -502,7 +502,7 @@ function startConversionStatus({ main, subtitle }: { main: string; subtitle: str
         showConversionInProgress(html, _convertingTitle);
     };
 
-    render(); // initial paint — callers no longer paint the modal themselves
+    render(); // initial paint, callers no longer paint the modal themselves
 
     const slowKick = setTimeout(() => {
         if (isCancelled) return;
@@ -722,7 +722,7 @@ export function initConvertButton() {
                         status.cancel();
 
                         // Cancelled mid-file with no output: drop it. Don't fall through to
-                        // pushing the original bytes as if the file had been processed —
+                        // pushing the original bytes as if the file had been processed,
                         // that would feed a lie into the partial-download popup.
                         if (compressed === null && isCancelled) break;
 
@@ -1035,7 +1035,7 @@ export function initConvertButton() {
                 // In compression mode, "successfully compressed" only describes
                 // files that actually shrunk (originalBytes set). Pass-through
                 // and already-minimal files are in allOutputFiles too but don't
-                // count — the user already has those bytes. In convert mode,
+                // count, the user already has those bytes. In convert mode,
                 // every entry is a real conversion output so all of them count.
                 const isCompressionMode = getActiveConversionMode() === "compress";
                 const meaningfulFiles = isCompressionMode

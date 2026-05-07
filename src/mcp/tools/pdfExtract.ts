@@ -3,21 +3,15 @@ import { z } from "zod";
 import { writeFile } from "fs/promises";
 import { join } from "path";
 import { extract } from "../../tools/pdfExtract.ts";
-import { resolveBytes, stripExt, ValidationError } from "../core/fileInput.ts";
+import { resolveBytes, stripExt, fileInputSchema, ValidationError } from "../core/fileInput.ts";
 import { toUserErrorText, appendSupportContact, FEEDBACK_CONTACT_TEXT } from "../../components/utils/index.ts";
-
-const inputSchema = z.object({
-    filePath: z.string().optional(),
-    base64Bytes: z.string().optional(),
-    fileName: z.string().optional(),
-});
 
 export function registerPdfExtractTool(server: McpServer) {
     server.tool(
         "pdf_extract",
         "Extract selected pages from a PDF. Returns one PDF per page by default, or a single combined PDF when groupAsOne is true.",
         {
-            input: inputSchema.describe("Source PDF"),
+            input: fileInputSchema.describe("Source PDF"),
             pageNums: z.array(z.number().int().positive()).min(1).describe("1-indexed page numbers to extract"),
             baseName: z.string().optional().describe("Base name for output files; defaults to input filename stem"),
             groupAsOne: z.boolean().default(false),

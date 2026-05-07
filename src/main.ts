@@ -4,8 +4,9 @@ import type { FormatHandler } from "./core/FormatHandler/FormatHandler.js";
 import handlers, { loadBackgroundHandlers } from "./handlers";
 type PdfWorkspaceModule = typeof import("./components/PdfWorkspace/PdfWorkspace.ts");
 let _pdfWsPromise: Promise<PdfWorkspaceModule> | null = null;
+let _pdfWsModule: PdfWorkspaceModule | null = null;
 function getPdfWorkspace(): Promise<PdfWorkspaceModule> {
-  _pdfWsPromise ??= import("./components/PdfWorkspace/PdfWorkspace.ts");
+  _pdfWsPromise ??= import("./components/PdfWorkspace/PdfWorkspace.ts").then(m => { _pdfWsModule = m; return m; });
   return _pdfWsPromise;
 }
 import { initRouter, navigateTo, type RouteState } from "./router.ts";
@@ -91,7 +92,7 @@ function surfaceUnhandled(kind: string, reason: unknown) {
     }));
     showPopup([h2, p, actions]);
   } catch (popupErr) {
-    // If the popup machinery itself failed we can't do much — leave the flag
+    // If the popup machinery itself failed we can't do much, leave the flag
     // armed so we don't loop, and keep the console log.
     console.error("[main] recovery popup failed:", popupErr);
   }
@@ -521,17 +522,19 @@ async function refreshUI() {
 
 initConvertButton();
 
-initFrogsworth(() => ({
-  from: selectedFromIndex.value !== null
-    ? allOptionsRef.value[selectedFromIndex.value].format.format
-    : null,
-  to: selectedToIndex.value !== null
-    ? allOptionsRef.value[selectedToIndex.value].format.format
-    : null,
-  page: document.getElementById("pdf-workspace")?.style.display !== "none"
-    ? "pdf-editor" as const
-    : "convert" as const,
-}));
+initFrogsworth(() => {
+  const onPdf = document.getElementById("pdf-workspace")?.style.display !== "none";
+  return {
+    from: selectedFromIndex.value !== null
+      ? allOptionsRef.value[selectedFromIndex.value].format.format
+      : null,
+    to: selectedToIndex.value !== null
+      ? allOptionsRef.value[selectedToIndex.value].format.format
+      : null,
+    page: onPdf ? "pdf-editor" as const : "convert" as const,
+    pdfTool: onPdf ? _pdfWsModule?.getActiveTool() : undefined,
+  };
+});
 
 // --- Footer Confetti ---
 

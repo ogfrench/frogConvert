@@ -127,6 +127,24 @@ The PDF editor is exposed as three dedicated MCP tools. They operate on PDFs dir
    - **Description**: Extracts the given pages from a source PDF.
    - **Returns**: array of `{ fileName, base64Bytes }` (one per output file), or `{ savedTo: [...] }` listing written paths when `outputDir` is set.
 
+7. **`pdf_watermark`**
+   - **Arguments**:
+     | Argument | Required | Description |
+     |---|---|---|
+     | `input` | required | Single source PDF (`{ filePath?, base64Bytes?, fileName? }`). |
+     | `text` | required | Watermark text (e.g. `"CONFIDENTIAL"`). |
+     | `fontSize` | optional, default `80` | Font size in points. |
+     | `colorHex` | optional, default `"#808080"` | Color as `#RRGGBB` hex. |
+     | `opacity` | optional, default `0.5` | Watermark opacity in `[0, 1]`. |
+     | `rotationDegrees` | optional, default `-45` | Rotation in degrees. |
+     | `repeat` | optional, default `false` | When `true`, tile the watermark across each target page with internally-computed spacing. |
+     | `pageNums` | optional | 1-indexed page numbers to watermark. Omit for all pages. |
+     | `outputFilePath` | optional | Absolute path to save the output; otherwise base64 is returned. |
+
+     Uses the standard PDF Helvetica (WinAnsi). Characters outside WinAnsi are rejected at input time. Watermarks are drawn at page center; placement preset selection is not exposed.
+   - **Description**: Apply a text watermark to selected pages of a PDF. Watermarks are visual marks; they do not encrypt or restrict copying.
+   - **Returns**: same shape as `pdf_merge`, `[{ fileName, base64Bytes }]`, or `{ savedTo: ["..."] }` when `outputFilePath` is set.
+
 ---
 
 ## REST API Reference
@@ -203,7 +221,7 @@ Handlers ignore the preset when it doesn't apply to them (lossless codecs, struc
 
 ### PDF editor endpoints
 
-Three REST routes mirror the MCP PDF tools. Input schemas are identical. Output shapes differ in one field name: MCP returns `{ fileName, base64Bytes }` (matching `convert_file`), REST returns `{ files: [{ name, base64Bytes }] }` (matching `POST /convert` JSON responses). Both include `{ savedTo: [...] }` when an output path is supplied.
+Four REST routes mirror the MCP PDF tools. Input schemas are identical. Output shapes differ in one field name: MCP returns `{ fileName, base64Bytes }` (matching `convert_file`), REST returns `{ files: [{ name, base64Bytes }] }` (matching `POST /convert` JSON responses). Both include `{ savedTo: [...] }` when an output path is supplied.
 
 #### `POST /pdf/merge`
 JSON body:
@@ -248,6 +266,27 @@ JSON body:
 - `pageNums` 1-indexed, minimum 1. `groupAsOne: true` combines all pages into a single PDF.
 - If `outputDir` is set, response is `{ "savedTo": ["/abs/out/doc_page_1.pdf", ...] }`.
 - Otherwise response is `{ "files": [{ "name": "...", "base64Bytes": "..." }, ...] }`.
+
+#### `POST /pdf/watermark`
+JSON body:
+```json
+{
+  "input": { "filePath": "/abs/doc.pdf" },
+  "text": "CONFIDENTIAL",
+  "fontSize": 80,
+  "colorHex": "#808080",
+  "opacity": 0.5,
+  "rotationDegrees": -45,
+  "repeat": false,
+  "pageNums": [1, 2, 3],
+  "outputFilePath": "/abs/out.pdf"
+}
+```
+- `text` required; `fontSize`, `colorHex`, `opacity`, `rotationDegrees`, `repeat` are optional with defaults `80`, `#808080`, `0.5`, `-45`, `false`.
+- `pageNums` is optional; omit to watermark every page.
+- `repeat: true` tiles the watermark across each target page.
+- Validation errors (out-of-range page, malformed `colorHex`, opacity outside `[0, 1]`, non-boolean `repeat`) return `400`.
+- Response shape matches `POST /pdf/merge`, `{ "files": [...] }` or `{ "savedTo": [...] }`.
 
 ---
 

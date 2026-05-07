@@ -1,5 +1,5 @@
 /* ===================================================================
-   PDF Workspace — mirrors converter layout exactly
+   PDF Workspace, mirrors converter layout exactly
    =================================================================== */
 
 /* Hero title + tabs: styled via shared .page-title and .tab-bar classes in global.css / CategoryTabs.css */
@@ -9,7 +9,7 @@
 /* Empty state: single centered dropzone card */
 .ws-empty-layout {
   max-width: var(--card-max-width);
-  margin: var(--space-10) auto 0;
+  margin: var(--space-8) auto 0;
   position: relative;
   z-index: 2;
 }
@@ -20,7 +20,7 @@
   min-height: auto;
 }
 
-/* Field label — matches .field-label from UploadZone */
+/* Field label, matches .field-label from UploadZone */
 .ws-field-label {
   display: block;
   font-size: var(--text-sm);
@@ -35,13 +35,13 @@
   display: flex;
   gap: var(--space-3);
   max-width: 58rem;
-  margin: var(--space-10) auto var(--space-16);
+  margin: var(--space-8) auto var(--space-16);
   padding: 0 var(--space-4);
   position: relative;
   z-index: 2;
 }
 
-/* Left card: page grid — hugs content, page scrolls the viewport */
+/* Left card: page grid, hugs content, page scrolls the viewport */
 .ws-grid-card {
   flex: 1;
   min-width: 0;
@@ -50,12 +50,12 @@
   border-radius: var(--radius-xl) 0 0 var(--radius-xl);
 }
 
-/* Right card: sidebar — sticky so it travels with page scroll */
+/* Right card: sidebar, sticky so it travels with page scroll */
 .ws-sidebar-card {
   --ws-header-offset: calc(var(--space-16) + var(--space-6));
   width: 16rem;
   flex-shrink: 0;
-  max-height: calc(100vh - var(--ws-header-offset) - var(--space-4));
+  max-height: calc(100vh - var(--ws-header-offset) - var(--space-1));
   align-self: flex-start;
   position: sticky;
   top: var(--ws-header-offset);
@@ -64,15 +64,17 @@
   flex-direction: column;
   gap: var(--space-3);
   overflow-y: auto;
-  /* clip-path mirrors border-radius — clips scrollbar in Chromium */
+  /* clip-path mirrors border-radius, clips scrollbar in Chromium */
   clip-path: inset(0 round 0 var(--radius-xl) var(--radius-xl) 0);
   z-index: 3;
   border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
 }
 
-/* Scrollable file list — only this section scrolls */
+/* File list sizes to its content (capped) and never shrinks. The card itself
+   scrolls when its other contents overflow, keeping every file row legible
+   regardless of how dense the rest of the sidebar is. */
 .ws-sidebar-files {
-  flex: 1;
+  flex: 0 0 auto;
   min-height: 3rem;
   max-height: 10rem;
   overflow-y: auto;
@@ -128,6 +130,22 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   padding-right: var(--space-8);
   min-height: var(--space-7);
   flex-shrink: 0;
+}
+
+/* Watermark sidebar: rows are clickable to switch the previewed file. */
+.ws-sidebar-file-clickable {
+  cursor: pointer;
+  padding-left: var(--space-2);
+  border-left: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.ws-sidebar-file-clickable:hover {
+  background-color: var(--secondary);
+}
+.ws-sidebar-file-clickable.ws-sidebar-file-active {
+  background-color: var(--accent);
+  border-left-color: var(--primary);
 }
 
 /* Shared: reveal child on parent hover */
@@ -249,7 +267,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 
 
 /* ===================================================================
-   Dropzone — matches #upload-zone
+   Dropzone, matches #upload-zone
    =================================================================== */
 
 .ws-dropzone {
@@ -269,6 +287,12 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 
 .ws-dropzone:hover {
   border-color: var(--muted-foreground);
+}
+
+.ws-dropzone:focus-visible {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px var(--ring);
 }
 
 .ws-dropzone.drag-over {
@@ -297,15 +321,18 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 }
 
 /* ===================================================================
-   File Cards — Merge view
+   File Cards, Merge view
    =================================================================== */
 
 .ws-file-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, 8rem);
-  justify-content: center;
-  gap: var(--space-4) var(--space-6);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 36rem;
+  margin: 0 auto;
   align-items: stretch;
+  padding-bottom: var(--space-3);
   touch-action: manipulation;
 }
 
@@ -389,7 +416,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 }
 
 /* ===================================================================
-   Add-file card in merge grid — same size as file cards, dashed border
+   Add-file card in merge grid, same size as file cards, dashed border
    =================================================================== */
 
 .ws-file-add {
@@ -402,7 +429,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   cursor: pointer;
   min-height: auto;
   padding: var(--space-3);
-  aspect-ratio: 0.55;
+  aspect-ratio: 0.65;
 }
 
 .ws-file-add:hover {
@@ -441,7 +468,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 }
 
 /* ===================================================================
-   Page Cards — Extract + Organize views
+   Page Cards, Extract + Organize views
    =================================================================== */
 
 .ws-page-cards {
@@ -473,6 +500,11 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 .ws-page-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
+}
+
+.ws-page-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
 }
 
 /* Selection state shared between page cards and file cards: rainbow gradient
@@ -534,7 +566,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   display: flex;
 }
 
-/* Edge [+] insert buttons — visible on endpoints of selection */
+/* Edge [+] insert buttons, visible on endpoints of selection */
 .ws-page-plus {
   position: absolute;
   top: 50%;
@@ -565,14 +597,11 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 .ws-page-plus-before { left: calc(var(--space-3) * -1); }
 .ws-page-plus-after  { right: calc(var(--space-3) * -1); }
 
-.ws-page-card.ws-first-selected .ws-page-plus-before { display: flex; }
-.ws-page-card.ws-last-selected  .ws-page-plus-after  { display: flex; }
-
 .ws-page-thumb {
   width: 100%;
   aspect-ratio: 0.707;
   overflow: hidden;
-  border-radius: var(--radius-sm);
+  border-radius: calc(var(--radius) - 1px);
 }
 
 .ws-page-thumb img {
@@ -610,7 +639,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   left: var(--space-1);
 }
 
-/* Blank page insert button — centered in the column gap */
+/* Blank page insert button, centered in the column gap */
 .ws-page-insert {
   position: absolute;
   left: calc(100% + var(--space-6) / 2);
@@ -643,12 +672,12 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   color: var(--primary);
 }
 
-/* Hide the between-page insert on the last slot — add-blank card covers it */
+/* Hide the between-page insert on the last slot, add-blank card covers it */
 .ws-page-slot:has(+ :not(.ws-page-slot)) .ws-page-insert {
   display: none;
 }
 
-/* Page-grid add card — matches page card proportions */
+/* Page-grid add card, matches page card proportions */
 .ws-page-add {
   display: flex;
   flex-direction: column;
@@ -684,13 +713,13 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   font-size: var(--text-xs);
 }
 
-/* Trailing insert — hidden now that ws-page-add card replaces it */
+/* Trailing insert, hidden now that ws-page-add card replaces it */
 .ws-page-insert-trailing {
   display: none;
 }
 
 /* ===================================================================
-   Select Controls — Extract view
+   Select Controls, Extract view
    =================================================================== */
 
 .ws-select-controls {
@@ -743,7 +772,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   to { background-position: -200% 0; }
 }
 
-/* ws-card-enter removed — parent container (#pdf-tool-content .entrance.d5)
+/* ws-card-enter removed, parent container (#pdf-tool-content .entrance.d5)
    handles mode-switch animation; no separate card entrance needed. */
 
 /* ===================================================================
@@ -852,7 +881,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
    Hidden on desktop, visible on mobile only.
    =================================================================== */
 
-/* New mobile toolbar + tray — hidden on desktop */
+/* New mobile toolbar + tray, hidden on desktop */
 .ws-toolbar { display: none; }
 .ws-tray { display: none; }
 .ws-tray-overlay { display: none; }
@@ -1048,7 +1077,6 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   }
 
   .ws-file-cards {
-    grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
     gap: var(--space-3);
   }
 
@@ -1080,6 +1108,10 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   }
 }
 
+@media (max-width: 600px) {
+  .ws-file-cards { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 400px) {
   .ws-page-cards {
     grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr));
@@ -1107,9 +1139,344 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   box-shadow: var(--shadow-md);
 }
 
-/* Hide between-page insert buttons on mobile */
-@media (max-width: 800px) {
+/* Touch devices OR narrow viewport: hide between-gap [+] (relies on hover
+   and column-gap clearance), show selection-edge [+] buttons instead */
+@media (hover: none), (max-width: 800px) {
   .ws-page-insert { display: none !important; }
+  .ws-page-card.ws-first-selected .ws-page-plus-before { display: flex; }
+  .ws-page-card.ws-last-selected  .ws-page-plus-after  { display: flex; }
+  /* …except on the last real page, the add-blank card already covers that gap */
+  .ws-page-slot:has(+ :not(.ws-page-slot)) .ws-page-card.ws-last-selected .ws-page-plus-after { display: none; }
 }
 
+
+
+
+/* ===========================================================================
+   Shared sidebar section label, used wherever a sidebar needs subsection
+   labels (currently watermark; other tabs may opt in later).
+   =========================================================================== */
+
+.ws-sidebar-section-label {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--foreground-muted, var(--foreground));
+}
+
+/* ===========================================================================
+   WATERMARK TAB
+   =========================================================================== */
+
+/* Use the project's foreground accent for native form parts (slider thumb,
+   color swatch, etc.) so they match the white/dark theme instead of
+   browser-default blue. */
+.ws-wm-preview-card,
+.ws-wm-panel-card {
+  accent-color: var(--foreground);
+}
+
+.ws-wm-preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+
+/* 2-col page grid (Organize-style, capped at 2 cols). Reuses .ws-page-card /
+   .ws-page-thumb / .ws-page-badge styles from the Organize tab. */
+.ws-wm-page-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 36rem;
+  margin: 0 auto;
+  align-items: start;
+  padding-bottom: var(--space-3);
+}
+
+@media (max-width: 600px) {
+  .ws-wm-page-grid { grid-template-columns: 1fr; }
+}
+
+/* Reserve aspect-ratio so cards don't reflow when their thumbs land. */
+.ws-wm-page-card .ws-page-thumb-wrap {
+  width: 100%;
+  aspect-ratio: 0.707;
+}
+.ws-wm-page-card .ws-page-thumb {
+  width: 100%;
+  height: 100%;
+}
+
+/* "Watermarked" tag replaces the generic checkmark on watermark-tab cards.
+   Hidden by default, shown when the card is selected. */
+.ws-wm-watermarked-tag {
+  position: absolute;
+  bottom: var(--space-5);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: #0a0a0a;
+  color: #fafafa;
+  display: none;
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  line-height: 1.5;
+  white-space: nowrap;
+  z-index: 3;
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+}
+.ws-page-card.ws-page-selected .ws-wm-watermarked-tag {
+  display: block;
+}
+
+/* No bespoke overrides: inherit width / gap / flex-direction from the
+   shared .ws-sidebar-card so Watermark matches Merge & Organize visually. */
+
+.ws-wm-error-msg {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--destructive, #c0392b);
+}
+.ws-wm-error-msg:empty {
+  display: none;
+}
+
+.ws-wm-row-label {
+  flex-shrink: 0;
+  width: 5rem;
+  font-size: var(--text-sm);
+  color: var(--foreground-muted, var(--foreground));
+}
+
+/* Slider row: label · slider · numeric input · unit */
+.ws-wm-slider-row {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr 3.25rem auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ws-wm-num-input {
+  width: 100%;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  /* Hide the spinner, keeping it adds visual noise next to the slider. */
+  -moz-appearance: textfield;
+}
+.ws-wm-num-input::-webkit-outer-spin-button,
+.ws-wm-num-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.ws-wm-slider-unit {
+  font-size: var(--text-sm);
+  color: var(--foreground-muted, var(--foreground));
+  min-width: 1.25rem;
+}
+
+/* Theme-correct range slider, kills native blue. */
+.ws-wm-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  background: transparent;
+  cursor: pointer;
+  height: 1.25rem;
+}
+.ws-wm-slider:focus {
+  outline: none;
+}
+.ws-wm-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+.ws-wm-slider::-moz-range-track {
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+.ws-wm-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  background: var(--foreground);
+  border: 2px solid var(--background);
+  margin-top: -5px;
+  box-shadow: 0 0 0 1px var(--foreground);
+  cursor: pointer;
+}
+.ws-wm-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  background: var(--foreground);
+  border: 2px solid var(--background);
+  box-shadow: 0 0 0 1px var(--foreground);
+  cursor: pointer;
+}
+/* Keyboard focus ring on the slider thumb (WCAG 2.4.7).
+   `outline` is removed above; replace with a thumb-bound ring. */
+.ws-wm-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 1px var(--foreground), 0 0 0 4px var(--ring);
+}
+.ws-wm-slider:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 1px var(--foreground), 0 0 0 4px var(--ring);
+}
+
+/* Text row: label · text input. Matches slider/color row column rhythm. */
+.ws-wm-text-row {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ws-wm-text-row .ws-wm-text-input { width: 100%; }
+
+/* Color row: label · hex text · swatch button */
+.ws-wm-color-row {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ws-wm-color-hex {
+  width: 100%;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  text-transform: lowercase;
+}
+
+/* Native color input rendered as a small theme-matched swatch button. */
+.ws-wm-color-swatch {
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--secondary);
+  cursor: pointer;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.ws-wm-color-swatch::-webkit-color-swatch-wrapper { padding: 0; }
+.ws-wm-color-swatch::-webkit-color-swatch { border: none; border-radius: calc(var(--radius) - 1px); }
+.ws-wm-color-swatch::-moz-color-swatch { border: none; border-radius: calc(var(--radius) - 1px); }
+.ws-wm-color-swatch:hover { border-color: var(--ring); }
+
+/* Repeat checkbox row */
+.ws-wm-repeat-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--foreground);
+  cursor: pointer;
+}
+.ws-wm-repeat-checkbox {
+  cursor: pointer;
+}
+
+.ws-wm-actions {
+  margin-top: var(--space-3);
+}
+
+/* "Customize" disclosure: collapses Size/Color/Opacity/Rotation/Repeat.
+   Desktop: plain text affordance (chevron + label, no chrome).
+   Mobile: full-width pill so it matches Text input rhythm and gives a fat
+   touch target. Body fades in on open via the [open] keyframe. */
+/* Desktop relies on the parent .ws-sidebar-card flex gap (12px) for spacing.
+   Mobile bumps it via margin-top below since the pill needs more breathing
+   room next to the Text input. */
+.ws-wm-style-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--foreground-muted, var(--foreground));
+  padding: var(--space-1) var(--space-1);
+  border-radius: var(--radius);
+  background: transparent;
+  border: 1px solid transparent;
+  user-select: none;
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+.ws-wm-style-summary:hover {
+  color: var(--foreground);
+}
+.ws-wm-style-summary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.ws-wm-style-summary::-webkit-details-marker { display: none; }
+.ws-wm-style-summary::before {
+  content: '\25B8'; /* ▸ */
+  display: inline-block;
+  width: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  transition: transform 0.2s ease;
+}
+.ws-wm-style-details[open] > .ws-wm-style-summary::before {
+  transform: rotate(90deg);
+}
+/* During the JS-driven close fade, rotate the chevron back in concert
+   with the body fading out. `open` is still set until animationend. */
+.ws-wm-style-details.ws-wm-closing > .ws-wm-style-summary::before {
+  transform: rotate(0deg);
+}
+
+.ws-wm-style-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+}
+.ws-wm-style-details[open] > .ws-wm-style-body {
+  animation: ws-wm-style-reveal 0.2s ease-out;
+}
+@keyframes ws-wm-style-reveal {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes ws-wm-style-collapse {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-4px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ws-wm-style-summary::before { transition: none; }
+  .ws-wm-style-details[open] > .ws-wm-style-body { animation: none; }
+}
+
+@media (max-width: 800px) {
+  .ws-wm-style-details {
+    margin-top: var(--space-3);
+  }
+  .ws-wm-style-summary {
+    display: flex;
+    padding: var(--space-3) var(--space-4);
+    min-height: 3rem;
+    font-size: var(--text-base);
+    color: var(--foreground);
+    background: var(--secondary);
+    border-color: var(--accent);
+  }
+  .ws-wm-style-summary:hover {
+    border-color: var(--ring);
+  }
+  .ws-wm-style-summary:focus-visible {
+    border-color: var(--ring);
+  }
+}
 

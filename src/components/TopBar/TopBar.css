@@ -208,7 +208,7 @@
   display: none;
 }
 
-/* App mode toggle — single button, matches theme-toggle */
+/* App mode toggle, single button, matches theme-toggle */
 #app-mode-toggle {
   width: var(--control-size);
   height: var(--control-size);

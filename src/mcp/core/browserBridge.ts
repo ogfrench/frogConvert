@@ -8,7 +8,7 @@
  * The bridge:
  * 1. Spins up a minimal static HTTP server serving the production dist/
  * 2. Launches a headless Chromium instance (lazy, singleton)
- * 3. Loads /headless/ — graph built from cache.json, handlers init lazily on first use
+ * 3. Loads /headless/, graph built from cache.json, handlers init lazily on first use
  * 4. Delegates conversions to window.__frogConvertHeadless() via page.evaluate()
  *
  * Requires a production build (bun run build) to be present in dist/.
@@ -108,7 +108,7 @@ async function startStaticServer(): Promise<number> {
                 const contentType = MIME_TYPES[ext] ?? "application/octet-stream";
                 try {
                     const data = await readFile(filePath);
-                    // Vite outputs content-hashed filenames for JS/WASM — safe to
+                    // Vite outputs content-hashed filenames for JS/WASM, safe to
                     // cache indefinitely. HTML and JSON change with each build.
                     const immutable = [".js", ".mjs", ".wasm"].includes(ext);
                     const cacheControl = immutable
@@ -142,7 +142,7 @@ async function startStaticServer(): Promise<number> {
 async function ensureInitialized(): Promise<void> {
     if (initPromise) return initPromise;
 
-    // Register cleanup handlers once — only when the bridge is first used.
+    // Register cleanup handlers once, only when the bridge is first used.
     // Flag lives on globalThis so HMR/duplicate module instantiation can't
     // double-register these process listeners.
     if (!signalHandlersRegistered()) {
@@ -168,7 +168,7 @@ async function ensureInitialized(): Promise<void> {
 
         // userDataDir persists Chrome's HTTP cache and V8's compiled-WASM cache
         // between restarts. On a warm restart, Pandoc (~55 MB) compiles in seconds.
-        // Chrome locks its profile dir — if a second server process tries to use the same
+        // Chrome locks its profile dir, if a second server process tries to use the same
         // path (e.g. MCP + API running simultaneously), fall back to a fresh session.
         browser = await puppeteer.launch({ headless: true, userDataDir: BRIDGE_CACHE_DIR, args: PUPPETEER_ARGS })
             .catch(async (lockErr) => {
@@ -181,11 +181,11 @@ async function ensureInitialized(): Promise<void> {
 
         // Reset ALL singleton state if the page dies so the next caller gets a
         // completely fresh initialization attempt. Critically: staticServer and
-        // browser must also be nulled here — ensureInitialized() overwrites both
+        // browser must also be nulled here, ensureInitialized() overwrites both
         // module-level vars on re-init, so without closing them first the old
         // server socket and Chrome process would be permanently leaked.
         const onPageDead = () => {
-            process.stderr.write("[bridge] Page died — will re-initialize on next request\n");
+            process.stderr.write("[bridge] Page died, will re-initialize on next request\n");
             bridgePage = null;
             initPromise = null;
             staticServer?.close();
@@ -205,7 +205,7 @@ async function ensureInitialized(): Promise<void> {
             }
         });
 
-        // domcontentloaded fires after module scripts execute — sufficient here
+        // domcontentloaded fires after module scripts execute, sufficient here
         // because waitForFunction(__headlessReady) handles the real readiness check.
         await bridgePage.goto(`http://127.0.0.1:${port}/headless/`, {
             waitUntil: "domcontentloaded",
@@ -253,7 +253,7 @@ export async function convertViaBrowser(
 
     // Serialise calls so concurrent conversions don't interleave on the shared page.
     // conversionQueue must always stay fulfilled so subsequent items aren't skipped
-    // on failure — keep the queue chain alive by catching errors on the queue ref,
+    // on failure, keep the queue chain alive by catching errors on the queue ref,
     // while the caller-facing result promise still rejects normally.
     const result = conversionQueue.then(() => {
         const evaluatePromise = bridgePage!.evaluate(
@@ -304,7 +304,7 @@ export async function canConvertViaBrowser(
     outputExtension: string
 ): Promise<boolean> {
     if (!bridgePage) {
-        // Bridge not running — don't start it just for a path check.
+        // Bridge not running, don't start it just for a path check.
         return false;
     }
 

@@ -108,7 +108,7 @@ export function planImage(ctx: ImageContext): CompressionPlan {
 
 /**
  * Audio bitrate lookup by preset and channel count. Stereo gets roughly
- * 1.5× the mono bitrate — enough headroom to keep the stereo image intact
+ * 1.5× the mono bitrate, enough headroom to keep the stereo image intact
  * at every tier. Lossless output bypasses the whole table.
  */
 export function planAudio(outputLossless: boolean, channels: number, preset: QualityPreset): CompressionPlan {

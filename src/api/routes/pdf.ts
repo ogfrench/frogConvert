@@ -1,12 +1,32 @@
 import { writeFile } from "fs/promises";
 import { join, basename } from "path";
+import { z } from "zod";
 import { merge } from "../../tools/pdfMerge.ts";
 import { organize } from "../../tools/pdfOrganize.ts";
 import { extract } from "../../tools/pdfExtract.ts";
+import { watermark, hexToRgb, WATERMARK_DEFAULTS, WatermarkValidationError } from "../../tools/pdfWatermark.ts";
 import type { CorePageEntry } from "../../tools/types.ts";
 import type { FileData } from "../../core/FormatHandler/FormatHandler.ts";
 import { resolveBytes, buildSourceFiles, stripExt, enforceSandboxedPath, ValidationError, type FileInputRef } from "../../mcp/core/fileInput.ts";
 import { toUserErrorText, appendSupportContact, FEEDBACK_CONTACT_TEXT } from "../../components/utils/index.ts";
+
+const watermarkBodySchema = z.object({
+    text: z.string().min(1),
+    fontSize: z.number().positive().default(WATERMARK_DEFAULTS.fontSize),
+    colorHex: z.string().default(WATERMARK_DEFAULTS.colorHex),
+    opacity: z.number().min(0).max(1).default(WATERMARK_DEFAULTS.opacity),
+    rotationDegrees: z.number().default(WATERMARK_DEFAULTS.rotationDegrees),
+    repeat: z.boolean().default(WATERMARK_DEFAULTS.repeat),
+    pageNums: z.array(z.number().int().positive()).optional(),
+    outputFilePath: z.string().optional(),
+});
+
+/** Format a zod issue list as "path: message" so existing error-string asserts (e.g. /repeat/) still match. */
+function formatZodError(err: z.ZodError): string {
+    return err.issues
+        .map(i => (i.path.length ? `${i.path.join(".")}: ${i.message}` : i.message))
+        .join("; ");
+}
 
 /** Reject requests whose body isn't a plain JSON object. */
 function assertObjectBody(body: unknown): asserts body is Record<string, unknown> {
@@ -182,6 +202,53 @@ export async function handlePdfExtract(req: Request): Promise<Response> {
         return filesResponse(results);
     } catch (err: any) {
         if (err instanceof ValidationError) {
+            return Response.json({ error: err.message }, { status: 400 });
+        }
+        const msg = toUserErrorText(err) || (err?.message ?? String(err));
+        return Response.json({ error: appendSupportContact(msg, FEEDBACK_CONTACT_TEXT) }, { status: 400 });
+    }
+}
+
+export async function handlePdfWatermark(req: Request): Promise<Response> {
+    try {
+        const raw = await req.json();
+        assertObjectBody(raw);
+        const body = raw as Record<string, unknown>;
+
+        if (!body.input) return Response.json({ error: "input required" }, { status: 400 });
+        assertFileInputRef(body.input, "input");
+
+        const parsed = watermarkBodySchema.safeParse(body);
+        if (!parsed.success) {
+            return Response.json({ error: formatZodError(parsed.error) }, { status: 400 });
+        }
+        const { text, fontSize, colorHex, opacity, rotationDegrees, repeat, pageNums, outputFilePath } = parsed.data;
+
+        let color;
+        try {
+            color = hexToRgb(colorHex);
+        } catch (e: any) {
+            return Response.json({ error: `colorHex: ${e.message}` }, { status: 400 });
+        }
+
+        const { bytes, name } = await resolveBytes(body.input as FileInputRef);
+
+        const result = await watermark(bytes, name, {
+            source: { type: "text", text, fontSize, color },
+            opacity,
+            rotationDegrees,
+            repeat,
+            pageNums,
+        });
+
+        if (outputFilePath !== undefined) {
+            const safeOut = enforceSandboxedPath(outputFilePath);
+            await writeFile(safeOut, result.bytes);
+            return Response.json({ savedTo: [safeOut] });
+        }
+        return filesResponse([result]);
+    } catch (err: any) {
+        if (err instanceof ValidationError || err instanceof WatermarkValidationError) {
             return Response.json({ error: err.message }, { status: 400 });
         }
         const msg = toUserErrorText(err) || (err?.message ?? String(err));

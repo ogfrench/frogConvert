@@ -271,7 +271,7 @@ export function triggerCancellation() {
  * counter, encode timestamp) into a sub-line so the user sees the work is
  * actually still happening.
  *
- * Called via `slowHandle.update({ detail })` — the same channel that feeds the
+ * Called via `slowHandle.update({ detail })`, the same channel that feeds the
  * normal slow-conversion notice. No-op when cancel isn't active.
  */
 export function updateCancelProgress(detail: string) {

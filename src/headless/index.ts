@@ -39,7 +39,7 @@ async function init() {
             })
         ]);
 
-        // cacheData is a JSON-serialised Map — array of [handlerName, FileFormat[]] pairs
+        // cacheData is a JSON-serialised Map, array of [handlerName, FileFormat[]] pairs
         supportedFormatCache = new Map<string, FileFormat[]>(cacheData);
         window.supportedFormatCache = supportedFormatCache;
 
@@ -58,7 +58,7 @@ async function init() {
     }
 
     // Pre-warm all handlers in parallel so WASM is compiled before the first
-    // conversion request arrives. Errors are logged — lazy init per-conversion
+    // conversion request arrives. Errors are logged, lazy init per-conversion
     // will surface them again with a clear message if a handler truly can't be used.
     Promise.all(handlers.map(h => ensureHandlerReady(h).catch(e =>
         console.warn(`[headless] Pre-warm failed for handler '${h.name}':`, e)
@@ -81,7 +81,7 @@ function uint8ToBase64(bytes: Uint8Array): string {
  * Heavy handlers (FFmpeg, pandoc, …) only populate handler.supportedFormats
  * after init() runs, so we cannot search handler instances directly.
  * Instead we search supportedFormatCache (fetched from cache.json) and
- * resolve the handler object by name — no init() required.
+ * resolve the handler object by name, no init() required.
  */
 function findFromCache(
     mime: string,
@@ -130,7 +130,7 @@ async function ensureHandlerReady(handler: FormatHandler): Promise<void> {
         throw new Error(initErr ? `Headless initialization failed: ${initErr}` : "Headless not yet initialized");
     }
 
-    // Resolve formats from cache — handler.supportedFormats may be empty for
+    // Resolve formats from cache, handler.supportedFormats may be empty for
     // heavy handlers (FFmpeg, pandoc) until their init() has run.
     const inputMatch  = findFromCache(inputMime,  inputExt,  'from');
     const outputMatch = findFromCache(outputMime, outputExt, 'to');

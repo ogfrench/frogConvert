@@ -2,7 +2,7 @@
 #convert-card {
   width: 100%;
   max-width: var(--card-max-width);
-  margin: var(--space-10) auto 0;
+  margin: var(--space-8) auto 0;
   padding: var(--space-6);
   position: relative;
   z-index: 2;

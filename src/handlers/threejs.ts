@@ -123,7 +123,7 @@ class threejsHandler implements FormatHandler {
         outputFiles.push({ bytes, name });
       } finally {
         // Release GPU resources held by the loaded model. Three.js doesn't
-        // auto-dispose geometries/materials/textures — each call leaks them
+        // auto-dispose geometries/materials/textures, each call leaks them
         // until the tab closes. Traverse and release everything reachable
         // from the loaded object, regardless of whether the render succeeded.
         scene.remove(object);

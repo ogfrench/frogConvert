@@ -7,7 +7,7 @@ vi.mock('fs/promises', () => {
 });
 
 import { readFile, writeFile } from 'fs/promises';
-import { handlePdfMerge, handlePdfOrganize, handlePdfExtract } from './pdf.ts';
+import { handlePdfMerge, handlePdfOrganize, handlePdfExtract, handlePdfWatermark } from './pdf.ts';
 
 async function makePdf(pageCount: number): Promise<Uint8Array> {
     const doc = await PDFDocument.create();
@@ -161,5 +161,132 @@ describe('POST /pdf/extract', () => {
         const body = await res.json();
         expect(body.savedTo).toHaveLength(2);
         expect(writeFile).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('POST /pdf/watermark', () => {
+    beforeEach(() => {
+        vi.mocked(readFile).mockReset();
+        vi.mocked(writeFile).mockReset();
+    });
+
+    it('returns 400 when input is missing', async () => {
+        const res = await handlePdfWatermark(jsonRequest('http://x/pdf/watermark', {
+            text: 'X',
+        }));
+        expect(res.status).toBe(400);
+        const body = await res.json();
+        expect(body.error).toMatch(/input required/);
+    });
+
+    it('returns 400 when text is missing', async () => {
+        const pdf = await makePdf(1);
+        const res = await handlePdfWatermark(jsonRequest('http://x/pdf/watermark', {
+            input: { base64Bytes: b64(pdf), fileName: 'doc.pdf' },
+        }));
+        expect(res.status).toBe(400);
+        const body = await res.json();
+        expect(body.error).toMatch(/text/);
+    });
+
+    it('text watermark on all pages by default returns files array', async () => {
+        const pdf = await makePdf(3);
+        const res = await handlePdfWatermark(jsonRequest('http://x/pdf/watermark', {
+            input: { base64Bytes: b64(pdf), fileName: 'doc.pdf' },
+            text: 'CONFIDENTIAL',
+            fontSize: 64,
+            colorHex: '#808080',
+            opacity: 0.2,
+            rotationDegrees: -45,
+        }));
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.files).toHaveLength(1);
+        expect(body.files[0].name).toBe('doc_watermarked.pdf');
+        const out = await PDFDocument.load(new Uint8Array(Buffer.from(body.files[0].base64Bytes, 'base64')));
+        expect(out.getPageCount()).toBe(3);
+    });
+
+    it('text watermark with explicit pageNums', async () => {
+        const pdf = await makePdf(5);
+        const res = await handlePdfWatermark(jsonRequest('http://x/pdf/watermark', {
+            input: { base64Bytes: b64(pdf), fileName: 'doc.pdf' },
+            text: 'DRAFT',
+            colorHex: '#FF0000',
+            pageNums: [1, 3, 5],
+        }));
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        const out = await PDFDocument.load(new Uint8Array(Buffer.from(body.files[0].base64Bytes, 'base64')));
+        expect(out.getPageCount()).toBe(5);
+    });
+
+    it('repeat: true tiles the watermark', async () => {
+        const pdf = await makePdf(1);
+        const res = await handlePdfWatermark(jsonRequest('http://x/pdf/watermark', {
+            input: { base64Bytes: b64(pdf), fileName: 'doc.pdf' },
+            text: 'CONFIDENTIAL',
+            repeat: true,
+        }));
+        expect(res.status).toBe(200);
+    });
+
+    it('returns 400 on non-boolean repeat', async () => {
+        const pdf = await makePdf(1);
+        const res = await handlePdfWatermark(jsonRequest('http://x/pdf/watermark', {
+            input: { base64Bytes: b64(pdf), fileName: 'doc.pdf' },
+            text: 'X',
+            repeat: 'yes',
+        }));
+        expect(res.status).toBe(400);
+        const body = await res.json();
+        expect(body.error).toMatch(/repeat/);
+    });
+
+    it('writes to outputFilePath and returns savedTo', async () => {
+        const pdf = await makePdf(1);
+        vi.mocked(writeFile).mockResolvedValue(undefined);
+        const res = await handlePdfWatermark(jsonRequest('http://x/pdf/watermark', {
+            input: { base64Bytes: b64(pdf), fileName: 'doc.pdf' },
+            text: 'X',
+            outputFilePath: '/tmp/wm.pdf',
+        }));
+        const body = await res.json();
+        expect(body.savedTo).toEqual(['/tmp/wm.pdf']);
+        expect(writeFile).toHaveBeenCalled();
+    });
+
+    it('returns 400 on out-of-range pageNum', async () => {
+        const pdf = await makePdf(3);
+        const res = await handlePdfWatermark(jsonRequest('http://x/pdf/watermark', {
+            input: { base64Bytes: b64(pdf), fileName: 'doc.pdf' },
+            text: 'X',
+            pageNums: [99],
+        }));
+        expect(res.status).toBe(400);
+        const body = await res.json();
+        expect(body.error).toMatch(/page 99/);
+    });
+
+    it('returns 400 on bad colorHex', async () => {
+        const pdf = await makePdf(1);
+        const res = await handlePdfWatermark(jsonRequest('http://x/pdf/watermark', {
+            input: { base64Bytes: b64(pdf), fileName: 'doc.pdf' },
+            text: 'X',
+            colorHex: 'red',
+        }));
+        expect(res.status).toBe(400);
+        const body = await res.json();
+        expect(body.error).toMatch(/colorHex/);
+    });
+
+    it('returns 400 on opacity outside [0, 1]', async () => {
+        const pdf = await makePdf(1);
+        const res = await handlePdfWatermark(jsonRequest('http://x/pdf/watermark', {
+            input: { base64Bytes: b64(pdf), fileName: 'doc.pdf' },
+            text: 'X',
+            opacity: 1.5,
+        }));
+        expect(res.status).toBe(400);
     });
 });

@@ -13,6 +13,7 @@ import { registerConvertFileTool } from './tools/convertFile.ts';
 import { registerPdfMergeTool } from './tools/pdfMerge.ts';
 import { registerPdfOrganizeTool } from './tools/pdfOrganize.ts';
 import { registerPdfExtractTool } from './tools/pdfExtract.ts';
+import { registerPdfWatermarkTool } from './tools/pdfWatermark.ts';
 import { warmUpBridge } from './core/browserBridge.ts';
 import type { McpContext } from './core/types.ts';
 
@@ -24,7 +25,7 @@ async function main() {
         version: "2.0.0"
     });
 
-    // Initialize handlers in the background — don't block server startup.
+    // Initialize handlers in the background, don't block server startup.
     // Pandoc WASM (~55 MB) can take 30 s – 3 min to compile on cold start;
     // waiting here would make the MCP client time out before the server is ready.
     // Each tool call awaits this promise before processing.
@@ -50,8 +51,9 @@ async function main() {
     registerPdfMergeTool(server);
     registerPdfOrganizeTool(server);
     registerPdfExtractTool(server);
+    registerPdfWatermarkTool(server);
 
-    // Start browser warm-up immediately — don't await, let it run in parallel
+    // Start browser warm-up immediately, don't await, let it run in parallel
     // with the transport setup and user think time before the first tool call.
     warmUpBridge();
 

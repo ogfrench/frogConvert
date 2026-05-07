@@ -1,6 +1,12 @@
 import "./FrogsworthWidget.css";
 
-type Context = { from: string | null; to: string | null; page?: "convert" | "pdf-editor" };
+type PdfTool = "merge" | "organize" | "watermark";
+type Context = {
+  from: string | null;
+  to: string | null;
+  page?: "convert" | "pdf-editor";
+  pdfTool?: PdfTool;
+};
 type Face = "idle" | "thinking" | "happy" | "excited" | "smug" | "hungry";
 
 const KAOMOJI: Record<Face, string> = {
@@ -59,34 +65,55 @@ const IDLE_QUIPS: Quip[] = [
   q("ribbit (this is a file converter)", "happy"),
 ];
 
-const PDF_IDLE_QUIPS: Quip[] = [
+const PDF_GENERIC_QUIPS: Quip[] = [
   "drop a pdf. let's get to work.",
-  q("merge, split, organize. the pdf trifecta.", "happy"),
-  q("i rearrange pages now. career pivot.", "smug"),
+  q("merge, organize, watermark. the pdf trinity.", "happy"),
   q("your pdf, your rules", "happy"),
   q("pages in, pages out. simple as that.", "idle"),
   q("got a pdf that needs surgery?", "excited"),
   q("pdf editing without adobe. rebellious.", "smug"),
-  q("drag the pages around. i won't judge the order.", "happy"),
-  q("extracting pages from a pdf is cheaper than therapy", "smug"),
-  q("merge two pdfs into one. a love story.", "happy"),
-  q("every page in the right place. that's the dream.", "happy"),
   q("i used to just convert files. now i also rearrange them.", "smug"),
-  q("your pages. your sequence. your call.", "idle"),
-  q("need fewer pages? extract. more pages? merge. same pages but different? organize.", "excited"),
+  q("need fewer pages? extract. more pages? merge. same pages but different? organize. need a stamp? watermark.", "excited"),
   q("frogsworth: pdf surgeon", "excited"),
   q("pdfs don't edit themselves. well, not yet.", "smug"),
+];
+
+const PDF_MERGE_QUIPS: Quip[] = [
+  q("merge two pdfs into one. a love story.", "happy"),
+  q("two pdfs enter. one pdf leaves.", "excited"),
+  q("combine the boring pdfs into one giant boring pdf", "idle"),
+  q("splitting a pdf: like cell division, but for paperwork", "excited"),
+  q("extracting pages from a pdf is cheaper than therapy", "smug"),
+];
+
+const PDF_ORGANIZE_QUIPS: Quip[] = [
+  q("i rearrange pages now. career pivot.", "smug"),
+  q("drag the pages around. i won't judge the order.", "happy"),
+  q("every page in the right place. that's the dream.", "happy"),
+  q("your pages. your sequence. your call.", "idle"),
   q("rotate, reorder, remove. the three r's.", "happy"),
   q("that one page sideways? i can fix that.", "excited"),
   q("page 47 ruining the whole document? delete it.", "smug"),
-  q("combine the boring pdfs into one giant boring pdf", "idle"),
   q("reorder pages by dragging. no manual required.", "happy"),
-  q("splitting a pdf: like cell division, but for paperwork", "excited"),
   q("pages don't have feelings. reorder freely.", "smug"),
   q("staring at a 300-page pdf? pick the 10 you need.", "idle"),
   q("thumbnails below. scroll, drag, done.", "happy"),
-  q("two pdfs enter. one pdf leaves.", "excited"),
   q("the undo button exists. use it generously.", "idle"),
+];
+
+const PDF_WATERMARK_QUIPS: Quip[] = [
+  q("marking your territory, professionally", "smug"),
+  q("every page now bears the brand", "happy"),
+  q("stamping the document into submission", "excited"),
+  q("diagonal text across every page. classic.", "smug"),
+  q("DRAFT. DRAFT. DRAFT. DRAFT.", "excited"),
+  q("confidential. now visibly so.", "smug"),
+  q("watermarks: the legal disclaimer of the visual world", "smug"),
+  q("putting your name on every page like it's homework", "happy"),
+  q("opacity is half the art. rotation is the other half.", "smug"),
+  q("45 degrees is the watermark default for a reason. tradition.", "happy"),
+  q("a watermark says 'this is mine' without saying it", "smug"),
+  q("page corners are real estate. claim them.", "excited"),
 ];
 
 const PAIR_QUIPS: Record<string, Quip[]> = {
@@ -644,11 +671,27 @@ const GENERIC_QUIPS: Quip[] = [
   "it's giving 'creative format decision'",
 ];
 
-export function pick(from: string | null, to: string | null, exclude: string | null = null, page?: string): { text: string; face: Face } {
+export function pick(
+  from: string | null,
+  to: string | null,
+  exclude: string | null = null,
+  page?: string,
+  pdfTool?: PdfTool,
+): { text: string; face: Face } {
   const f = from?.toLowerCase();
   const t = to?.toLowerCase();
 
-  if (!f && !t) return resolve(pickFrom(page === "pdf-editor" ? PDF_IDLE_QUIPS : IDLE_QUIPS, exclude));
+  if (!f && !t) {
+    if (page === "pdf-editor") {
+      const toolPool =
+        pdfTool === "watermark" ? PDF_WATERMARK_QUIPS :
+        pdfTool === "organize" ? PDF_ORGANIZE_QUIPS :
+        pdfTool === "merge" ? PDF_MERGE_QUIPS :
+        [];
+      return resolve(pickFrom([...toolPool, ...PDF_GENERIC_QUIPS], exclude));
+    }
+    return resolve(pickFrom(IDLE_QUIPS, exclude));
+  }
 
   if (f && t) {
     const pair = PAIR_QUIPS[`${f}→${t}`] ?? PAIR_QUIPS[`${t}→${f}`];
@@ -713,7 +756,7 @@ class FrogsworthWidget {
     window.addEventListener("dragenter", this._onDragEnter);
     window.addEventListener("dragleave", this._onDragLeave);
     window.addEventListener("drop", this._onDrop);
-    this.scheduleIdle();
+    this.scheduleIdle(true);
     const slot = document.getElementById("frogsworth-slot");
     this._mq = window.matchMedia("(max-width: 1100px), (max-height: 350px)");
     const updatePlacement = (mobile: boolean) => {
@@ -725,24 +768,24 @@ class FrogsworthWidget {
     this._mq.addEventListener("change", this._mqListener);
   }
 
-  private scheduleIdle(): void {
+  private scheduleIdle(firstRun = false): void {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.idleTimer = setTimeout(() => {
       this.idleTimer = null;
       if (this.busy || this.dragging) { this.scheduleIdle(); return; }
-      const { from, to, page } = this.getContext();
-      this.run(from, to, page);
-    }, 30_000);
+      const { from, to, page, pdfTool } = this.getContext();
+      this.run(from, to, page, pdfTool);
+    }, firstRun ? 15_000 : 30_000);
   }
 
   private onClick(): void {
     if (this.busy) return;
     this.scheduleIdle();
-    const { from, to, page } = this.getContext();
-    this.run(from, to, page);
+    const { from, to, page, pdfTool } = this.getContext();
+    this.run(from, to, page, pdfTool);
   }
 
-  private async run(from: string | null, to: string | null, page?: string): Promise<void> {
+  private async run(from: string | null, to: string | null, page?: string, pdfTool?: PdfTool): Promise<void> {
     if (this.dismissTimer) { clearTimeout(this.dismissTimer); this.dismissTimer = null; }
     this.busy = true;
 
@@ -752,7 +795,7 @@ class FrogsworthWidget {
 
     await delay(900);
 
-    const { text, face } = pick(from, to, this.lastQuip, page);
+    const { text, face } = pick(from, to, this.lastQuip, page, pdfTool);
     this.lastQuip = text;
     this.bubble.classList.remove("frogsworth-reveal");
     void this.bubble.offsetWidth;

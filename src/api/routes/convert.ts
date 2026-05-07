@@ -39,7 +39,7 @@ async function runConversion(
         // simpleMode=true: accept any handler for the final step.
         // Without this, findFormatAndHandler might pick e.g. ImageMagick for PDF
         // output while libreoffice provides the actual pptx→pdf edge, and the
-        // handler-name constraint would reject the libreoffice path — causing a
+        // handler-name constraint would reject the libreoffice path, causing a
         // 15s timeout search for a non-existent ImageMagick-terminated path.
         const pathsGenerator = graph.searchPath(
             { format: inputMatch.format, handler: inputMatch.handler },
@@ -60,7 +60,7 @@ async function runConversion(
                 return { files: currentFiles };
             } catch (nativeErr) {
                 nativeFailure = nativeErr;
-                // Native execution failed — fall through to browser bridge
+                // Native execution failed, fall through to browser bridge
             }
         }
     }

@@ -180,7 +180,7 @@ class ImageMagickHandler implements FormatHandler {
             // Peek the source dimensions once, then re-read the source
             // into the output collection N times and resize each copy.
             // clone() has a scoped callback lifetime that doesn't survive
-            // outside the callback — re-reading is the reliable pattern.
+            // outside the callback, re-reading is the reliable pattern.
             let sourceMax = 0;
             MagickImageCollection.use(probeCollection => {
               probeCollection.read(inputFile.bytes, inputSettings);
@@ -201,7 +201,7 @@ class ImageMagickHandler implements FormatHandler {
                   if (!image) break;
                   image.autoOrient();
                   // ICO entries must be square. MagickGeometry preserves
-                  // aspect ratio by default, so force it off — otherwise
+                  // aspect ratio by default, so force it off, otherwise
                   // a 100×200 source would produce a 128×256 entry and
                   // Windows would render it stretched.
                   const geom = new MagickGeometry(size, size);

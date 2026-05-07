@@ -11,7 +11,7 @@ import { saveAs } from "file-saver";
  *   - cap length at 200 chars while preserving the extension
  *
  * Browsers generally sanitize the `download` attribute, but their behaviour
- * is uneven — Firefox accepts reserved names, Safari keeps trailing dots,
+ * is uneven, Firefox accepts reserved names, Safari keeps trailing dots,
  * and ZIP entries bypass the browser entirely. Apply at every write boundary
  * to guarantee the same output everywhere.
  */

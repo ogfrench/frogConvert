@@ -146,7 +146,7 @@ export function createWorkerHandler(postMessage: (msg: any) => void) {
                 // while preserving previously-paid penalties when the pattern stops matching.
                 const nextCost = current.cost + edge.cost + Math.max(0, newAdaptiveCost - current.adaptiveCost);
 
-                // Don't prune paths to the destination — it's never settled (the
+                // Don't prune paths to the destination, it's never settled (the
                 // found-handler returns before settling) and we need multiple paths.
                 if (edge.to.index !== toIndex) {
                     const existingBest = bestCost.get(edge.to.index);

@@ -39,6 +39,6 @@ End-user guide for the file converter side of frogConvert. For the PDF editor, s
 
 ## See also
 
-- [PDF_EDITOR.md](PDF_EDITOR.md) - merge, reorder, extract PDF pages.
+- [PDF_EDITOR.md](PDF_EDITOR.md) - merge, reorder, extract, and watermark PDF pages.
 - [INTEGRATIONS.md](INTEGRATIONS.md) - MCP and REST API for scripting conversions.
 - [../SECURITY.md](../SECURITY.md) - privacy posture and threat model.

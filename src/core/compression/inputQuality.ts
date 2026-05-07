@@ -7,7 +7,7 @@ export type InputQualityProbe = {
 
 const UNKNOWN: InputQualityProbe = { inputTier: "medium", detail: {} };
 
-// Probing cheap metadata costs more than the win for tiny files — below this
+// Probing cheap metadata costs more than the win for tiny files, below this
 // size the hardcoded default is good enough, skip the probe.
 const SKIP_PROBE_BYTES = 1_000_000;
 
@@ -17,7 +17,7 @@ const SKIP_PROBE_BYTES = 1_000_000;
 //   - iPhone HEIC→JPEG default:         ~300 kB/MP  → medium
 //   - Web-optimised JPEG q=75:          ~150 kB/MP  → low
 //   - Aggressively re-encoded thumb:     ~50 kB/MP  → minimal
-// Bands are a proxy for *compression density*, not perceived quality — a
+// Bands are a proxy for *compression density*, not perceived quality, a
 // clean source can read low bpp at high visual quality, and vice versa.
 const LOSSY_IMG_BPP = { hq: 500_000, medium: 200_000, low: 80_000 };
 
@@ -53,7 +53,7 @@ const VIDEO_KBPS = { uncompressed: 10_000, hq: 4_000, medium: 1_500, low: 600 };
 const AUDIO_KBPS = { uncompressed: 900, hq: 256, medium: 160, low: 96 };
 
 // Raw byte-size fallback when no archetype probe matched. Used for unknown
-// mime types only — the archetype probes are preferred when they succeed.
+// mime types only, the archetype probes are preferred when they succeed.
 const SIZE_FALLBACK = { uncompressed: 100_000_000, hq: 10_000_000, medium: 1_000_000 };
 
 // Base metadata-load deadline. The Blob is a zero-copy view, but some
@@ -158,7 +158,7 @@ function loadPdfjs() {
 // Scan the last ~32KB of the PDF for /Count <n> entries. A multi-level pages
 // tree has one /Count per node; the root /Count equals the sum of its
 // children, so the max value across all matches is the page total. Returns
-// null when no /Count is found (uncommon — usually means the trailer is
+// null when no /Count is found (uncommon, usually means the trailer is
 // further back or the file is malformed). Faster than booting pdfjs.
 const PDF_TRAILER_SCAN_BYTES = 32_768;
 

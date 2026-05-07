@@ -82,7 +82,7 @@ export function initSegmentedControls(onModeChanged: () => void) {
   syncActive(formatsList, ".pill-option", formatMode.value);
   syncActive(themePills, ".pill-option", lastSyncedTheme);
 
-  // Format filter list — call applyMode directly
+  // Format filter list, call applyMode directly
   formatsList.addEventListener("click", (e) => {
     const btn = (e.target as HTMLElement).closest(".pill-option") as HTMLElement | null;
     if (!btn || btn.classList.contains("active")) return;

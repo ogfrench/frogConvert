@@ -247,7 +247,7 @@ function updateLibreofficeNoticeVisibility(fromIdx: number | null, toIdx: number
   const shouldShow = !libreofficeAvailable;
 
   if (isTouchUi()) {
-    // On mobile, the banner takes too much space — show a one-time toast instead.
+    // On mobile, the banner takes too much space, show a one-time toast instead.
     notice.hidden = true;
     if (shouldShow && !mobileHintShown) {
       mobileHintShown = true;

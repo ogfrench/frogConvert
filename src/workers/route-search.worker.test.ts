@@ -29,7 +29,7 @@ const fmtMp3 = { mime: 'audio/mpeg', format: 'mp3', extension: 'mp3', name: 'MP3
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('route-search worker — createWorkerHandler', () => {
+describe('route-search worker, createWorkerHandler', () => {
 
     it("'start' with unknown node identifiers emits done immediately", () => {
         const { send, messages } = createSyncWorker();
@@ -71,14 +71,14 @@ describe('route-search worker — createWorkerHandler', () => {
             initialPath: [{ handlerName: 'hA', format: fmtPng }],
         });
 
-        // Worker pauses after the first found — done requires a resume
+        // Worker pauses after the first found, done requires a resume
         expect(messages.filter(m => m.type === 'found').length).toBe(1);
         expect(messages.filter(m => m.type === 'done').length).toBe(0);
 
         const path: any[] = messages[0].path;
         expect(path.at(-1)?.format.mime).toBe('audio/mpeg');
 
-        // Resume with no dead ends — queue is exhausted, worker emits done
+        // Resume with no dead ends, queue is exhausted, worker emits done
         send({ type: 'resume', deadEnds: [] });
         expect(messages.filter(m => m.type === 'done').length).toBe(1);
     });
@@ -139,7 +139,7 @@ describe('route-search worker — createWorkerHandler', () => {
         const found = messages.filter(m => m.type === 'found');
         expect(found.length).toBe(1);
 
-        // Block the only path and resume — queue exhausts, done is emitted
+        // Block the only path and resume, queue exhausts, done is emitted
         send({ type: 'resume', deadEnds: [found[0].path] });
 
         expect(messages.filter(m => m.type === 'done').length).toBe(1);
@@ -194,7 +194,7 @@ describe('route-search worker — createWorkerHandler', () => {
             initialPath: [{ handlerName: 'hWrong', format: fmtPng }],
         });
 
-        // The only path ends with 'hWrong', not 'hTarget' — skipped, done immediately
+        // The only path ends with 'hWrong', not 'hTarget', skipped, done immediately
         expect(messages.filter(m => m.type === 'found').length).toBe(0);
         expect(messages.filter(m => m.type === 'done').length).toBe(1);
     });

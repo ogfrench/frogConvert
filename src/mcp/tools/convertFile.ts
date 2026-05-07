@@ -108,7 +108,7 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
                         return await serializeResults(currentFiles, outputFilePath);
                     } catch (nativeErr: any) {
                         nativeFailure = nativeErr;
-                        // Native execution failed — log for diagnostics and fall through to browser bridge
+                        // Native execution failed, log for diagnostics and fall through to browser bridge
                         process.stderr.write(`[mcp] Native conversion failed, trying browser bridge: ${nativeErr?.message ?? nativeErr}\n`);
                     }
                 }

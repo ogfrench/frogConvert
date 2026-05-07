@@ -4,7 +4,7 @@ import type { FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
  * Handlers loaded in the MCP server (Node/Bun environment).
  *
  * WHY a manual list?
- * Loading all browser handlers blindly crashes the MCP process — some
+ * Loading all browser handlers blindly crashes the MCP process, some
  * handlers (e.g. flo, batToExe) fail in ways that are not safely catchable
  * in a stdio JSON-RPC server. Only handlers that run cleanly in Node/Bun
  * (pure JS, WASM with file-system fetch polyfill, or DOMParser-based) belong here.
@@ -100,7 +100,7 @@ export const loadMcpHandlers = async (): Promise<{ ready: FormatHandler[]; all: 
     try { handlers.push(new fenToJsonHandler()); } catch (e) { console.error("[MCP] Failed to load fenToJson:", e); }
     try { handlers.push(new harHandler()); } catch (e) { console.error("[MCP] Failed to load har:", e); }
 
-    // Initialize all handlers in parallel — Pandoc WASM is 55 MB and takes 30s–3min
+    // Initialize all handlers in parallel, Pandoc WASM is 55 MB and takes 30s–3min
     // to compile; sequential init blocks everything behind the slowest handler.
     await Promise.all(handlers.map(h =>
         h.init
