@@ -108,10 +108,51 @@ export function initFormatModal(
   ui.formatModalBg.addEventListener("click", () => closeFormatModal());
   ui.formatModalClose.addEventListener("click", () => closeFormatModal());
 
+  // Arrow-key navigation across the visible format-option list. The list can
+  // hold ~70 options; without this, keyboard users had to Tab through every
+  // entry to reach the bottom.
+  ui.formatSearch.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowDown") return;
+    const first = visibleFormatOption(0);
+    if (!first) return;
+    e.preventDefault();
+    first.focus();
+  });
+  ui.formatOptions.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Home" && e.key !== "End") return;
+    const opts = visibleFormatOptions();
+    if (!opts.length) return;
+    const current = opts.indexOf(document.activeElement as HTMLElement);
+    let next = current;
+    if (e.key === "ArrowDown") next = current < 0 ? 0 : Math.min(opts.length - 1, current + 1);
+    else if (e.key === "ArrowUp") {
+      // Up from the first option pulls focus back into the search field.
+      if (current <= 0) {
+        e.preventDefault();
+        ui.formatSearch.focus();
+        return;
+      }
+      next = current - 1;
+    }
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = opts.length - 1;
+    e.preventDefault();
+    opts[next].focus();
+  });
+
   document.getElementById("libreoffice-notice-dismiss")?.addEventListener("click", () => {
     libreofficeNoticeDismissed = true;
     ui.libreofficeNotice.hidden = true;
   });
+}
+
+function visibleFormatOptions(): HTMLElement[] {
+  return Array.from(ui.formatOptions.querySelectorAll<HTMLElement>(".format-option"))
+    .filter(el => el.style.display !== "none");
+}
+
+function visibleFormatOption(idx: number): HTMLElement | null {
+  return visibleFormatOptions()[idx] ?? null;
 }
 
 export function setSelectedFormat(index: number, allOptions: Array<{ format: FileFormat; handler: FormatHandler }>) {

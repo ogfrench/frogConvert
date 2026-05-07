@@ -177,27 +177,50 @@ type HistorySnapshot = {
   lastClickedIdx: number;
 };
 const history: HistorySnapshot[] = [];
+const redoStack: HistorySnapshot[] = [];
 const HISTORY_MAX = 30;
 
-function pushHistory() {
-  history.push({
+function snapshotCurrent(): HistorySnapshot {
+  return {
     pages: pages.map(p => ({ ...p })),
     selected: new Set(selected),
     files: files.slice(),
     lastClickedIdx,
-  });
-  if (history.length > HISTORY_MAX) history.shift();
+  };
 }
 
-function undo() {
-  const snap = history.pop();
-  if (!snap) return;
+function pushHistory() {
+  history.push(snapshotCurrent());
+  if (history.length > HISTORY_MAX) history.shift();
+  // New mutating action invalidates any pending redo branch — same convention
+  // as code editors and image tools.
+  redoStack.length = 0;
+}
+
+function applySnapshot(snap: HistorySnapshot) {
   pages = snap.pages;
   selected = snap.selected;
   files = snap.files;
   lastClickedIdx = snap.lastClickedIdx;
   renderOrganizeView();
   kickPageThumbs(pages);
+}
+
+function undo() {
+  const snap = history.pop();
+  if (!snap) return;
+  // Capture the post-action state so redo can restore it.
+  redoStack.push(snapshotCurrent());
+  if (redoStack.length > HISTORY_MAX) redoStack.shift();
+  applySnapshot(snap);
+}
+
+function redo() {
+  const snap = redoStack.pop();
+  if (!snap) return;
+  history.push(snapshotCurrent());
+  if (history.length > HISTORY_MAX) history.shift();
+  applySnapshot(snap);
 }
 
 let activeTool: Tool = 'merge';
@@ -353,6 +376,13 @@ function handleGlobalKeydown(e: KeyboardEvent) {
     if (!history.length) return;
     e.preventDefault();
     undo();
+  } else if (
+    (e.ctrlKey || e.metaKey) &&
+    (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))
+  ) {
+    if (!redoStack.length) return;
+    e.preventDefault();
+    redo();
   } else if (e.key === 'Delete' || e.key === 'Backspace') {
     if (!selected.size) return;
     e.preventDefault();
@@ -1910,7 +1940,7 @@ function renderOrganizeView() {
     const idx = Number(card.dataset.pageIdx);
     if (isNaN(idx)) return;
 
-    toggleSelection(idx, e.shiftKey);
+    toggleSelection(idx, e.shiftKey, e.ctrlKey || e.metaKey);
   });
 
   grid.addEventListener('keydown', (e) => {
@@ -1920,7 +1950,7 @@ function renderOrganizeView() {
     e.preventDefault();
     const idx = Number(card.dataset.pageIdx);
     if (isNaN(idx)) return;
-    toggleSelection(idx, e.shiftKey);
+    toggleSelection(idx, e.shiftKey, e.ctrlKey || e.metaKey);
   });
 
   sortableInstance = new Sortable(grid, {
@@ -2065,6 +2095,7 @@ export function resetAll() {
   lastClickedIdx = -1;
   organizeInitialized = false;
   history.length = 0;
+  redoStack.length = 0;
   setKeyboardMode(false);
   clearThumbnailCache();
   // Reset watermark state
@@ -2393,8 +2424,11 @@ function removeFile(fid: number) {
 // Selection
 // ---------------------------------------------------------------------------
 
-function toggleSelection(idx: number, shift: boolean) {
-  if (shift && selected.size > 0) {
+function toggleSelection(idx: number, shift: boolean, ctrl = false) {
+  // Ctrl/Cmd+Click is an explicit non-contiguous toggle and overrides Shift —
+  // matches the Windows/macOS multi-select convention so power users can
+  // pick or unpick a single page without disturbing the rest of a Shift range.
+  if (shift && !ctrl && selected.size > 0) {
     let lo = idx, hi = idx;
     for (const s of selected) { if (s < lo) lo = s; if (s > hi) hi = s; }
     for (let i = lo; i <= hi; i++) selected.add(i);
@@ -3202,6 +3236,7 @@ export const __testing = {
     selected = new Set();
     lastClickedIdx = -1;
     history.length = 0;
+  redoStack.length = 0;
     wmSettings = { ...WM_DEFAULTS };
     wmFlatPages = [];
     wmDisposeBitmaps();
@@ -3214,6 +3249,7 @@ export const __testing = {
     selected = new Set(seedSelected);
     lastClickedIdx = -1;
     history.length = 0;
+  redoStack.length = 0;
   },
   getPages: () => pages,
   getFiles: () => files,
@@ -3285,6 +3321,7 @@ export const __testing = {
     selectedFiles = new Set();
     lastClickedIdx = -1;
     history.length = 0;
+  redoStack.length = 0;
     organizeInitialized = false;
     wmFlatPages = [];
     wmSelected = new Set();
