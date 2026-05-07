@@ -1,4 +1,4 @@
-import type { PDFDocumentProxy } from 'pdfjs-dist';
+import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 
 const _isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
@@ -19,34 +19,34 @@ const DOC_CACHE_MAX = 5;
 const docCache = new Map<Uint8Array, PDFDocumentProxy>();
 let sharedCanvas: HTMLCanvasElement | null = null;
 
-// Serialise all renderPageThumbnail calls. The function uses a single shared
+// Serialise all render calls. `renderPageThumbnail` uses a single shared
 // canvas; parallel callers would race on its bitmap. Also helps on Safari
 // where concurrent WebGL-backed canvases exceed the per-page context cap.
 // Each call appends to the queue and awaits the previous.
 let renderQueue: Promise<unknown> = Promise.resolve();
 
 /**
- * Render a single page of a PDF as a thumbnail image.
- * @returns data:image/png URL, or '' if pdfjs failed to load
+ * Queue a render against a (potentially cached) page. Owns pdfjs init, the
+ * doc-cache LRU, the global render queue, and `page.cleanup()`. Callers
+ * supply only the per-page work (rasterise → return T). Returns null iff
+ * pdfjs failed to load.
  */
-export async function renderPageThumbnail(
+async function withQueuedPage<T>(
   pdfBytes: Uint8Array,
   pageNum: number,
-  maxWidth = 150
-): Promise<string> {
+  fn: (page: PDFPageProxy) => Promise<T>
+): Promise<T | null> {
   await ensurePdfjs();
-  if (!pdfjsLib) return '';
-
-  // Chain onto the queue. Using .then(..., ..)-style so a rejection from a
-  // prior call doesn't poison later ones (we don't `await` the reject path).
-  const run = async (): Promise<string> => {
+  if (!pdfjsLib) return null;
+  const lib = pdfjsLib;
+  const run = async (): Promise<T> => {
     let pdf = docCache.get(pdfBytes);
     if (pdf) {
       // Re-insert to move to MRU position (Map iterates in insertion order).
       docCache.delete(pdfBytes);
       docCache.set(pdfBytes, pdf);
     } else {
-      pdf = await pdfjsLib!.getDocument({
+      pdf = await lib.getDocument({
         data: pdfBytes.slice(),
         isEvalSupported: false,
         isOffscreenCanvasSupported: false,
@@ -58,28 +58,66 @@ export async function renderPageThumbnail(
         docCache.delete(oldestKey);
       }
     }
-
     const page = await pdf.getPage(pageNum);
     try {
-      const unscaled = page.getViewport({ scale: 1 });
-      const scale = maxWidth / unscaled.width;
-      const viewport = page.getViewport({ scale });
-
-      if (!sharedCanvas) sharedCanvas = document.createElement('canvas');
-      sharedCanvas.width = viewport.width;
-      sharedCanvas.height = viewport.height;
-
-      await page.render({ canvas: sharedCanvas, viewport }).promise;
-      return sharedCanvas.toDataURL('image/png');
+      return await fn(page);
     } finally {
       page.cleanup();
     }
   };
-
+  // .then(run, run) so a prior rejection doesn't poison later callers.
   const pending = renderQueue.then(run, run);
-  // Keep the chain alive even on rejection so later callers can still run.
   renderQueue = pending.catch(() => { /* swallow to unblock queue */ });
   return pending;
+}
+
+/**
+ * Render a single page of a PDF as a thumbnail image.
+ * @returns data:image/png URL, or '' if pdfjs failed to load
+ */
+export async function renderPageThumbnail(
+  pdfBytes: Uint8Array,
+  pageNum: number,
+  maxWidth = 150
+): Promise<string> {
+  const result = await withQueuedPage(pdfBytes, pageNum, async (page) => {
+    const unscaled = page.getViewport({ scale: 1 });
+    const scale = maxWidth / unscaled.width;
+    const viewport = page.getViewport({ scale });
+    if (!sharedCanvas) sharedCanvas = document.createElement('canvas');
+    sharedCanvas.width = viewport.width;
+    sharedCanvas.height = viewport.height;
+    await page.render({ canvas: sharedCanvas, viewport }).promise;
+    return sharedCanvas.toDataURL('image/png');
+  });
+  return result ?? '';
+}
+
+/**
+ * Render a page to an ImageBitmap plus its unscaled PDF dimensions. Used by
+ * the watermark preview, which composites a Canvas 2D overlay on top of the
+ * cached base bitmap and needs the PDF user-space dims to set its
+ * canvas-to-PDF transform. Rendered at the page's display orientation so the
+ * bitmap is upright; the engine draws watermarks in the same coord system at
+ * /Rotate=0, which is the common case.
+ */
+export async function renderPageBitmap(
+  pdfBytes: Uint8Array,
+  pageNum: number,
+  maxWidth: number
+): Promise<{ bitmap: ImageBitmap; pdfWidth: number; pdfHeight: number } | null> {
+  return withQueuedPage(pdfBytes, pageNum, async (page) => {
+    const unscaled = page.getViewport({ scale: 1 });
+    const scale = maxWidth / unscaled.width;
+    const viewport = page.getViewport({ scale });
+    const off = document.createElement('canvas');
+    off.width = viewport.width;
+    off.height = viewport.height;
+    await page.render({ canvas: off, viewport }).promise;
+    // Bitmap retains pixel data after the source canvas is GC'd.
+    const bitmap = await createImageBitmap(off);
+    return { bitmap, pdfWidth: unscaled.width, pdfHeight: unscaled.height };
+  });
 }
 
 /**

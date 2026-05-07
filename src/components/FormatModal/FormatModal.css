@@ -152,3 +152,7 @@
   text-align: center;
   font-size: var(--text-sm);
 }
+
+@media (any-pointer: coarse) {
+  .format-option { padding: var(--space-3) var(--space-4); }
+}

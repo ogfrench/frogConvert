@@ -35,7 +35,7 @@
   display: flex;
   gap: var(--space-3);
   max-width: 58rem;
-  margin: var(--space-8) auto var(--space-16);
+  margin: var(--space-8) auto 0;
   padding: 0 var(--space-4);
   position: relative;
   z-index: 2;
@@ -576,7 +576,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   padding: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--card);
+  background: var(--button-surface);
   color: var(--muted-foreground);
   font-size: var(--text-md);
   font-weight: var(--font-semibold);
@@ -609,6 +609,12 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   height: 100%;
   object-fit: contain;
   transition: transform 0.2s ease;
+}
+
+.ws-page-thumb canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .ws-page-badge {
@@ -800,14 +806,10 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--secondary);
+  background: var(--button-surface);
   color: var(--foreground);
   cursor: pointer;
   transition: background-color 0.15s ease;
-}
-
-.dark .ws-btn {
-  background: var(--card);
 }
 
 .ws-btn:hover {
@@ -953,7 +955,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     text-align: center;
     padding: var(--space-3) var(--space-4);
     font-size: var(--text-base);
-    background-color: var(--card);
+    background-color: var(--button-surface);
     color: var(--foreground);
     border: 1px solid var(--border);
     box-shadow: var(--shadow-toolbar);
@@ -1240,6 +1242,11 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 .ws-page-card.ws-page-selected .ws-wm-watermarked-tag {
   display: block;
 }
+/* Hide the tag while the user has cleared the text or typed unrenderable
+   chars — preview shows no overlay then, so the tag would lie. */
+.ws-wm-no-overlay .ws-wm-watermarked-tag {
+  display: none;
+}
 
 /* No bespoke overrides: inherit width / gap / flex-direction from the
    shared .ws-sidebar-card so Watermark matches Merge & Organize visually. */
@@ -1435,9 +1442,9 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   width: 1.75rem;
   height: 1.75rem;
   padding: 0;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--secondary);
+  background: var(--button-surface);
   cursor: pointer;
   overflow: hidden;
   flex-shrink: 0;
@@ -1538,4 +1545,67 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
    under the section label, so no top padding is needed. */
 .ws-tray .ws-wm-style-body {
   padding-top: 0;
+}
+
+/* Mobile: pad the grid above the fixed toolbar so the last row doesn't sit
+   underneath it. Toolbar is positioned above safe-area-inset-bottom. */
+@media (max-width: 800px) {
+  .ws-grid-card {
+    padding-bottom: calc(
+      var(--space-12) + var(--space-6) + var(--space-3)
+      + env(safe-area-inset-bottom, 0px)
+    );
+  }
+  /* Organize uses a two-row toolbar; double the space-12 allowance. */
+  body:has(.ws-toolbar--organize) .ws-grid-card {
+    padding-bottom: calc(
+      var(--space-12) + var(--space-12) + var(--space-4) + var(--space-3)
+      + env(safe-area-inset-bottom, 0px)
+    );
+  }
+  .ws-page-cards { padding-bottom: var(--space-3); }
+}
+
+@media (any-pointer: coarse) {
+  .ws-wm-style-summary {
+    padding: var(--space-3) var(--space-2);
+    font-size: var(--text-md);
+  }
+
+  /* Slider thumb hit area equals thumb size, so growing the thumb alone is
+     insufficient for 44px. Pad the input vertically instead, transparent
+     background so the visible track keeps its slim look. */
+  .ws-wm-slider {
+    height: 2.75rem;
+    padding: calc((2.75rem - 4px) / 2) 0;
+    box-sizing: content-box;
+    background: transparent;
+  }
+  .ws-wm-slider::-webkit-slider-thumb {
+    width: 24px;
+    height: 24px;
+    margin-top: 0;
+  }
+  .ws-wm-slider::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+  }
+
+  .ws-wm-color-swatch { width: 2.5rem; height: 2.5rem; }
+
+  .ws-page-card:active,
+  .ws-file-card:active,
+  .ws-btn:active,
+  .ws-wm-style-summary:active { transform: scale(0.98); }
+
+  /* Toolbar slides up when the virtual keyboard is open; --kb-offset is
+     written by initPdfWorkspace via visualViewport. */
+  .ws-toolbar {
+    bottom: calc(
+      var(--space-6)
+      + env(safe-area-inset-bottom, 0px)
+      + var(--kb-offset, 0px)
+    );
+    transition: bottom 0.18s ease;
+  }
 }

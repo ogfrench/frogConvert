@@ -9,12 +9,14 @@ import { organize } from '../../tools/pdfOrganize.ts';
 import {
   watermark,
   hexToRgb,
-  applyWatermarkToPage,
+  placementCoords,
+  tilePositions,
+  rotatedOrigin,
   WatermarkValidationError,
   WATERMARK_DEFAULTS,
   type PdfWatermarkOptions,
 } from '../../tools/pdfWatermark.ts';
-import { renderPageThumbnail, clearThumbnailCache, mockPageThumb } from '../../tools/pdfThumbnails.ts';
+import { renderPageThumbnail, renderPageBitmap, clearThumbnailCache, mockPageThumb } from '../../tools/pdfThumbnails.ts';
 import { downloadFile, downloadAsZip } from '../../conversion/download.ts';
 import { isTouchUi } from '../../core/utils/touchUi.ts';
 import { showToast } from '../Toast/Toast.ts';
@@ -290,6 +292,24 @@ export function initPdfWorkspace() {
   });
 
   document.addEventListener('keydown', handleGlobalKeydown);
+
+  // Track the virtual keyboard so the fixed mobile toolbar can slide above it.
+  // Without this, focusing the watermark text input or page-range input on iOS
+  // hides the Export/Download button behind the keyboard.
+  if (typeof window !== 'undefined' && window.visualViewport) {
+    const vv = window.visualViewport;
+    let lastKb = '';
+    const updateKbOffset = () => {
+      const kb = window.innerHeight - vv.height - vv.offsetTop;
+      const next = kb > 50 ? `${kb}px` : '0px';
+      if (next === lastKb) return;
+      lastKb = next;
+      document.documentElement.style.setProperty('--kb-offset', next);
+    };
+    vv.addEventListener('resize', updateKbOffset);
+    vv.addEventListener('scroll', updateKbOffset);
+    updateKbOffset();
+  }
 
   renderActiveTool();
 }
@@ -669,17 +689,21 @@ let wmSettings: WmSettings = { ...WM_DEFAULTS };
 let wmFlatPages: WmPageEntry[] = [];
 let wmSelected: Set<number> = new Set();   // flat-index source of truth
 let wmLastClicked = -1;                     // for shift-click range
-let wmRenderToken = 0;
-let wmDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let wmTextEncodeFont: { font: any; doc: PDFDocument } | null = null;
 let wmGridEl: HTMLElement | null = null;
 let wmObserver: IntersectionObserver | null = null;
-const wmCardCache = new Map<number, { visualKey: string; url: string }>();
-// Per-file parsed PDFDocument cache. Reused by every card render so a settings
-// change re-stamps without re-parsing each source PDF once per visible card.
-// Cleared on file mutation, cleanup, and resetAll.
-const wmLoadedDocCache = new Map<number, Promise<PDFDocument>>();
-const WM_DEBOUNCE_MS = 250;
+// Per-page base bitmap. Rendered ONCE by pdfjs (lazy, on IO entry) and
+// reused across every settings change. Key: `${fileId}:${pageNum}`. The
+// preview composites this bitmap + a Canvas 2D watermark overlay synchronously
+// on every kick — no PDF round-trip per slider tick.
+const wmBaseBitmaps = new Map<string, { bitmap: ImageBitmap; pdfWidth: number; pdfHeight: number }>();
+// fileId is monotonic (never reused), so on file removal stale entries are
+// unreachable and would leak. Bound the map and evict oldest on insert.
+// 200 × ~225 KB ≈ 45 MB ceiling for the bitmap cache.
+const WM_BITMAP_CACHE_MAX = 200;
+// rAF-coalesced redraw: multiple input events within one frame collapse to
+// a single repaint at the next frame.
+let wmRafId: number | null = null;
 let watermarkMobileTray: HTMLElement | null = null;
 // Per-panel id seq so desktop + mobile tray panels have unique ids for
 // aria-describedby wiring (both can live in the DOM at the same time on
@@ -736,25 +760,16 @@ function wmRebuildFlatPages() {
       wmFlatPages.push({ fileId: f.id, pageNum: p });
     }
   }
-  // Flat order changed → cached URLs no longer map to the right page. Loaded-doc
-  // cache is keyed by fileId; a removed file's entry is now dead, so clear too.
-  wmCardCache.clear();
-  wmLoadedDocCache.clear();
-  wmRenderToken++;
+  // Flat order changed. Bitmaps are keyed by (fileId, pageNum) and fileId is
+  // monotonic, so on file removal the entries are unreachable and would leak
+  // (each holds a GPU ImageBitmap). Drop them.
+  wmDisposeBitmaps();
 }
 
-/**
- * Lazy per-file PDFDocument loader. Multiple watermark card renders sharing a
- * file get one parse, not N. Failed parses self-evict so a retry can succeed.
- */
-async function wmGetLoadedDoc(sf: SourceFile): Promise<PDFDocument> {
-  let p = wmLoadedDocCache.get(sf.id);
-  if (!p) {
-    p = PDFDocument.load(sf.bytes, { ignoreEncryption: true });
-    p.catch(() => wmLoadedDocCache.delete(sf.id));
-    wmLoadedDocCache.set(sf.id, p);
-  }
-  return p;
+/** Close every cached `ImageBitmap` and empty the map. */
+function wmDisposeBitmaps() {
+  for (const v of wmBaseBitmaps.values()) v.bitmap.close?.();
+  wmBaseBitmaps.clear();
 }
 
 /** Badge: `1` (single file) or `A1` (multi-file, letter = upload order). */
@@ -765,12 +780,6 @@ function wmBadgeText(idx: number): string {
   const fileIdx = files.findIndex(f => f.id === entry.fileId);
   const letter = String.fromCharCode(65 + (fileIdx % 26));
   return `${letter}${entry.pageNum}`;
-}
-
-/** Visual key, fields that change the rendered watermark image (NOT range). */
-function wmVisualKey(): string {
-  const s = wmSettings;
-  return `${s.text}|${s.fontSize}|${s.colorHex}|${s.opacity}|${s.rotation}|${s.repeat}`;
 }
 
 function wmResetForFiles() {
@@ -812,12 +821,18 @@ function wmTextHasInvalidChars(): boolean {
   return bad;
 }
 
+/** True iff Export will actually stamp pages (text set AND at least one page picked). */
+function wmWillStamp(): boolean {
+  return wmSettings.text.trim().length > 0 && wmSelected.size > 0;
+}
+
 function wmDownloadDisabled(): { disabled: boolean; reason?: string } {
   if (files.length === 0) return { disabled: true, reason: 'Add a PDF first' };
-  if (wmTextHasInvalidChars()) {
+  // Invalid chars only block when we'd actually render text — empty text or
+  // empty selection both fall through to source-PDF passthrough.
+  if (wmWillStamp() && wmTextHasInvalidChars()) {
     return { disabled: true, reason: "Some characters can't be rendered. Try basic Latin text." };
   }
-  if (wmSelected.size === 0) return { disabled: true, reason: 'Pick at least one page' };
   return { disabled: false };
 }
 
@@ -846,94 +861,194 @@ function handleWmTextInput(ti: HTMLInputElement) {
 }
 
 /**
- * Re-render all currently-mounted cards. Bumping `wmRenderToken` stales any
- * in-flight watermark renders; visual cache entries that still match
- * `wmVisualKey()` are reused, so range-only edits don't recompute pixels.
- * Pass `immediate` to skip the input-debounce.
+ * Schedule a redraw of every mounted card on the next animation frame.
+ * Multiple input events within one frame collapse into a single repaint.
+ * Pass `immediate` to redraw synchronously this turn.
  */
 function wmKickVisible(immediate = false) {
-  if (wmDebounceTimer) { clearTimeout(wmDebounceTimer); wmDebounceTimer = null; }
-  const fire = () => {
-    wmRenderToken++;
-    if (!wmGridEl) return;
-    wmGridEl.querySelectorAll<HTMLElement>('[data-wm-flat-idx]').forEach(card => {
-      const idx = Number(card.dataset.wmFlatIdx);
-      if (!Number.isNaN(idx)) void wmRenderCard(idx);
-    });
-  };
-  if (immediate) fire();
-  else wmDebounceTimer = setTimeout(fire, WM_DEBOUNCE_MS);
+  if (immediate) {
+    if (wmRafId !== null) { cancelAnimationFrame(wmRafId); wmRafId = null; }
+    wmFlushRedraw();
+    return;
+  }
+  if (wmRafId !== null) return;
+  wmRafId = requestAnimationFrame(() => {
+    wmRafId = null;
+    wmFlushRedraw();
+  });
 }
 
 const wmKickVisibleImmediate = () => wmKickVisible(true);
 
-async function wmRenderCard(idx: number) {
-  const myToken = wmRenderToken;
+/**
+ * Frame-constant values for one repaint pass. All cards in a single
+ * `wmFlushRedraw` share these, so they're computed once per frame instead of
+ * once per card. `null` means "no overlay this frame" (text empty, contains
+ * unrenderable chars, or font not ready yet).
+ */
+type WmFrame = {
+  text: string;
+  fontSize: number;
+  opacity: number;
+  rotation: number;
+  repeat: boolean;
+  wmW: number;
+  wmH: number;
+  fillStyle: string;
+  radCanvas: number;
+  // Per-(pageW, pageH) anchor list. Different pages may have different dims
+  // (mixed PDF sizes), so anchors aren't fully frame-constant — but they're
+  // identical across cards that share dims, which is the common case.
+  tileCache: Map<string, ReadonlyArray<{ x: number; y: number }>>;
+};
+
+function wmBuildFrame(): WmFrame | null {
+  const font = wmTextEncodeFont?.font;
+  if (!font) return null;
+  if (!wmSettings.text.trim() || wmTextHasInvalidChars()) return null;
+  let color: { r: number; g: number; b: number };
+  try { color = hexToRgb(wmSettings.colorHex); } catch { color = { r: 0.5, g: 0.5, b: 0.5 }; }
+  return {
+    text: wmSettings.text,
+    fontSize: wmSettings.fontSize,
+    opacity: wmSettings.opacity,
+    rotation: wmSettings.rotation,
+    repeat: wmSettings.repeat,
+    wmW: font.widthOfTextAtSize(wmSettings.text, wmSettings.fontSize),
+    wmH: font.heightAtSize(wmSettings.fontSize),
+    fillStyle: `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`,
+    radCanvas: -(wmSettings.rotation * Math.PI) / 180,
+    tileCache: new Map(),
+  };
+}
+
+function wmFlushRedraw() {
+  if (!wmGridEl) return;
+  const noText = !wmSettings.text.trim() || wmTextHasInvalidChars();
+  wmGridEl.classList.toggle('ws-wm-no-overlay', noText);
+  // Font not loaded yet: kick the load and redraw once it's ready. Base
+  // bitmaps still paint this frame because they don't need the font.
+  if (!wmTextEncodeFont) {
+    void wmEnsureEncodeFont().then(() => { if (wmGridEl) wmKickVisible(true); });
+  }
+  const frame = wmBuildFrame();
+  wmGridEl.querySelectorAll<HTMLElement>('[data-wm-flat-idx]').forEach(card => {
+    const idx = Number(card.dataset.wmFlatIdx);
+    if (!Number.isNaN(idx)) void wmRenderCard(idx, frame);
+  });
+}
+
+async function wmRenderCard(idx: number, frame: WmFrame | null) {
   const entry = wmFlatPages[idx];
   if (!entry || !wmGridEl) return;
   const sf = files.find(f => f.id === entry.fileId);
-  const thumb = wmGridEl.querySelector<HTMLElement>(`[data-wm-flat-idx="${idx}"] .ws-page-thumb`);
-  if (!sf || !thumb) return;
+  const card = wmGridEl.querySelector<HTMLElement>(`[data-wm-flat-idx="${idx}"]`);
+  const thumb = card?.querySelector<HTMLElement>('.ws-page-thumb');
+  if (!sf || !card || !thumb) return;
 
-  const inScope = wmEffectivePagesFor(sf).includes(entry.pageNum);
-  const wmApplicable = inScope && !!wmSettings.text.trim() && !wmTextHasInvalidChars();
-  const visualKey = wmVisualKey();
-  const cached = wmCardCache.get(idx);
-
-  // Exact cache hit, skip both passes.
-  if (wmApplicable && cached && cached.visualKey === visualKey) {
-    setThumb(thumb, cached.url);
-    return;
-  }
-
-  // Stale cache: keep the previous watermarked thumb on screen while we render
-  // the new one. Avoids flashing the plain page mid-drag.
-  if (wmApplicable && cached) {
-    setThumb(thumb, cached.url);
-  }
-
-  try {
-    if (!wmApplicable) {
-      // Cache held a watermarked URL; clear it so a later re-enable doesn't
-      // flash the stale stamp via the fallback at the top of this function.
-      wmCardCache.delete(idx);
-      const plainUrl = await renderPageThumbnail(sf.bytes, entry.pageNum, PAGE_THUMB_WIDTH);
-      if (myToken !== wmRenderToken) return;
-      if (plainUrl) setThumb(thumb, plainUrl);
+  const key = `${entry.fileId}:${entry.pageNum}`;
+  let base = wmBaseBitmaps.get(key);
+  if (!base) {
+    try {
+      const result = await renderPageBitmap(sf.bytes, entry.pageNum, PAGE_THUMB_WIDTH);
+      if (!result) return;
+      // File mutation may have invalidated the entry mid-render. Drop the
+      // bitmap rather than caching against a stale (fileId, pageNum) pair.
+      const stillThere = wmFlatPages[idx];
+      if (!stillThere || stillThere.fileId !== entry.fileId || stillThere.pageNum !== entry.pageNum) {
+        result.bitmap.close?.();
+        return;
+      }
+      base = result;
+      wmBaseBitmaps.set(key, result);
+      if (wmBaseBitmaps.size > WM_BITMAP_CACHE_MAX) {
+        const oldest = wmBaseBitmaps.keys().next().value as string | undefined;
+        if (oldest && oldest !== key) {
+          wmBaseBitmaps.get(oldest)?.bitmap.close?.();
+          wmBaseBitmaps.delete(oldest);
+        }
+      }
+    } catch (e) {
+      console.warn('[pdfWorkspace] watermark base render failed:', e);
       return;
     }
-
-    // Plain pass only when there's nothing better to show. Organize-speed via
-    // the LRU in pdfThumbnails.ts.
-    if (!cached) {
-      const plainUrl = await renderPageThumbnail(sf.bytes, entry.pageNum, PAGE_THUMB_WIDTH);
-      if (myToken !== wmRenderToken) return;
-      if (plainUrl) setThumb(thumb, plainUrl);
-    }
-
-    // Watermarked pass. Bail before the pdf-lib parse if we've been staled.
-    if (myToken !== wmRenderToken) return;
-    let color;
-    try { color = hexToRgb(wmSettings.colorHex); } catch { color = { r: 0.5, g: 0.5, b: 0.5 }; }
-    const temp = await PDFDocument.create();
-    const src = await wmGetLoadedDoc(sf);
-    const [copied] = await temp.copyPages(src, [entry.pageNum - 1]);
-    temp.addPage(copied);
-    await applyWatermarkToPage(temp, copied, {
-      source: { type: 'text', text: wmSettings.text, fontSize: wmSettings.fontSize, color },
-      opacity: wmSettings.opacity,
-      rotationDegrees: wmSettings.rotation,
-      repeat: wmSettings.repeat,
-    });
-    const bytes = new Uint8Array(await temp.save());
-    if (myToken !== wmRenderToken) return;
-    const url = await renderPageThumbnail(bytes, 1, PAGE_THUMB_WIDTH);
-    if (myToken !== wmRenderToken || !url) return;
-    wmCardCache.set(idx, { visualKey, url });
-    setThumb(thumb, url);
-  } catch (e) {
-    console.warn('[pdfWorkspace] watermark card render failed:', e);
   }
+
+  wmCompositeCard(card, thumb, idx, base, frame);
+}
+
+/**
+ * Sync paint: blit base bitmap, then draw the watermark overlay if `frame` is
+ * non-null and this card is selected. Reuses the engine's placement helpers
+ * (`tilePositions`, `placementCoords`, `rotatedOrigin`) and the cached pdf-lib
+ * Helvetica metrics so tile geometry matches the export pixel-for-pixel.
+ */
+function wmCompositeCard(
+  card: HTMLElement,
+  thumb: HTMLElement,
+  idx: number,
+  base: { bitmap: ImageBitmap; pdfWidth: number; pdfHeight: number },
+  frame: WmFrame | null
+) {
+  const { bitmap, pdfWidth, pdfHeight } = base;
+  const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+  const cssW = PAGE_THUMB_WIDTH;
+  const cssH = Math.round(cssW * (pdfHeight / pdfWidth));
+  const pxW = Math.round(cssW * dpr);
+  const pxH = Math.round(cssH * dpr);
+
+  let canvas = thumb.querySelector<HTMLCanvasElement>('canvas');
+  if (!canvas) {
+    thumb.classList.remove('ws-skeleton');
+    canvas = document.createElement('canvas');
+    thumb.replaceChildren(canvas);
+  }
+  if (canvas.width !== pxW) canvas.width = pxW;
+  if (canvas.height !== pxH) canvas.height = pxH;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.clearRect(0, 0, pxW, pxH);
+  ctx.drawImage(bitmap, 0, 0, pxW, pxH);
+
+  const wmApplicable = !!frame && wmSelected.has(idx);
+  card.classList.toggle('ws-wm-overlay-on', wmApplicable);
+  if (!wmApplicable) return;
+
+  const { text, fontSize, opacity, rotation, repeat, wmW, wmH, fillStyle, radCanvas, tileCache } = frame!;
+  // Y-flip is applied at point conversion (not as a global transform) so
+  // canvas glyph rasterization stays upright.
+  const scale = pxW / pdfWidth;
+  const dimKey = `${pdfWidth}x${pdfHeight}`;
+  let anchors = tileCache.get(dimKey);
+  if (!anchors) {
+    anchors = repeat
+      ? tilePositions({ pageW: pdfWidth, pageH: pdfHeight, wmW, wmH, rotationDegrees: rotation })
+      : [placementCoords({ pageW: pdfWidth, pageH: pdfHeight, wmW, wmH, placement: 'center' })];
+    tileCache.set(dimKey, anchors);
+  }
+
+  ctx.font = `${fontSize * scale}px Helvetica, Arial, sans-serif`;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = fillStyle;
+  ctx.globalAlpha = opacity;
+
+  for (const a of anchors) {
+    const origin = rotatedOrigin(a.x, a.y, wmW, wmH, rotation);
+    const cx = origin.x * scale;
+    const cy = pxH - origin.y * scale;
+    ctx.save();
+    ctx.translate(cx, cy);
+    // PDF degrees positive = CCW visual; canvas radians positive = CW visual
+    // (Y-down). `radCanvas` carries the sign flip.
+    ctx.rotate(radCanvas);
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
 }
 
 function renderWatermarkView() {
@@ -1011,7 +1126,7 @@ function renderWatermarkView() {
       if (!entry.isIntersecting) continue;
       const idx = Number((entry.target as HTMLElement).dataset.wmFlatIdx);
       if (!Number.isNaN(idx)) {
-        void wmRenderCard(idx);
+        void wmRenderCard(idx, wmBuildFrame());
         observer.unobserve(entry.target);
       }
     }
@@ -1319,13 +1434,20 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
 }
 
 function wmDownloadLabel(): string {
-  return wmSettings.text.trim() ? 'Export PDF' : 'Export source PDF';
+  return wmWillStamp() ? 'Export PDF' : 'Export source PDF';
 }
 
 function rebuildWatermarkPanelDownloadState() {
   const state = wmDownloadDisabled();
   const label = wmDownloadLabel();
-  const statusText = state.disabled ? (state.reason ?? '') : '';
+  // Empty-text hint already lives by the text input; only surface a hint here
+  // for the zero-pages-but-text-set case so the user understands the relabeled
+  // button will save the source unchanged.
+  let statusText = '';
+  if (state.disabled) statusText = state.reason ?? '';
+  else if (wmSettings.text.trim() && !wmWillStamp()) {
+    statusText = 'No pages picked — Export saves the source PDF unchanged.';
+  }
   document.querySelectorAll<HTMLButtonElement>('.ws-wm-download-btn').forEach(dl => {
     if (dl.classList.contains('disabled') !== state.disabled) {
       dl.classList.toggle('disabled', state.disabled);
@@ -1495,7 +1617,7 @@ async function handleWatermarkExport() {
 }
 
 async function doWatermarkExportPerSource() {
-  if (!wmSettings.text.trim()) return doWatermarkPassthroughPerSource();
+  if (!wmWillStamp()) return doWatermarkPassthroughPerSource();
 
   let color;
   try {
@@ -1521,11 +1643,6 @@ async function doWatermarkExportPerSource() {
         pageNums,
       },
     });
-  }
-
-  if (tasks.length === 0) {
-    showError('No pages selected');
-    return;
   }
 
   const isBatch = tasks.length > 1;
@@ -1616,7 +1733,7 @@ async function doWatermarkPassthroughCombined() {
 
 /** Combined-mode Watermark export: merge all source files, stamp selected indices, save as one PDF. */
 async function doWatermarkExportCombined() {
-  if (!wmSettings.text.trim()) return doWatermarkPassthroughCombined();
+  if (!wmWillStamp()) return doWatermarkPassthroughCombined();
 
   let color;
   try {
@@ -1894,15 +2011,15 @@ function cleanup() {
   mergeSidebarCard = null;
   mergeMobileTray = null;
   organizeMobileTray = null;
-  // Watermark DOM refs, DOM is wiped by toolContent.innerHTML = ''. The card
-  // cache, loaded-doc cache, and embedded encode font are intentionally NOT
-  // cleared here so re-entering the tab keeps thumbnails warm. Caches are
-  // invalidated on file mutation (wmRebuildFlatPages) or full reset (resetAll).
+  // Watermark DOM refs. DOM is wiped by toolContent.innerHTML = ''. Bitmap
+  // cache and encode font are intentionally NOT cleared so re-entering the tab
+  // keeps thumbnails warm. The bitmap map is bounded by WM_BITMAP_CACHE_MAX
+  // and invalidated on file mutation (wmRebuildFlatPages) or full reset.
   wmGridEl = null;
   wmObserver?.disconnect();
   wmObserver = null;
   watermarkMobileTray = null;
-  if (wmDebounceTimer) { clearTimeout(wmDebounceTimer); wmDebounceTimer = null; }
+  if (wmRafId !== null) { cancelAnimationFrame(wmRafId); wmRafId = null; }
   // Remove body-appended mobile elements (toolbar, tray, overlay)
   document.querySelectorAll('.ws-toolbar, .ws-tray, .ws-tray-overlay').forEach(e => e.remove());
 }
@@ -1920,11 +2037,9 @@ export function resetAll() {
   // Reset watermark state
   wmSettings = { ...WM_DEFAULTS };
   wmFlatPages = [];
-  wmRenderToken = 0;
-  wmCardCache.clear();
-  wmLoadedDocCache.clear();
+  wmDisposeBitmaps();
   wmTextEncodeFont = null;
-  if (wmDebounceTimer) { clearTimeout(wmDebounceTimer); wmDebounceTimer = null; }
+  if (wmRafId !== null) { cancelAnimationFrame(wmRafId); wmRafId = null; }
   renderActiveTool();
 }
 
@@ -2760,6 +2875,42 @@ function buildMobileTrayContent(tray: HTMLElement) {
   btnRow.appendChild(selAll);
   btnRow.appendChild(desel);
   tray.appendChild(btnRow);
+
+  // Touch-only reorder fallback. Drag-to-reorder requires a long-press gesture
+  // that is hard to discover and impossible for users with motor impairments;
+  // these buttons reuse moveSelection() (same path the desktop sidebar uses
+  // when ws-keyboard-mode is active).
+  if (selected.size > 0) {
+    tray.appendChild(makeSidebarDivider());
+    tray.appendChild(makeSectionLabel('Reorder'));
+    const moveRow = el('div', { className: 'ws-sidebar-btn-row' });
+    const sorted = [...selected].sort((a, b) => a - b);
+    const atTop = sorted[0] === 0;
+    const atBottom = sorted[sorted.length - 1] === pages.length - 1;
+    const upBtn = el('button', {
+      className: 'ws-btn ws-move-btn',
+      innerHTML: '&uarr; Move up',
+      ariaLabel: 'Move selected pages up',
+    });
+    if (atTop) { upBtn.classList.add('disabled'); upBtn.setAttribute('aria-disabled', 'true'); }
+    upBtn.addEventListener('click', () => {
+      if (!moveSelection('up')) return;
+      renderOrganizeView();
+    });
+    const downBtn = el('button', {
+      className: 'ws-btn ws-move-btn',
+      innerHTML: 'Move down &darr;',
+      ariaLabel: 'Move selected pages down',
+    });
+    if (atBottom) { downBtn.classList.add('disabled'); downBtn.setAttribute('aria-disabled', 'true'); }
+    downBtn.addEventListener('click', () => {
+      if (!moveSelection('down')) return;
+      renderOrganizeView();
+    });
+    moveRow.appendChild(upBtn);
+    moveRow.appendChild(downBtn);
+    tray.appendChild(moveRow);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -3016,11 +3167,9 @@ export const __testing = {
     history.length = 0;
     wmSettings = { ...WM_DEFAULTS };
     wmFlatPages = [];
-    wmRenderToken = 0;
-    wmCardCache.clear();
-    wmLoadedDocCache.clear();
+    wmDisposeBitmaps();
     wmTextEncodeFont = null;
-    if (wmDebounceTimer) { clearTimeout(wmDebounceTimer); wmDebounceTimer = null; }
+    if (wmRafId !== null) { cancelAnimationFrame(wmRafId); wmRafId = null; }
   },
   seed(seedPages: PageEntry[], seedFiles: SourceFile[] = [], seedSelected: number[] = []) {
     pages = seedPages;
@@ -3058,11 +3207,11 @@ export const __testing = {
   wmEffectivePagesFor: (sourceFile: SourceFile) => wmEffectivePagesFor(sourceFile),
   wmDownloadDisabled: () => wmDownloadDisabled(),
   wmDownloadLabel: () => wmDownloadLabel(),
-  setWmCardCacheEntry(idx: number, entry: { visualKey: string; url: string }) {
-    wmCardCache.set(idx, entry);
+  hasWmBaseBitmap: (idx: number) => {
+    const e = wmFlatPages[idx];
+    return e ? wmBaseBitmaps.has(`${e.fileId}:${e.pageNum}`) : false;
   },
-  getWmCardCacheEntry: (idx: number) => wmCardCache.get(idx),
-  renderWmCardForTest: (idx: number) => wmRenderCard(idx),
+  renderWmCardForTest: (idx: number) => wmRenderCard(idx, wmBuildFrame()),
   /**
    * Scaffold the DOM and module state for a tab, then render. Returns the
    * `#pdf-tool-content` container so tests can query rendered nodes.
@@ -3102,8 +3251,7 @@ export const __testing = {
     organizeInitialized = false;
     wmFlatPages = [];
     wmSelected = new Set();
-    wmCardCache.clear();
-    wmLoadedDocCache.clear();
+    wmDisposeBitmaps();
     if (tab === 'organize') {
       let pos = 0;
       for (const sf of sfs) {

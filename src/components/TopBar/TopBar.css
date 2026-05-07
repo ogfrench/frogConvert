@@ -109,7 +109,7 @@
   justify-content: space-around;
   width: var(--control-size);
   height: var(--control-size);
-  background: var(--secondary);
+  background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   cursor: pointer;
@@ -153,7 +153,7 @@
   line-height: var(--leading-none);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background-color: var(--secondary);
+  background-color: var(--card);
   color: var(--foreground);
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.3s ease, transform 0.3s ease;
@@ -184,7 +184,7 @@
   line-height: var(--leading-none);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background-color: var(--secondary);
+  background-color: var(--card);
   color: var(--foreground);
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease;
@@ -219,7 +219,7 @@
   line-height: var(--leading-none);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background-color: var(--secondary);
+  background-color: var(--card);
   color: var(--foreground);
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease;

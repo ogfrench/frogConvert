@@ -30,6 +30,11 @@
   --glass-highlight: rgba(255, 255, 255, 0.85);
   --glass-separator: rgba(0, 0, 0, 0.05);
 
+  /* Filled secondary buttons that sit inside content (cards, modals, panels).
+     Light: --secondary (off-white). Dark: --card via the .dark override below
+     so buttons stay readable on the darker --background canvas. */
+  --button-surface: var(--secondary);
+
   /* Resets */
   --link-color: inherit;
 
@@ -151,6 +156,7 @@
   --glass-highlight: rgba(250, 250, 250, 0.12);
   --glass-separator: rgba(250, 250, 250, 0.05);
   --shadow-toolbar: 0 2px 8px rgba(0, 0, 0, 0.20), 0 1px 3px rgba(0, 0, 0, 0.12);
+  --button-surface: var(--card);
   color-scheme: dark;
 }
 
@@ -430,7 +436,7 @@ html.scroll-lock {
   padding: var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background-color: var(--secondary);
+  background-color: var(--button-surface);
   color: var(--foreground);
   font-family: inherit;
   font-size: var(--text-lg);
@@ -447,10 +453,6 @@ html.scroll-lock {
 
 .btn-secondary:active {
   transform: scale(0.98);
-}
-
-.dark .btn-secondary {
-  background-color: var(--card);
 }
 
 /* --- Modal Overlay --- */
@@ -602,7 +604,7 @@ html.scroll-lock {
   padding: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background-color: var(--card);
+  background-color: var(--button-surface);
   color: var(--muted-foreground);
   font-size: var(--text-base);
   cursor: pointer;
@@ -960,4 +962,36 @@ html.scroll-lock {
   #category-label {
     margin: var(--space-3) 0 var(--space-3);
   }
+}
+
+/* --- Touch-first sizing & input zoom-prevention ---
+   any-pointer matches when ANY input device is coarse, so hybrid devices
+   (touch laptops, iPad with keyboard) get touch-density even when a mouse
+   is also present. Pointer-only would miss them. */
+@media (any-pointer: coarse) {
+  /* Kill iOS Safari focus-zoom WITHOUT scaling the type system.
+     Safari zooms when input font-size < 16px; surgical override on inputs only. */
+  input[type="text"],
+  input[type="search"],
+  input[type="email"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="password"],
+  textarea,
+  select { font-size: 16px; }
+
+  /* 44px touch-target token (WCAG 2.5.5) */
+  :root { --control-size: 2.75rem; }
+
+  /* Shared sub-44 controls -> 44x44 */
+  .icon-btn { width: 2.75rem; height: 2.75rem; font-size: var(--text-md); }
+  .close-btn-md { width: 2.5rem; height: 2.5rem; }
+  .close-btn-lg { width: 2.75rem; height: 2.75rem; }
+
+  /* Active feedback on affordances that lacked it; pairs with global
+     -webkit-tap-highlight-color: transparent so taps don't feel dead */
+  .icon-btn:active,
+  .cat-tab:active,
+  .format-option:active { transform: scale(0.96); }
 }

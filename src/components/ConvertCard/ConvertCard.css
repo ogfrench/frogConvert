@@ -140,7 +140,7 @@
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  background-color: var(--secondary);
+  background-color: var(--button-surface);
   color: var(--foreground);
   font-family: inherit;
   font-size: var(--text-md);

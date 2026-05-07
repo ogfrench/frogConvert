@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('../../tools/pdfThumbnails.ts', () => ({
   renderPageThumbnail: vi.fn(async () => ''),
+  renderPageBitmap: vi.fn(async () => null),
   clearThumbnailCache: vi.fn(),
   mockPageThumb: vi.fn(() => ''),
 }));
@@ -207,21 +208,39 @@ describe('Watermark selection model', () => {
     expect(__testing.wmSelectedToRangeString()).toBe('1, 3, 5');
   });
 
-  it('wmDownloadLabel always returns "Export PDF" (no per-file zip wording)', () => {
+  it('wmDownloadLabel reads "Export PDF" when text + pages will stamp, regardless of file count', () => {
     __testing.setFiles([sf(1, 2)]);
+    __testing.triggerWmFilesMutated();
+    __testing.setWmSelected([0]);
+    __testing.setWmSettings({ text: 'X' });
     expect(__testing.wmDownloadLabel()).toBe('Export PDF');
     __testing.setFiles([sf(1, 2), sf(2, 3), sf(3, 4)]);
+    __testing.triggerWmFilesMutated();
+    __testing.setWmSelected([0, 3]);
     expect(__testing.wmDownloadLabel()).toBe('Export PDF');
   });
 
-  it('wmDownloadDisabled is disabled when nothing is selected', () => {
+  it('wmDownloadLabel falls back to "Export source PDF" when nothing will be stamped', () => {
+    __testing.setFiles([sf(1, 5)]);
+    __testing.triggerWmFilesMutated();
+    // Text set, but no pages picked → passthrough.
+    __testing.setWmSelected([]);
+    __testing.setWmSettings({ text: 'X' });
+    expect(__testing.wmDownloadLabel()).toBe('Export source PDF');
+    // Pages picked, but text empty → passthrough.
+    __testing.setWmSelected([0]);
+    __testing.setWmSettings({ text: '' });
+    expect(__testing.wmDownloadLabel()).toBe('Export source PDF');
+  });
+
+  it('wmDownloadDisabled allows passthrough when nothing is selected', () => {
     __testing.setFiles([sf(1, 5)]);
     __testing.triggerWmFilesMutated();
     __testing.setWmSelected([]);
     __testing.setWmSettings({ text: 'X' });
     const r = __testing.wmDownloadDisabled();
-    expect(r.disabled).toBe(true);
-    expect(r.reason).toBe('Pick at least one page');
+    expect(r.disabled).toBe(false);
+    expect(__testing.wmDownloadLabel()).toBe('Export source PDF');
   });
 
   it('wmDownloadDisabled is enabled when at least one page is selected', () => {
@@ -336,24 +355,6 @@ describe('Watermark DOM interactions', () => {
     expect(cards[1].classList.contains('ws-page-selected')).toBe(true);
   });
 
-  it('repaints a cached watermarked thumbnail back to the plain preview when deselected', async () => {
-    renderPageThumbnailMock.mockResolvedValue('plain-url');
-    const root = __testing.setupForTest('watermark', [sf(1, 1)]);
-    const card = getCards(root)[0];
-    const thumb = card.querySelector<HTMLElement>('.ws-page-thumb')!;
-    const img = document.createElement('img');
-    img.src = 'watermarked-url';
-    thumb.classList.remove('ws-skeleton');
-    thumb.replaceChildren(img);
-
-    __testing.setWmCardCacheEntry(0, { visualKey: 'cached-watermark', url: 'watermarked-url' });
-    __testing.setWmSelected([]);
-
-    await __testing.renderWmCardForTest(0);
-
-    expect(thumb.querySelector('img')?.getAttribute('src')).toBe('plain-url');
-  });
-
   it('Select all / Deselect all buttons drive selection', () => {
     const root = __testing.setupForTest('watermark', [sf(1, 4)]);
     const findBtn = (label: string) =>
@@ -440,14 +441,17 @@ describe('Watermark DOM interactions', () => {
     expect(errorEl.classList.contains('ws-wm-text-info')).toBe(false);
   });
 
-  it('clears the watermark card cache when a page becomes !wmApplicable', async () => {
-    renderPageThumbnailMock.mockResolvedValue('plain-url');
-    __testing.setupForTest('watermark', [sf(1, 1)]);
-    __testing.setWmCardCacheEntry(0, { visualKey: 'cached-watermark', url: 'watermarked-url' });
-    __testing.setWmSelected([]);
+  it('flags the grid with ws-wm-no-overlay when watermark text is empty', () => {
+    const root = __testing.setupForTest('watermark', [sf(1, 2)]);
+    const grid = root.querySelector<HTMLElement>('.ws-wm-page-grid')!;
+    const quickInput = document.querySelector<HTMLInputElement>('.ws-toolbar--watermark .ws-prefix-input__field')!;
 
-    await __testing.renderWmCardForTest(0);
-
-    expect(__testing.getWmCardCacheEntry(0)).toBeUndefined();
+    quickInput.value = '';
+    quickInput.dispatchEvent(new Event('input', { bubbles: true }));
+    // Flush rAF so the kick that handleWmTextInput scheduled paints once.
+    return new Promise<void>(r => requestAnimationFrame(() => {
+      expect(grid.classList.contains('ws-wm-no-overlay')).toBe(true);
+      r();
+    }));
   });
 });

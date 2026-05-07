@@ -115,7 +115,7 @@ export function placementCoords(args: {
  * pdf-lib rotates around the draw origin, not the bbox center. This shifts
  * the origin so the bbox center stays put after rotation.
  */
-function rotatedOrigin(
+export function rotatedOrigin(
   bboxX: number,
   bboxY: number,
   bboxW: number,

@@ -92,6 +92,17 @@
   flex-shrink: 0;
 }
 
+/* Touch: 44px icon-btn cluster needs its own row so it doesn't crowd
+   the filename; filename takes full row, actions wrap below. */
+@media (any-pointer: coarse) {
+  .upload-file-info {
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+  }
+  .upload-file-name { flex-basis: 100%; }
+  .upload-file-actions { gap: var(--space-2); }
+}
+
 
 /* --- Convert Direction Indicator (decorative) --- */
 #convert-arrow-wrap {
