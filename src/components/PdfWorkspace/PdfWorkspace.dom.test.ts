@@ -20,7 +20,10 @@ class MockIntersectionObserver {
 (globalThis as any).IntersectionObserver = MockIntersectionObserver;
 
 const { __testing } = await import('./PdfWorkspace.ts');
+import { renderPageThumbnail } from '../../tools/pdfThumbnails.ts';
 import type { PageEntry, SourceFile } from '../../tools/types.ts';
+
+const renderPageThumbnailMock = vi.mocked(renderPageThumbnail);
 
 function srcPage(fileId: number, pageNum: number, rotation: 0 | 90 | 180 | 270 = 0): PageEntry {
   return { type: 'source', sourceFileId: fileId, sourcePageNum: pageNum, thumbnail: null, rotation, originalPos: pageNum };
@@ -38,6 +41,7 @@ beforeEach(() => {
   __testing.reset();
   __testing.setActiveTool('organize');
   __testing.setInitialized(true);
+  renderPageThumbnailMock.mockResolvedValue('');
 });
 
 describe('PdfWorkspace keyboard + undo', () => {
@@ -332,6 +336,24 @@ describe('Watermark DOM interactions', () => {
     expect(cards[1].classList.contains('ws-page-selected')).toBe(true);
   });
 
+  it('repaints a cached watermarked thumbnail back to the plain preview when deselected', async () => {
+    renderPageThumbnailMock.mockResolvedValue('plain-url');
+    const root = __testing.setupForTest('watermark', [sf(1, 1)]);
+    const card = getCards(root)[0];
+    const thumb = card.querySelector<HTMLElement>('.ws-page-thumb')!;
+    const img = document.createElement('img');
+    img.src = 'watermarked-url';
+    thumb.classList.remove('ws-skeleton');
+    thumb.replaceChildren(img);
+
+    __testing.setWmCardCacheEntry(0, { visualKey: 'cached-watermark', url: 'watermarked-url' });
+    __testing.setWmSelected([]);
+
+    await __testing.renderWmCardForTest(0);
+
+    expect(thumb.querySelector('img')?.getAttribute('src')).toBe('plain-url');
+  });
+
   it('Select all / Deselect all buttons drive selection', () => {
     const root = __testing.setupForTest('watermark', [sf(1, 4)]);
     const findBtn = (label: string) =>
@@ -348,5 +370,84 @@ describe('Watermark DOM interactions', () => {
     const dropzone = root.querySelector('.ws-page-card.ws-page-add');
     expect(dropzone).not.toBeNull();
     expect(dropzone?.textContent).toContain('Drop more PDFs');
+  });
+
+  it('renders a quick watermark text input above the mobile export action', () => {
+    const root = __testing.setupForTest('watermark', [sf(1, 2)]);
+    const toolbar = document.querySelector<HTMLElement>('.ws-toolbar--watermark')!;
+    const quickInput = toolbar.querySelector<HTMLInputElement>('.ws-prefix-input__field')!;
+    const actionRow = toolbar.querySelector<HTMLElement>('.ws-toolbar-row')!;
+
+    const inputWrap = toolbar.querySelector<HTMLElement>('.ws-prefix-input')!;
+    expect(toolbar.firstElementChild).toBe(inputWrap);
+    expect(inputWrap.contains(quickInput)).toBe(true);
+    expect(toolbar.children[1]).toBe(actionRow);
+    expect(actionRow.querySelector('.ws-wm-download-btn')?.textContent).toBe('Export PDF');
+
+    quickInput.value = 'On the fly';
+    quickInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(__testing.getWmSettings().text).toBe('On the fly');
+    expect(root.querySelector<HTMLInputElement>('.ws-wm-panel-card .ws-wm-text-input')?.value).toBe('On the fly');
+  });
+
+  it('uses a down chevron instead of an X when the mobile tray is open', () => {
+    __testing.setupForTest('watermark', [sf(1, 2)]);
+    const iconBtn = document.querySelector<HTMLButtonElement>('.ws-toolbar--watermark .ws-toolbar-icon')!;
+
+    iconBtn.click();
+
+    expect(iconBtn.getAttribute('aria-label')).toBe('Hide options');
+    expect(iconBtn.innerHTML).toContain('M6 9l6 6 6-6');
+    expect(iconBtn.innerHTML).not.toContain('M6 6l12 12');
+  });
+
+  it('empty watermark text relabels Export, surfaces inline info, keeps button enabled', () => {
+    const root = __testing.setupForTest('watermark', [sf(1, 2)]);
+    const toolbar = document.querySelector<HTMLElement>('.ws-toolbar--watermark')!;
+    const quickInput = toolbar.querySelector<HTMLInputElement>('.ws-prefix-input__field')!;
+    const exportBtn = toolbar.querySelector<HTMLButtonElement>('.ws-wm-download-btn')!;
+
+    quickInput.value = '';
+    quickInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(__testing.wmDownloadLabel()).toBe('Export source PDF');
+    expect(exportBtn.textContent).toBe('Export source PDF');
+    expect(exportBtn.getAttribute('aria-disabled')).toBeNull();
+    expect(exportBtn.classList.contains('disabled')).toBe(false);
+
+    const errorEl = root.querySelector<HTMLElement>('.ws-wm-panel-card .ws-wm-text-error')!;
+    expect(errorEl.textContent).toBe('Empty text — Export saves the source PDF unchanged.');
+    expect(errorEl.classList.contains('ws-wm-text-info')).toBe(true);
+
+    const desktopInput = root.querySelector<HTMLInputElement>('.ws-wm-panel-card .ws-wm-text-input')!;
+    expect(desktopInput.classList.contains('ws-input-error')).toBe(false);
+    expect(desktopInput.getAttribute('aria-invalid')).toBeNull();
+  });
+
+  it('non-empty text restores the standard Export PDF label and clears the info message', () => {
+    const root = __testing.setupForTest('watermark', [sf(1, 2)]);
+    const quickInput = document.querySelector<HTMLInputElement>('.ws-toolbar--watermark .ws-prefix-input__field')!;
+
+    quickInput.value = '';
+    quickInput.dispatchEvent(new Event('input', { bubbles: true }));
+    quickInput.value = 'CONFIDENTIAL';
+    quickInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(__testing.wmDownloadLabel()).toBe('Export PDF');
+    const errorEl = root.querySelector<HTMLElement>('.ws-wm-panel-card .ws-wm-text-error')!;
+    expect(errorEl.textContent).toBe('');
+    expect(errorEl.classList.contains('ws-wm-text-info')).toBe(false);
+  });
+
+  it('clears the watermark card cache when a page becomes !wmApplicable', async () => {
+    renderPageThumbnailMock.mockResolvedValue('plain-url');
+    __testing.setupForTest('watermark', [sf(1, 1)]);
+    __testing.setWmCardCacheEntry(0, { visualKey: 'cached-watermark', url: 'watermarked-url' });
+    __testing.setWmSelected([]);
+
+    await __testing.renderWmCardForTest(0);
+
+    expect(__testing.getWmCardCacheEntry(0)).toBeUndefined();
   });
 });

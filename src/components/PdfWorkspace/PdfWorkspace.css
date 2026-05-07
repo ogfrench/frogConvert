@@ -734,7 +734,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   padding: var(--space-1-5) var(--space-3);
   border: none;
   border-radius: var(--radius);
-  background: var(--secondary);
+  background: var(--input-filled-dark);
   color: var(--foreground);
   font-family: var(--font-sans);
   font-size: var(--text-sm);
@@ -964,17 +964,19 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     opacity: 1;
   }
 
-  /* --- Organize toolbar: two-row layout --- */
-  .ws-toolbar--organize {
+  /* Multi-row toolbars (organize, watermark): vertical stack. */
+  .ws-toolbar--organize,
+  .ws-toolbar--watermark {
     flex-direction: column;
     align-items: stretch;
     bottom: calc(var(--toolbar-bottom) + var(--space-2));
   }
 
-  .ws-toolbar-top {
+  /* One row inside a multi-row toolbar: [primary action] [icon]. */
+  .ws-toolbar-row {
     display: flex;
-    gap: var(--space-2);
     align-items: stretch;
+    gap: var(--space-2);
   }
 
   .ws-toolbar-extract,
@@ -988,8 +990,13 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   .ws-toolbar-extract { flex: 1; }
   .ws-toolbar-export  { width: 100%; }
 
-  /* Two-row toolbar is taller: push tray and grid padding accordingly */
-  body:has(.ws-toolbar--organize) .ws-tray {
+  .ws-toolbar--watermark .ws-toolbar-action {
+    min-height: var(--space-12);
+  }
+
+  /* Two-row toolbars are taller: push tray above both rows. */
+  body:has(.ws-toolbar--organize) .ws-tray,
+  body:has(.ws-toolbar--watermark) .ws-tray {
     bottom: calc(var(--space-6) + var(--space-12) + var(--space-12) + var(--space-4) + var(--space-3) + env(safe-area-inset-bottom, 0px));
   }
 
@@ -1332,14 +1339,82 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   box-shadow: 0 0 0 1px var(--foreground), 0 0 0 4px var(--ring);
 }
 
-/* Text row: label · text input. Matches slider/color row column rhythm. */
-.ws-wm-text-row {
-  display: grid;
-  grid-template-columns: 4.5rem 1fr;
+/* Reusable prefix-input: [ label | field ] in one bordered pill. */
+.ws-prefix-input {
+  display: flex;
   align-items: center;
-  gap: var(--space-2);
+  min-height: var(--space-12);
+  background-color: var(--input-filled-dark);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: box-shadow 0.15s ease;
 }
-.ws-wm-text-row .ws-wm-text-input { width: 100%; }
+
+.ws-toolbar--watermark .ws-prefix-input {
+  box-shadow: var(--shadow-toolbar);
+}
+
+.ws-prefix-input__label {
+  flex-shrink: 0;
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--muted-foreground);
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+  line-height: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  background: var(--input-filled-dark);
+}
+
+.ws-prefix-input__field {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-3);
+  font-size: var(--text-base);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  appearance: none;
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+.ws-prefix-input:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.ws-prefix-input:has(.ws-input-error) {
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 1px var(--destructive);
+}
+
+.ws-wm-text-row {
+  display: block;
+  margin-bottom: 0;
+}
+
+.ws-wm-text-error {
+  font-size: var(--text-xs);
+  color: var(--destructive);
+  margin-top: var(--space-1);
+}
+
+.ws-wm-text-error.ws-wm-text-info {
+  color: var(--muted-foreground);
+}
+
+.ws-wm-text-error:empty {
+  display: none;
+}
+
+.ws-wm-style-details {
+  margin-top: 0;
+}
 
 /* Color row: label · hex text · swatch button */
 .ws-wm-color-row {
@@ -1459,24 +1534,8 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   .ws-wm-style-details[open] > .ws-wm-style-body { animation: none; }
 }
 
-@media (max-width: 800px) {
-  .ws-wm-style-details {
-    margin-top: var(--space-3);
-  }
-  .ws-wm-style-summary {
-    display: flex;
-    padding: var(--space-3) var(--space-4);
-    min-height: 3rem;
-    font-size: var(--text-base);
-    color: var(--foreground);
-    background: var(--secondary);
-    border-color: var(--accent);
-  }
-  .ws-wm-style-summary:hover {
-    border-color: var(--ring);
-  }
-  .ws-wm-style-summary:focus-visible {
-    border-color: var(--ring);
-  }
+/* Mobile tray: Customize <details> is not rendered; style body sits directly
+   under the section label, so no top padding is needed. */
+.ws-tray .ws-wm-style-body {
+  padding-top: 0;
 }
-

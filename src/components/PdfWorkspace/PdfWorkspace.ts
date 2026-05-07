@@ -814,12 +814,35 @@ function wmTextHasInvalidChars(): boolean {
 
 function wmDownloadDisabled(): { disabled: boolean; reason?: string } {
   if (files.length === 0) return { disabled: true, reason: 'Add a PDF first' };
-  if (!wmSettings.text.trim()) return { disabled: true, reason: 'Enter watermark text' };
   if (wmTextHasInvalidChars()) {
     return { disabled: true, reason: "Some characters can't be rendered. Try basic Latin text." };
   }
   if (wmSelected.size === 0) return { disabled: true, reason: 'Pick at least one page' };
   return { disabled: false };
+}
+
+function handleWmTextInput(ti: HTMLInputElement) {
+  wmSettings.text = ti.value;
+  const trimmed = wmSettings.text.trim();
+  const charsInvalid = trimmed ? wmTextHasInvalidChars() : false;
+  const empty = !trimmed;
+  // chars-invalid is the only state that should paint the destructive ring;
+  // empty is informational, not an error.
+  document.querySelectorAll<HTMLInputElement>('.ws-wm-text-input').forEach(el => {
+    if (el !== ti && el.value !== wmSettings.text) el.value = wmSettings.text;
+    el.classList.toggle('ws-input-error', charsInvalid);
+    if (charsInvalid) el.setAttribute('aria-invalid', 'true');
+    else el.removeAttribute('aria-invalid');
+  });
+  let next = '';
+  if (charsInvalid) next = "Some characters can't be rendered. Try basic Latin text.";
+  else if (empty) next = 'Empty text — Export saves the source PDF unchanged.';
+  document.querySelectorAll<HTMLElement>('.ws-wm-text-error').forEach(e => {
+    if (e.textContent !== next) e.textContent = next;
+    e.classList.toggle('ws-wm-text-info', empty && !charsInvalid);
+  });
+  rebuildWatermarkPanelDownloadState();
+  wmKickVisible();
 }
 
 /**
@@ -870,6 +893,16 @@ async function wmRenderCard(idx: number) {
   }
 
   try {
+    if (!wmApplicable) {
+      // Cache held a watermarked URL; clear it so a later re-enable doesn't
+      // flash the stale stamp via the fallback at the top of this function.
+      wmCardCache.delete(idx);
+      const plainUrl = await renderPageThumbnail(sf.bytes, entry.pageNum, PAGE_THUMB_WIDTH);
+      if (myToken !== wmRenderToken) return;
+      if (plainUrl) setThumb(thumb, plainUrl);
+      return;
+    }
+
     // Plain pass only when there's nothing better to show. Organize-speed via
     // the LRU in pdfThumbnails.ts.
     if (!cached) {
@@ -877,8 +910,6 @@ async function wmRenderCard(idx: number) {
       if (myToken !== wmRenderToken) return;
       if (plainUrl) setThumb(thumb, plainUrl);
     }
-
-    if (!wmApplicable) return;
 
     // Watermarked pass. Bail before the pdf-lib parse if we've been staled.
     if (myToken !== wmRenderToken) return;
@@ -997,18 +1028,36 @@ function renderWatermarkView() {
 }
 
 function appendMobileToolbar_watermark(_gridCard: HTMLElement) {
-  const toolbar = el('div', { className: 'ws-toolbar' });
+  const toolbar = el('div', { className: 'ws-toolbar ws-toolbar--watermark' });
+
+  const inputWrap = el('div', { className: 'ws-prefix-input' });
+  const inputLabel = el('span', { className: 'ws-prefix-input__label', textContent: 'Watermark', ariaHidden: 'true' });
+  const quickInput = el('input', {
+    type: 'text',
+    className: 'ws-wm-text-input ws-prefix-input__field',
+    value: wmSettings.text,
+    maxLength: 200,
+    placeholder: 'Watermark text',
+    ariaLabel: 'Watermark text',
+  }) as HTMLInputElement;
+  quickInput.addEventListener('input', () => handleWmTextInput(quickInput));
+  inputWrap.appendChild(inputLabel);
+  inputWrap.appendChild(quickInput);
+  toolbar.appendChild(inputWrap);
+
+  const actionRow = el('div', { className: 'ws-toolbar-row' });
   const iconBtn = el('button', { className: 'icon-btn ws-toolbar-icon', ariaLabel: 'More options' });
   iconBtn.innerHTML = MORE_SVG;
   const actionBtn = el('button', { className: 'btn-primary ws-toolbar-action ws-wm-download-btn', textContent: wmDownloadLabel() });
   actionBtn.addEventListener('click', handleWatermarkExport);
-  toolbar.appendChild(actionBtn);
-  toolbar.appendChild(iconBtn);
+  actionRow.appendChild(actionBtn);
+  actionRow.appendChild(iconBtn);
+  toolbar.appendChild(actionRow);
   document.body.appendChild(toolbar);
 
   const tray = el('div', { className: 'ws-tray' });
   watermarkMobileTray = tray;
-  buildWatermarkPanel(tray);
+  buildWatermarkPanel(tray, { tray: true });
   const overlay = el('div', { className: 'ws-tray-overlay' });
   wireTrayToggle(tray, overlay, iconBtn);
 
@@ -1055,7 +1104,7 @@ function wmToggleSelection(idx: number, shift: boolean) {
   wmKickVisible();
 }
 
-function buildWatermarkPanel(panel: HTMLElement) {
+function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) {
   panel.innerHTML = '';
   if (files.length === 0) return;
   const seq = ++wmPanelSeq;
@@ -1095,62 +1144,60 @@ function buildWatermarkPanel(panel: HTMLElement) {
   // ---- BLOCK 2: Watermark (config), what to stamp ----
   panel.appendChild(makeSectionLabel('Watermark'));
 
-  const textRow = el('div', { className: 'ws-wm-text-row' });
-  textRow.appendChild(el('span', { className: 'ws-wm-row-label', textContent: 'Text', id: textLblId }));
-  const ti = el('input', {
-    type: 'text',
-    className: 'ws-range-input ws-wm-text-input',
-    value: wmSettings.text,
-    maxLength: 200,
-    placeholder: 'Watermark text',
-    'aria-labelledby': textLblId,
-    'aria-describedby': textErrId,
-  }) as HTMLInputElement;
-  textRow.appendChild(ti);
-  const textErrEl = el('p', { className: 'ws-wm-text-error ws-wm-error-msg', textContent: '', id: textErrId });
-  ti.addEventListener('input', () => {
-    wmSettings.text = ti.value;
-    const bad = wmSettings.text && wmTextHasInvalidChars();
-    const invalid = !!bad || !wmSettings.text.trim();
-    document.querySelectorAll<HTMLInputElement>('.ws-wm-text-input').forEach(el => {
-      if (el !== ti && el.value !== wmSettings.text) el.value = wmSettings.text;
-      el.classList.toggle('ws-input-error', invalid);
-      if (invalid) el.setAttribute('aria-invalid', 'true');
-      else el.removeAttribute('aria-invalid');
-    });
-    document.querySelectorAll<HTMLElement>('.ws-wm-text-error').forEach(e => {
-      e.textContent = bad
-        ? "Some characters can't be rendered. Try basic Latin text."
-        : (!wmSettings.text.trim() ? 'Enter watermark text' : '');
-    });
-    rebuildWatermarkPanelDownloadState();
-    wmKickVisible();
-  });
-  panel.appendChild(textRow);
-  panel.appendChild(textErrEl);
+  // Text row: shown on desktop sidebar only. On mobile the fixed toolbar
+  // already provides a quick-input, so we skip it in the tray to avoid
+  // duplicate entry points.
+  if (!opts.tray) {
+    const textRow = el('div', { className: 'ws-wm-text-row' });
+    const ti = el('input', {
+      type: 'text',
+      className: 'ws-range-input ws-wm-text-input',
+      value: wmSettings.text,
+      maxLength: 200,
+      placeholder: 'Watermark text',
+      'aria-label': 'Watermark text',
+      'aria-describedby': textErrId,
+    }) as HTMLInputElement;
+    textRow.appendChild(ti);
+    const textErrEl = el('p', { className: 'ws-wm-text-error ws-wm-error-msg', textContent: '', id: textErrId });
+    ti.addEventListener('input', () => handleWmTextInput(ti));
+    panel.appendChild(textRow);
+    panel.appendChild(textErrEl);
+  }
 
-  // Size, Color, Opacity, Rotation, Repeat live behind a single "Customize"
-  // disclosure to keep the panel short. Native <details> handles a11y/keyboard.
-  const styleDetails = el('details', { className: 'ws-wm-style-details' }) as HTMLDetailsElement;
-  const styleSummary = el('summary', { className: 'ws-wm-style-summary', textContent: 'Customize' });
-  styleDetails.appendChild(styleSummary);
+  // Customize controls: desktop uses a collapsible <details> to keep the
+  // panel compact. Mobile tray always shows them expanded — the tray is
+  // already a focused, scrollable surface so the disclosure adds no value.
   const styleBody = el('div', { className: 'ws-wm-style-body' });
 
-  // <details> unmounts its body instantly on close, so a CSS-only collapse
-  // keyframe never runs. Intercept close, play the fade-out, flip `open` after.
-  styleSummary.addEventListener('click', e => {
-    if (!styleDetails.open) return;
-    if (styleDetails.classList.contains('ws-wm-closing')) return;
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    e.preventDefault();
-    styleDetails.classList.add('ws-wm-closing');
-    styleBody.style.animation = 'ws-wm-style-collapse 0.18s ease-in forwards';
-    styleBody.addEventListener('animationend', () => {
-      styleBody.style.animation = '';
-      styleDetails.classList.remove('ws-wm-closing');
-      styleDetails.open = false;
-    }, { once: true });
-  });
+  if (!opts.tray) {
+    // Desktop: wrap in <details> with animated Customize disclosure.
+    const styleDetails = el('details', { className: 'ws-wm-style-details' }) as HTMLDetailsElement;
+    const styleSummary = el('summary', { className: 'ws-wm-style-summary', textContent: 'Customize' });
+    styleDetails.appendChild(styleSummary);
+
+    // <details> unmounts its body instantly on close, so a CSS-only collapse
+    // keyframe never runs. Intercept close, play the fade-out, flip `open` after.
+    styleSummary.addEventListener('click', e => {
+      if (!styleDetails.open) return;
+      if (styleDetails.classList.contains('ws-wm-closing')) return;
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      e.preventDefault();
+      styleDetails.classList.add('ws-wm-closing');
+      styleBody.style.animation = 'ws-wm-style-collapse 0.18s ease-in forwards';
+      styleBody.addEventListener('animationend', () => {
+        styleBody.style.animation = '';
+        styleDetails.classList.remove('ws-wm-closing');
+        styleDetails.open = false;
+      }, { once: true });
+    });
+
+    styleDetails.appendChild(styleBody);
+    panel.appendChild(styleDetails);
+  } else {
+    // Mobile tray: plain div, controls always visible.
+    panel.appendChild(styleBody);
+  }
 
   styleBody.appendChild(makeWmSlider({
     label: 'Size',
@@ -1196,8 +1243,6 @@ function buildWatermarkPanel(panel: HTMLElement) {
   repeatRow.appendChild(el('span', { textContent: 'Repeat across page' }));
   styleBody.appendChild(repeatRow);
 
-  styleDetails.appendChild(styleBody);
-  panel.appendChild(styleDetails);
   panel.appendChild(makeSidebarDivider());
 
   // ---- BLOCK 3: Pages, scope: which pages get the watermark ----
@@ -1274,7 +1319,7 @@ function buildWatermarkPanel(panel: HTMLElement) {
 }
 
 function wmDownloadLabel(): string {
-  return 'Export PDF';
+  return wmSettings.text.trim() ? 'Export PDF' : 'Export source PDF';
 }
 
 function rebuildWatermarkPanelDownloadState() {
@@ -1450,6 +1495,8 @@ async function handleWatermarkExport() {
 }
 
 async function doWatermarkExportPerSource() {
+  if (!wmSettings.text.trim()) return doWatermarkPassthroughPerSource();
+
   let color;
   try {
     color = hexToRgb(wmSettings.colorHex);
@@ -1514,8 +1561,63 @@ async function doWatermarkExportPerSource() {
   );
 }
 
+/** Empty-text per-source path: emit each source file unchanged. */
+async function doWatermarkPassthroughPerSource() {
+  if (files.length === 0) return;
+  const isBatch = files.length > 1;
+  const verb = isBatch ? `Saving ${files.length} PDFs` : 'Saving';
+  await runWithPopup(
+    verb,
+    'Empty watermark — saving the source PDFs unchanged.',
+    'Save failed.',
+    async () => {
+      const results = files.map(f => ({ bytes: f.bytes, name: f.name }));
+      lastPdfResult = results;
+      lastPdfZipName = isBatch ? `pdfs_${Date.now()}.zip` : null;
+      return results;
+    },
+    (results) => {
+      if (isBatch) {
+        showPdfSuccessModal(
+          `${results.length} PDFs saved! \u{1F389}`,
+          `Your <b>${results.length}</b> source PDFs are downloading as a zip.`,
+        );
+      } else {
+        showPdfSuccessModal(
+          'PDF saved! \u{1F389}',
+          `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is downloading now.`,
+        );
+      }
+    },
+  );
+}
+
+/** Empty-text combined path: merge all source files into one PDF, no stamp. */
+async function doWatermarkPassthroughCombined() {
+  if (files.length === 0) return;
+  await runWithPopup(
+    'Saving',
+    'Empty watermark — merging your files unchanged.',
+    'Save failed.',
+    async () => {
+      const merged = await merge(files);
+      lastPdfResult = [{ bytes: merged.bytes, name: merged.name }];
+      lastPdfZipName = null;
+      return lastPdfResult;
+    },
+    (results) => {
+      showPdfSuccessModal(
+        'PDF saved! \u{1F389}',
+        `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is downloading now.`,
+      );
+    },
+  );
+}
+
 /** Combined-mode Watermark export: merge all source files, stamp selected indices, save as one PDF. */
 async function doWatermarkExportCombined() {
+  if (!wmSettings.text.trim()) return doWatermarkPassthroughCombined();
+
   let color;
   try {
     color = hexToRgb(wmSettings.colorHex);
@@ -2505,7 +2607,7 @@ function createInsertBtn(atIdx: number): HTMLElement {
 // ---------------------------------------------------------------------------
 
 const MORE_SVG  = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>';
-const CLOSE_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const COLLAPSE_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
 
 function wireTrayToggle(tray: HTMLElement, overlay: HTMLElement, iconBtn: HTMLElement) {
   // Tray is a non-modal dialog: gives it semantics + ESC + focus return.
@@ -2514,14 +2616,16 @@ function wireTrayToggle(tray: HTMLElement, overlay: HTMLElement, iconBtn: HTMLEl
   tray.setAttribute('role', 'dialog');
   tray.setAttribute('aria-label', 'Options');
   tray.tabIndex = -1;
+  iconBtn.setAttribute('aria-expanded', 'false');
 
   let onKeyDown: ((e: KeyboardEvent) => void) | null = null;
 
   const setOpen = (open: boolean) => {
     tray.classList.toggle('ws-tray-open', open);
     overlay.classList.toggle('ws-tray-open', open);
-    iconBtn.innerHTML = open ? CLOSE_SVG : MORE_SVG;
-    iconBtn.setAttribute('aria-label', open ? 'Close options' : 'More options');
+    iconBtn.innerHTML = open ? COLLAPSE_SVG : MORE_SVG;
+    iconBtn.setAttribute('aria-label', open ? 'Hide options' : 'More options');
+    iconBtn.setAttribute('aria-expanded', String(open));
     updateScrollLock();
     if (open) {
       // Move focus into the tray. Prefer the first focusable; fall back to
@@ -2551,7 +2655,7 @@ function appendMobileToolbar(_gridCard: HTMLElement) {
   const toolbar = el('div', { className: 'ws-toolbar ws-toolbar--organize' });
 
   // Top row: Extract n pages + triple-dot
-  const topRow = el('div', { className: 'ws-toolbar-top' });
+  const topRow = el('div', { className: 'ws-toolbar-row' });
 
   const mobileExtract = el('button', { className: 'btn-secondary ws-toolbar-extract', textContent: extractBtnText(selected.size) });
   mobileExtract.addEventListener('click', handleExtractClick);
@@ -2954,6 +3058,11 @@ export const __testing = {
   wmEffectivePagesFor: (sourceFile: SourceFile) => wmEffectivePagesFor(sourceFile),
   wmDownloadDisabled: () => wmDownloadDisabled(),
   wmDownloadLabel: () => wmDownloadLabel(),
+  setWmCardCacheEntry(idx: number, entry: { visualKey: string; url: string }) {
+    wmCardCache.set(idx, entry);
+  },
+  getWmCardCacheEntry: (idx: number) => wmCardCache.get(idx),
+  renderWmCardForTest: (idx: number) => wmRenderCard(idx),
   /**
    * Scaffold the DOM and module state for a tab, then render. Returns the
    * `#pdf-tool-content` container so tests can query rendered nodes.
