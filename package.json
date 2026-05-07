@@ -3,7 +3,7 @@
   "productName": "frogConvert",
   "author": "ogfrench",
   "description": "Truly universal browser-based file converter and PDF editor",
-  "version": "2.2.0",
+  "version": "2.3.1",
   "homepage": "https://frogconvert.xyz",
   "repository": "https://github.com/ogfrench/frogConvert",
   "type": "module",

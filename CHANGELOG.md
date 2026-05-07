@@ -8,6 +8,23 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.3.1] - 2026-05-07
+
+Bug-fix release: three Critical-class data-loss paths closed, plus power-user keyboard productivity in the PDF Editor and Format modal.
+
+### Fixed
+- **App-mode switch no longer destroys PDF workspace state.** Toggling between Converter and PDF Editor used to call `resetAll()` on the workspace, wiping loaded files, page reorder, watermark settings, and the undo history. Users who organized a long PDF and tapped the mode toggle by mistake (or to glance at the converter copy) returned to an empty workspace with no recovery. The mode-out path now calls `cleanup()` instead — DOM listeners and the body-mounted toolbar/tray are torn down, but module state is preserved. `initPdfWorkspace()` re-renders on subsequent calls so coming back remounts the UI on the existing data.
+- **Success popup no longer eats your file when closed early.** The post-conversion popup launched a `setTimeout(downloadAllConvertedFiles, 400)` gated on `popupBox.classList.contains("open")`. Fast-clickers who tapped *Done* before 400 ms got confetti but no download. Blob URLs are independent of popup lifetime, so the guard was dropping the file for no reason. Removed; downloads now fire unconditionally. Confetti stays popup-anchored.
+- **Files modal no longer replaces your file list when you drop on its background.** Drops anywhere on the modal except the inner *Drop more PDFs* zone bubbled to UploadZone's window-level handler, which silently called `proceedWithFiles()` and replaced `currentFiles`. Capture-phase `dragover`/`drop` listeners on the modal element now claim drops while open and route to `addMoreFiles()`.
+- **Mascot apology removed from Safari PDF error popup.** The Safari-specific error message ended with `Frogsworth is sorry ₍𝄐~𝄐₎`, which violated the CLAUDE.md "no mascot catchphrases" rule inside a critical-error popup. The message already names the escape route (Chrome / Firefox); the kaomoji was noise.
+
+### Added
+- **Ctrl/Cmd+Click for non-contiguous page selection** in the PDF Editor's Organize tab. `toggleSelection()` takes a third `ctrl` flag that explicitly toggles the clicked page and overrides Shift, matching the Windows / macOS multi-select convention so power users can pick or unpick a single page without disturbing a Shift range. Plain click and Shift+Click behavior unchanged.
+- **Redo (Ctrl+Y / Ctrl+Shift+Z)** in the PDF Editor. A 30-snapshot redo stack runs alongside the existing undo history. New mutating actions clear the redo branch (same convention as code editors and image tools). `cleanup()` and `resetAll()` clear both stacks.
+- **Arrow-key navigation across the Format modal options.** ↓ from the search input pulls focus into the first visible option; ↑ from the first option pulls focus back into search. ↑/↓/Home/End move within the option list. Saves keyboard users ~70 Tab presses to reach the bottom of the All Formats list.
+
+---
+
 ## [2.2.0] - 2026-05-07
 
 Watermark tab for the PDF editor, plus a sweep of accessibility fixes across the workspace.

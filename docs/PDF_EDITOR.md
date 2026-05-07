@@ -59,6 +59,24 @@ Caveats specific to watermark:
 - **Helvetica only**, text watermarks use the standard PDF Helvetica font (WinAnsi). Characters outside that set (CJK, emoji, some accented Eastern European glyphs) are rejected at input time.
 - **Page rotation inherits**, if a page was rotated via Organize, the watermark drawn into that page's content stream is rotated together with it.
 
+## Keyboard shortcuts
+
+Available in the Organize tab when a page is focused or selected:
+
+| Shortcut | Action |
+|----------|--------|
+| `Click` | Toggle the page's selection. |
+| `Shift + Click` | Range-select between the last clicked page and this one. |
+| `Ctrl + Click` (Win) / `Cmd + Click` (Mac) | Toggle a single page without disturbing a Shift range. |
+| `Space` / `Enter` | Toggle the focused page (matches `Click`). |
+| `Arrow Up` / `Arrow Down` | Move the current selection up or down by one slot when at least one page is selected. |
+| `Delete` / `Backspace` | Delete the selected pages. |
+| `Escape` | Clear the current selection. |
+| `Ctrl + Z` / `Cmd + Z` | Undo the last mutation (reorder, rotate, delete, blank insert). 30 levels deep. |
+| `Ctrl + Y` / `Ctrl + Shift + Z` | Redo. |
+
+The tab bar (`Merge` / `Organize` / `Watermark`) supports `Arrow Left` / `Arrow Right` / `Home` / `End` for keyboard navigation between tabs, and the format-picker modal supports `Arrow Up` / `Arrow Down` / `Home` / `End` for navigating the option list.
+
 ## Inputs and limits
 
 - **Input**: one or more `.pdf` files.
