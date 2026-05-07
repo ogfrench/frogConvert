@@ -8,7 +8,7 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
-## [2.3.1] - 2026-05-07
+## [2.2.1] - 2026-05-07
 
 Bug-fix release: three Critical-class data-loss paths closed, plus power-user keyboard productivity in the PDF Editor and Format modal.
 
