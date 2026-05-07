@@ -219,8 +219,12 @@ function setAppMode(mode: string) {
     getPdfWorkspace().then(ws => ws.initPdfWorkspace())
       .catch((e) => console.warn("[main] PDF workspace init failed:", e));
   } else {
-    getPdfWorkspace().then(ws => ws.resetAll())
-      .catch((e) => console.warn("[main] PDF workspace reset failed:", e));
+    // cleanup() preserves module-level state (loaded files, page order,
+    // selections, watermark settings) so users who toggle modes don't lose
+    // their work. resetAll() is the destructive cousin and is no longer
+    // called on mode switches.
+    getPdfWorkspace().then(ws => ws.cleanup())
+      .catch((e) => console.warn("[main] PDF workspace cleanup failed:", e));
     pdfWorkspaceEl.style.display = "none";
     pdfDescriptionEl.style.display = "none";
     for (const el of converterEls) el.style.display = "";

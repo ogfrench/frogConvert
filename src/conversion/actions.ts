@@ -1008,15 +1008,17 @@ export function initConvertButton() {
             if (noticeCards.length > 0) popupChildren.push(...noticeCards);
             popupChildren.push(actions);
             replacePopup(popupChildren);
-            // Show confetti faster for immediate celebration
+            // Show confetti faster for immediate celebration. Confetti is
+            // popup-anchored, so skip it if the user already dismissed.
             setTimeout(() => {
                 if (ui.popupBox.classList.contains("open")) triggerConfetti();
             }, 150);
 
-            // Delay download slightly longer to let the success UI breathe
-            setTimeout(() => {
-                if (ui.popupBox.classList.contains("open")) downloadAllConvertedFiles();
-            }, 400);
+            // Delay download slightly longer to let the success UI breathe.
+            // Fire unconditionally — earlier we gated on popupBox.open which
+            // produced silent file loss when fast-clickers closed the popup
+            // before 400ms. The blob URL is independent of popup lifetime.
+            setTimeout(() => downloadAllConvertedFiles(), 400);
         } catch (e) {
             if (isCancelled) return;
             console.error(e);

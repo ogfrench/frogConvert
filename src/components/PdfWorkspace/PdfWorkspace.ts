@@ -287,7 +287,13 @@ export function selectPdfTool(tool: string) {
 }
 
 export function initPdfWorkspace() {
-  if (initialized) return;
+  // First-call setup wires document-level listeners and resolves DOM refs.
+  // Subsequent calls (after cleanup() on app-mode switch) skip wiring and
+  // just remount the active tool — module state is preserved.
+  if (initialized) {
+    renderActiveTool();
+    return;
+  }
   initialized = true;
 
   toolContent = document.getElementById('pdf-tool-content')!;
@@ -2058,7 +2064,12 @@ function renderOrganizeView() {
   kickPageThumbs(pages);
 }
 
-function cleanup() {
+/**
+ * Tear down DOM-side state without losing module state. Use this on app-mode
+ * switch out (e.g. from /pdf to /) so re-entering preserves files, page order,
+ * selections, and watermark settings. resetAll() is the destructive cousin.
+ */
+export function cleanup() {
   sortableInstance?.destroy();
   sortableInstance = null;
   thumbnailObserver?.disconnect();

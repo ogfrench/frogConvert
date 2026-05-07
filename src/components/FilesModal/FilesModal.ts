@@ -228,6 +228,22 @@ export function initFilesModal() {
     }
   });
 
+  // Modal-wide drop ownership: drops on the modal background (anywhere
+  // outside the #files-drop-more zone) used to bubble to UploadZone's
+  // window-level handler and silently REPLACE the current file list. While
+  // the modal is open we claim those drops and treat them as add-more.
+  ui.filesModal.addEventListener("dragover", (e) => { e.preventDefault(); }, true);
+  ui.filesModal.addEventListener("drop", (e) => {
+    if (!ui.filesModal.classList.contains("open")) return;
+    // Inner #files-drop-more handles its own drops with stopPropagation, so
+    // this only fires for the surrounding modal area.
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer?.files?.length) {
+      addMoreFiles(Array.from(e.dataTransfer.files));
+    }
+  }, true);
+
   // Footer with Go back button
   if (!ui.filesModal.querySelector(".files-modal-footer")) {
     const footer = document.createElement("div");
