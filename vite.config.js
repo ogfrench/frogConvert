@@ -156,6 +156,12 @@ export default defineConfig({
         docs: resolve(__dirname, "docs/index.html"),
         headless: resolve(__dirname, "headless/index.html"),
       },
+      // Desktop build skips vite-plugin-pwa (Electron runs from app:// where
+      // a service worker is useless). Without the plugin, the `virtual:pwa-register`
+      // module is unresolvable. Mark it external so Rollup leaves the dynamic
+      // import as-is; the runtime guard in src/pwa/registerSW.ts ensures we
+      // never actually execute it in a desktop bundle.
+      ...(isDesktopBuild ? { external: ["virtual:pwa-register"] } : {}),
     },
   },
   worker: {

@@ -37,6 +37,10 @@ describe("extractSharedFilesFromCache", () => {
     expect(await extractSharedFilesFromCache(cache)).toEqual([]);
   });
 
+  // Pass string bodies to `new Response(...)` rather than `new Blob(...)`.
+  // jsdom's Blob lacks `.stream()` on Linux Bun / CI, so `Response.blob()`
+  // throws `object.stream is not a function`. Strings round-trip through
+  // Response.blob() without exercising the missing method.
   it("extracts files in order, applying X-Filename header", async () => {
     const cache = new FakeCache();
     cache.store.set(
@@ -47,13 +51,16 @@ describe("extractSharedFilesFromCache", () => {
     );
     cache.store.set(
       "__share-file-0",
-      new Response(new Blob(["alpha"], { type: "text/plain" }), {
-        headers: { "X-Filename": encodeURIComponent("alpha.txt") },
+      new Response("alpha", {
+        headers: {
+          "X-Filename": encodeURIComponent("alpha.txt"),
+          "Content-Type": "text/plain",
+        },
       })
     );
     cache.store.set(
       "__share-file-1",
-      new Response(new Blob(["bravo"]), {
+      new Response("bravo", {
         headers: {
           "X-Filename": encodeURIComponent("bravo.png"),
           "Content-Type": "image/png",
@@ -76,7 +83,7 @@ describe("extractSharedFilesFromCache", () => {
     );
     cache.store.set(
       "__share-file-0",
-      new Response(new Blob(["x"]))
+      new Response("x")
     );
 
     await extractSharedFilesFromCache(cache);
@@ -92,7 +99,7 @@ describe("extractSharedFilesFromCache", () => {
     );
     cache.store.set(
       "__share-file-0",
-      new Response(new Blob(["x"]), {
+      new Response("x", {
         headers: { "X-Filename": encodeURIComponent("ünïcødé file.pdf") },
       })
     );

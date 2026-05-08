@@ -30,7 +30,13 @@ function defaultEnv(): PwaEnv {
 export function registerPWA(env: PwaEnv = defaultEnv()): void {
   if (!shouldRegisterPwa(env)) return;
 
-  void import("virtual:pwa-register").then(({ registerSW }) => {
+  // @vite-ignore: the `virtual:pwa-register` module is provided by
+  // vite-plugin-pwa, which is gated behind `!isDesktopBuild` in vite.config.js.
+  // Without the magic comment, Rollup tries to statically resolve this dynamic
+  // import during the desktop build and fails. The runtime guard above
+  // (`shouldRegisterPwa` returns false on Electron) ensures we never actually
+  // execute this import in a desktop bundle.
+  void import(/* @vite-ignore */ "virtual:pwa-register").then(({ registerSW }) => {
     try {
       const updateSW = registerSW({
         onNeedRefresh() {
