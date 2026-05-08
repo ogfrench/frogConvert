@@ -49,7 +49,14 @@
   </noscript>
 
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
-  <link rel="apple-touch-icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="frogConvert">
+  <meta name="mobile-web-app-capable" content="yes">
   <title>frogConvert | Convert and edit files privately in your browser</title>
   <meta name="description"
     content="🐸 Convert 70+ file formats and edit PDFs right in your browser. No uploads, no servers, everything stays on your device.">
@@ -217,11 +224,11 @@
       </button>
       <div id="top-controls-menu" role="dialog" aria-modal="true" aria-label="Settings menu">
         <button id="mode-toggle" title="Filter the formats you can select"
-          aria-label="Toggle format filter: Core Formats"><svg class="mode-toggle-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg><span id="mode-toggle-text">Core Formats</span></button>
-        <button id="theme-toggle" title="Toggle theme" aria-label="Toggle colour theme">&#9788;</button>
+          aria-label="Toggle format filter: Core Formats"><svg class="top-control-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg><span id="mode-toggle-text">Core Formats</span></button>
+        <button id="theme-toggle" title="Toggle theme" aria-label="Toggle colour theme"><svg class="top-control-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
         <button id="app-mode-toggle" title="Converter" aria-label="Switch app mode: Converter">
-          <svg id="mode-icon-converter" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
-          <svg id="mode-icon-pdf" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <svg class="top-control-icon" id="mode-icon-converter" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+          <svg class="top-control-icon" id="mode-icon-pdf" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
         </button>
         <!-- Mobile menu content -->
         <span class="menu-list-label">Theme</span>
@@ -254,6 +261,13 @@
           <button class="pill-option" data-value="plus">Core+</button>
           <button class="pill-option" data-value="all">All</button>
         </div>
+
+
+
+
+
+
+
       </div>
     </div>
   </header>
@@ -308,11 +322,11 @@
         <div class="upload-file-info" aria-live="polite" aria-atomic="true">
           <span class="upload-file-name truncate"></span>
           <div class="upload-file-actions">
-            <button class="upload-action-btn icon-btn" id="expand-files-btn" title="Manage files"
+            <button class="upload-action-btn icon-btn floating-card-surface" id="expand-files-btn" title="Manage files"
               aria-label="Manage files">&#9776;</button>
-            <button class="upload-action-btn icon-btn" id="replace-file-btn" title="Replace file"
+            <button class="upload-action-btn icon-btn floating-card-surface" id="replace-file-btn" title="Replace file"
               aria-label="Replace file">&#8635;</button>
-            <button class="upload-action-btn icon-btn" id="remove-file-btn" title="Remove file"
+            <button class="upload-action-btn icon-btn floating-card-surface" id="remove-file-btn" title="Remove file"
               aria-label="Remove file">&times;</button>
           </div>
         </div>

@@ -73,6 +73,33 @@ export function showAlertPopup(
   replacePopup([h2, p, actions]);
 }
 
+/**
+ * Show a two-button confirm popup. Title + plain-text body + primary/secondary
+ * buttons. Each button click hides the popup, then runs its callback if any.
+ */
+export function showConfirmPopup(
+  title: string,
+  body: string,
+  primary: { label: string; onClick?: () => void | Promise<void> },
+  secondary: { label: string; onClick?: () => void | Promise<void> },
+): void {
+  const h2 = document.createElement("h2");
+  h2.textContent = title;
+  const p = document.createElement("p");
+  p.textContent = body;
+  const actions = document.createElement("div");
+  actions.className = "popup-actions-footer";
+  actions.appendChild(createPopupButton(primary.label, "btn-primary", async () => {
+    hidePopup();
+    if (primary.onClick) await primary.onClick();
+  }));
+  actions.appendChild(createPopupButton(secondary.label, "btn-secondary", async () => {
+    hidePopup();
+    if (secondary.onClick) await secondary.onClick();
+  }));
+  replacePopup([h2, p, actions]);
+}
+
 export function showSizeWarningPopup(
   totalSize: number,
   fileCount: number,

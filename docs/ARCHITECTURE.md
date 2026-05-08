@@ -165,6 +165,90 @@ Handlers with `requiresMainThread: true` are the exception - they need browser A
 
 ---
 
+## PWA, offline, and external entry points
+
+frogConvert installs as a Progressive Web App. The service worker (`src/pwa/sw.ts`, built via `vite-plugin-pwa` with the `injectManifest` strategy) precaches entry HTMLs, CSS, icons, and fonts; everything else is runtime-cached as the user encounters it.
+
+```mermaid
+flowchart LR
+    Net((Network)) --> SW[Service Worker\nsrc/pwa/sw.ts]
+    SW -->|CacheFirst, 30 entries, 7d| WC[/wasm/ cache\nFFmpeg, ImageMagick, etc./]
+    SW -->|StaleWhileRevalidate, 200 entries, 30d| AC[/assets/ cache]
+    SW -->|StaleWhileRevalidate| JC[/js/ cache - lazy chunks]
+    SW -->|NavigationRoute| HTML[/index.html precached]
+    SW -->|POST handler| ST[Share-target replay\nCacheStorage]
+
+    style SW fill:#fcd34d,stroke:#d97706,color:#000
+```
+
+### Cache strategy
+
+| Path | Strategy | Why |
+|------|----------|-----|
+| `/wasm/`, `*.sf2` | CacheFirst, 30 entries, 7-day TTL, status 200 only | WASM blobs are huge and content-stable. Status 200 only because opaque cross-origin responses can't be introspected — caching them would let a transient CDN error look like success. |
+| `/assets/` | StaleWhileRevalidate, 200 entries, 30-day TTL | Hashed filenames change per build, so the cache fills with versioned copies. |
+| `/js/`, `/docs/*.md` | StaleWhileRevalidate | Lazy chunks and docs serve hot from cache while revalidating. |
+| `/index.html` (NavigationRoute) | Precache | Single SPA entry. Denylisted: `/api`, `/.well-known`, `/docs`, `/headless`. |
+
+### External file entry points
+
+The PWA registers two OS-level integrations:
+
+- **`share_target`** — POST handler in [src/pwa/sw.ts](../src/pwa/sw.ts) accepts multipart shares, writes the payload to a dedicated CacheStorage entry, and 303-redirects to `/?share-target=ready`.
+- **`file_handlers` / `launchQueue`** — "Open with frogConvert" registers for image / video / audio / PDF / text / ZIP / 7z extensions; files arrive via [`launchQueue.setConsumer`](https://web.dev/articles/launch-handler).
+
+Both paths funnel into a single `EXTERNAL_FILES_EVENT` CustomEvent that [src/main.ts](../src/main.ts) listens for. main.ts owns the routing decision (Converter for non-PDF, PDF Editor for `.pdf`) so the SW and `launchQueue` consumer stay agnostic to active app mode.
+
+### Share-target ordering caveat
+
+The custom share-target fetch listener is installed **before** Workbox's `registerRoute` calls. Workbox installs its own fetch listener the first time `registerRoute` is called; raw `addEventListener` calls registered later run *after* it. A multipart POST to `/` has `request.mode === "navigate"` and would otherwise be eaten by the precached `/index.html` NavigationRoute. Ordering is load-bearing.
+
+### Update flow
+
+`registerType: 'prompt'` — the SW never silently `skipWaiting()`. When a new SW is detected, [src/pwa/registerSW.ts](../src/pwa/registerSW.ts) shows a dismissable "New version available — Reload now" banner. The user controls when reload happens.
+
+### Desktop carve-out
+
+PWA registration is gated on `!import.meta.env.VITE_IS_DESKTOP` and on `protocol !== 'app:'`. Electron runs from `app://` where a service worker is both useless and a registration footgun, so the manifest and SW are not built into desktop bundles.
+
+---
+
+## Session persistence
+
+Both surfaces (Converter, PDF Workspace) persist their state to IndexedDB so the user can close a tab mid-task and resume later.
+
+```
+IDB: frogconvert (v1)
+├─ sessions      keyPath: sessionId          indexed on: kind, savedAt
+└─ fileBytes     keyPath: <sessionId>:<id>   indexed on: sessionId
+```
+
+The factory [src/components/persistence/createPersistor.ts](../src/components/persistence/createPersistor.ts) takes a per-surface spec (build payload, current file ids, byte resolver, applier) and returns a generic persistor with dirty tracking, debounced flush, and resume detection. The Converter wires through [convertPersist.ts](../src/components/persistence/convertPersist.ts); PDF Workspace inlines the factory at [PdfWorkspace.ts](../src/components/PdfWorkspace/PdfWorkspace.ts).
+
+### Manifest-last write invariant
+
+A flush computes a byte-diff against `lastWrittenIds`, writes byte adds, deletes byte removes, and writes the manifest **last**. A tab kill between byte writes and manifest write leaves a stale manifest pointing only at fileIds whose bytes already landed. There is never a manifest that references unwritten bytes — that would be a broken-session class on next restore. Quota errors pause autosave with a single toast; non-quota errors (missing file, serialization) skip the id and continue.
+
+### Resume decision tree
+
+```mermaid
+flowchart TD
+    A[Page load] --> B[BroadcastChannel handshake\n~150ms probe for live siblings]
+    B --> C{sessionStorage has sessionId?}
+    C -- no --> D{Most-recent orphan of same kind?}
+    D -- yes --> E[Show Resume? popup]
+    D -- no --> F[None - start fresh]
+    C -- yes --> G{Sibling tab claims this id?}
+    G -- yes --> H[Tab clone - mint new id, fall through to orphan]
+    G -- no --> I{User already dropped a file?}
+    I -- yes --> E
+    I -- no --> J[Silent restore]
+```
+
+`navigator.webdriver` short-circuits all of this so Puppeteer e2e flows never see the Resume popup.
+
+---
+
 ## Code Structure at a Glance
 
 ```
@@ -178,6 +262,8 @@ frogConvert/
 │   │   ├── utils/          ← Shared core helpers
 │   │   └── index.ts        ← Barrel re-export
 │   ├── tools/              ← PDF editor ops (merge, organize, extract, watermark, thumbnails)
+│   ├── pwa/                ← Service worker, registration, share-target, cache controls
+│   ├── components/persistence/ ← IDB session store + createPersistor factory
 │   ├── workers/
 │   │   ├── conversion.worker.ts   ← Runs handlers off the main thread
 │   │   └── route-search.worker.ts ← Runs pathfinding off the main thread

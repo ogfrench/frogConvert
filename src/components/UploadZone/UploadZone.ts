@@ -9,6 +9,7 @@ import { showSizeWarningPopup, showFileTypeMismatchPopup, showUploadSummaryPopup
 import { showToast } from "../Toast/Toast.ts";
 import { shortenFileName } from "../utils/index.ts";
 import { openFilesModal } from "../FilesModal/FilesModal.ts";
+import { markConvertDirty, clearConvertSession } from "../persistence/convertPersist.ts";
 
 // --- Drop zone ---
 
@@ -43,6 +44,7 @@ export function initUploadZone(
   ui.removeFileBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     currentFiles.value = [];
+    clearConvertSession();
     onClearFile();
   });
 
@@ -112,6 +114,7 @@ export function initUploadZone(
       const applySelection = () => {
         sortFilesByName(filesToUse);
         currentFiles.value = filesToUse;
+        markConvertDirty('files');
         onFilesSelected(filesToUse);
       };
 
@@ -142,6 +145,7 @@ export function initUploadZone(
 
 export function showFileInUploadZone(files: File[]) {
   currentFiles.value = files;
+  markConvertDirty('files');
   const displayName = files.length > 1
     ? `${shortenFileName(files[0].name)} (+${files.length - 1} more)`
     : shortenFileName(files[0].name);
@@ -177,4 +181,5 @@ export function resetUploadZone() {
   ui.uploadZone.classList.remove("has-file");
   ui.uploadLabel.textContent = DEFAULT_UPLOAD_LABEL;
   currentFiles.value = [];
+  clearConvertSession();
 }

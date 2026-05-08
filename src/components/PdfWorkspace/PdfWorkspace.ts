@@ -2,7 +2,9 @@ import './PdfWorkspace.css';
 import Sortable from 'sortablejs';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import type { PageEntry, SourceFile } from '../../tools/types.ts';
-import { getNextFileId } from '../../tools/types.ts';
+import { getNextFileId, bumpNextFileId, getNextPageId, bumpNextPageId } from '../../tools/types.ts';
+import { createPersistor } from '../persistence/createPersistor.ts';
+import { clearSession, type StoredSession, type PdfWorkspacePayload } from '../persistence/sessionStore.ts';
 import { merge } from '../../tools/pdfMerge.ts';
 import { extract } from '../../tools/pdfExtract.ts';
 import { organize } from '../../tools/pdfOrganize.ts';
@@ -16,15 +18,16 @@ import {
   WATERMARK_DEFAULTS,
   type PdfWatermarkOptions,
 } from '../../tools/pdfWatermark.ts';
-import { renderPageThumbnail, renderPageBitmap, clearThumbnailCache, mockPageThumb } from '../../tools/pdfThumbnails.ts';
+import { renderPageThumbnail, renderPageBitmap, clearThumbnailCache, mockBlankPageThumb, mockPageThumb } from '../../tools/pdfThumbnails.ts';
 import { downloadFile, downloadAsZip } from '../../conversion/download.ts';
 import { isTouchUi } from '../../core/utils/touchUi.ts';
 import { showToast } from '../Toast/Toast.ts';
-import { showPopup, hidePopup, replacePopup, createPopupButton, showUploadSummaryPopup, type UploadResult } from '../Popup/Popup.ts';
+import { showPopup, hidePopup, replacePopup, createPopupButton, showConfirmPopup, showUploadSummaryPopup, type UploadResult } from '../Popup/Popup.ts';
 import { formatBytes, escapeHTML, shortenFileName, ensureMinDuration, toUserErrorInfo, appendSupportContact, FEEDBACK_CONTACT_TEXT } from '../utils/index.ts';
 import { createDancingFrog } from '../Frogsworth/DancingFrog.ts';
 import { triggerConfetti } from '../../effects/Confetti/Confetti.ts';
 import { ui, updateScrollLock } from '../store/store.ts';
+import { MAX_TOTAL_FILE_SIZE, ABSOLUTE_MAX_FILES } from '../../constants/ui.ts';
 
 // ---------------------------------------------------------------------------
 // State: shared file pool, per-tab working state
@@ -41,15 +44,59 @@ let selectedFiles = new Set<number>();
 let lastClickedIdx = -1;
 let organizeInitialized = false; // true once pages derived from files
 
+/**
+ * Apply a surgical delta to all per-tab state when `files` mutates:
+ * - organize `pages` array: drop removed-file pages, append new-file source
+ *   pages at the end, leaving any user reorder/rotation/blank intact
+ * - organize `selected`: drop pageIds whose underlying page is gone
+ * - merge `selectedFiles`: drop ids no longer present
+ * - watermark `wmSelected`: drop removed-file keys, auto-include new-file keys
+ *   (Default-selected on add)
+ * - rebuild watermark flat-page index
+ *
+ * Driven off `knownFileIds` so the delta is exact across mutations from any
+ * tab, including ones that previously bypassed this path.
+ */
 function onFilesMutated(): void {
-  organizeInitialized = false;
-  selected.clear();
-  const fileIds = new Set(files.map(f => f.id));
-  for (const id of selectedFiles) {
-    if (!fileIds.has(id)) selectedFiles.delete(id);
+  const newFileIds = new Set(files.map(f => f.id));
+  const removedFileIds = new Set([...knownFileIds].filter(id => !newFileIds.has(id)));
+  const addedFiles = files.filter(f => !knownFileIds.has(f.id));
+
+  // Organize delta. Skip the append on first-ever entry (pages.length === 0
+  // and organizeInitialized === false): renderOrganizeView lazily builds the
+  // initial pages array from `files` on the first visit.
+  if (organizeInitialized) {
+    if (removedFileIds.size > 0) {
+      pages = pages.filter(p => p.type === 'blank' || !removedFileIds.has(p.sourceFileId));
+    }
+    for (const f of addedFiles) {
+      for (let p = 1; p <= f.pageCount; p++) {
+        pages.push({
+          type: 'source',
+          sourceFileId: f.id,
+          sourcePageNum: p,
+          thumbnail: null,
+          rotation: 0,
+          originalPos: pages.length + 1,
+          pageId: getNextPageId(),
+        });
+      }
+    }
   }
-  // Watermark grid tracks a flat page list, rebuild it when files change.
+
+  // Drop pageIds whose page is gone.
+  const validPageIds = new Set(pages.map(p => p.pageId));
+  for (const pid of selected) if (!validPageIds.has(pid)) selected.delete(pid);
+
+  for (const id of selectedFiles) {
+    if (!newFileIds.has(id)) selectedFiles.delete(id);
+  }
+
+  applyWmFileDelta(addedFiles, removedFileIds);
+
+  knownFileIds = newFileIds;
   wmRebuildFlatPages();
+  markDirty('files');
 }
 
 // File order changed but ids unchanged, preserve `selectedFiles`; only the
@@ -57,6 +104,8 @@ function onFilesMutated(): void {
 function onFilesReordered(): void {
   organizeInitialized = false;
   selected.clear();
+  // Reorder does not change file ids, so manifest-only is enough.
+  markDirty('manifest');
 }
 
 
@@ -150,22 +199,25 @@ function refreshMergeUi(): void {
 
 function moveSelection(dir: 'up' | 'down'): boolean {
   if (!selected.size) return false;
-  const sorted = [...selected].sort((a, b) => a - b);
-  if (dir === 'up' && sorted[0] === 0) return false;
-  if (dir === 'down' && sorted[sorted.length - 1] === pages.length - 1) return false;
+  const idxs = pages
+    .map((p, i) => selected.has(p.pageId) ? i : -1)
+    .filter(i => i >= 0)
+    .sort((a, b) => a - b);
+  if (idxs.length === 0) return false;
+  if (dir === 'up' && idxs[0] === 0) return false;
+  if (dir === 'down' && idxs[idxs.length - 1] === pages.length - 1) return false;
 
   pushHistory();
-  const movingSet = new Set(sorted);
-  const moving = sorted.map(i => pages[i]);
+  const movingSet = new Set(idxs);
+  const moving = idxs.map(i => pages[i]);
   const kept = pages.filter((_, i) => !movingSet.has(i));
-  const dropAt = dir === 'up' ? sorted[0] - 1 : sorted[sorted.length - 1] + 2;
-  const removedBefore = sorted.filter(i => i < dropAt).length;
+  const dropAt = dir === 'up' ? idxs[0] - 1 : idxs[idxs.length - 1] + 2;
+  const removedBefore = idxs.filter(i => i < dropAt).length;
   const insertAt = dropAt - removedBefore;
   kept.splice(insertAt, 0, ...moving);
   pages.length = 0;
   pages.push(...kept);
-  selected.clear();
-  moving.forEach(p => { const ni = pages.indexOf(p); if (ni >= 0) selected.add(ni); });
+  // Selection follows pageIds; no remap needed across reorder.
   return true;
 }
 
@@ -192,9 +244,10 @@ function snapshotCurrent(): HistorySnapshot {
 function pushHistory() {
   history.push(snapshotCurrent());
   if (history.length > HISTORY_MAX) history.shift();
-  // New mutating action invalidates any pending redo branch — same convention
+  // New mutating action invalidates any pending redo branch - same convention
   // as code editors and image tools.
   redoStack.length = 0;
+  markDirty('manifest');
 }
 
 function applySnapshot(snap: HistorySnapshot) {
@@ -204,6 +257,7 @@ function applySnapshot(snap: HistorySnapshot) {
   lastClickedIdx = snap.lastClickedIdx;
   renderOrganizeView();
   kickPageThumbs(pages);
+  markDirty('manifest');
 }
 
 function undo() {
@@ -221,6 +275,155 @@ function redo() {
   history.push(snapshotCurrent());
   if (history.length > HISTORY_MAX) history.shift();
   applySnapshot(snap);
+}
+
+// Bumped on every applyPayload. In-flight async work (thumbnail renders,
+// pdfjs base bitmap renders) keys against this and bails when stale, so a
+// late callback can't write into the wrong PageEntry array.
+let renderGeneration = 0;
+
+const persistor = createPersistor<PdfWorkspacePayload>({
+  kind: 'pdfWorkspace',
+  buildPayload: () => ({
+    activeTool,
+    files: files.map(f => ({ id: f.id, name: f.name, size: f.size, pageCount: f.pageCount })),
+    pages: pages.map(p => ({
+      type: p.type,
+      sourceFileId: p.sourceFileId,
+      sourcePageNum: p.sourcePageNum,
+      rotation: p.rotation,
+      blankPageSize: p.blankPageSize,
+      originalPos: p.originalPos,
+      pageId: p.pageId,
+    })),
+    selected: [...selected],
+    selectedFiles: [...selectedFiles],
+    wmSelected: [...wmSelected],
+    wmSettings: { ...wmSettings },
+  }),
+  currentFileIds: () => files.map(f => f.id),
+  getBytesForId: (id) => {
+    const f = files.find(x => x.id === id);
+    if (!f) throw new Error(`PdfWorkspace: no file with id ${id}`);
+    return f.bytes;
+  },
+  isPristine: () => files.length === 0,
+  applyPayload: (payload, bytesById) => {
+    const missing = payload.files.filter(f => !bytesById.has(f.id));
+    if (missing.length) {
+      showToast('Saved session was incomplete and could not be restored.', 'warn', 6000);
+      return false;
+    }
+    // Invalidate any in-flight thumbnail / preview callbacks before we swap
+    // the pages/files arrays out from under them.
+    renderGeneration++;
+    files = payload.files.map(meta => ({
+      id: meta.id,
+      name: meta.name,
+      size: meta.size,
+      pageCount: meta.pageCount ?? 0,
+      bytes: bytesById.get(meta.id)!,
+      firstPageThumb: null,
+    }));
+    pages = (payload.pages as any[]).map(p => ({
+      type: p.type,
+      sourceFileId: p.sourceFileId,
+      sourcePageNum: p.sourcePageNum,
+      rotation: p.rotation,
+      blankPageSize: p.blankPageSize,
+      originalPos: p.originalPos,
+      // Pre-pageId payloads have no pageId; mint a fresh one so identity is
+      // valid going forward (selection, if positional, gets translated below).
+      pageId: typeof p.pageId === 'number' ? p.pageId : getNextPageId(),
+      thumbnail: null,
+    })) as PageEntry[];
+    let maxPageId = 0;
+    const validPageIds = new Set<number>();
+    for (const p of pages) {
+      validPageIds.add(p.pageId);
+      if (p.pageId > maxPageId) maxPageId = p.pageId;
+    }
+    if (pages.length > 0) bumpNextPageId(maxPageId + 1);
+    // Selection: new payloads store pageIds, legacy payloads stored array
+    // indices. Detect by checking whether values match any current pageId.
+    const rawSelected: number[] = payload.selected ?? [];
+    if (rawSelected.length > 0 && rawSelected.every(v => validPageIds.has(v))) {
+      selected = new Set(rawSelected);
+    } else {
+      // Legacy positional: translate via index lookup against the just-rebuilt
+      // pages array.
+      const sel = new Set<number>();
+      for (const i of rawSelected) {
+        if (i >= 0 && i < pages.length) sel.add(pages[i].pageId);
+      }
+      selected = sel;
+    }
+    selectedFiles = new Set(payload.selectedFiles ?? []);
+    wmSettings = { ...WM_DEFAULTS, ...payload.wmSettings };
+    // Rebuild the watermark flat-page index against the restored files so
+    // legacy positional payloads can be translated.
+    wmRebuildFlatPages();
+    const restored = new Set<string>();
+    for (const v of payload.wmSelected ?? []) {
+      if (typeof v === 'string') {
+        restored.add(v);
+      } else if (typeof v === 'number' && v >= 0 && v < wmFlatPages.length) {
+        // Legacy: positional flat-index. Translate against the rebuilt array.
+        restored.add(wmKey(wmFlatPages[v]));
+      }
+    }
+    wmSelected = restored;
+    knownFileIds = new Set(files.map(f => f.id));
+    wmLastClicked = -1;
+    activeTool = payload.activeTool;
+    lastClickedIdx = -1;
+    history.length = 0;
+    redoStack.length = 0;
+    organizeInitialized = pages.length > 0;
+    if (files.length > 0) bumpNextFileId(Math.max(...files.map(f => f.id)) + 1);
+    syncTabsUI(activeTool);
+    renderActiveTool();
+    if (pages.length > 0) kickPageThumbs(pages);
+    return true;
+  },
+});
+
+// Persistence is dirty-flagged at state-mutation sites only, NEVER inside
+// renderers. The 1s debounce inside createPersistor coalesces bursts, so the
+// cost saved by precise marking is small, but the cost paid is that every
+// new state-changing handler must remember to call markDirty.
+//
+// If you add a new affordance that mutates `files`, `pages`, `selected`,
+// `selectedFiles`, `wmSelected`, `wmSettings`, or `activeTool`, call:
+//   markDirty('files')    when the file array shape (ids/order) changes
+//   markDirty('manifest') for everything else
+//
+// Centralised mutation helpers (`onFilesMutated`, `onFilesReordered`,
+// `pushHistory`) already mark dirty on behalf of their callers, prefer
+// routing through those when possible.
+const markDirty = (scope: 'manifest' | 'files' = 'manifest') =>
+  scope === 'files' ? persistor.markFilesDirty() : persistor.markManifestDirty();
+
+function showResumePopup(stored: StoredSession<PdfWorkspacePayload>): void {
+  const fileCount = stored.payload.files.length;
+  const totalPages = stored.payload.files.reduce((s, f) => s + (f.pageCount ?? 0), 0);
+  const wmDefault = JSON.stringify(stored.payload.wmSettings) === JSON.stringify(WM_DEFAULTS);
+  const summary = `${fileCount} PDF${fileCount === 1 ? '' : 's'} · ${totalPages} page${totalPages === 1 ? '' : 's'}`;
+  const wmHint = wmDefault ? '' : ' · custom watermark';
+  showConfirmPopup(
+    'Resume your last session?',
+    `${summary}${wmHint}. Undo history will reset.`,
+    { label: 'Resume', onClick: async () => {
+      const ok = await persistor.resume(stored);
+      if (ok) showToast('Session restored', 'info', 3000);
+    }},
+    { label: 'Start fresh', onClick: () => { void clearSession(stored.sessionId); } },
+  );
+}
+
+async function tryRestoreSession(): Promise<void> {
+  const result = await persistor.tryRestore();
+  if (result.status === 'orphan') showResumePopup(result.stored);
 }
 
 let activeTool: Tool = 'merge';
@@ -248,8 +451,7 @@ let errorEl: HTMLElement;
 
 const EAGER_LIMIT = 50;
 
-const MAX_TOTAL_FILE_SIZE = 500 * 1024 * 1024; // 500 MB total
-const MAX_FILES = 300;
+const MAX_FILES = ABSOLUTE_MAX_FILES;
 const MAX_TOTAL_PAGES = 300;
 
 // ---------------------------------------------------------------------------
@@ -258,8 +460,21 @@ const MAX_TOTAL_PAGES = 300;
 
 export function getActiveTool(): Tool { return activeTool; }
 
+/**
+ * Public entry for files arriving from outside the PDF Editor UI (Web Share
+ * Target, future File Handlers). Mounts the workspace if the user hasn't
+ * been here yet, then delegates to the standard `handleFiles` pipeline so
+ * MAX_FILES / MAX_TOTAL_FILE_SIZE / MAX_TOTAL_PAGES caps + the upload-summary
+ * popup behave identically to a regular drop.
+ */
+export function ingestExternalFiles(files: File[]): void {
+  if (!files.length) return;
+  if (!initialized) initPdfWorkspace();
+  void handleFiles(files);
+}
+
 // Sync tab DOM with the active tool. Updates the .active class, aria-selected,
-// and tabindex (roving — only the selected tab is keyboard-tabbable). The
+// and tabindex (roving - only the selected tab is keyboard-tabbable). The
 // tabpanel's aria-labelledby tracks the active tab so SR announces the panel
 // header correctly after a switch.
 function syncTabsUI(t: Tool) {
@@ -284,36 +499,33 @@ export function selectPdfTool(tool: string) {
   syncTabsUI(t);
 
   renderActiveTool();
+  markDirty('manifest');
 }
 
 export function initPdfWorkspace() {
   // First-call setup wires document-level listeners and resolves DOM refs.
   // Subsequent calls (after cleanup() on app-mode switch) skip wiring and
-  // just remount the active tool — module state is preserved.
+  // just remount the active tool - module state is preserved.
   if (initialized) {
     renderActiveTool();
     return;
   }
   initialized = true;
+  // Async, non-blocking - empty state still paints first if no session exists.
+  void tryRestoreSession();
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') void persistor.flushOnHide();
+    });
+  }
+  // pagehide for mobile / OS-killed-tab cases visibilitychange misses.
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', () => { void persistor.flushOnHide(); });
+  }
 
   toolContent = document.getElementById('pdf-tool-content')!;
   fileInput = document.getElementById('workspace-file-input') as HTMLInputElement;
   errorEl = document.getElementById('workspace-error')!;
-
-  // Blank-page thumbs bake theme colors into an SVG data URL, so re-render on theme toggle.
-  let wasDark = document.documentElement.classList.contains('dark');
-  new MutationObserver(() => {
-    const isDark = document.documentElement.classList.contains('dark');
-    if (isDark === wasDark) return;
-    wasDark = isDark;
-    requestAnimationFrame(() => {
-      if (!gridEl) return;
-      const src = mockPageThumb('Blank');
-      gridEl.querySelectorAll<HTMLImageElement>('.ws-page-card img[alt="Blank page"]').forEach(img => {
-        img.src = src;
-      });
-    });
-  }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
   // Apply pending tool
   const tabs = document.getElementById('pdf-editor-tabs')!;
@@ -325,6 +537,7 @@ export function initPdfWorkspace() {
     activeTool = btn.dataset.tool as Tool;
     syncTabsUI(activeTool);
     renderActiveTool();
+    markDirty('manifest');
   });
 
   // Arrow-key roving navigation across the tablist
@@ -343,6 +556,7 @@ export function initPdfWorkspace() {
     syncTabsUI(activeTool);
     buttons[next].focus();
     renderActiveTool();
+    markDirty('manifest');
   });
 
   fileInput.addEventListener('change', () => {
@@ -400,6 +614,7 @@ function handleGlobalKeydown(e: KeyboardEvent) {
     updateSelectionVisuals();
     updateSidebar();
     syncRangeInput();
+    markDirty('manifest');
   }
 }
 
@@ -654,9 +869,10 @@ function createFileCard(sf: SourceFile): HTMLElement {
     if (selectedFiles.has(sf.id)) selectedFiles.delete(sf.id);
     else selectedFiles.add(sf.id);
     updateMergeContent();
+    markDirty('manifest');
   });
 
-  const checkBadge = el('span', { className: 'ws-file-check', innerHTML: '&#x2713;', ariaHidden: 'true' });
+  const checkBadge = el('span', { className: 'ws-file-check floating-card-surface', innerHTML: '&#x2713;', ariaHidden: 'true' });
   card.appendChild(checkBadge);
 
   const thumbWrap = el('div', { className: 'ws-file-thumb-wrap' });
@@ -669,7 +885,7 @@ function createFileCard(sf: SourceFile): HTMLElement {
   if (files.length > 1) {
     const idx = files.indexOf(sf);
     const letter = String.fromCharCode(65 + (idx % 26));
-    card.appendChild(el('span', { className: 'ws-file-badge', textContent: letter }));
+    card.appendChild(el('span', { className: 'ws-file-badge floating-card-surface', textContent: letter }));
   }
 
   const info = el('div', { className: 'ws-file-info' });
@@ -677,7 +893,7 @@ function createFileCard(sf: SourceFile): HTMLElement {
   info.appendChild(el('span', { className: 'ws-file-meta', textContent: `${sf.pageCount} pages · ${formatBytes(sf.size)}` }));
   card.appendChild(info);
 
-  const removeBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-remove', innerHTML: '&times;', ariaLabel: 'Remove' });
+  const removeBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-remove floating-card-surface', innerHTML: '&times;', ariaLabel: 'Remove' });
   removeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     files = files.filter(f => f.id !== sf.id);
@@ -695,7 +911,11 @@ const PAGE_THUMB_WIDTH = 320;
 function kickMergeThumbs() {
   for (const sf of files) {
     if (sf.firstPageThumb) continue;
+    const gen = renderGeneration;
     queueRender(sf.bytes, 1, (url) => {
+      // Drop the result if applyPayload (or any other generational reset)
+      // swapped the file array out from under this in-flight render.
+      if (gen !== renderGeneration) return;
       sf.firstPageThumb = url;
       const cards = toolContent.querySelectorAll('.ws-file-card');
       const idx = files.indexOf(sf);
@@ -755,7 +975,13 @@ interface WmPageEntry { fileId: number; pageNum: number; }
 
 let wmSettings: WmSettings = { ...WM_DEFAULTS };
 let wmFlatPages: WmPageEntry[] = [];
-let wmSelected: Set<number> = new Set();   // flat-index source of truth
+// Selection is keyed by `${fileId}:${pageNum}` so it survives any change to
+// flat-index ordering. wmFlatPages stays as the visual surrogate; helpers
+// translate between idx and key.
+let wmSelected: Set<string> = new Set();
+// Tracks which file ids existed at the last mutation so onFilesMutated can
+// auto-include new files' pages and prune removed files' keys.
+let knownFileIds: Set<number> = new Set();
 let wmLastClicked = -1;                     // for shift-click range
 let wmTextEncodeFont: { font: any; doc: PDFDocument } | null = null;
 let wmGridEl: HTMLElement | null = null;
@@ -763,7 +989,7 @@ let wmObserver: IntersectionObserver | null = null;
 // Per-page base bitmap. Rendered ONCE by pdfjs (lazy, on IO entry) and
 // reused across every settings change. Key: `${fileId}:${pageNum}`. The
 // preview composites this bitmap + a Canvas 2D watermark overlay synchronously
-// on every kick — no PDF round-trip per slider tick.
+// on every kick - no PDF round-trip per slider tick.
 const wmBaseBitmaps = new Map<string, { bitmap: ImageBitmap; pdfWidth: number; pdfHeight: number }>();
 // fileId is monotonic (never reused), so on file removal stale entries are
 // unreachable and would leak. Bound the map and evict oldest on insert.
@@ -778,31 +1004,86 @@ let watermarkMobileTray: HTMLElement | null = null;
 // mobile when the tray hasn't been opened yet).
 let wmPanelSeq = 0;
 
+function wmKey(entry: WmPageEntry): string { return `${entry.fileId}:${entry.pageNum}`; }
+function fileIdFromWmKey(key: string): number { return Number(key.slice(0, key.indexOf(':'))); }
+function wmIsSelected(idx: number): boolean {
+  const entry = wmFlatPages[idx];
+  return !!entry && wmSelected.has(wmKey(entry));
+}
+function wmSelectIdx(idx: number): void {
+  const entry = wmFlatPages[idx];
+  if (entry) wmSelected.add(wmKey(entry));
+}
+function wmDeselectIdx(idx: number): void {
+  const entry = wmFlatPages[idx];
+  if (entry) wmSelected.delete(wmKey(entry));
+}
+function wmSelectedSize(): number {
+  let n = 0;
+  for (const e of wmFlatPages) if (wmSelected.has(wmKey(e))) n++;
+  return n;
+}
+function wmAllKeys(): Set<string> {
+  return new Set(wmFlatPages.map(wmKey));
+}
+
 /** Page numbers (1-indexed) of `sf` that the user has selected. */
 function wmEffectivePagesFor(sf: SourceFile): number[] {
   const set = new Set<number>();
-  for (const idx of wmSelected) {
-    const entry = wmFlatPages[idx];
-    if (entry && entry.fileId === sf.id) set.add(entry.pageNum);
+  for (let p = 1; p <= sf.pageCount; p++) {
+    if (wmSelected.has(`${sf.id}:${p}`)) set.add(p);
   }
   return [...set].sort((a, b) => a - b);
 }
 
-/** Range string view of `wmSelected` (1-indexed flat positions). */
+/** Range string view of selection over flat-page positions (1-indexed). */
 function wmSelectedToRangeString(): string {
-  return setToRangeString(wmSelected, wmFlatPages.length);
+  const indices = new Set<number>();
+  wmFlatPages.forEach((_, i) => { if (wmIsSelected(i)) indices.add(i); });
+  return setToRangeString(indices, wmFlatPages.length);
 }
 
 /**
- * Parse a flat-index range string like "1-5, 8" into a Set of zero-indexed
- * flat positions. Returns null if the syntax is invalid.
+ * Parse a flat-index range string like "1-5, 8" into a Set of `${fileId}:${pageNum}`
+ * keys, looking up each 1-indexed flat position in the current `wmFlatPages`.
+ * Returns null if the syntax is invalid.
  */
-function wmParseRangeToSelection(text: string): Set<number> | null {
+function wmParseRangeToSelection(text: string): Set<string> | null {
   const oneIndexed = parsePageRange(text, wmFlatPages.length);
   if (!oneIndexed) return null;
-  const zeroIndexed = new Set<number>();
-  for (const n of oneIndexed) zeroIndexed.add(n - 1);
-  return zeroIndexed;
+  const keys = new Set<string>();
+  for (const n of oneIndexed) {
+    const entry = wmFlatPages[n - 1];
+    if (entry) keys.add(wmKey(entry));
+  }
+  return keys;
+}
+
+/**
+ * Reconcile `wmSelected` against the current `files` array:
+ * - drop keys for removed files
+ * - auto-include all keys for newly-added files (Default-selected on add)
+ * - keys for surviving files pass through untouched
+ *
+ * Idempotent: safe to call multiple times. Driven off `knownFileIds` so the
+ * delta is exact — adding a file in any tab triggers the auto-include exactly
+ * once, on the first call after that file appeared.
+ */
+function applyWmFileDelta(addedFiles: SourceFile[], removedFileIds: Set<number>): void {
+  for (const key of wmSelected) {
+    if (removedFileIds.has(fileIdFromWmKey(key))) wmSelected.delete(key);
+  }
+  for (const f of addedFiles) {
+    for (let p = 1; p <= f.pageCount; p++) wmSelected.add(`${f.id}:${p}`);
+  }
+}
+
+function wmSyncWithFiles(): void {
+  const fileIds = new Set(files.map(f => f.id));
+  const removedFileIds = new Set([...knownFileIds].filter(id => !fileIds.has(id)));
+  const addedFiles = files.filter(f => !knownFileIds.has(f.id));
+  applyWmFileDelta(addedFiles, removedFileIds);
+  knownFileIds = fileIds;
 }
 
 function wmRebuildFlatPages() {
@@ -851,17 +1132,11 @@ function wmBadgeText(idx: number): string {
 }
 
 function wmResetForFiles() {
+  // Catch up on any file mutations that bypassed onFilesMutated (e.g. organize
+  // tab's add path appends pages directly without routing here). Idempotent:
+  // a no-op if onFilesMutated already ran.
+  wmSyncWithFiles();
   wmRebuildFlatPages();
-  // Default selection on tab entry: every page across every file. Users who
-  // want a subset click pages off (or type a narrower range).
-  if (wmFlatPages.length > 0 && wmSelected.size === 0) {
-    wmSelected = new Set(wmFlatPages.map((_, i) => i));
-  } else {
-    // Drop indices that no longer exist (file removed shrinks wmFlatPages).
-    const valid = new Set<number>();
-    for (const idx of wmSelected) if (idx < wmFlatPages.length) valid.add(idx);
-    wmSelected = valid;
-  }
   wmLastClicked = -1;
 }
 
@@ -891,12 +1166,12 @@ function wmTextHasInvalidChars(): boolean {
 
 /** True iff Export will actually stamp pages (text set AND at least one page picked). */
 function wmWillStamp(): boolean {
-  return wmSettings.text.trim().length > 0 && wmSelected.size > 0;
+  return wmSettings.text.trim().length > 0 && wmSelectedSize() > 0;
 }
 
 function wmDownloadDisabled(): { disabled: boolean; reason?: string } {
   if (files.length === 0) return { disabled: true, reason: 'Add a PDF first' };
-  // Invalid chars only block when we'd actually render text — empty text or
+  // Invalid chars only block when we'd actually render text - empty text or
   // empty selection both fall through to source-PDF passthrough.
   if (wmWillStamp() && wmTextHasInvalidChars()) {
     return { disabled: true, reason: "Some characters can't be rendered. Try basic Latin text." };
@@ -906,6 +1181,7 @@ function wmDownloadDisabled(): { disabled: boolean; reason?: string } {
 
 function handleWmTextInput(ti: HTMLInputElement) {
   wmSettings.text = ti.value;
+  markDirty('manifest');
   const trimmed = wmSettings.text.trim();
   const charsInvalid = trimmed ? wmTextHasInvalidChars() : false;
   const empty = !trimmed;
@@ -919,10 +1195,10 @@ function handleWmTextInput(ti: HTMLInputElement) {
   });
   let next = '';
   if (charsInvalid) next = "Some characters can't be rendered. Try basic Latin text.";
-  else if (empty) next = 'Empty text — Export saves the source PDF unchanged.';
+
   document.querySelectorAll<HTMLElement>('.ws-wm-text-error').forEach(e => {
     if (e.textContent !== next) e.textContent = next;
-    e.classList.toggle('ws-wm-text-info', empty && !charsInvalid);
+
   });
   rebuildWatermarkPanelDownloadState();
   wmKickVisible();
@@ -934,6 +1210,9 @@ function handleWmTextInput(ti: HTMLInputElement) {
  * Pass `immediate` to redraw synchronously this turn.
  */
 function wmKickVisible(immediate = false) {
+  // Pure render kicker - markDirty is the responsibility of the call sites
+  // that mutate wmSettings or wmSelected. Marking here would queue an IDB
+  // write on every animation frame during slider drags.
   if (immediate) {
     if (wmRafId !== null) { cancelAnimationFrame(wmRafId); wmRafId = null; }
     wmFlushRedraw();
@@ -965,7 +1244,7 @@ type WmFrame = {
   fillStyle: string;
   radCanvas: number;
   // Per-(pageW, pageH) anchor list. Different pages may have different dims
-  // (mixed PDF sizes), so anchors aren't fully frame-constant — but they're
+  // (mixed PDF sizes), so anchors aren't fully frame-constant - but they're
   // identical across cards that share dims, which is the common case.
   tileCache: Map<string, ReadonlyArray<{ x: number; y: number }>>;
 };
@@ -1082,7 +1361,7 @@ function wmCompositeCard(
   ctx.clearRect(0, 0, pxW, pxH);
   ctx.drawImage(bitmap, 0, 0, pxW, pxH);
 
-  const wmApplicable = !!frame && wmSelected.has(idx);
+  const wmApplicable = !!frame && wmIsSelected(idx);
   card.classList.toggle('ws-wm-overlay-on', wmApplicable);
   if (!wmApplicable) return;
 
@@ -1143,11 +1422,11 @@ function renderWatermarkView() {
       className: 'ws-page-card ws-wm-page-card',
       dataset: { wmFlatIdx: String(idx) },
       role: 'button',
-      ariaPressed: String(wmSelected.has(idx)),
+      ariaPressed: String(wmIsSelected(idx)),
       ariaLabel: `Page ${wmBadgeText(idx)}`,
     });
     card.tabIndex = 0;
-    if (wmSelected.has(idx)) card.classList.add('ws-page-selected');
+    if (wmIsSelected(idx)) card.classList.add('ws-page-selected');
     card.addEventListener('contextmenu', (e) => e.preventDefault());
     card.addEventListener('click', (e) => {
       wmToggleSelection(idx, (e as MouseEvent).shiftKey);
@@ -1157,13 +1436,13 @@ function renderWatermarkView() {
       e.preventDefault();
       wmToggleSelection(idx, e.shiftKey);
     });
-    const watermarkedTag = el('span', { className: 'ws-wm-watermarked-tag', textContent: 'Watermarked', ariaHidden: 'true' });
+    const watermarkedTag = el('span', { className: 'ws-wm-watermarked-tag floating-card-surface', textContent: 'Watermarked', ariaHidden: 'true' });
     card.appendChild(watermarkedTag);
     const thumbWrap = el('div', { className: 'ws-page-thumb-wrap' });
     const thumb = el('div', { className: 'ws-page-thumb ws-skeleton' });
     thumbWrap.appendChild(thumb);
     card.appendChild(thumbWrap);
-    card.appendChild(el('span', { className: 'ws-page-badge', textContent: wmBadgeText(idx), ariaHidden: 'true' }));
+    card.appendChild(el('span', { className: 'ws-page-badge floating-card-surface', textContent: wmBadgeText(idx), ariaHidden: 'true' }));
     grid.appendChild(card);
   });
 
@@ -1264,7 +1543,7 @@ function wmUpdateSelectionVisuals() {
   if (!wmGridEl) return;
   wmGridEl.querySelectorAll<HTMLElement>('[data-wm-flat-idx]').forEach(card => {
     const idx = Number(card.dataset.wmFlatIdx);
-    const sel = wmSelected.has(idx);
+    const sel = wmIsSelected(idx);
     card.classList.toggle('ws-page-selected', sel);
     card.setAttribute('aria-pressed', String(sel));
   });
@@ -1275,16 +1554,17 @@ function wmToggleSelection(idx: number, shift: boolean) {
   if (shift && wmLastClicked >= 0) {
     const lo = Math.min(idx, wmLastClicked);
     const hi = Math.max(idx, wmLastClicked);
-    for (let i = lo; i <= hi; i++) wmSelected.add(i);
+    for (let i = lo; i <= hi; i++) wmSelectIdx(i);
   } else {
-    if (wmSelected.has(idx)) wmSelected.delete(idx);
-    else wmSelected.add(idx);
+    if (wmIsSelected(idx)) wmDeselectIdx(idx);
+    else wmSelectIdx(idx);
   }
   wmLastClicked = idx;
   wmUpdateSelectionVisuals();
   wmSyncRangeInputs();
   rebuildWatermarkPanelDownloadState();
   wmKickVisible();
+  markDirty('manifest');
 }
 
 function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) {
@@ -1349,7 +1629,7 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
   }
 
   // Customize controls: desktop uses a collapsible <details> to keep the
-  // panel compact. Mobile tray always shows them expanded — the tray is
+  // panel compact. Mobile tray always shows them expanded - the tray is
   // already a focused, scrollable surface so the disclosure adds no value.
   const styleBody = el('div', { className: 'ws-wm-style-body' });
 
@@ -1386,11 +1666,12 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
     label: 'Size',
     min: 8, max: 256, step: 1, value: wmSettings.fontSize,
     unit: 'pt',
-    onChange: v => { wmSettings.fontSize = v; wmKickVisible(); },
+    onChange: v => { wmSettings.fontSize = v; markDirty('manifest'); wmKickVisible(); },
   }));
 
   styleBody.appendChild(makeWmColorRow(wmSettings.colorHex, hex => {
     wmSettings.colorHex = hex;
+    markDirty('manifest');
     wmKickVisible();
   }, colorLblId));
 
@@ -1398,14 +1679,14 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
     label: 'Opacity',
     min: 0, max: 100, step: 1, value: Math.round(wmSettings.opacity * 100),
     unit: '%',
-    onChange: v => { wmSettings.opacity = Math.max(0, Math.min(1, v / 100)); wmKickVisible(); },
+    onChange: v => { wmSettings.opacity = Math.max(0, Math.min(1, v / 100)); markDirty('manifest'); wmKickVisible(); },
   }));
 
   styleBody.appendChild(makeWmSlider({
     label: 'Rotation',
     min: -90, max: 90, step: 1, value: wmSettings.rotation,
     unit: '°',
-    onChange: v => { wmSettings.rotation = v; wmKickVisible(); },
+    onChange: v => { wmSettings.rotation = v; markDirty('manifest'); wmKickVisible(); },
   }));
 
   // Repeat toggle, single zero-config switch.
@@ -1420,6 +1701,7 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
     document.querySelectorAll<HTMLInputElement>('.ws-wm-repeat-checkbox').forEach(c => {
       if (c !== repeatChk) c.checked = wmSettings.repeat;
     });
+    markDirty('manifest');
     wmKickVisible();
   });
   repeatRow.appendChild(repeatChk);
@@ -1448,6 +1730,7 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
       wmSyncRangeInputs();
       rebuildWatermarkPanelDownloadState();
       wmKickVisible();
+      markDirty('manifest');
       return;
     }
     const parsed = wmParseRangeToSelection(text);
@@ -1462,17 +1745,19 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
     wmUpdateSelectionVisuals();
     rebuildWatermarkPanelDownloadState();
     wmKickVisible();
+    markDirty('manifest');
   });
   panel.appendChild(ri);
 
   const btnRow = el('div', { className: 'ws-sidebar-btn-row' });
   const selectAllBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Select all' });
   selectAllBtn.addEventListener('click', () => {
-    wmSelected = new Set(wmFlatPages.map((_, i) => i));
+    wmSelected = wmAllKeys();
     wmUpdateSelectionVisuals();
     wmSyncRangeInputs();
     rebuildWatermarkPanelDownloadState();
     wmKickVisible();
+    markDirty('manifest');
   });
   const deselectBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Deselect all' });
   deselectBtn.addEventListener('click', () => {
@@ -1481,6 +1766,7 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
     wmSyncRangeInputs();
     rebuildWatermarkPanelDownloadState();
     wmKickVisible();
+    markDirty('manifest');
   });
   btnRow.appendChild(selectAllBtn);
   btnRow.appendChild(deselectBtn);
@@ -1503,20 +1789,13 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
 }
 
 function wmDownloadLabel(): string {
-  return wmWillStamp() ? 'Export PDF' : 'Export source PDF';
+  return 'Export PDF';
 }
 
 function rebuildWatermarkPanelDownloadState() {
   const state = wmDownloadDisabled();
   const label = wmDownloadLabel();
-  // Empty-text hint already lives by the text input; only surface a hint here
-  // for the zero-pages-but-text-set case so the user understands the relabeled
-  // button will save the source unchanged.
-  let statusText = '';
-  if (state.disabled) statusText = state.reason ?? '';
-  else if (wmSettings.text.trim() && !wmWillStamp()) {
-    statusText = 'No pages picked — Export saves the source PDF unchanged.';
-  }
+  const statusText = state.disabled ? (state.reason ?? '') : '';
   document.querySelectorAll<HTMLButtonElement>('.ws-wm-download-btn').forEach(dl => {
     if (dl.classList.contains('disabled') !== state.disabled) {
       dl.classList.toggle('disabled', state.disabled);
@@ -1557,7 +1836,7 @@ function makeWmSlider(args: SliderArgs): HTMLElement {
     min: String(args.min), max: String(args.max), step: String(args.step),
     value: String(args.value),
     className: 'ws-range-input ws-wm-num-input',
-    // Keep aria-label here — `${label} value` distinguishes the numeric
+    // Keep aria-label here - `${label} value` distinguishes the numeric
     // companion from the sibling slider; aria-labelledby would overwrite it.
     ariaLabel: `${args.label} value`,
   }) as HTMLInputElement;
@@ -1600,7 +1879,7 @@ function makeWmSlider(args: SliderArgs): HTMLElement {
 /** Hex text input + native color swatch. Two-way bound. */
 function makeWmColorRow(initial: string, onChange: (hex: string) => void, labelId: string): HTMLElement {
   // role=group + aria-labelledby ties the two related controls (hex + swatch)
-  // to the visible "Color" label — AT announces "Color, group" on entry.
+  // to the visible "Color" label - AT announces "Color, group" on entry.
   const row = el('div', { className: 'ws-wm-color-row', role: 'group', 'aria-labelledby': labelId });
   row.appendChild(el('span', { className: 'ws-wm-row-label', textContent: 'Color', id: labelId }));
 
@@ -1754,7 +2033,7 @@ async function doWatermarkPassthroughPerSource() {
   const verb = isBatch ? `Saving ${files.length} PDFs` : 'Saving';
   await runWithPopup(
     verb,
-    'Empty watermark — saving the source PDFs unchanged.',
+    'Empty watermark - saving the source PDFs unchanged.',
     'Save failed.',
     async () => {
       const results = files.map(f => ({ bytes: f.bytes, name: f.name }));
@@ -1783,7 +2062,7 @@ async function doWatermarkPassthroughCombined() {
   if (files.length === 0) return;
   await runWithPopup(
     'Saving',
-    'Empty watermark — merging your files unchanged.',
+    'Empty watermark - merging your files unchanged.',
     'Save failed.',
     async () => {
       const merged = await merge(files);
@@ -1819,8 +2098,16 @@ async function doWatermarkExportCombined() {
     async () => {
       const merged = await merge(files);
 
-      // wmSelected stores flat indices (zero-based). watermark() wants 1-indexed.
-      const pageNums = [...wmSelected].sort((a, b) => a - b).map(i => i + 1);
+      // Derive 1-indexed page numbers in merge order: walk files, accumulate
+      // per-file offsets, emit (offset + pageNum) for every selected key.
+      const pageNums: number[] = [];
+      let offset = 0;
+      for (const f of files) {
+        for (let p = 1; p <= f.pageCount; p++) {
+          if (wmSelected.has(`${f.id}:${p}`)) pageNums.push(offset + p);
+        }
+        offset += f.pageCount;
+      }
 
       const r = await watermark(merged.bytes, files[0].name, {
         source: { type: 'text', text: wmSettings.text, fontSize: wmSettings.fontSize, color },
@@ -1859,10 +2146,13 @@ function renderOrganizeView() {
     let pos = 0;
     for (const sf of files)
       for (let p = 1; p <= sf.pageCount; p++)
-        pages.push({ type: 'source', sourceFileId: sf.id, sourcePageNum: p, thumbnail: null, rotation: 0, originalPos: ++pos });
+        pages.push({ type: 'source', sourceFileId: sf.id, sourcePageNum: p, thumbnail: null, rotation: 0, originalPos: ++pos, pageId: getNextPageId() });
     selected.clear();
     lastClickedIdx = -1;
     organizeInitialized = true;
+    // Bring knownFileIds in sync so the next onFilesMutated computes a
+    // correct delta (no spurious "all files added" replay).
+    knownFileIds = new Set(files.map(f => f.id));
   }
 
   if (pages.length === 0) {
@@ -2016,9 +2306,7 @@ function renderOrganizeView() {
         pushHistory();
         pages.length = 0;
         pages.push(...newOrder);
-        selected.clear();
-        multi.pages.forEach(p => { const ni = pages.indexOf(p); if (ni >= 0) selected.add(ni); });
-        // Full re-render, DOM has Sortable's single-element move, need to rebuild for multi
+        // Selection follows pageIds; no remap needed.
         renderOrganizeView();
         return;
       } else if (evt.oldIndex != null && evt.newIndex != null && evt.oldIndex !== evt.newIndex) {
@@ -2030,16 +2318,10 @@ function renderOrganizeView() {
           if (!isNaN(i) && pages[i]) reordered.push(pages[i]);
         });
         if (reordered.length === pages.length) {
-          const newSelected = new Set<number>();
-          for (const s of selected) {
-            const page = pages[s];
-            const ni = reordered.indexOf(page);
-            if (ni >= 0) newSelected.add(ni);
-          }
           pushHistory();
           pages.length = 0;
           pages.push(...reordered);
-          selected = newSelected;
+          // Selection follows pageIds; no remap needed.
         }
       }
       // Full re-render to update badges with new positions
@@ -2115,6 +2397,8 @@ export function resetAll() {
   wmDisposeBitmaps();
   wmTextEncodeFont = null;
   if (wmRafId !== null) { cancelAnimationFrame(wmRafId); wmRafId = null; }
+  // Drop the saved session so reload doesn't ghost-restore.
+  persistor.clear();
   renderActiveTool();
 }
 
@@ -2253,20 +2537,18 @@ async function handleFiles(rawFiles: File[]) {
   if (accepted.length === 0) return;
 
   files.push(...accepted);
+  markDirty('files');
 
+  // Single delta path: onFilesMutated does the surgical pages append + the
+  // watermark/organize/file-selection updates against the prev knownFileIds
+  // snapshot. The active-tool branches just handle render + thumb-kick.
+  onFilesMutated();
   if (activeTool === 'organize') {
-    // New pages append at the end, so existing selection indices stay valid.
-    let nextPos = pages.length + 1;
-    for (const sf of accepted)
-      for (let p = 1; p <= sf.pageCount; p++)
-        pages.push({ type: 'source', sourceFileId: sf.id, sourcePageNum: p, thumbnail: null, rotation: 0, originalPos: nextPos++ });
     renderOrganizeView();
     kickPageThumbs(pages);
   } else if (activeTool === 'watermark') {
-    onFilesMutated();
     renderWatermarkView();
   } else {
-    onFilesMutated();
     updateMergeContent();
     kickMergeThumbs();
   }
@@ -2347,22 +2629,42 @@ function updateSidebarContent(sidebar: HTMLElement) {
   ri.value = selectedToRangeString();
   ri.addEventListener('input', () => {
     const text = ri.value.trim();
-    if (!text) { ri.classList.remove('ws-input-error'); selected.clear(); updateSelectionVisuals(); updateSidebar(); return; }
+    if (!text) {
+      ri.classList.remove('ws-input-error');
+      selected.clear();
+      updateSelectionVisuals();
+      updateSidebar();
+      markDirty('manifest');
+      return;
+    }
     const parsed = parseSelectionRange(text);
     if (!parsed) { ri.classList.add('ws-input-error'); return; }
     ri.classList.remove('ws-input-error');
     selected = parsed;
     updateSelectionVisuals();
     updateSidebar();
+    markDirty('manifest');
   });
   rangeInput = ri;
   sidebar.appendChild(ri);
 
   const btnRow = el('div', { className: 'ws-sidebar-btn-row' });
   const selectAllBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Select all' });
-  selectAllBtn.addEventListener('click', () => { pages.forEach((_, i) => selected.add(i)); updateSelectionVisuals(); updateSidebar(); syncRangeInput(); });
+  selectAllBtn.addEventListener('click', () => {
+    selected = new Set(pages.map(p => p.pageId));
+    updateSelectionVisuals();
+    updateSidebar();
+    syncRangeInput();
+    markDirty('manifest');
+  });
   const deselectBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Deselect all' });
-  deselectBtn.addEventListener('click', () => { selected.clear(); updateSelectionVisuals(); updateSidebar(); syncRangeInput(); });
+  deselectBtn.addEventListener('click', () => {
+    selected.clear();
+    updateSelectionVisuals();
+    updateSidebar();
+    syncRangeInput();
+    markDirty('manifest');
+  });
   btnRow.appendChild(selectAllBtn);
   btnRow.appendChild(deselectBtn);
   sidebar.appendChild(btnRow);
@@ -2411,22 +2713,13 @@ function updateSidebarContent(sidebar: HTMLElement) {
 }
 
 function removeFile(fid: number) {
-  // Re-map selected indices for organize state
-  const newSelected = new Set<number>();
-  let newIdx = 0;
-  pages.forEach((p, oldIdx) => {
-    if (p.sourceFileId === fid) return;
-    if (selected.has(oldIdx)) newSelected.add(newIdx);
-    newIdx++;
-  });
-  pages = pages.filter(p => p.sourceFileId !== fid);
-  selected = newSelected;
   files = files.filter(f => f.id !== fid);
   lastClickedIdx = -1;
-
+  // onFilesMutated drops the removed file's pages from `pages`, prunes
+  // pageIds from `selected`, updates merge/watermark state in lockstep.
+  onFilesMutated();
   if (files.length === 0) clearThumbnailCache();
   if (pages.length === 0) organizeInitialized = false;
-
   renderActiveTool();
   if (activeTool === 'organize' && pages.length > 0) kickPageThumbs(pages);
 }
@@ -2435,35 +2728,53 @@ function removeFile(fid: number) {
 // Selection
 // ---------------------------------------------------------------------------
 
+// `selected` stores pageIds (semantic). Helpers translate between idx and
+// pageId so the rest of the code keeps thinking in flat positions.
+function isOrgSelected(idx: number): boolean {
+  return idx >= 0 && idx < pages.length && selected.has(pages[idx].pageId);
+}
+function selectOrgIdx(idx: number): void {
+  if (idx >= 0 && idx < pages.length) selected.add(pages[idx].pageId);
+}
+function deselectOrgIdx(idx: number): void {
+  if (idx >= 0 && idx < pages.length) selected.delete(pages[idx].pageId);
+}
+function selectedOrgIndices(): number[] {
+  const idxs: number[] = [];
+  pages.forEach((p, i) => { if (selected.has(p.pageId)) idxs.push(i); });
+  return idxs;
+}
+
 function toggleSelection(idx: number, shift: boolean, ctrl = false) {
-  // Ctrl/Cmd+Click is an explicit non-contiguous toggle and overrides Shift —
+  // Ctrl/Cmd+Click is an explicit non-contiguous toggle and overrides Shift -
   // matches the Windows/macOS multi-select convention so power users can
   // pick or unpick a single page without disturbing the rest of a Shift range.
   if (shift && !ctrl && selected.size > 0) {
+    const idxs = selectedOrgIndices();
     let lo = idx, hi = idx;
-    for (const s of selected) { if (s < lo) lo = s; if (s > hi) hi = s; }
-    for (let i = lo; i <= hi; i++) selected.add(i);
+    for (const i of idxs) { if (i < lo) lo = i; if (i > hi) hi = i; }
+    for (let i = lo; i <= hi; i++) selectOrgIdx(i);
   } else {
-    selected.has(idx) ? selected.delete(idx) : selected.add(idx);
+    if (isOrgSelected(idx)) deselectOrgIdx(idx);
+    else selectOrgIdx(idx);
   }
   lastClickedIdx = idx;
   updateSelectionVisuals();
   updateSidebar();
   syncRangeInput();
+  markDirty('manifest');
 }
 
 function updateSelectionVisuals() {
+  // Pure DOM sync from `selected` - mutation sites (toggleSelection, Escape
+  // clear, range-input parse, select/deselect-all) own markDirty.
   if (!gridEl) return;
-  let firstSelIdx = -1;
-  let lastSelIdx = -1;
-  if (selected.size > 0) {
-    const sorted = [...selected].sort((a, b) => a - b);
-    firstSelIdx = sorted[0];
-    lastSelIdx = sorted[sorted.length - 1];
-  }
+  const idxs = selectedOrgIndices();
+  const firstSelIdx = idxs[0] ?? -1;
+  const lastSelIdx = idxs[idxs.length - 1] ?? -1;
   gridEl.querySelectorAll<HTMLElement>('.ws-page-card').forEach((card) => {
     const i = Number(card.dataset.pageIdx);
-    const sel = selected.has(i);
+    const sel = isOrgSelected(i);
     card.classList.toggle('ws-page-selected', sel);
     card.classList.toggle('ws-first-selected', i === firstSelIdx);
     card.classList.toggle('ws-last-selected', i === lastSelIdx);
@@ -2472,6 +2783,7 @@ function updateSelectionVisuals() {
 }
 
 function updateMergeSelectionVisuals() {
+  // Pure DOM sync from `selectedFiles` - mutation sites own markDirty.
   if (!mergeGridContainer) return;
   mergeGridContainer.querySelectorAll<HTMLElement>('.ws-file-card').forEach((card) => {
     const fid = Number(card.dataset.fileId);
@@ -2756,7 +3068,7 @@ async function getAdjacentPageSize(insertIdx: number): Promise<{ width: number; 
 function deleteSelected() {
   if (!selected.size) return;
   pushHistory();
-  pages = pages.filter((_, i) => !selected.has(i));
+  pages = pages.filter(p => !selected.has(p.pageId));
   const remainingFileIds = new Set(pages.filter(p => p.type === 'source').map(p => p.sourceFileId));
   files = files.filter(f => remainingFileIds.has(f.id));
   selected.clear();
@@ -2765,6 +3077,11 @@ function deleteSelected() {
     files = [];
     clearThumbnailCache();
   }
+  // onFilesMutated reconciles knownFileIds / watermark / merge state against
+  // the freshly-trimmed `files` (surgical pages update is a no-op since the
+  // removed pages are already gone, but it keeps wmSelected and knownFileIds
+  // in lockstep).
+  onFilesMutated();
   renderOrganizeView();
 }
 
@@ -2776,11 +3093,10 @@ function insertBlankPage(atIdx: number) {
       thumbnail: null, rotation: 0,
       blankPageSize: size,
       originalPos: atIdx + 1,
+      pageId: getNextPageId(),
     };
-    // Shift selected indices
-    const newSelected = new Set<number>();
-    for (const s of selected) newSelected.add(s >= atIdx ? s + 1 : s);
-    selected = newSelected;
+    // Selection follows pageIds, so an insertion at any index leaves all
+    // existing selections valid. Only the shift-click anchor needs adjusting.
     if (lastClickedIdx >= atIdx) lastClickedIdx++;
 
     pages.splice(atIdx, 0, blank);
@@ -2804,7 +3120,7 @@ const COLLAPSE_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none
 
 function wireTrayToggle(tray: HTMLElement, overlay: HTMLElement, iconBtn: HTMLElement) {
   // Tray is a non-modal dialog: gives it semantics + ESC + focus return.
-  // We do NOT set aria-modal=true because we don't trap focus — claiming
+  // We do NOT set aria-modal=true because we don't trap focus - claiming
   // modal without a trap mis-states behavior to AT.
   tray.setAttribute('role', 'dialog');
   tray.setAttribute('aria-label', 'Options');
@@ -2947,7 +3263,7 @@ function buildMobileTrayContent(tray: HTMLElement) {
 
   const btnRow = el('div', { className: 'ws-sidebar-btn-row' });
   const selAll = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Select all' });
-  selAll.addEventListener('click', () => { pages.forEach((_, i) => selected.add(i)); updateSelectionVisuals(); updateSidebar(); syncRangeInput(); });
+  selAll.addEventListener('click', () => { selected = new Set(pages.map(p => p.pageId)); updateSelectionVisuals(); updateSidebar(); syncRangeInput(); });
   const desel = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Deselect all' });
   desel.addEventListener('click', () => { selected.clear(); updateSelectionVisuals(); updateSidebar(); syncRangeInput(); });
   btnRow.appendChild(selAll);
@@ -3010,13 +3326,13 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
   });
   card.setAttribute('role', 'button');
   card.setAttribute('tabindex', '0');
-  card.setAttribute('aria-pressed', selected.has(idx) ? 'true' : 'false');
+  card.setAttribute('aria-pressed', isOrgSelected(idx) ? 'true' : 'false');
   card.setAttribute('aria-label', page.type === 'blank' ? `Blank page ${idx + 1}` : `Page ${idx + 1} of ${pages.length}`);
   card.addEventListener('contextmenu', (e) => e.preventDefault());
 
   const isBlank = page.type === 'blank';
   const thumb = el('div', { className: `ws-page-thumb${page.thumbnail || isBlank ? '' : ' ws-skeleton'}` });
-  const imgSrc = isBlank ? mockPageThumb('Blank') : page.thumbnail;
+  const imgSrc = isBlank ? mockBlankPageThumb() : page.thumbnail;
   if (imgSrc) {
     setThumb(thumb, imgSrc, {
       alt: isBlank ? 'Blank page' : `Page ${page.sourcePageNum}`,
@@ -3025,11 +3341,11 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
   }
   card.appendChild(thumb);
 
-  const checkBadge = el('span', { className: 'ws-page-check', innerHTML: '&#x2713;', ariaHidden: 'true' });
+  const checkBadge = el('span', { className: 'ws-page-check floating-card-surface', innerHTML: '&#x2713;', ariaHidden: 'true' });
   card.appendChild(checkBadge);
 
   const badgeText = getPageBadgeText(page);
-  const badge = el('span', { className: 'ws-page-badge', textContent: page.rotation ? `${badgeText} \u21bb` : badgeText });
+  const badge = el('span', { className: 'ws-page-badge floating-card-surface', textContent: page.rotation ? `${badgeText} \u21bb` : badgeText });
   card.appendChild(badge);
 
   const plusBefore = el('button', { className: 'ws-page-plus ws-page-plus-before', innerHTML: '+', ariaLabel: 'Insert blank page before selection' });
@@ -3048,12 +3364,12 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
   });
   card.appendChild(plusAfter);
 
-  const delBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-page-delete', innerHTML: '&times;', ariaLabel: 'Delete' });
+  const delBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-page-delete floating-card-surface', innerHTML: '&times;', ariaLabel: 'Delete' });
   delBtn.addEventListener('click', (e) => { e.stopPropagation(); deletePage(idx); });
   card.appendChild(delBtn);
 
   let visualAngle = page.rotation || 0;
-  const rotBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-page-rotate', innerHTML: '&#x21bb;', ariaLabel: 'Rotate' });
+  const rotBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-page-rotate floating-card-surface', innerHTML: '&#x21bb;', ariaLabel: 'Rotate' });
   rotBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     pushHistory();
@@ -3082,7 +3398,12 @@ function queuePageThumb(p: PageEntry[], idx: number) {
   if (p[idx].thumbnail || p[idx].type === 'blank') return;
   const sf = files.find(f => f.id === p[idx].sourceFileId);
   if (!sf) return;
+  const gen = renderGeneration;
   queueRender(sf.bytes, p[idx].sourcePageNum, (url) => {
+    // applyPayload (restore) bumps renderGeneration before swapping `pages`.
+    // Drop late callbacks - both writing into a stale array and pasting an
+    // old thumbnail into a new card would scramble the grid.
+    if (gen !== renderGeneration) return;
     p[idx].thumbnail = url;
     if (!toolContent) return;
     const card = toolContent.querySelector(`[data-page-idx="${idx}"] .ws-page-thumb`);
@@ -3247,9 +3568,11 @@ export const __testing = {
     selected = new Set();
     lastClickedIdx = -1;
     history.length = 0;
-  redoStack.length = 0;
+    redoStack.length = 0;
     wmSettings = { ...WM_DEFAULTS };
     wmFlatPages = [];
+    wmSelected = new Set();
+    knownFileIds = new Set();
     wmDisposeBitmaps();
     wmTextEncodeFont = null;
     if (wmRafId !== null) { cancelAnimationFrame(wmRafId); wmRafId = null; }
@@ -3257,10 +3580,18 @@ export const __testing = {
   seed(seedPages: PageEntry[], seedFiles: SourceFile[] = [], seedSelected: number[] = []) {
     pages = seedPages;
     files = seedFiles;
-    selected = new Set(seedSelected);
+    // seedSelected is interpreted as positional indices (legacy test API);
+    // translate to pageIds against the freshly seeded pages.
+    const sel = new Set<number>();
+    for (const i of seedSelected) {
+      if (i >= 0 && i < pages.length) sel.add(pages[i].pageId);
+    }
+    selected = sel;
+    knownFileIds = new Set(files.map(f => f.id));
+    organizeInitialized = pages.length > 0;
     lastClickedIdx = -1;
     history.length = 0;
-  redoStack.length = 0;
+    redoStack.length = 0;
   },
   getPages: () => pages,
   getFiles: () => files,
@@ -3284,8 +3615,26 @@ export const __testing = {
   setFiles(fs: SourceFile[]) { files = fs; },
   getWmFlatPages: () => wmFlatPages,
   wmBadgeText: (idx: number) => wmBadgeText(idx),
-  getWmSelected: () => wmSelected,
-  setWmSelected: (s: Iterable<number>) => { wmSelected = new Set(s); },
+  /** Flat-index view of the underlying semantic selection, for legacy tests. */
+  getWmSelected: (): Set<number> => {
+    const idxs = new Set<number>();
+    wmFlatPages.forEach((e, i) => { if (wmSelected.has(wmKey(e))) idxs.add(i); });
+    return idxs;
+  },
+  getWmSelectedKeys: () => wmSelected,
+  setWmSelected: (s: Iterable<string | number>) => {
+    // Accept either semantic keys or legacy positional flat indices so existing
+    // tests don't need rewriting; numbers are translated via the current
+    // wmFlatPages array.
+    const next = new Set<string>();
+    for (const v of s) {
+      if (typeof v === 'string') next.add(v);
+      else if (v >= 0 && v < wmFlatPages.length) next.add(wmKey(wmFlatPages[v]));
+    }
+    wmSelected = next;
+  },
+  getWmKnownFileIds: () => knownFileIds,
+  setWmKnownFileIds: (ids: Iterable<number>) => { knownFileIds = new Set(ids); },
   wmSelectedToRangeString: () => wmSelectedToRangeString(),
   organizeAllowsPerSourceSplit: () => organizeAllowsPerSourceSplit(),
   wmEffectivePagesFor: (sourceFile: SourceFile) => wmEffectivePagesFor(sourceFile),
@@ -3336,14 +3685,17 @@ export const __testing = {
     organizeInitialized = false;
     wmFlatPages = [];
     wmSelected = new Set();
+    knownFileIds = new Set();
     wmDisposeBitmaps();
     if (tab === 'organize') {
       let pos = 0;
       for (const sf of sfs) {
         for (let p = 1; p <= sf.pageCount; p++) {
-          pages.push({ type: 'source', sourceFileId: sf.id, sourcePageNum: p, thumbnail: null, rotation: 0, originalPos: ++pos });
+          pages.push({ type: 'source', sourceFileId: sf.id, sourcePageNum: p, thumbnail: null, rotation: 0, originalPos: ++pos, pageId: getNextPageId() });
         }
       }
+      organizeInitialized = pages.length > 0;
+      knownFileIds = new Set(sfs.map(f => f.id));
     }
     renderActiveTool();
     return tc;
@@ -3360,7 +3712,7 @@ function el(tag: string, props: Record<string, any> = {}): HTMLElement {
     else if (key === 'role') elem.setAttribute('role', String(val));
     else if (/^aria[A-Z]/.test(key)) {
       // ariaLabel → aria-label, ariaLabelledBy → aria-labelledby (no internal
-      // hyphens — ARIA attribute names are one lowercase token after `aria-`).
+      // hyphens - ARIA attribute names are one lowercase token after `aria-`).
       // setAttribute is the spec-compliant path; ARIAMixin IDL reflection is
       // patchy in older Firefox/Safari and jsdom. Use the attribute directly.
       elem.setAttribute('aria-' + key.slice(4).toLowerCase(), String(val));

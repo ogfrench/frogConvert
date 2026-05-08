@@ -50,7 +50,7 @@
   border-style: solid;
   border-color: var(--ring);
   cursor: default;
-  background-color: var(--input-filled-dark);
+  background-color: var(--input-surface);
 }
 
 #upload-zone .upload-text {
@@ -103,6 +103,16 @@
   .upload-file-actions { gap: var(--space-2); }
 }
 
+/* Mobile: only the file-manager menu button stays. Hiding replace + remove
+   keeps filename + button on a single row instead of wrapping. */
+@media (max-width: 800px) {
+  #replace-file-btn,
+  #remove-file-btn { display: none; }
+
+  .upload-file-info { flex-wrap: nowrap; }
+  .upload-file-name { flex-basis: auto; flex: 1 1 auto; min-width: 0; }
+}
+
 
 /* --- Convert Direction Indicator (decorative) --- */
 #convert-arrow-wrap {
@@ -128,4 +138,4 @@
   pointer-events: none;
   user-select: none;
 }
-
+

@@ -8,6 +8,42 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] - 2026-05-08
+
+frogConvert is now an installable Progressive Web App with offline support and resumable sessions. Drop a file, close the tab, come back — your work is offered back to you. Share files into frogConvert from the OS share sheet or "Open with…" menu. Conversion handlers and assets cache as you use them so repeat conversions work offline.
+
+### Added
+- **Service worker and Web App Manifest.** Install prompt on Chromium / Edge / Safari; standalone display; iOS apple-touch-icon and status-bar styling; Android adaptive icons (maskable). Offline-ready toast on first install, dismissable update banner when a new version is available — never silent skipWaiting (`registerType: 'prompt'`).
+- **Web Share Target.** A POST handler in [src/pwa/sw.ts](src/pwa/sw.ts) accepts multipart shares from the OS share sheet, writes the payload to a dedicated CacheStorage entry, and redirects to `/?share-target=ready`. The page replays from cache and routes files into the Converter or PDF Editor based on file type. Capped at 25 files / 500 MB total per share.
+- **File handlers (`launchQueue`).** "Open with frogConvert" registers for image / video / audio / PDF / text / ZIP / 7z extensions; files arrive via the same `EXTERNAL_FILES_EVENT` path as share-target.
+- **Resume prompt.** Cold-start with a saved session of the same kind shows a "Resume your last conversion?" / "Resume your PDF workspace?" popup. Same-tab reload silently restores instead. Tab-clone (Chrome "Duplicate tab") detected via BroadcastChannel and routed to the orphan path so two tabs never last-write-win on the same sessionId.
+- **Session persistence — Converter.** Files, target format, page selection survive tab close, browser restart, and accidental mode-switches. Bytes round-trip as `Uint8Array` through IndexedDB.
+- **Session persistence — PDF Editor.** Files, active tool tab (Merge / Organize / Watermark), page selection, watermark settings (text, size, color, opacity, rotation, repeat-mode, page range) all persist across reload.
+- **Cache-size helpers.** `getTotalCacheBytes`, `clearAllCaches`, `formatCacheBytes`, `sumCacheBytes` in [src/pwa/cacheControls.ts](src/pwa/cacheControls.ts) — wiring for a future Settings affordance.
+
+### Changed
+- **Mobile category filter auto-resets** on entering `(max-width: 800px)`. The category strip is hidden on mobile, so leaving an active category set silently filtered the format list with no way to clear it. The `change` listener now resets the filter when crossing into the mobile breakpoint.
+- **Top-bar control icons** redrawn on a unified 16×16 grid (`.top-control-icon` class) for visual parity across mode / theme / app-mode toggles. Theme toggle gained a proper SVG moon glyph in place of the `&#9788;` codepoint, which rendered inconsistently across fonts.
+- **`apple-touch-icon`** now points at `/apple-touch-icon-180.png` instead of the favicon, so iOS home-screen installs get a real 180×180 icon instead of an upscaled 32×32 favicon.
+- **Documentation pass.** README headline bumped, ARCHITECTURE gained PWA + persistence sections, CLAUDE.md file map covers the new directories, CONVERTER and PDF_EDITOR mention Install / Share / Resume, DEPLOYMENT documents the SW serving headers, SECURITY notes the local CacheStorage footprint.
+
+### Fixed
+- **Watermark flat-page list desync after file mutations.** `wmFlatPages` was rebuilt only on tab activation; removing a file from the sidebar while the Watermark tab was inactive left a stale flat-index map. `onFilesMutated()` now calls `wmSyncWithFiles()` first so the next render sees a consistent view.
+- **Centralised dirty tracking in PdfWorkspace.** Per-mutation-site `markDirty` calls were drifting (some paths missed manifest-only updates after reorder). All file/state mutations now route through the shared mutation hook, so a save is never missed.
+
+### Internal
+- **`src/pwa/`** — service worker, registration, share-target replay, cache controls, constants. Workbox runtime caches: CacheFirst for `/wasm/` (30 entries, 7-day TTL, status 200 only — opaque cross-origin entries rejected), StaleWhileRevalidate for `/assets/` (200 entries, 30-day TTL), `/js/`, `/docs/*.md`. NavigationRoute precaches `/index.html` with a denylist for `/api`, `/.well-known`, `/docs`, `/headless`. JS chunks runtime-cached, not precached, so install isn't a 17 MB download.
+- **Custom share-target fetch listener installed before Workbox's `registerRoute`.** A multipart POST to `/` has `request.mode === "navigate"` and would otherwise be eaten by the precached `/index.html` NavigationRoute. Order is load-bearing.
+- **`src/components/persistence/`** — IndexedDB-backed session store (two stores: `sessions` keyed by sessionId, `fileBytes` keyed by `<sessionId>:<fileId>`), generic `createPersistor` factory, Converter-specific wiring. PDF Workspace inlines the same factory at [src/components/PdfWorkspace/PdfWorkspace.ts](src/components/PdfWorkspace/PdfWorkspace.ts).
+- **Manifest-last write order.** Bytes write before manifest, so a tab kill mid-flush leaves a stale manifest pointing only at fileIds whose bytes already landed — never a manifest referencing unwritten bytes. Quota-exceeded errors pause autosave with a single warning toast; non-quota errors (missing file, serialization) skip the id and continue.
+- **`bumpNextFileId`** in [src/tools/types.ts](src/tools/types.ts) so restored sessions don't collide with fresh file ids minted in the same browser session.
+- **Build-time PWA wiring.** [vite.config.js](vite.config.js) gains `vite-plugin-pwa` (`injectManifest` strategy, `srcDir: 'src/pwa'`, `globPatterns` precaches HTML/CSS/icons/fonts only). Disabled for desktop builds (`!isDesktopBuild`) since Electron runs from `app://` where a service worker is both useless and a registration footgun.
+- **nginx + Netlify**: `Service-Worker-Allowed: /` on `/sw.js`; no-cache on `/sw.js` and entry HTMLs (`/index.html`, `/docs/index.html`, `/headless/index.html`); immutable 1y on `/wasm/*`; correct `application/manifest+json` for `/manifest.webmanifest`.
+- **Tests.** New unit suites: `registerSW.test.ts` (env gating: Electron / file-protocol / no-window skip), `shareTarget.test.ts` (cache replay + `launchQueue` consumer), `cacheControls.test.ts` (byte formatting + sum), `sessionStore.test.ts`, `createPersistor.test.ts` (dirty tracking, manifest-last invariant, quota pause).
+- **Dependencies.** `vite-plugin-pwa ^1.3.0`, `workbox-window ^7.4.1`. Workbox runtime modules pulled transitively.
+
+---
+
 ## [2.2.1] - 2026-05-07
 
 Audit-driven patch release. Three Critical-class data-loss paths closed, mobile-first touch and a11y sweep across both routes, watermark preview rebuilt on a synchronous bitmap cache, and power-user keyboard productivity in the PDF Editor and Format modal.

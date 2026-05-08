@@ -160,7 +160,7 @@
 }
 
 .format-selector.has-value {
-  background-color: var(--input-filled-dark);
+  background-color: var(--input-surface);
   border-color: var(--ring);
 }
 

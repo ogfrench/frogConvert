@@ -39,6 +39,7 @@ import {
     updateCancelProgress,
 } from "./cancellation.ts";
 import { createDancingFrog } from "../components/Frogsworth/DancingFrog.ts";
+import { clearConvertSession } from "../components/persistence/convertPersist.ts";
 import {
     shortenFileName,
     ensureMinDuration,
@@ -1008,6 +1009,11 @@ export function initConvertButton() {
             if (noticeCards.length > 0) popupChildren.push(...noticeCards);
             popupChildren.push(actions);
             replacePopup(popupChildren);
+            // Privacy: the conversion succeeded and the user is downloading
+            // their output. Drop the persisted session (manifest + raw input
+            // bytes in IndexedDB) so reopening the tab doesn't ghost-restore
+            // a finished conversion or leave file bytes on disk for a week.
+            clearConvertSession();
             // Show confetti faster for immediate celebration. Confetti is
             // popup-anchored, so skip it if the user already dismissed.
             setTimeout(() => {
@@ -1015,7 +1021,7 @@ export function initConvertButton() {
             }, 150);
 
             // Delay download slightly longer to let the success UI breathe.
-            // Fire unconditionally — earlier we gated on popupBox.open which
+            // Fire unconditionally - earlier we gated on popupBox.open which
             // produced silent file loss when fast-clickers closed the popup
             // before 400ms. The blob URL is independent of popup lifetime.
             setTimeout(() => downloadAllConvertedFiles(), 400);

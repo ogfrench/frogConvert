@@ -103,6 +103,10 @@
   flex-shrink: 0;
 }
 
+.file-row-btn.icon-btn {
+  color: var(--foreground);
+}
+
 #files-pagination {
   display: flex;
   align-items: center;

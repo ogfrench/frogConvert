@@ -2,6 +2,7 @@ import { resolve, relative } from "path";
 import fs from "fs";
 import { defineConfig } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
+import { VitePWA } from "vite-plugin-pwa";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 import { execSync, spawn } from "child_process";
@@ -12,7 +13,7 @@ import { execSync, spawn } from "child_process";
  * handlers (e.g. libreoffice, which shells out to soffice) without requiring
  * the developer to manage a second terminal.
  *
- * Skips spawning if port 3000 is already serving /health — useful when the
+ * Skips spawning if port 3000 is already serving /health - useful when the
  * developer runs `bun run api` manually for debugging.
  */
 function apiServerPlugin() {
@@ -21,7 +22,7 @@ function apiServerPlugin() {
     name: 'api-server',
     apply: 'serve',  // dev mode only
     async configureServer(server) {
-      // Probe existing API server first — skip spawn if already running.
+      // Probe existing API server first - skip spawn if already running.
       // Verify it's actually a frogConvert API (not some unrelated service
       // happening to answer /health with 200) by checking the body shape.
       try {
@@ -62,6 +63,8 @@ function apiServerPlugin() {
   };
 }
 
+const isDesktopBuild = process.env.IS_DESKTOP === 'true';
+
 const projectPkg = JSON.parse(fs.readFileSync("./package.json", "utf-8"));
 const commitSha = (() => {
   try {
@@ -79,6 +82,7 @@ export default defineConfig({
     'import.meta.env.VITE_APP_NAME': JSON.stringify(projectPkg.productName || "frogConvert"),
     'import.meta.env.VITE_BUILD_TIME': JSON.stringify(new Date().toISOString()),
     'import.meta.env.VITE_COMMIT_SHA': JSON.stringify(commitSha),
+    'import.meta.env.VITE_IS_DESKTOP': JSON.stringify(isDesktopBuild),
     'import.meta.env.VITE_NAV_DOCS': (() => {
       const docs = [];
       const scanDir = (dir) => {
@@ -163,7 +167,7 @@ export default defineConfig({
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
-      // Submodule tests — run by the submodule's own test suite, not ours
+      // Submodule tests - run by the submodule's own test suite, not ours
       'src/handlers/terraria-wld-parser/**',
       'src/handlers/gimper/**',
     ],
@@ -339,6 +343,97 @@ export default defineConfig({
           dest: "wasm"
         }
       ]
+    }),
+    // SW + manifest only for the web build. Desktop runs from app:// where
+    // a service worker would be both useless and a registration footgun.
+    !isDesktopBuild && VitePWA({
+      registerType: 'prompt',
+      injectRegister: false,
+      strategies: 'injectManifest',
+      srcDir: 'src/pwa',
+      filename: 'sw.ts',
+      includeAssets: [
+        'favicon.ico',
+        'frog-emoji.webp',
+        'social-preview.png',
+        'robots.txt',
+        'apple-touch-icon-180.png'
+      ],
+      manifest: {
+        name: 'frogConvert - convert files privately in your browser',
+        short_name: 'frogConvert',
+        description: 'Convert 70+ file formats and edit PDFs right in your browser. No uploads, no servers, everything stays on your device.',
+        start_url: '/',
+        scope: '/',
+        id: '/',
+        display: 'standalone',
+        display_override: ['standalone', 'minimal-ui'],
+        theme_color: '#0a0a0a',
+        background_color: '#0a0a0a',
+        orientation: 'any',
+        lang: 'en',
+        dir: 'ltr',
+        categories: ['productivity', 'utilities'],
+        icons: [
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icon-192-maskable.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: '/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/apple-touch-icon-180.png', sizes: '180x180', type: 'image/png' }
+        ],
+        screenshots: [
+          { src: '/pwa-screenshot-narrow.png', sizes: '640x1136', type: 'image/png', form_factor: 'narrow' },
+          { src: '/pwa-screenshot-wide.png', sizes: '1920x1080', type: 'image/png', form_factor: 'wide' }
+        ],
+        // OS integration: "Open with frogConvert" + share-target. Mirror the converter's
+        // input formats; entry handler in src/main.ts reads launchQueue / share POST.
+        file_handlers: [
+          {
+            action: '/',
+            accept: {
+              'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.tiff', '.heic', '.heif', '.svg', '.avif'],
+              'video/*': ['.mp4', '.mov', '.webm', '.mkv', '.avi'],
+              'audio/*': ['.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac', '.midi', '.mid'],
+              'application/pdf': ['.pdf'],
+              'text/*': ['.txt', '.md', '.csv', '.json', '.xml', '.yaml', '.yml', '.html'],
+              'application/zip': ['.zip'],
+              'application/x-7z-compressed': ['.7z']
+            }
+          }
+        ],
+        share_target: {
+          action: '/?share-target=1',
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: {
+            files: [{ name: 'file', accept: ['*/*'] }]
+          }
+        },
+        launch_handler: { client_mode: 'navigate-existing' }
+      },
+      injectManifest: {
+        // Precache only entry HTMLs, CSS, registry, icons, fonts. JS chunks
+        // are runtime-cached (see src/pwa/sw.ts) so the SW install doesn't
+        // pre-pull 17 MB of lazy handler code before the user does anything.
+        globPatterns: [
+          '*.{html,ico,webp,png,svg,json,txt,woff2}',
+          '**/index.html',
+          'assets/*.css'
+        ],
+        globIgnores: [
+          '**/wasm/**',
+          '**/js/turbowarp-scaffolding/**',
+          '**/*.sf2',
+          '**/docs/*.md',
+          // Format-handler precache. main.ts fetches it dynamically and
+          // caches it in localStorage; precaching here would pin users to
+          // stale handler signatures across deploys until they manually
+          // clear site data.
+          'cache.json'
+        ],
+        maximumFileSizeToCacheInBytes: 2 * 1024 * 1024
+      },
+      devOptions: { enabled: false }
     }),
     tsconfigPaths()
   ]

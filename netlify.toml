@@ -34,3 +34,42 @@
     # inline script in index.html, the async-CSS onload attribute, and the
     # onclick in UploadZone's string popup — all documented in nginx conf.
     Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; worker-src 'self' blob:; connect-src 'self'; img-src 'self' data: blob:; object-src 'none'; frame-ancestors 'none';"
+
+# Service worker must not be HTTP-cached so updates roll out promptly.
+# Service-Worker-Allowed: / lets the SW be registered with root scope from any path.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    Service-Worker-Allowed = "/"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+
+# WASM blobs ship with content-stable URLs (vite-plugin-static-copy doesn't
+# hash them). Long HTTP cache + 7-day SW cache means repeat conversions hit
+# disk instantly while critical fixes still propagate within a week.
+[[headers]]
+  for = "/wasm/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Entry HTMLs MUST NOT be HTTP-cached — they reference hashed asset URLs
+# that change every build. Caching the HTML pins users to old asset hashes
+# and breaks the SW update flow.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/docs/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/headless/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

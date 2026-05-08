@@ -73,3 +73,8 @@ const initialDoc = NAV_DOCS.some(d => d.file === location.hash.slice(1))
   ? location.hash.slice(1)
   : 'README.md';
 loadDoc(initialDoc);
+
+// Don't register the SW from the docs entrypoint. Manifest scope is "/", so
+// installing here would claim docs tabs, prompt them to "reload for new
+// version", and serve precached docs/index.html that's not always in sync
+// with the latest markdown.

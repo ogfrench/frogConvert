@@ -4,6 +4,22 @@ export function getNextFileId(): number {
   return nextFileId++;
 }
 
+/** Bump the file-id counter past `min` so newly-issued ids don't collide with
+ * a set of already-used ids (e.g. after restoring a persisted session). */
+export function bumpNextFileId(min: number): void {
+  if (min > nextFileId) nextFileId = min;
+}
+
+let nextPageId = 0;
+
+export function getNextPageId(): number {
+  return nextPageId++;
+}
+
+export function bumpNextPageId(min: number): void {
+  if (min > nextPageId) nextPageId = min;
+}
+
 /** Minimal page manifest entry consumed by pdf-lib tools. No UI fields. */
 export interface CorePageEntry {
   type: 'source' | 'blank';
@@ -17,6 +33,9 @@ export interface CorePageEntry {
 
 /** PageEntry with UI-only fields layered on top. Used by PdfWorkspace. */
 export interface PageEntry extends CorePageEntry {
+  /** Stable monotonic ID assigned at creation. Selection and identity-tracking
+   *  use this so positional moves (drag-reorder, mid-list removal) don't drift. */
+  pageId: number;
   thumbnail: string | null;
   /** 1-indexed position when first added to the organize view. Used for badge arrows. */
   originalPos?: number;

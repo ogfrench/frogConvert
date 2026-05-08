@@ -24,7 +24,7 @@ frogConvert runs entirely in your browser. Convert between 70+ file formats or e
 
 ## Recent changes
 
-Headline of **2.1.0**: **Same-format compression** lands—convert JPEG to JPEG, MP4 to MP4, or PNG to PNG to reduce size with a smart 2% size-guard, alongside the new **PDF Editor** and proactive UX polishes. Full history in [CHANGELOG.md](CHANGELOG.md).
+Headline of **2.3.0**: **frogConvert is now an installable PWA with resumable sessions.** Install it as an app on Windows, macOS, iOS, Android, or any Chromium browser. Share files into it from the OS share sheet or use it as the "Open with…" target. Close a tab mid-conversion and come back to a Resume prompt — files, target format, watermark settings, undo / redo all survive. Full history in [CHANGELOG.md](CHANGELOG.md).
 
 ## Docs
 

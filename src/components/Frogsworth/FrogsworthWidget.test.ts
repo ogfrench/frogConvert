@@ -193,7 +193,7 @@ describe("pick() - pdf-editor tab awareness", () => {
 
     it("organize tab returns organize-flavored quips at least sometimes", () => {
         // Matchers must be substrings that appear ONLY in PDF_ORGANIZE_QUIPS,
-        // not in PDF_GENERIC_QUIPS — otherwise the test would pass even if the
+        // not in PDF_GENERIC_QUIPS - otherwise the test would pass even if the
         // organize pool were never consulted.
         const texts = collect(80, () => pick(null, null, null, "pdf-editor", "organize").text);
         const hit = [...texts].some(t =>

@@ -111,6 +111,22 @@ Native single-binary builds without Electron are available via `bun run compile:
 
 A `netlify.toml` at the repo root configures Netlify deployment. Point Netlify at the repo, pick the `main` branch, and default settings will build and deploy the static site.
 
+## Service worker / PWA serving
+
+The web build emits a service worker (`sw.js`) and a Web App Manifest (`manifest.webmanifest`). Serving them with the right headers is non-optional — bad caching pins users to old SW code, and a missing `Service-Worker-Allowed` blocks root-scope registration.
+
+`docker/nginx/default.conf` and `netlify.toml` already set these:
+
+| Path | Header | Why |
+|------|--------|-----|
+| `/sw.js` | `Cache-Control: public, max-age=0, must-revalidate` | Updates must roll out promptly. |
+| `/sw.js` | `Service-Worker-Allowed: /` | Lets the SW be registered with root scope from any path. |
+| `/manifest.webmanifest` | `Content-Type: application/manifest+json` | Required by the manifest spec; some browsers reject `text/plain`. |
+| `/wasm/*` | `Cache-Control: public, max-age=31536000, immutable` | Content-stable URLs. SW also runtime-caches with a 7-day TTL so critical fixes still propagate within a week. |
+| `/index.html`, `/docs/index.html`, `/headless/index.html` | `Cache-Control: public, max-age=0, must-revalidate` | Entry HTMLs reference hashed asset URLs that change every build. Caching them pins users to old asset hashes. |
+
+If you're self-hosting behind a different reverse proxy or CDN, mirror these. The desktop (Electron) build skips the SW entirely (`!isDesktopBuild` gate in `vite.config.js`) so packaged binaries are unaffected.
+
 ## Environment variables
 
 | Variable | Default | Applies to | Description |

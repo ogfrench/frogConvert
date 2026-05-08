@@ -8,6 +8,15 @@ desc: Convert files between 70+ formats
 
 End-user guide for the file converter side of frogConvert. For the PDF editor, see [PDF_EDITOR.md](PDF_EDITOR.md). For programmatic access, see [INTEGRATIONS.md](INTEGRATIONS.md).
 
+## Install, share, resume
+
+frogConvert installs as an app on Windows, macOS, iOS, Android, and any Chromium browser. Look for the install icon in your address bar (or "Add to Home Screen" on iOS). Once installed:
+
+- **Share sheet.** On Android and iOS, long-press a file in any app and pick frogConvert from the share menu. The Converter opens with the file already loaded.
+- **"Open with…"** On Windows, macOS, and ChromeOS, right-click a file and pick frogConvert. Registered for image, video, audio, PDF, text, ZIP, and 7z extensions.
+- **Offline.** Conversion handlers (FFmpeg, ImageMagick, etc.) cache as you use them, so repeat conversions work without a network.
+- **Resume.** Close the tab mid-conversion and frogConvert offers to **Resume** your work next time you visit. Files, target format, and selection survive the round-trip. Sessions older than 7 days are dropped automatically.
+
 ## Converting a file
 
 1. **Upload** - drag and drop a file onto the upload zone, or click it to browse. You can upload multiple files at once (up to the device limit).

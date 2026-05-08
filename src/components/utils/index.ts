@@ -39,6 +39,21 @@ export function safeLocalStorageSet(key: string, value: string): void {
     try { localStorage.setItem(key, value); } catch { /* quota or disabled */ }
 }
 
+/** sessionStorage.getItem that swallows disabled-storage errors. */
+export function safeSessionStorageGet(key: string): string | null {
+    try { return sessionStorage.getItem(key); } catch { return null; }
+}
+
+/** sessionStorage.setItem that swallows QuotaExceededError / disabled-storage errors. */
+export function safeSessionStorageSet(key: string, value: string): void {
+    try { sessionStorage.setItem(key, value); } catch { /* quota or disabled */ }
+}
+
+/** sessionStorage.removeItem that swallows disabled-storage errors. */
+export function safeSessionStorageRemove(key: string): void {
+    try { sessionStorage.removeItem(key); } catch { /* disabled */ }
+}
+
 export const SUPPORT_CONTACT_EMAIL = "francois.prevot@frog.co";
 export const SUPPORT_CONTACT_TEXT = `Still stuck, or want this format added? Email ${SUPPORT_CONTACT_EMAIL}.`;
 export const FEEDBACK_CONTACT_TEXT = `Still stuck, or want to share feedback? Email ${SUPPORT_CONTACT_EMAIL}.`;

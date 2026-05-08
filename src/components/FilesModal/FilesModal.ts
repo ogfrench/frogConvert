@@ -8,6 +8,7 @@ import { FILES_PER_PAGE } from "../../constants/ui.ts";
 import { showFileInUploadZone } from "../UploadZone/UploadZone.ts";
 import { showSizeWarningPopup } from "../Popup/Popup.ts";
 import { shortenFileName } from "../utils/index.ts";
+import { markConvertDirty, clearConvertSession } from "../persistence/convertPersist.ts";
 
 /** Returns a friendly label for a MIME type, e.g. "image/png" -> "PNG image" */
 function friendlyMimeLabel(mime: string): string {
@@ -157,12 +158,14 @@ function renderFilesModalList() {
 function applyFilesUpdate(updateList: boolean = true) {
   if (updateList) renderFilesModalList();
   showFileInUploadZone(currentFiles.value);
+  markConvertDirty('files');
   if (onFilesChanged.value) onFilesChanged.value(currentFiles.value);
 }
 
 function removeFileAtIndex(index: number) {
   currentFiles.value.splice(index, 1);
   if (currentFiles.value.length === 0) {
+    clearConvertSession();
     closeFilesModal();
     if (onClearFiles.value) onClearFiles.value();
     return;
@@ -199,6 +202,7 @@ export function initFilesModal() {
 
   ui.filesRemoveAll.addEventListener("click", () => {
     currentFiles.value = [];
+    clearConvertSession();
     closeFilesModal();
     if (onClearFiles.value) onClearFiles.value();
   });

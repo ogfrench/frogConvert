@@ -135,6 +135,8 @@
   color: var(--muted-foreground);
   margin-left: var(--space-4);
   white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 #popup p.upload-summary-sub {
@@ -184,6 +186,8 @@
   background: var(--secondary);
   color: var(--muted-foreground);
   border: 1px solid var(--border);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .upload-summary-row--added .upload-summary-tag {

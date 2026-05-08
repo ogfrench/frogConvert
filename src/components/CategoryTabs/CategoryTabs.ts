@@ -20,7 +20,8 @@ export function initCategoryTabs(
   });
 }
 
-export function selectCategoryTab(category: string) {
+export function selectCategoryTab(category: string, options: { notify?: boolean } = {}) {
+  const { notify = true } = options;
   const tabs = Array.from(ui.categoryTabs.children) as HTMLElement[];
   const targetTab = tabs.find(tab => tab.getAttribute("data-category") === category);
 
@@ -31,7 +32,7 @@ export function selectCategoryTab(category: string) {
   }
   targetTab.classList.add("active");
 
-  if (categoryChangeCallback) {
+  if (notify && categoryChangeCallback) {
     categoryChangeCallback(category);
   }
 }

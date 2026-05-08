@@ -4,6 +4,7 @@ vi.mock('../../tools/pdfThumbnails.ts', () => ({
   renderPageThumbnail: vi.fn(async () => ''),
   renderPageBitmap: vi.fn(async () => null),
   clearThumbnailCache: vi.fn(),
+  mockBlankPageThumb: vi.fn(() => ''),
   mockPageThumb: vi.fn(() => ''),
 }));
 
@@ -26,8 +27,9 @@ import type { PageEntry, SourceFile } from '../../tools/types.ts';
 
 const renderPageThumbnailMock = vi.mocked(renderPageThumbnail);
 
+let nextTestPageId = 1_000_000;
 function srcPage(fileId: number, pageNum: number, rotation: 0 | 90 | 180 | 270 = 0): PageEntry {
-  return { type: 'source', sourceFileId: fileId, sourcePageNum: pageNum, thumbnail: null, rotation, originalPos: pageNum };
+  return { type: 'source', sourceFileId: fileId, sourcePageNum: pageNum, thumbnail: null, rotation, originalPos: pageNum, pageId: nextTestPageId++ };
 }
 
 function sf(id: number, pageCount: number): SourceFile {
@@ -220,17 +222,17 @@ describe('Watermark selection model', () => {
     expect(__testing.wmDownloadLabel()).toBe('Export PDF');
   });
 
-  it('wmDownloadLabel falls back to "Export source PDF" when nothing will be stamped', () => {
+  it('wmDownloadLabel always returns "Export PDF" - passthrough cases trust the user', () => {
     __testing.setFiles([sf(1, 5)]);
     __testing.triggerWmFilesMutated();
     // Text set, but no pages picked → passthrough.
     __testing.setWmSelected([]);
     __testing.setWmSettings({ text: 'X' });
-    expect(__testing.wmDownloadLabel()).toBe('Export source PDF');
+    expect(__testing.wmDownloadLabel()).toBe('Export PDF');
     // Pages picked, but text empty → passthrough.
     __testing.setWmSelected([0]);
     __testing.setWmSettings({ text: '' });
-    expect(__testing.wmDownloadLabel()).toBe('Export source PDF');
+    expect(__testing.wmDownloadLabel()).toBe('Export PDF');
   });
 
   it('wmDownloadDisabled allows passthrough when nothing is selected', () => {
@@ -240,7 +242,7 @@ describe('Watermark selection model', () => {
     __testing.setWmSettings({ text: 'X' });
     const r = __testing.wmDownloadDisabled();
     expect(r.disabled).toBe(false);
-    expect(__testing.wmDownloadLabel()).toBe('Export source PDF');
+    expect(__testing.wmDownloadLabel()).toBe('Export PDF');
   });
 
   it('wmDownloadDisabled is enabled when at least one page is selected', () => {
@@ -403,7 +405,7 @@ describe('Watermark DOM interactions', () => {
     expect(iconBtn.innerHTML).not.toContain('M6 6l12 12');
   });
 
-  it('empty watermark text relabels Export, surfaces inline info, keeps button enabled', () => {
+  it('empty watermark text keeps the Export PDF button enabled with no extra chrome', () => {
     const root = __testing.setupForTest('watermark', [sf(1, 2)]);
     const toolbar = document.querySelector<HTMLElement>('.ws-toolbar--watermark')!;
     const quickInput = toolbar.querySelector<HTMLInputElement>('.ws-prefix-input__field')!;
@@ -412,21 +414,25 @@ describe('Watermark DOM interactions', () => {
     quickInput.value = '';
     quickInput.dispatchEvent(new Event('input', { bubbles: true }));
 
-    expect(__testing.wmDownloadLabel()).toBe('Export source PDF');
-    expect(exportBtn.textContent).toBe('Export source PDF');
+    // Trust the user: empty text still exports (source PDF unchanged), with
+    // no relabel, no inline hint. Matches every other passthrough in the app.
+    expect(__testing.wmDownloadLabel()).toBe('Export PDF');
+    expect(exportBtn.textContent).toBe('Export PDF');
     expect(exportBtn.getAttribute('aria-disabled')).toBeNull();
     expect(exportBtn.classList.contains('disabled')).toBe(false);
 
+    const statusEl = root.querySelector<HTMLElement>('.ws-wm-panel-card .ws-wm-status')!;
+    expect(statusEl.textContent).toBe('');
+
     const errorEl = root.querySelector<HTMLElement>('.ws-wm-panel-card .ws-wm-text-error')!;
-    expect(errorEl.textContent).toBe('Empty text — Export saves the source PDF unchanged.');
-    expect(errorEl.classList.contains('ws-wm-text-info')).toBe(true);
+    expect(errorEl.textContent).toBe('');
 
     const desktopInput = root.querySelector<HTMLInputElement>('.ws-wm-panel-card .ws-wm-text-input')!;
     expect(desktopInput.classList.contains('ws-input-error')).toBe(false);
     expect(desktopInput.getAttribute('aria-invalid')).toBeNull();
   });
 
-  it('non-empty text restores the standard Export PDF label and clears the info message', () => {
+  it('non-empty text keeps the Export PDF label and a clean status', () => {
     const root = __testing.setupForTest('watermark', [sf(1, 2)]);
     const quickInput = document.querySelector<HTMLInputElement>('.ws-toolbar--watermark .ws-prefix-input__field')!;
 
@@ -436,9 +442,10 @@ describe('Watermark DOM interactions', () => {
     quickInput.dispatchEvent(new Event('input', { bubbles: true }));
 
     expect(__testing.wmDownloadLabel()).toBe('Export PDF');
+    const statusEl = root.querySelector<HTMLElement>('.ws-wm-panel-card .ws-wm-status')!;
+    expect(statusEl.textContent).toBe('');
     const errorEl = root.querySelector<HTMLElement>('.ws-wm-panel-card .ws-wm-text-error')!;
     expect(errorEl.textContent).toBe('');
-    expect(errorEl.classList.contains('ws-wm-text-info')).toBe(false);
   });
 
   it('flags the grid with ws-wm-no-overlay when watermark text is empty', () => {
@@ -453,5 +460,97 @@ describe('Watermark DOM interactions', () => {
       expect(grid.classList.contains('ws-wm-no-overlay')).toBe(true);
       r();
     }));
+  });
+});
+
+// Organize selection / pages persist when files mutate from another tab.
+// Pre-pageId, onFilesMutated wiped the entire pages array and selection set.
+describe('Organize state across cross-tab file mutations', () => {
+  beforeEach(() => {
+    __testing.reset();
+    __testing.setActiveTool('organize');
+    __testing.setInitialized(true);
+  });
+
+  it('preserves surviving pages and their selections when a file is removed', () => {
+    __testing.seed(
+      [srcPage(1, 1), srcPage(1, 2), srcPage(2, 1), srcPage(2, 2), srcPage(3, 1)],
+      [sf(1, 2), sf(2, 2), sf(3, 1)],
+      [0, 4], // pick page A1 and page C1
+    );
+    // Cross-tab removal of file 2 (the middle one).
+    __testing.setFiles([sf(1, 2), sf(3, 1)]);
+    __testing.triggerWmFilesMutated();
+
+    const pages = __testing.getPages();
+    expect(pages.length).toBe(3);
+    expect(pages.map(p => `${p.sourceFileId}:${p.sourcePageNum}`))
+      .toEqual(['1:1', '1:2', '3:1']);
+    // The two originally-selected pages survive in the selection set.
+    expect(__testing.getSelected().size).toBe(2);
+  });
+
+  it('appends new files\' pages to the end when a file is added', () => {
+    __testing.seed(
+      [srcPage(1, 1), srcPage(1, 2)],
+      [sf(1, 2)],
+      [0],
+    );
+    __testing.setFiles([sf(1, 2), sf(2, 2)]);
+    __testing.triggerWmFilesMutated();
+
+    const pages = __testing.getPages();
+    expect(pages.map(p => `${p.sourceFileId}:${p.sourcePageNum}`))
+      .toEqual(['1:1', '1:2', '2:1', '2:2']);
+    // Original selection survives; newly-appended pages are not auto-selected.
+    expect(__testing.getSelected().size).toBe(1);
+  });
+});
+
+// Selection-persistence invariants: regressions on these would resurrect the
+// "everything gets selected" / "selection silently shifts" bugs.
+describe('Watermark selection across file mutations', () => {
+  beforeEach(() => { __testing.reset(); });
+
+  it('preserves prior selection on file add and auto-selects the new file', () => {
+    __testing.setupForTest('watermark', [sf(1, 2)]);
+    // Start: every page selected on first entry. Deselect file 1's pages.
+    __testing.setWmSelected([]);
+    expect(__testing.getWmSelected().size).toBe(0);
+
+    // User drops a second file with 3 pages.
+    __testing.setFiles([sf(1, 2), sf(2, 3)]);
+    __testing.triggerWmFilesMutated();
+
+    // File 1's pages stay deselected (size 0 + size 3 = 3); only file 2's
+    // pages are selected, demonstrating Default-selected on add without
+    // reviving the previously deselected set.
+    expect(__testing.getWmSelected().size).toBe(3);
+    const keys = [...__testing.getWmSelectedKeys()].sort();
+    expect(keys).toEqual(['2:1', '2:2', '2:3']);
+  });
+
+  it('preserves selection of surviving files when one is removed', () => {
+    __testing.setupForTest('watermark', [sf(1, 2), sf(2, 2), sf(3, 2)]);
+    // Pick file 1 + file 3 only (deselect file 2's pages 2,3 = flat indices 2,3).
+    __testing.setWmSelected(['1:1', '1:2', '3:1', '3:2']);
+
+    // Remove file 2 from the middle.
+    __testing.setFiles([sf(1, 2), sf(3, 2)]);
+    __testing.triggerWmFilesMutated();
+
+    const keys = [...__testing.getWmSelectedKeys()].sort();
+    expect(keys).toEqual(['1:1', '1:2', '3:1', '3:2']);
+  });
+
+  it('deselect-all then add-file selects only the new file', () => {
+    __testing.setupForTest('watermark', [sf(1, 3)]);
+    __testing.setWmSelected([]);
+
+    __testing.setFiles([sf(1, 3), sf(2, 2)]);
+    __testing.triggerWmFilesMutated();
+
+    const keys = [...__testing.getWmSelectedKeys()].sort();
+    expect(keys).toEqual(['2:1', '2:2']);
   });
 });

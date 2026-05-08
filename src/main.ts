@@ -25,6 +25,7 @@ import {
   initTheme,
   initFormatModal,
   initCategoryTabs,
+  selectCategoryTab,
   initUploadZone,
   showPopup,
   hidePopup,
@@ -67,6 +68,14 @@ import {
   setOnConversionEnd,
 } from "./conversion/actions.ts";
 import { triggerConfetti } from "./effects/Confetti/Confetti.ts";
+import {
+  markConvertDirty,
+  flushConvertOnHide,
+  tryRestoreConvertSession,
+} from "./components/persistence/convertPersist.ts";
+import { showConfirmPopup } from "./components/Popup/Popup.ts";
+import CommonFormats from "./core/CommonFormats/CommonFormats.ts";
+import { EXTERNAL_FILES_EVENT, type ExternalFilesDetail } from "./pwa/shareTargetConstants.ts";
 
 getPdfWorkspace().catch((e) => console.warn("[main] PDF workspace module load failed:", e));
 
@@ -132,6 +141,20 @@ initCategoryTabs((category) => {
   updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
   navigateTo('converter');
 });
+
+const mobileCategoryMq = window.matchMedia("(max-width: 800px)");
+const resetHiddenMobileCategory = () => {
+  if (!mobileCategoryMq.matches || !activeCategory.value) return;
+  selectCategoryTab("", { notify: false });
+  activeCategory.value = "";
+  if (ui.formatModal.classList.contains("open")) {
+    renderFormatOptions(allOptionsRef.value, "");
+    if (ui.formatSearch.value) filterFormats(ui.formatSearch.value);
+  }
+  if (selectedToIndex.value === null) clearFormatSelection("");
+};
+resetHiddenMobileCategory();
+mobileCategoryMq.addEventListener("change", resetHiddenMobileCategory);
 
 // --- App Mode Navigation (Converter ↔ PDF Editor) ---
 
@@ -296,6 +319,7 @@ function selectToFormat(index: number) {
   selectedToIndex.value = index;
   setSelectedFormat(index, allOptionsRef.value);
   updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
+  markConvertDirty('manifest');
   closeFormatModal();
 }
 
@@ -431,6 +455,11 @@ async function refreshUI() {
 
 // --- Init ---
 
+// Hoisted ahead of the init IIFE so the synchronous localStorage-cache path
+// at line ~473 can call attemptConvertRestore() without hitting a TDZ on this
+// `let` (the function declaration itself hoists, but the variable does not).
+let convertRestoreAttempted = false;
+
 (async () => {
   isLoadingHandlers.value = true;
   updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
@@ -464,6 +493,7 @@ async function refreshUI() {
     // Warm load: populate format list from cache instantly, no handler.init() needed
     populateFromCache(handlers);
     refreshUI();
+    attemptConvertRestore();
   }
   if (!hasLocalStorageCache) {
     // Show loading bar whenever localStorage is empty (cold start or cache.json fallback)
@@ -479,6 +509,7 @@ async function refreshUI() {
         refreshUI();
       }
       console.debug(`Phase 1: ${handlers.length} core handlers loaded.`);
+      attemptConvertRestore();
     } catch (e) {
       console.error("Phase 1 init failed:", e);
     }
@@ -502,6 +533,7 @@ async function refreshUI() {
     // immediately after the conversion's finally block runs.
     if (!getIsConverting()) {
       refreshUI();
+      attemptConvertRestore();
     } else {
       setOnConversionEnd(refreshUI);
     }
@@ -525,6 +557,51 @@ async function refreshUI() {
 // --- Conversion logic ---
 
 initConvertButton();
+
+// --- Session persistence: flush on hide, restore on cold start ---
+
+function attemptConvertRestore(): void {
+  // Run once, after handlers + format options are ready so target lookup works.
+  if (convertRestoreAttempted) return;
+  convertRestoreAttempted = true;
+  void tryRestoreConvertSession({
+    applyFiles: (files) => {
+      currentFiles.value = files;
+      // Drive the same downstream UI path as a fresh upload - detect format,
+      // update convert button, paint upload zone - without re-saving.
+      const matchIndex = findMatchingFormat(files, allOptionsRef.value);
+      showFileInUploadZone(files);
+      if (matchIndex >= 0) {
+        selectedFromIndex.value = matchIndex;
+        showDetectedFormat(allOptionsRef.value[matchIndex].format.format, files.length);
+      } else {
+        selectedFromIndex.value = null;
+      }
+      computeReachability();
+      updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
+    },
+    applyTargetFormat: (formatKey) => {
+      const idx = allOptionsRef.value.findIndex(o => o.format.format === formatKey);
+      if (idx < 0) return;
+      selectedToIndex.value = idx;
+      setSelectedFormat(idx, allOptionsRef.value);
+      updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
+    },
+  });
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') void flushConvertOnHide();
+  });
+}
+// pagehide is the canonical signal for "page is being unloaded" on mobile
+// (visibilitychange isn't always raised when the OS kills a backgrounded
+// tab). Fire-and-forget the async flush; browsers honour outstanding work
+// for a brief grace window.
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', () => { void flushConvertOnHide(); });
+}
 
 initFrogsworth(() => {
   const onPdf = document.getElementById("pdf-workspace")?.style.display !== "none";
@@ -556,3 +633,64 @@ if (footerConfettiBtn) {
   updateConfettiPlacement(confettiMq.matches);
   confettiMq.addEventListener("change", (e) => updateConfettiPlacement(e.matches));
 }
+
+import { registerPWA } from "./pwa/registerSW";
+import { initShareTargetAndLaunchQueue } from "./pwa/shareTarget";
+
+registerPWA();
+initShareTargetAndLaunchQueue();
+
+// Web Share Target / launchQueue routing lives here because it needs
+// app-mode state and the lazy PDF Workspace loader, both already in this file.
+function isPdfFile(f: File): boolean {
+  const pdfExt = `.${CommonFormats.PDF.extension}`;
+  return f.type === CommonFormats.PDF.mime || f.name.toLowerCase().endsWith(pdfExt);
+}
+
+function deliverSharedToConverter(files: File[]) {
+  if (currentAppMode !== "converter") {
+    setAppMode("converter");
+    navigateTo("converter");
+  }
+  // Re-fire as a real DragEvent so UploadZone's existing window-level listener
+  // runs the full pipeline (size warnings, MIME filtering, file-type-mismatch
+  // popup, markConvertDirty). Defer to the next microtask so we leave the
+  // current event-handler call stack before the synthetic dispatch.
+  queueMicrotask(() => {
+    try {
+      const dt = new DataTransfer();
+      for (const f of files) dt.items.add(f);
+      window.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
+    } catch (err) {
+      console.warn("[main] could not deliver shared files to Converter:", err);
+    }
+  });
+}
+
+function deliverSharedToPdfEditor(files: File[]) {
+  if (currentAppMode !== "pdf-editor") {
+    setAppMode("pdf-editor");
+    navigateTo("pdf-editor");
+  }
+  void getPdfWorkspace().then(ws => ws.ingestExternalFiles(files))
+    .catch(err => console.warn("[main] could not deliver shared files to PDF Editor:", err));
+}
+
+window.addEventListener(EXTERNAL_FILES_EVENT, (e) => {
+  const files = (e as CustomEvent<ExternalFilesDetail>).detail?.files ?? [];
+  if (files.length === 0) return;
+
+  if (!files.every(isPdfFile)) {
+    deliverSharedToConverter(files);
+    return;
+  }
+
+  // All PDFs: ambiguous between convert and edit.
+  showConfirmPopup(
+    files.length === 1 ? "Open shared PDF" : `Open ${files.length} shared PDFs`,
+    "Convert to another format, or edit (merge, organize, watermark)?",
+    { label: "Edit", onClick: () => deliverSharedToPdfEditor(files) },
+    { label: "Convert", onClick: () => deliverSharedToConverter(files) },
+  );
+});
+

@@ -18,6 +18,8 @@ Specifically:
 - **No telemetry.** No analytics, no crash reporting, no usage beacons.
 - **No server uploads for conversion.** The MCP and REST API, when you run them locally with `bunx frogconvert mcp` or `bunx frogconvert api`, listen only on `127.0.0.1` by default. Files you pass in never leave the machine the server runs on.
 - **Fonts.** Inter is self-hosted with Google Fonts as a fallback. The fallback request transmits referer/IP per normal HTTP behavior; it does not transmit file content.
+- **Service worker / offline cache.** The PWA service worker caches assets (handlers, icons, docs) and any share-target payloads in browser CacheStorage on your device. None of it leaves the machine. You can clear it via your browser's site-data UI, or programmatically via the in-app cache controls (`clearAllCaches()` in `src/pwa/cacheControls.ts`).
+- **Session persistence.** Files dropped into the Converter or PDF Editor are written to IndexedDB on your device so the Resume prompt can offer them back later. Sessions older than 7 days are auto-purged. Clearing site data wipes them immediately.
 
 ## Known limits and caveats
 

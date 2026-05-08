@@ -134,23 +134,22 @@ export function clearThumbnailCache() {
   }
 }
 
+export function mockBlankPageThumb(): string {
+  // Always white, both themes: a "blank page" represents a printed sheet,
+  // which is white regardless of UI theme. Theme-tinting it would lie about
+  // the export.
+  return `data:image/svg+xml,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="212" viewBox="0 0 150 212">' +
+    '<rect width="150" height="212" fill="#ffffff"/>' +
+    '</svg>'
+  )}`;
+}
+
 /**
- * Fallback thumbnail. Without a label, draws a generic page icon (used when
- * pdfjs render fails). With a label, draws a labeled blank-page card.
+ * Generic fallback thumbnail used when pdfjs rendering fails.
  */
-export function mockPageThumb(label?: string): string {
+export function mockPageThumb(): string {
   const dark = document.documentElement.classList.contains('dark');
-  if (label) {
-    const bg = dark ? '#1e1e1e' : '#f8f8f8';
-    const border = dark ? '#444' : '#ddd';
-    const text = dark ? '#666' : '#999';
-    return `data:image/svg+xml,${encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="212" viewBox="0 0 150 212">' +
-      `<rect width="150" height="212" fill="${bg}" stroke="${border}"/>` +
-      `<text x="75" y="106" text-anchor="middle" fill="${text}" font-family="system-ui,sans-serif" font-size="14">${label}</text>` +
-      '</svg>'
-    )}`;
-  }
   const stroke = dark ? '#555' : '#bbb';
   const line = dark ? '#444' : '#ccc';
   return `data:image/svg+xml,${encodeURIComponent(
