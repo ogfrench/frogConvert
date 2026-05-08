@@ -155,7 +155,10 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 }
 .ws-file-card:hover .ws-hover-reveal,
 .ws-sidebar-file:hover .ws-hover-reveal,
-.ws-page-card:hover .ws-hover-reveal {
+.ws-page-card:hover .ws-hover-reveal,
+.ws-file-card:focus-within .ws-hover-reveal,
+.ws-sidebar-file:focus-within .ws-hover-reveal,
+.ws-page-card:focus-within .ws-hover-reveal {
   opacity: 1;
 }
 
@@ -165,6 +168,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   transform: translateY(-50%);
   right: calc(var(--space-1) * -1);
   font-size: var(--text-lg);
+  color: var(--foreground);
 }
 
 .ws-sidebar-filename {
@@ -290,7 +294,8 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 }
 
 .ws-dropzone:hover {
-  border-color: var(--muted-foreground);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .ws-dropzone:focus-visible {
@@ -418,6 +423,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   position: absolute;
   top: var(--space-1-5);
   right: var(--space-1-5);
+  color: var(--foreground);
 }
 
 /* ===================================================================
@@ -440,7 +446,8 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 .ws-file-add:hover {
   transform: none;
   box-shadow: none;
-  border-color: var(--muted-foreground);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .ws-file-add .upload-text {
@@ -507,9 +514,14 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   box-shadow: var(--shadow-md);
 }
 
-.ws-page-card:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--ring);
+/* Page/file card focus ring: layered halo so the ring stays visible
+   on white PDF thumbnails (where var(--primary) collapses against the
+   thumbnail in dark mode). Selected+focused has its own rule below. */
+.ws-page-card:focus-visible,
+.ws-file-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--background);
 }
 
 /* Selection state shared between page cards and file cards: rainbow gradient
@@ -544,6 +556,16 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   box-shadow: var(--shadow-md);
 }
 
+/* Selected + keyboard-focused: the global :focus-visible outline paints
+   behind the rainbow ::before (positioned descendant z-index: 1). Swap to
+   a box-shadow ring on this combined state — shares the positioned-paint
+   pass so it lands above the rainbow band. */
+.ws-page-card.ws-page-selected:focus-visible,
+.ws-file-card.ws-file-selected:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--primary);
+}
+
 .ws-page-check,
 .ws-file-check {
   position: absolute;
@@ -575,7 +597,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   transform: none;
 }
 
-/* Edge [+] insert buttons, visible on endpoints of selection */
+/* Edge [+] insert buttons, visible on endpoints of selection. */
 .ws-page-plus {
   position: absolute;
   top: 50%;
@@ -583,12 +605,9 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   width: 1.25rem;
   height: 2.25rem;
   padding: 0;
-  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--button-surface);
-  color: var(--muted-foreground);
   font-size: var(--text-md);
-  font-weight: var(--font-semibold);
+  font-weight: var(--font-normal);
   line-height: 1;
   cursor: pointer;
   display: none;
@@ -596,12 +615,6 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   justify-content: center;
   box-shadow: var(--shadow-sm);
   z-index: 3;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-.ws-page-plus:hover {
-  background: var(--accent);
-  color: var(--foreground);
-  border-color: var(--ring);
 }
 .ws-page-plus-before { left: calc(var(--space-3) * -1); }
 .ws-page-plus-after  { right: calc(var(--space-3) * -1); }
@@ -632,9 +645,9 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   left: 50%;
   transform: translateX(-50%);
   border-radius: var(--radius-sm);
-  padding: 0 var(--space-2);
+  padding: var(--space-0-5) var(--space-2);
   font-size: var(--text-xs);
-  font-weight: var(--font-normal);
+  font-weight: var(--font-medium);
   color: var(--muted-foreground);
   white-space: nowrap;
   z-index: 1;
@@ -647,12 +660,14 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   position: absolute;
   top: var(--space-1-5);
   right: var(--space-1-5);
+  color: var(--foreground);
 }
 
 .ws-page-rotate {
   position: absolute;
   top: var(--space-1-5);
   left: var(--space-1-5);
+  color: var(--foreground);
 }
 
 /* Blank page insert button, centered in the column gap */
@@ -666,7 +681,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px dashed var(--muted-foreground);
+  border: 1px dashed var(--border);
   border-radius: var(--radius-sm);
   background: none;
   padding: 0;
@@ -709,8 +724,8 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 }
 
 .ws-page-add:hover {
-  border-color: var(--muted-foreground);
-  color: var(--foreground);
+  border-color: var(--primary);
+  color: var(--primary);
   transform: none;
   box-shadow: none;
 }
@@ -952,20 +967,22 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     height: auto;
     flex-shrink: 0;
     font-size: var(--text-lg);
-    box-shadow: var(--shadow-toolbar);
+    color: var(--foreground);
   }
 
-  .ws-toolbar-action {
-    flex: 1;
+  /* Shared visual contract for all primary toolbar action buttons.
+   * Composed in markup (.ws-toolbar-action / .ws-toolbar-extract /
+   * .ws-toolbar-export each add this class). */
+  .toolbar-primary {
     text-align: center;
     padding: var(--space-3) var(--space-4);
     font-size: var(--text-base);
     box-shadow: var(--shadow-toolbar);
+    min-height: var(--touch-target);
   }
 
-  .ws-toolbar-action:hover {
-    opacity: 1;
-  }
+  .ws-toolbar-action { flex: 1; }
+  .ws-toolbar-action:hover { opacity: 1; }
 
   /* Multi-row toolbars (organize, watermark): vertical stack. */
   .ws-toolbar--organize,
@@ -982,20 +999,8 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     gap: var(--space-2);
   }
 
-  .ws-toolbar-extract,
-  .ws-toolbar-export {
-    text-align: center;
-    padding: var(--space-3) var(--space-4);
-    font-size: var(--text-base);
-    box-shadow: var(--shadow-toolbar);
-  }
-
   .ws-toolbar-extract { flex: 1; }
   .ws-toolbar-export  { width: 100%; }
-
-  .ws-toolbar--watermark .ws-toolbar-action {
-    min-height: var(--space-12);
-  }
 
   /* Two-row toolbars are taller: push tray above both rows. */
   body:has(.ws-toolbar--organize) .ws-tray,
@@ -1229,12 +1234,12 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   bottom: var(--space-5);
   left: 50%;
   transform: translateX(-50%);
-  padding: 0 var(--space-2);
+  padding: var(--space-0-5) var(--space-2);
   border-radius: var(--radius-sm);
   display: none;
   font-size: var(--text-xs);
   font-weight: var(--font-normal);
-  color: var(--muted-foreground);
+  color: var(--foreground);
   line-height: 1.5;
   white-space: nowrap;
   z-index: 3;
@@ -1349,11 +1354,13 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   box-shadow: 0 0 0 1px var(--foreground), 0 0 0 4px var(--ring);
 }
 
-/* Reusable prefix-input: [ label | field ] in one bordered pill. */
+/* Reusable prefix-input: [ label | field ] in one bordered pill.
+ * --touch-target matches .toolbar-primary so the watermark prefix row
+ * aligns with the Export PDF button height across tabs. */
 .ws-prefix-input {
   display: flex;
   align-items: center;
-  min-height: var(--space-12);
+  min-height: var(--touch-target);
   background-color: var(--input-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1501,8 +1508,8 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   color: var(--foreground);
 }
 .ws-wm-style-summary:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--ring);
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 .ws-wm-style-summary::-webkit-details-marker { display: none; }
 .ws-wm-style-summary::before {
@@ -1571,7 +1578,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 
 @media (any-pointer: coarse) {
   .ws-wm-style-summary {
-    padding: var(--space-3) var(--space-2);
+    padding: var(--space-3) var(--space-3);
     font-size: var(--text-md);
   }
 
@@ -1587,11 +1594,12 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   .ws-wm-slider::-webkit-slider-thumb {
     width: 24px;
     height: 24px;
-    margin-top: 0;
+    margin-top: -10px;
   }
   .ws-wm-slider::-moz-range-thumb {
     width: 24px;
     height: 24px;
+    margin-top: -10px;
   }
 
   .ws-wm-color-hex,
@@ -1603,10 +1611,18 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     width: var(--space-12);
   }
 
+  .ws-page-plus-before,
+  .ws-page-plus-after {
+    width: var(--space-12);
+    height: var(--space-12);
+  }
+
   .ws-page-card:active,
   .ws-file-card:active,
   .ws-btn:active,
   .ws-wm-style-summary:active { transform: scale(0.98); }
+
+  .floating-card-surface:active { transform: scale(0.96); }
 
   /* Toolbar slides up when the virtual keyboard is open; --kb-offset is
      written by initPdfWorkspace via visualViewport. */

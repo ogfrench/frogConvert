@@ -66,10 +66,3 @@
 @media (any-pointer: coarse) {
   .cat-tab { padding: var(--space-3) var(--space-4); }
 }
-
-/* Mobile: drop the category tabs entirely. Format browsing is a desktop
-   affordance; on narrow viewports users land here with a specific file.
-   Scoped to #category-tabs (not .tab-bar) so PDF editor tabs survive. */
-@media (max-width: 800px) {
-  #category-tabs { display: none; }
-}

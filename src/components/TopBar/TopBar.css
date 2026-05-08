@@ -258,7 +258,7 @@
   font-family: inherit;
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
-  padding: 8px 14px;
+  padding: var(--space-2) var(--space-3-5);
   border: none;
   border-radius: 100px;
   background: none;
@@ -448,4 +448,8 @@
     margin-top: calc(var(--space-16) + 0.5rem);
     margin-bottom: var(--space-4);
   }
+}
+
+@media (any-pointer: coarse) {
+  .pill-option { min-height: var(--space-12); }
 }

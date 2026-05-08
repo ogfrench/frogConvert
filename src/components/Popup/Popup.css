@@ -199,3 +199,7 @@
   color: var(--destructive);
   border-color: var(--destructive);
 }
+
+@media (any-pointer: coarse) {
+  #popup button.type-filter-row { padding: var(--space-3) var(--space-4); }
+}

@@ -32,7 +32,8 @@
 }
 
 #upload-zone:hover {
-  border-color: var(--ring);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 #upload-zone.drag-over {

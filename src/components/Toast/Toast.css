@@ -61,15 +61,11 @@
   line-height: 1;
   cursor: pointer;
   padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
   opacity: 0.6;
   transition: opacity 0.15s ease;
 }
 .toast-dismiss:hover { opacity: 1; }
-.toast-dismiss:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--primary);
-  border-radius: var(--radius-sm);
-}
 
 /* On mobile, default sits at safe-area bottom. When a fixed PDF toolbar is
    mounted, lift the toast above it via :has(). The earlier blanket rule

@@ -407,12 +407,10 @@ const markDirty = (scope: 'manifest' | 'files' = 'manifest') =>
 function showResumePopup(stored: StoredSession<PdfWorkspacePayload>): void {
   const fileCount = stored.payload.files.length;
   const totalPages = stored.payload.files.reduce((s, f) => s + (f.pageCount ?? 0), 0);
-  const wmDefault = JSON.stringify(stored.payload.wmSettings) === JSON.stringify(WM_DEFAULTS);
   const summary = `${fileCount} PDF${fileCount === 1 ? '' : 's'} · ${totalPages} page${totalPages === 1 ? '' : 's'}`;
-  const wmHint = wmDefault ? '' : ' · custom watermark';
   showConfirmPopup(
     'Resume your last session?',
-    `${summary}${wmHint}. Undo history will reset.`,
+    summary,
     { label: 'Resume', onClick: async () => {
       const ok = await persistor.resume(stored);
       if (ok) showToast('Session restored', 'info', 3000);
@@ -931,7 +929,7 @@ function appendMobileToolbar_merge(_gridCard: HTMLElement) {
   const toolbar = el('div', { className: 'ws-toolbar' });
   const iconBtn = el('button', { className: 'icon-btn ws-toolbar-icon', ariaLabel: 'More options' });
   iconBtn.innerHTML = MORE_SVG;
-  const actionBtn = el('button', { className: 'btn-primary ws-toolbar-action', textContent: 'Merge PDF' });
+  const actionBtn = el('button', { className: 'btn-primary toolbar-primary ws-toolbar-action', textContent: 'Merge PDF' });
   if (files.length < 2) { actionBtn.classList.add('disabled'); actionBtn.setAttribute('aria-disabled', 'true'); }
   actionBtn.addEventListener('click', handleMerge);
   toolbar.appendChild(actionBtn);
@@ -1510,7 +1508,7 @@ function appendMobileToolbar_watermark(_gridCard: HTMLElement) {
   const actionRow = el('div', { className: 'ws-toolbar-row' });
   const iconBtn = el('button', { className: 'icon-btn ws-toolbar-icon', ariaLabel: 'More options' });
   iconBtn.innerHTML = MORE_SVG;
-  const actionBtn = el('button', { className: 'btn-primary ws-toolbar-action ws-wm-download-btn', textContent: wmDownloadLabel() });
+  const actionBtn = el('button', { className: 'btn-primary toolbar-primary ws-toolbar-action ws-wm-download-btn', textContent: wmDownloadLabel() });
   actionBtn.addEventListener('click', handleWatermarkExport);
   actionRow.appendChild(actionBtn);
   actionRow.appendChild(iconBtn);
@@ -3166,7 +3164,7 @@ function appendMobileToolbar(_gridCard: HTMLElement) {
   // Top row: Extract n pages + triple-dot
   const topRow = el('div', { className: 'ws-toolbar-row' });
 
-  const mobileExtract = el('button', { className: 'btn-secondary ws-toolbar-extract', textContent: extractBtnText(selected.size) });
+  const mobileExtract = el('button', { className: 'btn-secondary toolbar-primary ws-toolbar-extract', textContent: extractBtnText(selected.size) });
   mobileExtract.addEventListener('click', handleExtractClick);
   mobileExtractBtn = mobileExtract;
 
@@ -3178,7 +3176,7 @@ function appendMobileToolbar(_gridCard: HTMLElement) {
   toolbar.appendChild(topRow);
 
   // Export PDF (full width, primary)
-  const actionBtn = el('button', { className: 'btn-primary ws-toolbar-export', textContent: 'Export PDF' });
+  const actionBtn = el('button', { className: 'btn-primary toolbar-primary ws-toolbar-export', textContent: 'Export PDF' });
   actionBtn.addEventListener('click', handleSave);
   toolbar.appendChild(actionBtn);
   document.body.appendChild(toolbar);
@@ -3348,7 +3346,7 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
   const badge = el('span', { className: 'ws-page-badge floating-card-surface', textContent: page.rotation ? `${badgeText} \u21bb` : badgeText });
   card.appendChild(badge);
 
-  const plusBefore = el('button', { className: 'ws-page-plus ws-page-plus-before', innerHTML: '+', ariaLabel: 'Insert blank page before selection' });
+  const plusBefore = el('button', { className: 'ws-page-plus ws-page-plus-before floating-card-surface', innerHTML: '+', ariaLabel: 'Insert blank page before selection' });
   plusBefore.addEventListener('click', (e) => {
     e.stopPropagation();
     const sorted = [...selected].sort((a, b) => a - b);
@@ -3356,7 +3354,7 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
   });
   card.appendChild(plusBefore);
 
-  const plusAfter = el('button', { className: 'ws-page-plus ws-page-plus-after', innerHTML: '+', ariaLabel: 'Insert blank page after selection' });
+  const plusAfter = el('button', { className: 'ws-page-plus ws-page-plus-after floating-card-surface', innerHTML: '+', ariaLabel: 'Insert blank page after selection' });
   plusAfter.addEventListener('click', (e) => {
     e.stopPropagation();
     const sorted = [...selected].sort((a, b) => a - b);

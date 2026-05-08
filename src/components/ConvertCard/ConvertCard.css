@@ -58,10 +58,7 @@
   position: absolute;
   top: var(--space-2);
   right: var(--space-2);
-}
-.convert-notice-dismiss:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--primary);
+  border-radius: var(--radius-sm);
 }
 
 .convert-notice[hidden] {
@@ -104,11 +101,6 @@
 
 .convert-notice-link:hover {
   opacity: 0.9;
-}
-
-.convert-notice-link:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--primary);
 }
 
 @media only screen and (max-width: 600px) {

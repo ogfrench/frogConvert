@@ -41,6 +41,7 @@
 
   /* Sizing */
   --control-size: 2.25rem;
+  --touch-target: 2.75rem;
   --card-max-width: 34rem;
   --tabs-max-width: 50rem;
   --modal-width: 28rem;
@@ -992,7 +993,7 @@ summary {
 
   /* Shared sub-44 controls -> 44x44 */
   .icon-btn { width: 2.75rem; height: 2.75rem; font-size: var(--text-md); }
-  .close-btn-md { width: 2.5rem; height: 2.5rem; }
+  .close-btn-md { width: 2.75rem; height: 2.75rem; }
   .close-btn-lg { width: 2.75rem; height: 2.75rem; }
 
   /* Active feedback on affordances that lacked it; pairs with global
@@ -1037,31 +1038,38 @@ summary {
   left: var(--space-4);
 }
 
-/* --- :focus-visible rings for affordances that strip native outline ---
-   Multiple components set outline:none and rely on color shifts that don't
-   show up on keyboard focus. Restore a visible ring on every interactive. */
+/* --- :focus-visible: one contract for every interactive surface ---
+   outline: 2px solid var(--primary); outline-offset: 2px.
+   Components that previously stripped the native outline still need their
+   own selector here so the outline is restored on keyboard focus. */
 .icon-btn:focus-visible,
 .cat-tab:focus-visible,
 .format-option:focus-visible,
 .pill-option:focus-visible,
 .btn-primary:focus-visible,
 .btn-secondary:focus-visible,
+.btn-tertiary:focus-visible,
 .ws-btn:focus-visible,
 .close-btn:focus-visible,
 .close-btn-md:focus-visible,
 .close-btn-lg:focus-visible,
-.pagination-btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--primary);
-}
-.ws-page-card:focus-visible,
-.ws-file-card:focus-visible {
+.pagination-btn:focus-visible,
+.floating-card-surface:focus-visible,
+.toolbar-primary:focus-visible,
+.convert-notice-dismiss:focus-visible,
+.convert-notice-link:focus-visible,
+.toast-dismiss:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+  box-shadow: none;
 }
+
+/* Slider thumb extends past the track; the standard 2px offset would
+   clip against the thumb, so push the ring out by 4px. */
 .ws-wm-slider:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 4px;
+  box-shadow: none;
 }
 
 /* --- Restore native I-beam on text inputs while custom cursor is active ---

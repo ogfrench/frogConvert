@@ -156,9 +156,13 @@
   transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
-#files-drop-more:hover,
+#files-drop-more:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
 #files-drop-more.drag-over {
-  border-color: var(--ring);
+  border-color: var(--primary);
   background-color: var(--accent);
 }
 
