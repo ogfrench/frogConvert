@@ -1,5 +1,3 @@
-import { showToast } from "../components/Toast/Toast";
-
 export interface PwaEnv {
   isDesktop: boolean;
   hasWindow: boolean;
@@ -45,9 +43,6 @@ export function registerPWA(env: PwaEnv = defaultEnv()): void {
               console.warn("[pwa] updateSW(true) failed:", e);
             });
           });
-        },
-        onOfflineReady() {
-          showToast("Offline-ready: WASMs will cache as you use them");
         },
         onRegisterError(error) {
           console.warn("[pwa] SW registration failed:", error);

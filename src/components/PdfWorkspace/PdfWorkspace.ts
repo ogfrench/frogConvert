@@ -2449,7 +2449,7 @@ function createDropzone(text: string, multi: boolean): HTMLElement {
     const dropped = Array.from(e.dataTransfer?.files ?? []).filter(
       f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
     );
-    if (!dropped.length) { showToast('Only PDF files are supported', 'warn', 8000); return; }
+    if (!dropped.length) { showToast("That's not a PDF. Drop a .pdf to edit it here.", 'warn', 8000); return; }
     handleFiles(multi ? dropped : [dropped[0]]);
   });
 
