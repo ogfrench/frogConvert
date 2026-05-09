@@ -7,3 +7,15 @@ release
 .bridge-cache
 CLAUDE.md
 linkedin
+
+# Secrets / local-only
+.env
+.env.*
+*.pem
+*.key
+
+# Editor / OS noise
+.DS_Store
+.idea/
+*.log
+coverage/
