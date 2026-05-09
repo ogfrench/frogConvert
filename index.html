@@ -39,14 +39,8 @@
     // Safety-net: reveal after 3s regardless (DOMContentLoaded fires before async CSS in production)
     setTimeout(_reveal, 3000);
   </script>
-  <!-- Inter self-hosted (primary); Google Fonts loads async as fallback -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"
-    media="print" onload="this.media='all'">
-  <noscript>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
-  </noscript>
+  <!-- Inter is self-hosted via @fontsource-variable/inter (src/styles/global.css).
+       System-font fallback chain covers any load failure. No font CDN. -->
 
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
   <link rel="apple-touch-icon" href="/apple-touch-icon-180.png">

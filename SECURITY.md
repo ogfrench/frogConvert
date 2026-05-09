@@ -1,52 +1,37 @@
 <!-- docs-frontmatter
 icon: 🔒
 label: Security
-desc: Privacy posture, limits, responsible disclosure
+desc: What this thing does and doesn't do
 -->
 
-# Security and Privacy
+# Security and privacy
 
-frogConvert's central promise is **client-side processing**. This document states the guarantee precisely, lists what that guarantee does not cover, and explains how to report security issues.
+## What happens to your files
 
-## Privacy guarantee
+All conversion runs on your device, in the browser tab, in a Web Worker, with WebAssembly. The site at frogconvert.xyz serves static files plus WASM; once that lands, your files don't go anywhere else.
 
-**All file conversion and PDF editing runs locally on your device.** Files are never uploaded to a server operated by this project. The web app at [frogconvert.xyz](https://frogconvert.xyz) is served as static assets plus WebAssembly; after it loads, no outbound requests for your files are made.
+A few specifics:
 
-Specifically:
+- Every handler is a WASM module or a browser API. There's no server-side conversion path at all.
+- No analytics, telemetry, crash reporters, or usage beacons. None of it.
+- `bunx frogconvert mcp` talks over stdio (no network port). `bunx frogconvert api` binds to `127.0.0.1:3000` only and rejects cross-origin requests via Origin/Host header validation. Files passed in stay on the machine running the server.
+- Inter is bundled via `@fontsource-variable/inter`. If it doesn't load for some reason, the browser falls back to system fonts. No requests go to Google Fonts or any other font CDN.
+- The PWA service worker caches files in your browser. You can clear it from the browser's site-data UI or via the in-app cache controls.
+- Files dropped into the Converter or PDF Editor get saved to IndexedDB so the Resume prompt can offer them back. They auto-purge after 7 days; clearing site data wipes them right away.
 
-- **No cloud conversion.** Every handler is a WASM module or browser API running in your browser tab or in a Web Worker.
-- **No telemetry.** No analytics, no crash reporting, no usage beacons.
-- **No server uploads for conversion.** The MCP and REST API, when you run them locally with `bunx frogconvert mcp` or `bunx frogconvert api`, listen only on `127.0.0.1` by default. Files you pass in never leave the machine the server runs on.
-- **Fonts.** Inter is self-hosted with Google Fonts as a fallback. The fallback request transmits referer/IP per normal HTTP behavior; it does not transmit file content.
-- **Service worker / offline cache.** The PWA service worker caches assets (handlers, icons, docs) and any share-target payloads in browser CacheStorage on your device. None of it leaves the machine. You can clear it via your browser's site-data UI, or programmatically via the in-app cache controls (`clearAllCaches()` in `src/pwa/cacheControls.ts`).
-- **Session persistence.** Files dropped into the Converter or PDF Editor are written to IndexedDB on your device so the Resume prompt can offer them back later. Sessions older than 7 days are auto-purged. Clearing site data wipes them immediately.
+## Limits worth knowing
 
-## Known limits and caveats
+- Safari struggles with some PDFs. See [docs/CONVERTER.md § Known limitations](docs/CONVERTER.md#known-limitations).
+- Password-protected PDFs aren't supported. Strip the password first with another tool.
+- When the REST API or MCP runs next to a production build, some conversions fall back to a Puppeteer-launched headless Chromium locally. Still your machine, but a real browser process spawns. See [INTEGRATIONS.md § Browser-Assisted Conversions](docs/INTEGRATIONS.md#browser-assisted-conversions-automatic-fallback).
+- The notes above describe this repo and frogconvert.xyz. A fork, mirror, or self-hosted copy is its own thing and could have been modified.
+- The REST API and MCP will write to the local disk if given paths. There's no automatic permission check or cleanup. Setting `FROGCONVERT_SANDBOX_ROOT=/some/dir` pins those paths to one root (`src/mcp/core/fileInput.ts`).
+- Dependencies are pinned in `package.json`; upstream advisories aren't actively monitored.
 
-- **Safari PDF input** is limited. See [docs/CONVERTER.md § Known limitations](docs/CONVERTER.md#known-limitations).
-- **Encrypted PDFs.** Password-protected PDFs are not supported by the editor. Remove the password with another tool first.
-- **Browser bridge (server mode).** If you run the REST API or MCP with a production build present, some conversions fall back to a Puppeteer-launched headless Chromium running locally. That is still on your machine, but it does spawn a real browser process. See [INTEGRATIONS.md § Browser-Assisted Conversions](docs/INTEGRATIONS.md#browser-assisted-conversions-automatic-fallback).
-- **Third-party mirrors and forks.** The privacy guarantee applies to the official hosted site and the source in this repository. If you use a fork, a mirror, or a self-hosted copy, verify the deployment has not been modified to add uploads or telemetry.
-- **Local disk.** When using the REST API with `filePath` or `outputFilePath`, the server reads and writes files on your local disk. It is your responsibility to handle those paths (permissions, deletion) appropriately. Set `FROGCONVERT_SANDBOX_ROOT` to an absolute directory to constrain those arguments to that root as defense-in-depth. The API also rejects cross-origin requests via `Origin` / `Host` header validation, so a browser page you visit cannot POST to your locally-running server.
-
-## Scope of this document
-
-Out of scope: security of dependencies shipped inside the browser (pdf-lib, pdfjs-dist, FFmpeg.wasm, ImageMagick.wasm, etc.). Those are upstream projects with their own security practices; we pin versions in `package.json` and upgrade as advisories arrive.
-
-## Reporting a vulnerability
-
-Please report suspected vulnerabilities privately before opening a public issue. Open a GitHub Security Advisory against [ogfrench/frogConvert](https://github.com/ogfrench/frogConvert), or email the maintainer listed in [package.json](package.json) `author`.
-
-Please include:
-
-- A description of the issue and its impact.
-- Steps to reproduce (URL or commit SHA, browser, OS).
-- Whether the issue affects the hosted site, the self-hosted build, the MCP server, the REST API, or the desktop build.
-
-You will receive an acknowledgement within a week. Fixes ship in a follow-up release noted in [CHANGELOG.md](CHANGELOG.md).
+Issues and PRs welcome on [GitHub](https://github.com/ogfrench/frogConvert).
 
 ## See also
 
-- [docs/CONVERTER.md](docs/CONVERTER.md) and [docs/PDF_EDITOR.md](docs/PDF_EDITOR.md) - end-user feature docs.
-- [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) - programmatic access surfaces.
-- [CHANGELOG.md](CHANGELOG.md) - security-relevant release notes.
+- [docs/CONVERTER.md](docs/CONVERTER.md) and [docs/PDF_EDITOR.md](docs/PDF_EDITOR.md): the user-facing flows.
+- [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md): MCP and REST.
+- [CHANGELOG.md](CHANGELOG.md): release history.

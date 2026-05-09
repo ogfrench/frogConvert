@@ -24,7 +24,7 @@ frogConvert runs entirely in your browser. Convert between 70+ file formats or e
 
 ## Recent changes
 
-Headline of **2.3.0**: **frogConvert is now an installable PWA with resumable sessions.** Install it as an app on Windows, macOS, iOS, Android, or any Chromium browser. Share files into it from the OS share sheet or use it as the "Open with…" target. Close a tab mid-conversion and come back to a Resume prompt — files, target format, watermark settings, undo / redo all survive. Full history in [CHANGELOG.md](CHANGELOG.md).
+See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 ## Docs
 
@@ -38,7 +38,7 @@ Headline of **2.3.0**: **frogConvert is now an installable PWA with resumable se
 | [docs/HANDLERS.md](docs/HANDLERS.md) | Authoring a new format handler |
 | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | PR workflow, testing, style |
 | [AGENTS.md](AGENTS.md) | Rules for AI pair-programming agents |
-| [SECURITY.md](SECURITY.md) | Privacy posture and responsible disclosure |
+| [SECURITY.md](SECURITY.md) | Privacy posture and limits |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
 
 ## Credits

@@ -120,5 +120,5 @@ These are not suggestions. PRs that violate them will be rejected.
 - [docs/HANDLERS.md](docs/HANDLERS.md) - authoring a new format handler.
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) - PR workflow, testing, style.
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - self-host, Docker, desktop, CLI.
-- [SECURITY.md](SECURITY.md) - privacy posture and responsible disclosure.
+- [SECURITY.md](SECURITY.md) - privacy posture and limits.
 - [CHANGELOG.md](CHANGELOG.md) - release history.

@@ -91,7 +91,7 @@ The tab bar (`Merge` / `Organize` / `Watermark`) supports `Arrow Left` / `Arrow 
 
 ## Privacy
 
-Same guarantee as the converter: nothing leaves your device. The PDF editor uses [pdf-lib](https://pdf-lib.js.org/) for writes and [pdfjs-dist](https://mozilla.github.io/pdf.js/) for rendering, both running entirely in-browser. No server round-trips. See [../SECURITY.md](../SECURITY.md) for the full privacy statement.
+Same as the converter: nothing leaves your device. The PDF editor uses [pdf-lib](https://pdf-lib.js.org/) for writes and [pdfjs-dist](https://mozilla.github.io/pdf.js/) for rendering, both running entirely in-browser. No server round-trips. See [../SECURITY.md](../SECURITY.md).
 
 ## Programmatic access
 

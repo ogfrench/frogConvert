@@ -287,7 +287,7 @@ frogConvert/
 │   ├── setup.ts            ← Vitest preload + MockWorker
 │   └── MockedHandler.ts    ← Stub FormatHandler for graph tests
 ├── AGENTS.md               ← Rules for AI pair-programming agents
-├── SECURITY.md             ← Privacy posture and disclosure
+├── SECURITY.md             ← Privacy posture and limits
 ├── CHANGELOG.md            ← Release history
 └── README.md               ← Landing page
 ```
