@@ -283,15 +283,28 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
    the host (.ws-page-card / .ws-file-card) plus compound-class
    layout rules where needed.
 
-   `+ zones` — click-to-insert. Transparent dashed.
-     .ws-page-plus      selection-edge `+` (touch / narrow)
-     .ws-page-insert    between-cards `+` (desktop hover)
+   `+ zones` — click-to-insert.
+     .ws-page-plus      selection-edge `+` (touch / narrow) — solid filled button
+     .ws-page-insert    between-cards `+` (desktop hover) — transparent dashed
 
    Drop zones — drag-and-drop targets. Filled dashed.
      .ws-dropzone       empty-state hero, all `Drop more PDFs` cards
    ────────────────────────────────────────────────────────────────── */
 
-.ws-page-plus,
+.ws-page-plus {
+  border: 1px solid var(--border);
+  background-color: var(--button-surface);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+.ws-page-plus:hover {
+  background-color: var(--accent);
+  color: var(--foreground);
+  border-color: var(--ring);
+}
+
 .ws-page-insert {
   border: 1px dashed var(--muted-foreground);
   background: none;
@@ -300,7 +313,6 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   opacity: 0.4;
   transition: border-color var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
 }
-.ws-page-plus:hover,
 .ws-page-insert:hover {
   border-color: var(--foreground);
   color: var(--foreground);
@@ -579,6 +591,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   font-weight: var(--font-bold);
   z-index: var(--z-elevated);
   pointer-events: none;
+  color: var(--muted-foreground);
 }
 .ws-page-card.ws-page-selected .ws-page-check,
 .ws-file-card.ws-file-selected .ws-file-check {
@@ -655,14 +668,20 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   position: absolute;
   top: var(--space-1-5);
   right: var(--space-1-5);
-  color: var(--foreground);
+  color: var(--muted-foreground);
 }
 
 .ws-page-rotate {
   position: absolute;
   top: var(--space-1-5);
   left: var(--space-1-5);
+  color: var(--muted-foreground);
+}
+
+.ws-page-delete:hover,
+.ws-page-rotate:hover {
   color: var(--foreground);
+  border-color: var(--border);
 }
 
 /* Between-cards `+` insert button. Adds opacity choreography on top of
@@ -1226,7 +1245,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   display: none;
   font-size: var(--text-xs);
   font-weight: var(--font-normal);
-  color: var(--foreground);
+  color: var(--muted-foreground);
   line-height: 1.5;
   white-space: nowrap;
   z-index: var(--z-elevated);
@@ -1593,11 +1612,12 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     width: var(--space-12);
   }
 
-  /* Touch: keep dashed vocabulary (matches .ws-page-insert),
-   * just enlarge the hit target. Tokens cover both themes. */
+  /* Touch: solid filled-button vocabulary (vs .ws-page-insert's desktop dashed
+   * hover hint, which is hidden by the @media block above). Vertical pill
+   * sized for thumb tap: 48px tall (touch-target minimum) × 30px wide. */
   .ws-page-plus-before,
   .ws-page-plus-after {
-    width: var(--space-12);
+    width: 1.875rem;
     height: var(--space-12);
   }
 
