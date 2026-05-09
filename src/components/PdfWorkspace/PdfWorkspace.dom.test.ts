@@ -401,7 +401,7 @@ describe('Watermark DOM interactions', () => {
     iconBtn.click();
 
     expect(iconBtn.getAttribute('aria-label')).toBe('Hide options');
-    expect(iconBtn.innerHTML).toContain('M6 9l6 6 6-6');
+    expect(iconBtn.innerHTML).toContain('m6 9 6 6 6-6');
     expect(iconBtn.innerHTML).not.toContain('M6 6l12 12');
   });
 
