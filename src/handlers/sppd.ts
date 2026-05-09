@@ -4,6 +4,7 @@ import type * as THREE_NS from "three";
 import { Demo } from "./sppd/sppd/Demo.ts";
 import { Vector } from "./sppd/sppd/Vector.ts";
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
+import { createWebGLRenderer } from "./_webgl.ts";
 
 function getJsonReplacer() {
   const ancestors: object[] = [];
@@ -523,7 +524,7 @@ class sppdHandler implements FormatHandler {
 
     this.scene = new this.THREE.Scene();
     this.camera = new this.THREE.PerspectiveCamera(60, this.renderBounds.width / this.renderBounds.height, 1, 100000);
-    this.renderer = new this.THREE.WebGLRenderer({ antialias: false });
+    this.renderer = createWebGLRenderer(this.THREE, { antialias: false });
     this.ambientLight = new this.THREE.AmbientLight(0x404040);
     this.pointLight = new this.THREE.PointLight(0xffffff, 1);
 

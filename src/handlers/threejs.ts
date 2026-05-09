@@ -1,5 +1,6 @@
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import { createWebGLRenderer } from "./_webgl.ts";
 
 // Removed static static imports of three, GLTFLoader, OBJLoader
 
@@ -68,7 +69,7 @@ class threejsHandler implements FormatHandler {
       this.THREE = await import('three');
       this.scene = new this.THREE.Scene();
       this.camera = new this.THREE.PerspectiveCamera(90, 16 / 9, 0.1, 4096);
-      this.renderer = new this.THREE.WebGLRenderer({ preserveDrawingBuffer: true });
+      this.renderer = createWebGLRenderer(this.THREE, { preserveDrawingBuffer: true });
       this.renderer.setSize(960, 540);
     }
 

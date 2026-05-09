@@ -8,6 +8,20 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.3.2] - 2026-05-09
+
+Three quiet defects fixed: a missing icon on the Electron build, a `manifest.webmanifest` 404 firing on every dev / E2E / desktop session, and uncaught `THREE.WebGLRenderer` failures on hardware-acceleration-disabled environments.
+
+### Fixed
+- **Electron app icon.** `electron-builder` was building NSIS / DMG / AppImage artifacts with the default Electron icon — `package.json` `build` block had no `icon` field. Added `"icon": "public/icon-512.png"` (cross-platform; electron-builder generates per-target sizes from the 512 PNG). `BrowserWindow` in [src/electron.cjs](src/electron.cjs) also now passes `icon:` so the running window — taskbar on Linux, window-frame on Windows — shows the frog instead of the default Electron logo.
+- **`Manifest fetch from .../manifest.webmanifest failed, code 404`.** [index.html](index.html) hardcoded `<link rel="manifest" href="/manifest.webmanifest">`, but `vite-plugin-pwa` is only active for the production-web build (gated off for desktop via `!isDesktopBuild`, off for dev via `devOptions.enabled: false`). So dev, Puppeteer E2E (`vite createServer` random port) and the Electron desktop build all hit a 404 on every page load. The static link is now removed; `vite-plugin-pwa` already injects a `<link rel="manifest">` automatically during the production-web build, and emits nothing in the gated-off paths — so the link only ships when the file actually does.
+- **`THREE.WebGLRenderer: A WebGL context could not be created`** on systems where ANGLE falls back to the Microsoft Basic Render Driver (CI runners, VMs, RDP, `--disable-gpu` Chromium). Three handlers (`threejs.ts`, `sppd.ts`, `bsor/renderer.ts`) instantiated `WebGLRenderer` with no probe and no try/catch; three.js then logged its three internal errors and threw uncaught. New shared bootstrap [src/handlers/_webgl.ts](src/handlers/_webgl.ts) pre-flights with a cheap `canvas.getContext('webgl2'||'webgl')` probe and wraps the constructor — failures surface as a single, actionable error ("WebGL is not available… enable hardware acceleration") through the normal conversion-error channel.
+
+### Internal
+- Unit test [src/handlers/_webgl.test.ts](src/handlers/_webgl.test.ts) covers the probe-fail, constructor-throw, and happy paths so the WebGL fallback can't silently regress.
+
+---
+
 ## [2.3.1] - 2026-05-09
 
 Internal polish on top of v2.3.0: design tokens consolidated at `:root`, unified `:focus-visible` contract across every interactive surface, and a small Organize-view trim.

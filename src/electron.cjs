@@ -3,6 +3,7 @@ const { URL, pathToFileURL } = require('node:url');
 const path = require('path');
 
 const DIST_PATH = path.join(__dirname, '..', 'dist');
+const ICON_PATH = path.join(DIST_PATH, 'icon-512.png');
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -22,6 +23,7 @@ function createWindow () {
     width: 1280,
     height: 800,
     autoHideMenuBar: true,
+    icon: ICON_PATH,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

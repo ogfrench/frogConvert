@@ -50,7 +50,9 @@
 
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
   <link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
-  <link rel="manifest" href="/manifest.webmanifest">
+  <!-- <link rel="manifest"> is injected at build time by vite-plugin-pwa.
+       A static tag here would 404 in dev / desktop / E2E where the plugin
+       is gated off. -->
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">

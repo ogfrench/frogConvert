@@ -2,12 +2,13 @@ import * as THREE from "three";
 import { Vector3, Quaternion, Mesh } from "three";
 
 import * as BSOR from "./replay.ts";
+import { createWebGLRenderer } from "../_webgl.ts";
 
 export async function render(replay: BSOR.Replay, width: number, height: number, onFrame: (renderer: THREE.WebGLRenderer) => Promise<void>, onDone: () => Promise<void>) {
 	const scene = new THREE.Scene();
 	const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
 
-	const renderer = new THREE.WebGLRenderer();
+	const renderer: THREE.WebGLRenderer = createWebGLRenderer(THREE);
 	renderer.setSize(width, height);
 
 	const frames = [...replay.frames].sort((a, b) => a.time - b.time);
