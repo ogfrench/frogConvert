@@ -22,6 +22,7 @@ import { renderPageThumbnail, renderPageBitmap, clearThumbnailCache, mockBlankPa
 import { downloadFile, downloadAsZip } from '../../conversion/download.ts';
 import { isTouchUi } from '../../core/utils/touchUi.ts';
 import { showToast } from '../Toast/Toast.ts';
+import { Icons } from '../icons.ts';
 import { showPopup, hidePopup, replacePopup, createPopupButton, showConfirmPopup, showUploadSummaryPopup, type UploadResult } from '../Popup/Popup.ts';
 import { formatBytes, escapeHTML, shortenFileName, ensureMinDuration, toUserErrorInfo, appendSupportContact, FEEDBACK_CONTACT_TEXT } from '../utils/index.ts';
 import { createDancingFrog } from '../Frogsworth/DancingFrog.ts';
@@ -647,7 +648,7 @@ function makeSidebarFileRow(sf: SourceFile, opts: SidebarFileRowOpts = {}): HTML
     row.appendChild(el('span', { className: 'ws-sidebar-meta', textContent: opts.meta }));
   }
   if (opts.onRemove) {
-    const delBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-list-remove', innerHTML: '&times;', ariaLabel: `Remove ${sf.name}` });
+    const delBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-list-remove', innerHTML: Icons.x(), ariaLabel: `Remove ${sf.name}` });
     delBtn.addEventListener('click', (e) => { e.stopPropagation(); opts.onRemove!(); });
     row.appendChild(delBtn);
   }
@@ -870,7 +871,7 @@ function createFileCard(sf: SourceFile): HTMLElement {
     markDirty('manifest');
   });
 
-  const checkBadge = el('span', { className: 'ws-file-check floating-card-surface', innerHTML: '&#x2713;', ariaHidden: 'true' });
+  const checkBadge = el('span', { className: 'ws-file-check floating-card-surface', innerHTML: Icons.check('0.75rem'), ariaHidden: 'true' });
   card.appendChild(checkBadge);
 
   const thumbWrap = el('div', { className: 'ws-file-thumb-wrap' });
@@ -891,7 +892,7 @@ function createFileCard(sf: SourceFile): HTMLElement {
   info.appendChild(el('span', { className: 'ws-file-meta', textContent: `${sf.pageCount} pages · ${formatBytes(sf.size)}` }));
   card.appendChild(info);
 
-  const removeBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-remove floating-card-surface', innerHTML: '&times;', ariaLabel: 'Remove' });
+  const removeBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-remove floating-card-surface', innerHTML: Icons.x(), ariaLabel: 'Remove' });
   removeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     files = files.filter(f => f.id !== sf.id);
@@ -2179,7 +2180,7 @@ function renderOrganizeView() {
   updateSelectionVisuals();
 
   // Trailing insert button
-  const trailing = el('button', { className: 'ws-page-insert-trailing', innerHTML: '+', ariaLabel: 'Insert blank page at end' });
+  const trailing = el('button', { className: 'ws-page-insert-trailing', innerHTML: Icons.plus(), ariaLabel: 'Insert blank page at end' });
   trailing.dataset.insertAt = 'end';
   grid.appendChild(trailing);
 
@@ -2670,7 +2671,7 @@ function updateSidebarContent(sidebar: HTMLElement) {
     const sorted = [...selected].sort((a, b) => a - b);
     const atTop = sorted[0] === 0;
     const atBottom = sorted[sorted.length - 1] === pages.length - 1;
-    const upBtn = el('button', { className: 'ws-btn ws-btn-small ws-move-btn', innerHTML: '&uarr; Move up' });
+    const upBtn = el('button', { className: 'ws-btn ws-btn-small ws-move-btn', innerHTML: `${Icons.arrowUp()} Move up` });
     upBtn.dataset.dir = 'up';
     if (atTop) { upBtn.classList.add('disabled'); upBtn.setAttribute('aria-disabled', 'true'); }
     upBtn.addEventListener('click', () => {
@@ -2678,7 +2679,7 @@ function updateSidebarContent(sidebar: HTMLElement) {
       renderOrganizeView();
       document.querySelector<HTMLElement>('#pdf-sidebar .ws-move-btn[data-dir="up"]')?.focus();
     });
-    const downBtn = el('button', { className: 'ws-btn ws-btn-small ws-move-btn', innerHTML: 'Move down &darr;' });
+    const downBtn = el('button', { className: 'ws-btn ws-btn-small ws-move-btn', innerHTML: `Move down ${Icons.arrowDown()}` });
     downBtn.dataset.dir = 'down';
     if (atBottom) { downBtn.classList.add('disabled'); downBtn.setAttribute('aria-disabled', 'true'); }
     downBtn.addEventListener('click', () => {
@@ -2891,7 +2892,7 @@ interface ExportSplitOpts {
 function showExportSplitModal(opts: ExportSplitOpts): void {
   const wrap = el('div', { className: 'popup-choices' });
 
-  const closeBtn = el('button', { className: 'close-btn close-btn-lg modal-close-btn', innerHTML: '&times;', ariaLabel: 'Close' });
+  const closeBtn = el('button', { className: 'close-btn close-btn-lg modal-close-btn', innerHTML: Icons.x(), ariaLabel: 'Close' });
   closeBtn.addEventListener('click', () => hidePopup());
   wrap.appendChild(closeBtn);
 
@@ -2931,7 +2932,7 @@ function showExtractModal(indices: number[]) {
   const count = indices.length;
   const wrap = el('div', { className: 'popup-choices' });
 
-  const closeBtn = el('button', { className: 'close-btn close-btn-lg modal-close-btn', innerHTML: '&times;', ariaLabel: 'Close' });
+  const closeBtn = el('button', { className: 'close-btn close-btn-lg modal-close-btn', innerHTML: Icons.x(), ariaLabel: 'Close' });
   closeBtn.addEventListener('click', () => hidePopup());
   wrap.appendChild(closeBtn);
 
@@ -3100,7 +3101,7 @@ function insertBlankPage(atIdx: number) {
 }
 
 function createInsertBtn(atIdx: number): HTMLElement {
-  const btn = el('button', { className: 'ws-page-insert', innerHTML: '+', ariaLabel: 'Insert blank page' });
+  const btn = el('button', { className: 'ws-page-insert', innerHTML: Icons.plus(), ariaLabel: 'Insert blank page' });
   btn.dataset.insertAt = String(atIdx);
   return btn;
 }
@@ -3109,8 +3110,8 @@ function createInsertBtn(atIdx: number): HTMLElement {
 // Mobile toolbar + tray
 // ---------------------------------------------------------------------------
 
-const MORE_SVG  = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>';
-const COLLAPSE_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+const MORE_SVG  = Icons.moreVertical(18);
+const COLLAPSE_SVG = Icons.chevronDown(18);
 
 function wireTrayToggle(tray: HTMLElement, overlay: HTMLElement, iconBtn: HTMLElement) {
   // Tray is a non-modal dialog: gives it semantics + ESC + focus return.
@@ -3277,7 +3278,7 @@ function buildMobileTrayContent(tray: HTMLElement) {
     const atBottom = sorted[sorted.length - 1] === pages.length - 1;
     const upBtn = el('button', {
       className: 'ws-btn ws-move-btn',
-      innerHTML: '&uarr; Move up',
+      innerHTML: `${Icons.arrowUp()} Move up`,
       ariaLabel: 'Move selected pages up',
     });
     if (atTop) { upBtn.classList.add('disabled'); upBtn.setAttribute('aria-disabled', 'true'); }
@@ -3287,7 +3288,7 @@ function buildMobileTrayContent(tray: HTMLElement) {
     });
     const downBtn = el('button', {
       className: 'ws-btn ws-move-btn',
-      innerHTML: 'Move down &darr;',
+      innerHTML: `Move down ${Icons.arrowDown()}`,
       ariaLabel: 'Move selected pages down',
     });
     if (atBottom) { downBtn.classList.add('disabled'); downBtn.setAttribute('aria-disabled', 'true'); }
@@ -3335,14 +3336,14 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
   }
   card.appendChild(thumb);
 
-  const checkBadge = el('span', { className: 'ws-page-check floating-card-surface', innerHTML: '&#x2713;', ariaHidden: 'true' });
+  const checkBadge = el('span', { className: 'ws-page-check floating-card-surface', innerHTML: Icons.check('0.75rem'), ariaHidden: 'true' });
   card.appendChild(checkBadge);
 
   const badgeText = getPageBadgeText(page);
-  const badge = el('span', { className: 'ws-page-badge floating-card-surface', textContent: page.rotation ? `${badgeText} \u21bb` : badgeText });
+  const badge = el('span', { className: 'ws-page-badge floating-card-surface', innerHTML: page.rotation ? `${badgeText} ${Icons.rotateCw()}` : badgeText });
   card.appendChild(badge);
 
-  const plusBefore = el('button', { className: 'ws-page-plus ws-page-plus-before', innerHTML: '+', ariaLabel: 'Insert blank page before selection' });
+  const plusBefore = el('button', { className: 'ws-page-plus ws-page-plus-before', innerHTML: Icons.plus(), ariaLabel: 'Insert blank page before selection' });
   plusBefore.addEventListener('click', (e) => {
     e.stopPropagation();
     const sorted = [...selected].sort((a, b) => a - b);
@@ -3350,7 +3351,7 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
   });
   card.appendChild(plusBefore);
 
-  const plusAfter = el('button', { className: 'ws-page-plus ws-page-plus-after', innerHTML: '+', ariaLabel: 'Insert blank page after selection' });
+  const plusAfter = el('button', { className: 'ws-page-plus ws-page-plus-after', innerHTML: Icons.plus(), ariaLabel: 'Insert blank page after selection' });
   plusAfter.addEventListener('click', (e) => {
     e.stopPropagation();
     const sorted = [...selected].sort((a, b) => a - b);
@@ -3358,12 +3359,12 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
   });
   card.appendChild(plusAfter);
 
-  const delBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-page-delete floating-card-surface', innerHTML: '&times;', ariaLabel: 'Delete' });
+  const delBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-page-delete floating-card-surface', innerHTML: Icons.x(), ariaLabel: 'Delete' });
   delBtn.addEventListener('click', (e) => { e.stopPropagation(); deletePage(idx); });
   card.appendChild(delBtn);
 
   let visualAngle = page.rotation || 0;
-  const rotBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-page-rotate floating-card-surface', innerHTML: '&#x21bb;', ariaLabel: 'Rotate' });
+  const rotBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-page-rotate floating-card-surface', innerHTML: Icons.rotateCw(), ariaLabel: 'Rotate' });
   rotBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     pushHistory();
@@ -3371,7 +3372,7 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
     visualAngle += 90;
     const img = card.querySelector('.ws-page-thumb img') as HTMLImageElement | null;
     if (img) img.style.transform = `rotate(${visualAngle}deg)`;
-    badge.textContent = page.rotation ? `${getPageBadgeText(page)} \u21bb` : getPageBadgeText(page);
+    badge.innerHTML = page.rotation ? `${getPageBadgeText(page)} ${Icons.rotateCw()}` : getPageBadgeText(page);
     updateSidebar();
   });
   card.appendChild(rotBtn);

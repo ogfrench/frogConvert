@@ -1,4 +1,5 @@
 import "./Toast.css";
+import { Icons } from "../icons.ts";
 
 type Variant = "info" | "warn" | "error";
 
@@ -24,7 +25,7 @@ function ensureEl(): HTMLDivElement {
   closeBtn.type = "button";
   closeBtn.className = "toast-dismiss";
   closeBtn.setAttribute("aria-label", "Dismiss");
-  closeBtn.innerHTML = "&times;";
+  closeBtn.innerHTML = Icons.x();
   closeBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     dismiss();

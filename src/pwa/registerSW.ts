@@ -1,3 +1,5 @@
+import { Icons } from "../components/icons.ts";
+
 export interface PwaEnv {
   isDesktop: boolean;
   hasWindow: boolean;
@@ -73,13 +75,13 @@ function showUpdateAvailableNotice(onReload: () => void): void {
 
   notice.innerHTML = `
     <button type="button" class="close-btn close-btn-md convert-notice-dismiss"
-            aria-label="Dismiss">&times;</button>
+            aria-label="Dismiss">${Icons.x()}</button>
     <div class="convert-notice-body">
       <strong class="convert-notice-title">New version available</strong>
       <p class="convert-notice-text">Reload to get the latest converters and fixes.</p>
     </div>
     <button type="button" class="convert-notice-link" data-action="reload">
-      Reload now &rarr;
+      Reload now ${Icons.arrowRight()}
     </button>
   `;
 

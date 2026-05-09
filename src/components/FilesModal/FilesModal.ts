@@ -9,6 +9,7 @@ import { showFileInUploadZone } from "../UploadZone/UploadZone.ts";
 import { showSizeWarningPopup } from "../Popup/Popup.ts";
 import { shortenFileName } from "../utils/index.ts";
 import { markConvertDirty, clearConvertSession } from "../persistence/convertPersist.ts";
+import { Icons } from "../icons.ts";
 
 /** Returns a friendly label for a MIME type, e.g. "image/png" -> "PNG image" */
 function friendlyMimeLabel(mime: string): string {
@@ -107,13 +108,13 @@ function renderFilesModalList() {
 
     const replaceBtn = document.createElement("button");
     replaceBtn.className = "file-row-btn icon-btn";
-    replaceBtn.innerHTML = "&#8635;";
+    replaceBtn.innerHTML = Icons.refreshCw();
     replaceBtn.title = "Replace this file";
     replaceBtn.addEventListener("click", () => replaceFileAtIndex(i));
 
     const removeBtn = document.createElement("button");
     removeBtn.className = "file-row-btn icon-btn";
-    removeBtn.innerHTML = "&times;";
+    removeBtn.innerHTML = Icons.x();
     removeBtn.title = "Remove this file";
     removeBtn.addEventListener("click", () => removeFileAtIndex(i));
 

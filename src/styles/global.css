@@ -661,6 +661,14 @@ summary {
   border-color: var(--ring);
 }
 
+/* Inline SVG icons (Lucide subset, see src/components/icons.ts). The
+   nudge optically centers the glyph against text x-height for buttons
+   that mix an icon with a label (e.g. "Move up ↑"). Flex parents ignore
+   vertical-align, so icon-only buttons are unaffected. */
+.lucide {
+  vertical-align: -0.125em;
+}
+
 /* Plain card-colored surface for controls/badges floating over thumbnails. */
 .floating-card-surface {
   background-color: var(--card);
