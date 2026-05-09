@@ -8,6 +8,24 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.3.1] - 2026-05-09
+
+Internal polish on top of v2.3.0: design tokens consolidated at `:root`, unified `:focus-visible` contract across every interactive surface, and a small Organize-view trim.
+
+### Changed
+- **"Add blank page" trailing card removed from Organize.** It was a literal duplicate of the existing `ws-page-insert-trailing` `+` button that already inserts a blank page at the end. Same handler (`insertBlankPage(pages.length)`), same affordance — the second card was dead UI.
+- **`:focus-visible` rings unified onto a single contract.** `outline: 2px solid var(--primary); outline-offset: 2px; box-shadow: none` across `icon-btn`, `cat-tab`, `format-option`, `pill-option`, `btn-primary`, `btn-secondary`, `btn-tertiary`, `ws-btn`, `close-btn*`, `pagination-btn`, `ws-page-card`, `ws-file-card`, `ws-wm-slider`, `floating-card-surface`, `toolbar-primary`. Drops the double-shadow ring; outline-only respects forced-colors mode.
+- **`--touch-target` token (2.75rem)** added at `:root`. `.close-btn-md` bumped 2.5rem → 2.75rem under `(any-pointer: coarse)` to hit WCAG 2.5.5.
+- **Resume popup copy simplified.** `N PDF · M pages`, drops the "Undo history will reset" and "custom watermark" hints. The summary already conveys the load on next render.
+
+### Internal
+- **Design tokens consolidated at `:root`.** New `--rainbow-gradient` (single source for the selected-state ::before border), `--transition-fast/normal/slow/spring`, `--ease-out-expo`, full `--z-*` scale (`z-base` … `z-skip-link`), and `--bp-*` breakpoint references. Rename rather than restack — zero visual change. 11 component CSS files migrated off hardcoded durations and z-indices.
+- **PdfWorkspace class-name pruning.** `.ws-file-add` / `.ws-page-add` removed; `.ws-dropzone` (from `createDropzone`) carries the drop-target visual; `.ws-file-card` / `.ws-page-card` carry grid-cell shape. Two classes compose without an add-only third. Sortable `draggable` selector and click-delegation guard updated to match.
+- **Mobile toolbar primary buttons** (Merge, Watermark export, Extract, Export PDF) inherit the unified focus ring via `.toolbar-primary`.
+- **`floating-card-surface`** removed from `ws-page-plus` — the per-card plus-buttons live on top of the page card and don't need their own surface.
+
+---
+
 ## [2.3.0] - 2026-05-08
 
 frogConvert is now an installable Progressive Web App with offline support and resumable sessions. Drop a file, close the tab, come back — your work is offered back to you. Share files into frogConvert from the OS share sheet or "Open with…" menu. Conversion handlers and assets cache as you use them so repeat conversions work offline.

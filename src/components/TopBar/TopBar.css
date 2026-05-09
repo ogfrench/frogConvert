@@ -18,12 +18,12 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-4) var(--space-6);
-  z-index: 200;
+  z-index: var(--z-topbar);
   animation: fadeIn 0.4s ease-out forwards;
   transform: translateZ(0);
   backdrop-filter: blur(0px);
   -webkit-backdrop-filter: blur(0px);
-  transition: backdrop-filter 0.3s ease, -webkit-backdrop-filter 0.3s ease;
+  transition: backdrop-filter var(--transition-slow), -webkit-backdrop-filter var(--transition-slow);
   pointer-events: none;
 }
 
@@ -45,7 +45,7 @@
   height: 100%;
   z-index: -1;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity var(--transition-slow);
   background-color: var(--top-bar-bg);
 }
 
@@ -61,7 +61,7 @@
   color: var(--foreground);
   font-weight: var(--font-bold);
   font-size: var(--text-xl);
-  transition: opacity 0.15s ease;
+  transition: opacity var(--transition-fast);
 }
 
 #logo:hover {
@@ -71,7 +71,7 @@
 .logo-emoji {
   font-size: var(--text-xl);
   line-height: 1;
-  transition: transform 0.2s ease;
+  transition: transform var(--transition-normal);
 }
 
 .logo-emoji .frog-emoji-img {
@@ -117,8 +117,8 @@
   border-radius: var(--radius);
   cursor: pointer;
   padding: 0 var(--space-2);
-  z-index: 201;
-  transition: background-color 0.15s ease;
+  z-index: calc(var(--z-topbar) + 1);
+  transition: background-color var(--transition-fast);
 }
 
 #hamburger-btn span {
@@ -126,7 +126,7 @@
   height: 2px;
   background-color: var(--foreground);
   border-radius: 2px;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity var(--transition-normal);
 }
 
 #hamburger-btn:hover {
@@ -162,7 +162,7 @@
   background-color: var(--card);
   color: var(--foreground);
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.3s ease, transform 0.3s ease;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), opacity var(--transition-slow), transform var(--transition-slow);
   font-family: inherit;
   white-space: nowrap;
   opacity: 1;
@@ -194,7 +194,7 @@
   background-color: var(--card);
   color: var(--foreground);
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 #theme-toggle:hover {
@@ -229,7 +229,7 @@
   background-color: var(--card);
   color: var(--foreground);
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 #app-mode-toggle:hover {
@@ -264,7 +264,7 @@
   background: none;
   color: var(--muted-foreground);
   cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
+  transition: background-color var(--transition-normal), color var(--transition-normal), transform var(--transition-fast);
   white-space: nowrap;
 }
 
@@ -284,7 +284,7 @@
 
 .pill-option svg {
   flex-shrink: 0;
-  transition: transform 0.2s ease;
+  transition: transform var(--transition-normal);
 }
 
 .pill-option:active svg {
@@ -333,7 +333,7 @@
     top: calc(var(--space-4) * 2 + var(--control-size) + var(--space-3));
     right: var(--space-6);
     flex-direction: column;
-    z-index: 9999;
+    z-index: calc(var(--z-topbar) + 1);
     background-color: var(--card);
     border: 1px solid var(--border);
     border-radius: 16px;
@@ -342,7 +342,7 @@
     opacity: 0;
     visibility: hidden;
     transform: translateY(-8px);
-    transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+    transition: opacity var(--transition-normal), visibility var(--transition-normal), transform var(--transition-normal);
     min-width: 240px;
     gap: 12px;
   }
@@ -357,7 +357,7 @@
   #top-controls-menu>* {
     opacity: 0;
     transform: translateY(-6px);
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transition: opacity var(--transition-normal), transform var(--transition-normal);
   }
 
   #top-controls.menu-open #top-controls-menu>* {
@@ -420,26 +420,6 @@
     display: none;
   }
 
-  /* The reduced-motion media block in global.css caps transition-duration to
-     ~0ms but does not reset transition-delay. Without this, the staggered
-     menu-children entrance still pops in over 0.36s of delays, contradicting
-     the "near-still UI" reduced-motion contract. */
-  @media (prefers-reduced-motion: reduce) {
-    #top-controls.menu-open #top-controls-menu > *:nth-child(1),
-    #top-controls.menu-open #top-controls-menu > *:nth-child(2),
-    #top-controls.menu-open #top-controls-menu > *:nth-child(3),
-    #top-controls.menu-open #top-controls-menu > *:nth-child(4),
-    #top-controls.menu-open #top-controls-menu > *:nth-child(5),
-    #top-controls.menu-open #top-controls-menu > *:nth-child(6),
-    #top-controls.menu-open #top-controls-menu > *:nth-child(7),
-    #top-controls.menu-open #top-controls-menu > *:nth-child(8),
-    #top-controls.menu-open #top-controls-menu > *:nth-child(9),
-    #top-controls.menu-open #top-controls-menu > *:nth-child(10),
-    #top-controls.menu-open #top-controls-menu > *:nth-child(11),
-    #top-controls.menu-open #top-controls-menu > *:nth-child(12) {
-      transition-delay: 0s !important;
-    }
-  }
 }
 
 @media only screen and (max-width: 400px) {

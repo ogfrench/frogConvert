@@ -6,7 +6,7 @@
   flex-direction: column;
   align-items: flex-end;
   gap: var(--space-3);
-  z-index: 100;
+  z-index: var(--z-floating);
   cursor: pointer;
   pointer-events: auto;
   transition: opacity 0.4s ease, transform 0.4s ease;
@@ -18,7 +18,7 @@
   font-size: 1.2rem;
   line-height: 1;
   color: var(--muted-foreground);
-  transition: color 0.3s ease;
+  transition: color var(--transition-slow);
   user-select: none;
 }
 
@@ -124,7 +124,7 @@ body > #footer-confetti-btn.confetti-below-footer {
   position: static;
   display: flex;
   margin: var(--space-4) auto var(--space-6);
-  z-index: 101;
+  z-index: calc(var(--z-floating) + 1);
   animation: frog-slot-enter 0.45s ease forwards;
 }
 

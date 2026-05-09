@@ -20,7 +20,7 @@
   position: sticky;
   top: 0;
   background: var(--card);
-  z-index: 11;
+  z-index: calc(var(--z-sticky) + 1);
   border-bottom: 1px solid transparent;
 }
 
@@ -33,7 +33,7 @@
   top: 76px;
   /* Below sticky header */
   background: var(--card);
-  z-index: 10;
+  z-index: var(--z-sticky);
   box-shadow: 0 8px 10px 1px var(--card);
 }
 
@@ -46,7 +46,7 @@
   font-family: inherit;
   font-size: var(--text-sm);
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .files-modal-top-actions button:hover {
@@ -128,7 +128,7 @@
   color: var(--foreground);
   font-size: var(--text-lg);
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .pagination-btn:hover:not(:disabled) {
@@ -146,6 +146,9 @@
   color: var(--muted-foreground);
 }
 
+/* Heavier 2px border than the 1px shared ghost-affordance contract in
+   PdfWorkspace.css — intentional weight, distinguishes "drop more" from
+   the smaller in-grid + affordances. */
 #files-drop-more {
   margin: var(--space-3) var(--space-6);
   padding: var(--space-4);
@@ -153,12 +156,12 @@
   border-radius: var(--radius);
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
 }
 
 #files-drop-more:hover {
-  border-color: var(--primary);
-  color: var(--primary);
+  border-color: var(--muted-foreground);
+  color: var(--foreground);
 }
 
 #files-drop-more.drag-over {
@@ -172,18 +175,6 @@
   color: var(--foreground);
 }
 
-@keyframes files-error-slide-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 .files-error {
   position: relative;
   display: flex;
@@ -195,7 +186,7 @@
   color: var(--foreground);
   border: 1px solid var(--ring);
   border-radius: var(--radius);
-  animation: files-error-slide-in 0.2s ease both;
+  animation: slide-up-fade 0.2s ease both;
 }
 
 .files-error::before {

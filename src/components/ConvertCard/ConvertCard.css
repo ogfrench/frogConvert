@@ -5,7 +5,7 @@
   margin: var(--space-8) auto 0;
   padding: var(--space-6);
   position: relative;
-  z-index: 2;
+  z-index: var(--z-content);
 }
 
 /* --- Convert Button --- */
@@ -96,7 +96,7 @@
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--transition-fast);
 }
 
 .convert-notice-link:hover {
@@ -137,18 +137,12 @@
   font-family: inherit;
   font-size: var(--text-md);
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
   text-align: left;
 }
 
 .format-selector:hover {
   border-color: var(--ring);
-}
-
-.format-selector:focus-visible {
-  outline: none;
-  border-color: var(--ring);
-  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--primary);
 }
 
 .format-selector.has-value {

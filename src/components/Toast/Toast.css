@@ -3,7 +3,7 @@
   left: 50%;
   transform: translateX(-50%) translateY(calc(100% + var(--space-4)));
   bottom: var(--space-6);
-  z-index: 400;
+  z-index: var(--z-toast);
   max-width: calc(100% - var(--space-8));
   padding: var(--space-3) var(--space-5);
   background-color: var(--card);
@@ -16,7 +16,7 @@
   line-height: var(--leading-snug);
   letter-spacing: var(--tracking-snug);
   opacity: 0;
-  transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity var(--transition-normal), transform 0.25s var(--ease-out-expo);
   pointer-events: none;
   white-space: normal;
   text-align: center;
@@ -63,7 +63,7 @@
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
   opacity: 0.6;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--transition-fast);
 }
 .toast-dismiss:hover { opacity: 1; }
 

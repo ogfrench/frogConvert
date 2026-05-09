@@ -705,7 +705,7 @@ function updateMergeContent() {
   for (const sf of files) mergeGridContainer.appendChild(createFileCard(sf));
 
   const addCard = createDropzone('Drop more PDFs', true);
-  addCard.className = 'ws-file-card ws-file-add';
+  addCard.classList.add('ws-file-card');
   mergeGridContainer.appendChild(addCard);
 
   sortableInstance = new Sortable(mergeGridContainer, {
@@ -714,7 +714,7 @@ function updateMergeContent() {
     fallbackOnBody: true,
     scroll: false,
     ghostClass: 'ws-ghost',
-    draggable: '.ws-file-card:not(.ws-file-add)',
+    draggable: '.ws-file-card:not(.ws-dropzone)',
     filter: '.ws-file-remove, .ws-file-list-remove',
     preventOnFilter: true,
     onStart: (evt) => {
@@ -738,7 +738,7 @@ function updateMergeContent() {
       if (selectedFiles.size > 1) {
         const movingSet = new Set(selectedFiles);
         const moving = files.filter(f => movingSet.has(f.id));
-        const domOrder = [...mergeGridContainer!.querySelectorAll<HTMLElement>('.ws-file-card:not(.ws-file-add)')]
+        const domOrder = [...mergeGridContainer!.querySelectorAll<HTMLElement>('.ws-file-card:not(.ws-dropzone)')]
           .map(c => Number(c.dataset.fileId));
         const dropDomIdx = domOrder.indexOf(draggedFid);
         const kept = files.filter(f => !movingSet.has(f.id));
@@ -1446,7 +1446,7 @@ function renderWatermarkView() {
 
   // Trailing "Drop more PDFs" dropzone card, same affordance as Merge / Organize.
   const addCard = createDropzone('Drop more PDFs', true);
-  addCard.classList.add('ws-page-card', 'ws-page-add', 'ws-wm-page-card');
+  addCard.classList.add('ws-page-card', 'ws-wm-page-card');
   grid.appendChild(addCard);
 
   leftCard.appendChild(grid);
@@ -2183,15 +2183,11 @@ function renderOrganizeView() {
   trailing.dataset.insertAt = 'end';
   grid.appendChild(trailing);
 
-  // Add blank page card
-  const addBlankCard = el('button', { className: 'ws-page-card ws-page-add', ariaLabel: 'Add blank page' });
-  addBlankCard.innerHTML = '<p class="upload-text">+ Blank page</p>';
-  addBlankCard.addEventListener('click', () => insertBlankPage(pages.length));
-  grid.appendChild(addBlankCard);
-
-  // Add more PDFs card
+  // Add more PDFs card. .ws-dropzone (from createDropzone) carries the
+  // dashed-filled drop-target visual; .ws-page-card carries the grid-cell
+  // shape. The two compose without an extra add-class.
   const addCard = createDropzone('Drop more PDFs', true);
-  addCard.className = 'ws-page-card ws-page-add';
+  addCard.classList.add('ws-page-card');
   grid.appendChild(addCard);
 
   leftCard.appendChild(grid);
@@ -2228,7 +2224,7 @@ function renderOrganizeView() {
   // Event delegation: page selection
   grid.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
-    if (target.closest('.ws-page-delete, .ws-page-rotate, .ws-page-insert, .ws-page-insert-trailing, .ws-page-add, [data-insert-at]')) return;
+    if (target.closest('.ws-page-delete, .ws-page-rotate, .ws-page-insert, .ws-page-insert-trailing, .ws-dropzone, [data-insert-at]')) return;
     const card = target.closest('.ws-page-card') as HTMLElement | null;
     if (!card) return;
     const idx = Number(card.dataset.pageIdx);
@@ -3346,7 +3342,7 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
   const badge = el('span', { className: 'ws-page-badge floating-card-surface', textContent: page.rotation ? `${badgeText} \u21bb` : badgeText });
   card.appendChild(badge);
 
-  const plusBefore = el('button', { className: 'ws-page-plus ws-page-plus-before floating-card-surface', innerHTML: '+', ariaLabel: 'Insert blank page before selection' });
+  const plusBefore = el('button', { className: 'ws-page-plus ws-page-plus-before', innerHTML: '+', ariaLabel: 'Insert blank page before selection' });
   plusBefore.addEventListener('click', (e) => {
     e.stopPropagation();
     const sorted = [...selected].sort((a, b) => a - b);
@@ -3354,7 +3350,7 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
   });
   card.appendChild(plusBefore);
 
-  const plusAfter = el('button', { className: 'ws-page-plus ws-page-plus-after floating-card-surface', innerHTML: '+', ariaLabel: 'Insert blank page after selection' });
+  const plusAfter = el('button', { className: 'ws-page-plus ws-page-plus-after', innerHTML: '+', ariaLabel: 'Insert blank page after selection' });
   plusAfter.addEventListener('click', (e) => {
     e.stopPropagation();
     const sorted = [...selected].sort((a, b) => a - b);

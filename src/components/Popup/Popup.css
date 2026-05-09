@@ -84,7 +84,7 @@
   font-size: var(--text-md);
   font-weight: var(--font-medium);
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color var(--transition-fast);
 }
 
 #popup button.type-filter-row:first-child {

@@ -10,7 +10,7 @@
   font-family: inherit;
   font-size: var(--text-base);
   outline: none;
-  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .format-search:focus {
@@ -52,7 +52,7 @@
   text-align: left;
   cursor: pointer;
   word-break: break-word;
-  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), transform 0.1s ease;
   margin-bottom: var(--space-1);
 }
 
@@ -104,21 +104,7 @@
   border-radius: 50%;
   background-color: var(--primary);
   flex-shrink: 0;
-  animation: dot-pulse 1.2s ease-in-out infinite;
-}
-
-@keyframes dot-pulse {
-
-  0%,
-  100% {
-    opacity: 0.3;
-    transform: scale(0.8);
-  }
-
-  50% {
-    opacity: 1;
-    transform: scale(1);
-  }
+  animation: pulse 1.2s ease-in-out infinite;
 }
 
 .format-option.unavailable {

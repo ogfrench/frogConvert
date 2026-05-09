@@ -370,7 +370,7 @@ describe('Watermark DOM interactions', () => {
 
   it('renders a trailing "Drop more PDFs" dropzone card alongside page cards', () => {
     const root = __testing.setupForTest('watermark', [sf(1, 2)]);
-    const dropzone = root.querySelector('.ws-page-card.ws-page-add');
+    const dropzone = root.querySelector('.ws-page-card.ws-dropzone');
     expect(dropzone).not.toBeNull();
     expect(dropzone?.textContent).toContain('Drop more PDFs');
   });

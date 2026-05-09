@@ -27,13 +27,13 @@
   border-radius: var(--radius-xl);
   background-color: var(--secondary);
   cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
   text-align: center;
 }
 
 #upload-zone:hover {
-  border-color: var(--primary);
-  color: var(--primary);
+  border-color: var(--muted-foreground);
+  color: var(--foreground);
 }
 
 #upload-zone.drag-over {

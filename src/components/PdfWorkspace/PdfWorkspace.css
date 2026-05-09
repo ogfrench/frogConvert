@@ -11,7 +11,7 @@
   max-width: var(--card-max-width);
   margin: var(--space-8) auto 0;
   position: relative;
-  z-index: 2;
+  z-index: var(--z-content);
 }
 
 /* Dropzone card: override min-height from .card-base */
@@ -38,7 +38,7 @@
   margin: var(--space-8) auto 0;
   padding: 0 var(--space-4);
   position: relative;
-  z-index: 2;
+  z-index: var(--z-content);
 }
 
 /* Left card: page grid, hugs content, page scrolls the viewport */
@@ -66,7 +66,7 @@
   overflow-y: auto;
   /* clip-path mirrors border-radius, clips scrollbar in Chromium */
   clip-path: inset(0 round 0 var(--radius-xl) var(--radius-xl) 0);
-  z-index: 3;
+  z-index: var(--z-elevated);
   border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
 }
 
@@ -138,7 +138,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   padding-left: var(--space-2);
   border-left: 2px solid transparent;
   border-radius: var(--radius-sm);
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 .ws-sidebar-file-clickable:hover {
   background-color: var(--secondary);
@@ -151,7 +151,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 /* Shared: reveal child on parent hover */
 .ws-hover-reveal {
   opacity: 0;
-  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: opacity var(--transition-fast), background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
 }
 .ws-file-card:hover .ws-hover-reveal,
 .ws-sidebar-file:hover .ws-hover-reveal,
@@ -270,13 +270,42 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   color: var(--destructive);
   font-size: var(--text-sm);
   position: relative;
-  z-index: 2;
+  z-index: var(--z-content);
 }
 
 
 /* ===================================================================
    Dropzone, matches #upload-zone
    =================================================================== */
+
+/* ──────────────────────────────────────────────────────────────────
+   Two affordance concepts. One class per concept. Layout lives on
+   the host (.ws-page-card / .ws-file-card) plus compound-class
+   layout rules where needed.
+
+   `+ zones` — click-to-insert. Transparent dashed.
+     .ws-page-plus      selection-edge `+` (touch / narrow)
+     .ws-page-insert    between-cards `+` (desktop hover)
+
+   Drop zones — drag-and-drop targets. Filled dashed.
+     .ws-dropzone       empty-state hero, all `Drop more PDFs` cards
+   ────────────────────────────────────────────────────────────────── */
+
+.ws-page-plus,
+.ws-page-insert {
+  border: 1px dashed var(--muted-foreground);
+  background: none;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  opacity: 0.4;
+  transition: border-color var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+}
+.ws-page-plus:hover,
+.ws-page-insert:hover {
+  border-color: var(--foreground);
+  color: var(--foreground);
+  opacity: 1;
+}
 
 .ws-dropzone {
   display: flex;
@@ -289,19 +318,21 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   border: 1px dashed var(--border);
   border-radius: inherit;
   background-color: var(--secondary);
+  color: var(--muted-foreground);
   cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: border-color var(--transition-fast), color var(--transition-fast), background-color var(--transition-fast);
 }
-
 .ws-dropzone:hover {
-  border-color: var(--primary);
-  color: var(--primary);
+  border-color: var(--muted-foreground);
+  color: var(--foreground);
 }
 
-.ws-dropzone:focus-visible {
-  outline: none;
-  border-color: var(--ring);
-  box-shadow: 0 0 0 2px var(--ring);
+/* When a dropzone sits on a card host (.ws-page-card / .ws-file-card) the
+   host's `border: 1px solid` shorthand wins by source order. Re-override
+   only the border-style here so the dashed contract sticks across hosts. */
+.ws-page-card.ws-dropzone,
+.ws-file-card.ws-dropzone {
+  border-style: dashed;
 }
 
 .ws-dropzone.drag-over {
@@ -353,7 +384,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   padding: var(--space-3);
   cursor: grab;
   background: var(--secondary);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .ws-file-card:hover {
@@ -430,35 +461,25 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
    Add-file card in merge grid, same size as file cards, dashed border
    =================================================================== */
 
-.ws-file-add {
+/* Dropzone variant of a file-card host (Merge tab `Drop more PDFs`).
+   Sized to match its file-card siblings; visual contract comes from
+   `.ws-dropzone`. Inner typography handled by the in-grid override
+   block further down. */
+.ws-file-card.ws-dropzone {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-style: dashed;
-  background: none;
-  cursor: pointer;
   min-height: auto;
   padding: var(--space-3);
   aspect-ratio: 0.65;
 }
-
-.ws-file-add:hover {
+/* Disable the page/file-card hover lift on the dropzone variant — the
+   in-grid drop target is meant to read as a static slot, not a card. */
+.ws-page-card.ws-dropzone:hover,
+.ws-file-card.ws-dropzone:hover {
   transform: none;
   box-shadow: none;
-  border-color: var(--primary);
-  color: var(--primary);
-}
-
-.ws-file-add .upload-text {
-  font-size: var(--text-xs);
-  font-weight: var(--font-medium);
-  color: var(--foreground);
-}
-
-.ws-file-add .upload-hint {
-  font-size: var(--text-xs);
-  color: var(--muted-foreground);
 }
 
 /* ===================================================================
@@ -506,22 +527,12 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   overflow: visible;
   cursor: pointer;
   background: var(--secondary);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, opacity 0.2s ease, filter 0.2s ease;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast), opacity var(--transition-normal), filter var(--transition-normal);
 }
 
 .ws-page-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
-}
-
-/* Page/file card focus ring: layered halo so the ring stays visible
-   on white PDF thumbnails (where var(--primary) collapses against the
-   thumbnail in dark mode). Selected+focused has its own rule below. */
-.ws-page-card:focus-visible,
-.ws-file-card:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 4px var(--background);
 }
 
 /* Selection state shared between page cards and file cards: rainbow gradient
@@ -536,11 +547,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   position: absolute;
   inset: -2px;
   padding: 2px;
-  background: conic-gradient(
-    from 0deg,
-    #ff6b6b, #ffb347, #ffd93d, #6bcf7f,
-    #4fc3f7, #9775fa, #ff6b9d, #ff6b6b
-  );
+  background: var(--rainbow-gradient);
   pointer-events: none;
   z-index: 1;
   -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
@@ -554,16 +561,6 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 
 .ws-page-card.ws-page-selected:hover {
   box-shadow: var(--shadow-md);
-}
-
-/* Selected + keyboard-focused: the global :focus-visible outline paints
-   behind the rainbow ::before (positioned descendant z-index: 1). Swap to
-   a box-shadow ring on this combined state — shares the positioned-paint
-   pass so it lands above the rainbow band. */
-.ws-page-card.ws-page-selected:focus-visible,
-.ws-file-card.ws-file-selected:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--primary);
 }
 
 .ws-page-check,
@@ -580,7 +577,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   justify-content: center;
   font-size: var(--text-sm);
   font-weight: var(--font-bold);
-  z-index: 3;
+  z-index: var(--z-elevated);
   pointer-events: none;
 }
 .ws-page-card.ws-page-selected .ws-page-check,
@@ -606,15 +603,13 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   height: 2.25rem;
   padding: 0;
   border-radius: var(--radius-sm);
-  font-size: var(--text-md);
+  font-size: var(--text-xs);
   font-weight: var(--font-normal);
   line-height: 1;
-  cursor: pointer;
   display: none;
   align-items: center;
   justify-content: center;
-  box-shadow: var(--shadow-sm);
-  z-index: 3;
+  z-index: var(--z-elevated);
 }
 .ws-page-plus-before { left: calc(var(--space-3) * -1); }
 .ws-page-plus-after  { right: calc(var(--space-3) * -1); }
@@ -630,7 +625,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  transition: transform 0.2s ease;
+  transition: transform var(--transition-normal);
 }
 
 .ws-page-thumb canvas {
@@ -670,7 +665,9 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   color: var(--foreground);
 }
 
-/* Blank page insert button, centered in the column gap */
+/* Between-cards `+` insert button. Adds opacity choreography on top of
+   the shared `+ zones` contract; font-weight medium so the standalone
+   glyph reads with consistent stroke thickness. */
 .ws-page-insert {
   position: absolute;
   left: calc(100% + var(--space-6) / 2);
@@ -681,65 +678,55 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px dashed var(--border);
   border-radius: var(--radius-sm);
-  background: none;
   padding: 0;
-  cursor: pointer;
-  color: var(--muted-foreground);
-  font-size: var(--text-md);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
   opacity: 0;
-  transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-  z-index: 3;
+  transition: opacity var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+  z-index: var(--z-elevated);
 }
 
+/* Parent-hover reveals the pill at slightly reduced opacity — present
+   but quiet, signals "this is here" without competing with the cards.
+   Direct hover bumps to full opacity. */
 .ws-page-cards:hover .ws-page-insert {
   opacity: 0.4;
 }
-
 .ws-page-insert:hover {
   opacity: 1;
-  border-color: var(--primary);
-  color: var(--primary);
 }
 
-/* Page-grid add card, matches page card proportions */
-.ws-page-add {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  aspect-ratio: 0.707;
-  width: 100%;
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  background: none;
-  cursor: pointer;
-  padding: var(--space-3);
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-  transition: border-color 0.15s ease, color 0.15s ease;
-  margin-bottom: var(--space-3);
-}
-
-.ws-page-add:hover {
-  border-color: var(--primary);
-  color: var(--primary);
-  transform: none;
-  box-shadow: none;
-}
-
-.ws-page-add .upload-text {
+/* In-grid Drop more PDFs cards (Merge / Organize / Watermark) use compact
+   typography — text-xs to match the surrounding card density. The empty-
+   state .ws-dropzone (no host card) keeps the larger default at .ws-dropzone
+   .upload-text below. */
+.ws-page-card.ws-dropzone .upload-text,
+.ws-file-card.ws-dropzone .upload-text {
   font-size: var(--text-xs);
   font-weight: var(--font-medium);
+  color: var(--muted-foreground);
 }
-
-.ws-page-add .upload-hint {
+.ws-page-card.ws-dropzone .upload-hint,
+.ws-file-card.ws-dropzone .upload-hint {
   font-size: var(--text-xs);
 }
 
-/* Trailing insert, hidden now that ws-page-add card replaces it */
+/* Page-grid Drop more PDFs (Organize / Watermark) layout: matches the
+   surrounding page-card aspect; visual contract via .ws-dropzone. */
+.ws-page-card.ws-dropzone {
+  aspect-ratio: 0.707;
+  width: 100%;
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  /* createDropzone gave it width:100% and min-height; reset min-height
+     so aspect-ratio drives the height. */
+  min-height: auto;
+}
+
+/* Hidden insertion target — used as a click-delegation hook for "insert
+   at end" via [data-insert-at] attribute, no visible affordance. */
 .ws-page-insert-trailing {
   display: none;
 }
@@ -766,8 +753,12 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   font-size: var(--text-sm);
   width: 100%;
   box-sizing: border-box;
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow var(--transition-fast);
   box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.ws-range-input:hover {
+  box-shadow: inset 0 0 0 1px var(--muted-foreground);
 }
 
 .ws-range-input:focus {
@@ -829,7 +820,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   background: var(--button-surface);
   color: var(--foreground);
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color var(--transition-fast);
 }
 
 .ws-btn:hover {
@@ -851,7 +842,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   color: var(--muted-foreground);
   padding: var(--space-2) var(--space-3);
   cursor: pointer;
-  transition: color 0.15s ease;
+  transition: color var(--transition-fast);
 }
 
 .ws-btn-text:hover {
@@ -891,11 +882,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   border: 3px solid var(--border);
   border-top-color: var(--primary);
   border-radius: var(--radius-full);
-  animation: ws-spin 0.8s linear infinite;
-}
-
-@keyframes ws-spin {
-  to { transform: rotate(360deg); }
+  animation: spin 0.8s linear infinite;
 }
 
 /* ===================================================================
@@ -959,7 +946,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     background: none;
     border: none;
     box-shadow: none;
-    z-index: 302;
+    z-index: calc(var(--z-overlay) + 2);
   }
 
   .ws-toolbar-icon {
@@ -1027,10 +1014,10 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg);
-    z-index: 301;
+    z-index: calc(var(--z-overlay) + 1);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transition: opacity var(--transition-normal), transform var(--transition-normal);
     padding: var(--space-6);
   }
 
@@ -1084,7 +1071,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     inset: 0;
     background: var(--overlay-bg);
     backdrop-filter: var(--blur-overlay);
-    z-index: 300;
+    z-index: var(--z-overlay);
   }
 
   .ws-tray-overlay.ws-tray-open {
@@ -1150,7 +1137,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10;
+  z-index: var(--z-sticky);
   box-shadow: var(--shadow-md);
   user-select: none;
   -webkit-user-select: none;
@@ -1242,7 +1229,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   color: var(--foreground);
   line-height: 1.5;
   white-space: nowrap;
-  z-index: 3;
+  z-index: var(--z-elevated);
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
@@ -1345,13 +1332,13 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   box-shadow: 0 0 0 1px var(--foreground);
   cursor: pointer;
 }
-/* Keyboard focus ring on the slider thumb (WCAG 2.4.7).
-   `outline` is removed above; replace with a thumb-bound ring. */
+/* Range thumb is shadow-DOM; UA outline paints around the track, invisible
+   behind the rail. Bind the focus ring to the thumb explicitly. */
 .ws-wm-slider:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 1px var(--foreground), 0 0 0 4px var(--ring);
+  box-shadow: 0 0 0 1px var(--foreground), 0 0 0 4px var(--focus-ring);
 }
 .ws-wm-slider:focus-visible::-moz-range-thumb {
-  box-shadow: 0 0 0 1px var(--foreground), 0 0 0 4px var(--ring);
+  box-shadow: 0 0 0 1px var(--foreground), 0 0 0 4px var(--focus-ring);
 }
 
 /* Reusable prefix-input: [ label | field ] in one bordered pill.
@@ -1365,7 +1352,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow var(--transition-fast);
 }
 
 .ws-toolbar--watermark .ws-prefix-input {
@@ -1400,6 +1387,10 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   appearance: none;
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+.ws-prefix-input:hover {
+  border-color: var(--muted-foreground);
 }
 
 .ws-prefix-input:focus-within {
@@ -1502,14 +1493,10 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   background: transparent;
   border: 1px solid transparent;
   user-select: none;
-  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+  transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
 }
 .ws-wm-style-summary:hover {
   color: var(--foreground);
-}
-.ws-wm-style-summary:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
 }
 .ws-wm-style-summary::-webkit-details-marker { display: none; }
 .ws-wm-style-summary::before {
@@ -1518,7 +1505,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   width: 0.75rem;
   font-size: 0.75rem;
   color: var(--muted-foreground);
-  transition: transform 0.2s ease;
+  transition: transform var(--transition-normal);
 }
 .ws-wm-style-details[open] > .ws-wm-style-summary::before {
   transform: rotate(90deg);
@@ -1546,11 +1533,6 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   from { opacity: 1; transform: translateY(0); }
   to { opacity: 0; transform: translateY(-4px); }
 }
-@media (prefers-reduced-motion: reduce) {
-  .ws-wm-style-summary::before { transition: none; }
-  .ws-wm-style-details[open] > .ws-wm-style-body { animation: none; }
-}
-
 /* Mobile tray: Customize <details> is not rendered; style body sits directly
    under the section label, so no top padding is needed. */
 .ws-tray .ws-wm-style-body {
@@ -1611,6 +1593,8 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     width: var(--space-12);
   }
 
+  /* Touch: keep dashed vocabulary (matches .ws-page-insert),
+   * just enlarge the hit target. Tokens cover both themes. */
   .ws-page-plus-before,
   .ws-page-plus-after {
     width: var(--space-12);
@@ -1622,6 +1606,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   .ws-btn:active,
   .ws-wm-style-summary:active { transform: scale(0.98); }
 
+  .ws-page-plus:active,
   .floating-card-surface:active { transform: scale(0.96); }
 
   /* Toolbar slides up when the virtual keyboard is open; --kb-offset is

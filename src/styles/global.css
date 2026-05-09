@@ -24,6 +24,7 @@
   --border: #e4e4e7;
   --input: #e4e4e7;
   --ring: #a1a1aa;
+  --focus-ring: #6bcf7f;
   --input-surface: #ffffff;
   --top-bar-bg: rgba(255, 255, 255, 0.8);
   --warning: #f59e0b;
@@ -38,6 +39,15 @@
   --radius-sm: calc(var(--radius) - 4px);
   --radius-xl: 1.5rem;
   --radius-full: 9999px;
+
+  /* Brand: rainbow conic-gradient — single source of truth, used by both
+     the selected-state ::before (flush border) and the focus-visible
+     ::after (offset ring). Defined at :root so both themes share it. */
+  --rainbow-gradient: conic-gradient(
+    from 0deg,
+    #ff6b6b, #ffb347, #ffd93d, #6bcf7f,
+    #4fc3f7, #9775fa, #ff6b9d, #ff6b6b
+  );
 
   /* Sizing */
   --control-size: 2.25rem;
@@ -124,6 +134,38 @@
   --tracking-wide: 0.02em;
   --tracking-wider: 0.05em;
 
+  /* Motion - durations + easings shared across components */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.2s ease;
+  --transition-slow: 0.3s ease;
+  --transition-spring: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Z-index scale - values match existing usage; rename rather than restack
+     so this pass introduces zero visual change */
+  --z-base: 0;
+  --z-content: 2;
+  --z-elevated: 3;
+  --z-sticky: 10;
+  --z-modal-close: 20;
+  --z-floating: 100;
+  --z-topbar: 200;
+  --z-overlay: 300;
+  --z-modal: 301;
+  --z-toast: 400;
+  --z-loading-bar: 9999;
+  --z-cursor: 9999;
+  --z-skip-link: 10000;
+
+  /* Breakpoints (reference values; CSS @media can't read custom properties,
+     so these document the canonical scale used in media queries below) */
+  --bp-xs: 480px;
+  --bp-sm: 600px;
+  --bp-md: 768px;
+  --bp-tablet: 800px;
+  --bp-desktop: 1300px;
+  --bp-lg: 1800px;
+
   color-scheme: light;
 }
 
@@ -146,6 +188,7 @@
   --border: #27272a;
   --input: #27272a;
   --ring: #52525b;
+  --focus-ring: #6bcf7f;
   --input-surface: #18181b;
   --top-bar-bg: rgba(10, 10, 10, 0.75);
   --warning: #fbbf24;
@@ -221,7 +264,7 @@ body {
   line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color var(--transition-slow), color var(--transition-slow);
   display: flex;
   flex-direction: column;
   /* clip (not hidden) so sticky children resolve against html, not body */
@@ -278,7 +321,7 @@ summary {
   line-height: var(--leading-snug);
   max-width: var(--tabs-max-width);
   position: relative;
-  z-index: 2;
+  z-index: var(--z-content);
 }
 
 
@@ -321,7 +364,7 @@ summary {
   text-decoration: underline;
   text-decoration-color: var(--border);
   text-underline-offset: 2px;
-  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+  transition: color var(--transition-fast), text-decoration-color var(--transition-fast);
 }
 
 #commit-id:hover {
@@ -333,13 +376,13 @@ summary {
   position: fixed;
   bottom: var(--space-6);
   left: var(--space-6);
-  z-index: 100;
+  z-index: var(--z-floating);
   background: none;
   border: none;
   cursor: pointer;
   padding: 0;
   color: var(--muted-foreground);
-  transition: color 0.3s ease, transform 0.2s ease;
+  transition: color var(--transition-slow), transform var(--transition-normal);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -420,7 +463,7 @@ summary {
   font-weight: var(--font-semibold);
   cursor: pointer;
   letter-spacing: var(--tracking-snug);
-  transition: opacity 0.2s ease, transform 0.1s ease, background-color 0.3s ease, color 0.3s ease;
+  transition: opacity var(--transition-normal), transform 0.1s ease, background-color var(--transition-slow), color var(--transition-slow);
 }
 
 .btn-primary:hover {
@@ -443,7 +486,7 @@ summary {
   font-weight: var(--font-semibold);
   cursor: pointer;
   letter-spacing: var(--tracking-snug);
-  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), transform 0.1s ease;
 }
 
 .btn-secondary:hover {
@@ -464,10 +507,10 @@ summary {
   height: 100%;
   background-color: var(--overlay-bg);
   backdrop-filter: var(--blur-overlay);
-  z-index: 300;
+  z-index: var(--z-overlay);
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.2s ease, visibility 0.2s ease;
+  transition: opacity var(--transition-normal), visibility var(--transition-normal);
 }
 
 .modal-overlay.open {
@@ -484,7 +527,7 @@ summary {
   box-shadow: none;
   min-width: 300px;
   min-height: 200px;
-  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+  transition: background-color var(--transition-slow), border-color var(--transition-slow), color var(--transition-slow);
 }
 
 /* --- Modal Container --- */
@@ -496,15 +539,15 @@ summary {
   width: var(--modal-width);
   max-width: var(--mobile-content-width);
   max-height: 80vh;
-  z-index: 301;
+  z-index: var(--z-modal);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease,
-    background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+  transition: opacity var(--transition-normal), visibility var(--transition-normal), transform var(--transition-normal),
+    background-color var(--transition-slow), border-color var(--transition-slow), color var(--transition-slow);
 }
 
 .modal-container.open {
@@ -558,7 +601,7 @@ summary {
   color: var(--muted-foreground);
   cursor: pointer;
   line-height: var(--leading-none);
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 .close-btn:hover {
   color: var(--foreground);
@@ -588,7 +631,7 @@ summary {
   position: absolute;
   top: var(--space-6);
   right: var(--space-6);
-  z-index: 20;
+  z-index: var(--z-modal-close);
 }
 .modal-close-btn:hover {
   background-color: var(--accent);
@@ -609,7 +652,7 @@ summary {
   font-size: var(--text-base);
   cursor: pointer;
   line-height: var(--leading-none);
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .icon-btn:hover {
@@ -646,7 +689,7 @@ summary {
 #bg-visuals {
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: var(--z-base);
   /* Just below content (2) and above body background */
   overflow: hidden;
   pointer-events: none;
@@ -727,6 +770,17 @@ summary {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Shared utility keyframes - components reference these instead of redefining */
+@keyframes slide-up-fade {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.6; transform: scale(0.95); }
 }
 
 .word-entrance {
@@ -881,7 +935,7 @@ summary {
   width: 0;
   height: 3px;
   background-color: var(--primary);
-  z-index: 9999;
+  z-index: var(--z-loading-bar);
   pointer-events: none;
   animation:
     loading-bar-grow 10s linear forwards,
@@ -1013,7 +1067,9 @@ summary {
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
     scroll-behavior: auto !important;
   }
   #bg-visuals span { animation: none !important; }
@@ -1031,45 +1087,16 @@ summary {
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius);
   font-weight: var(--font-semibold);
-  z-index: 10000;
+  z-index: var(--z-skip-link);
   text-decoration: none;
 }
 .skip-link:focus {
   left: var(--space-4);
 }
 
-/* --- :focus-visible: one contract for every interactive surface ---
-   outline: 2px solid var(--primary); outline-offset: 2px.
-   Components that previously stripped the native outline still need their
-   own selector here so the outline is restored on keyboard focus. */
-.icon-btn:focus-visible,
-.cat-tab:focus-visible,
-.format-option:focus-visible,
-.pill-option:focus-visible,
-.btn-primary:focus-visible,
-.btn-secondary:focus-visible,
-.btn-tertiary:focus-visible,
-.ws-btn:focus-visible,
-.close-btn:focus-visible,
-.close-btn-md:focus-visible,
-.close-btn-lg:focus-visible,
-.pagination-btn:focus-visible,
-.floating-card-surface:focus-visible,
-.toolbar-primary:focus-visible,
-.convert-notice-dismiss:focus-visible,
-.convert-notice-link:focus-visible,
-.toast-dismiss:focus-visible {
-  outline: 2px solid var(--primary);
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
-  box-shadow: none;
-}
-
-/* Slider thumb extends past the track; the standard 2px offset would
-   clip against the thumb, so push the ring out by 4px. */
-.ws-wm-slider:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 4px;
-  box-shadow: none;
 }
 
 /* --- Restore native I-beam on text inputs while custom cursor is active ---
