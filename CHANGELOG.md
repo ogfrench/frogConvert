@@ -8,6 +8,17 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.3.4] - 2026-05-12
+
+Three UI alignment fixes after on-device review: the PDF editor's content arrival now mirrors the converter card's slide-up instead of popping in, the PWA "Reload now" pill no longer ships with the browser's default 3D button bevel, and the docs theme toggle uses an actual SVG icon instead of a Unicode glyph that sat off-center inside its button.
+
+### Fixed
+- **PDF tool content arrives with an entrance, not a pop.** [src/components/PdfWorkspace/PdfWorkspace.ts](src/components/PdfWorkspace/PdfWorkspace.ts) now adds a `.ws-content-enter` class to the layout root each render function mounts (empty dropzone, merge left+right, organize left+right, watermark left+right). The outer `#pdf-tool-content.entrance.d5` already fires during the page cascade but the tool UI is lazy-loaded into it afterwards, so the slide-up played on an empty container and content then appeared with no animation, most visibly on mobile where the chunk-load gap is widest. A `shouldEnter(signature)` gate keeps the slide from replaying on in-place updates (adding a file, toggling a watermark setting) so only tool switches and empty↔populated transitions animate. New keyframe in [src/components/PdfWorkspace/PdfWorkspace.css](src/components/PdfWorkspace/PdfWorkspace.css) reuses the global `slideUp` so `prefers-reduced-motion` neutralizes it via the existing `*` gate in [src/styles/global.css](src/styles/global.css).
+- **PWA "Reload now" banner button no longer has a default browser bevel.** [src/components/ConvertCard/ConvertCard.css](src/components/ConvertCard/ConvertCard.css) `.convert-notice-link` was set to `<button>` in [src/pwa/registerSW.ts](src/pwa/registerSW.ts) when the update prompt was extracted from inline styles, but never reset the browser's default `outset` button border. That painted as darker arcs at the top-left and bottom-right of the pill — visible on dark mode in particular. Added `border: none` plus an explicit `cursor: pointer` (now that it's a `<button>` and not an `<a>`).
+- **Docs theme toggle icon centers in its button.** [src/docs/theme.ts](src/docs/theme.ts) was writing the Unicode glyphs `☼` (U+263C) and `☽` (U+263D) into `#theme-toggle` via `textContent`. The fallback font's glyph metrics for those characters put the visible shape in the upper half of the em-box, so even with the button flex-centered the icon read as drifting toward the top. Switched to inline Lucide SVGs (`Icons.moon` / `Icons.sun`, added to [src/components/icons.ts](src/components/icons.ts)) so the icon is geometrically centered like every other icon-only control. The HTML fallback in [docs/index.html](docs/index.html) keeps `&#9790;` for the no-JS case.
+
+---
+
 ## [2.3.3] - 2026-05-12
 
 Lighthouse audit cleanup plus a cold-start splash so the page no longer flashes blank while phase-2 handlers are still downloading. Source maps reach DevTools, agent-readable docs are honest, and the markdown URLs advertised to crawlers actually serve markdown.

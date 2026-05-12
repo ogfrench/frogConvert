@@ -441,6 +441,13 @@ let pendingMultiDrag: { pages: PageEntry[]; dragIdx: number } | null = null;
 let thumbnailObserver: IntersectionObserver | null = null;
 let initialized = false;
 
+let lastEnterSignature = '';
+function shouldEnter(sig: string): boolean {
+  if (lastEnterSignature === sig) return false;
+  lastEnterSignature = sig;
+  return true;
+}
+
 let lastPdfResult: { bytes: Uint8Array; name: string }[] = [];
 let lastPdfZipName: string | null = null;
 
@@ -679,13 +686,15 @@ function renderMergeView() {
 
   toolContent.classList.add('ws-extract-layout');
 
+  const enter = shouldEnter('merge-full') ? ' ws-content-enter' : '';
+
   // Left card: file grid
-  const leftCard = el('div', { className: 'card-base ws-grid-card' });
+  const leftCard = el('div', { className: 'card-base ws-grid-card' + enter });
   mergeGridContainer = el('div', { className: 'ws-file-cards' });
   leftCard.appendChild(mergeGridContainer);
 
   // Right card: sidebar
-  mergeSidebarCard = el('div', { className: 'card-base ws-sidebar-card' });
+  mergeSidebarCard = el('div', { className: 'card-base ws-sidebar-card' + enter });
   mergeSidebarCard.id = 'merge-sidebar';
 
   toolContent.appendChild(leftCard);
@@ -1411,8 +1420,9 @@ function renderWatermarkView() {
 
   toolContent.classList.add('ws-extract-layout');
 
-  const leftCard = el('div', { className: 'card-base ws-grid-card ws-wm-preview-card' });
-  const rightCard = el('div', { className: 'card-base ws-sidebar-card ws-wm-panel-card' });
+  const enter = shouldEnter('watermark-full') ? ' ws-content-enter' : '';
+  const leftCard = el('div', { className: 'card-base ws-grid-card ws-wm-preview-card' + enter });
+  const rightCard = el('div', { className: 'card-base ws-sidebar-card ws-wm-panel-card' + enter });
 
   // ---- Left: 2-col page grid (Organize-style, capped at 2 cols) ----
   const grid = el('div', { className: 'ws-wm-page-grid' });
@@ -2161,8 +2171,10 @@ function renderOrganizeView() {
 
   toolContent.classList.add('ws-extract-layout');
 
+  const enter = shouldEnter('organize-full') ? ' ws-content-enter' : '';
+
   // Left card: page grid
-  const leftCard = el('div', { className: 'card-base ws-grid-card' });
+  const leftCard = el('div', { className: 'card-base ws-grid-card' + enter });
   const grid = el('div', { className: 'ws-page-cards' });
   gridEl = grid;
 
@@ -2327,7 +2339,7 @@ function renderOrganizeView() {
   setupThumbnailObserver(leftCard, pages);
 
   // Right card: sidebar
-  const rightCard = el('div', { className: 'card-base ws-sidebar-card' });
+  const rightCard = el('div', { className: 'card-base ws-sidebar-card' + enter });
   rightCard.id = 'pdf-sidebar';
   updateSidebarContent(rightCard);
 
@@ -2479,7 +2491,9 @@ function isPagesModified(): boolean {
 
 function renderEmptyState(text = 'Drop your PDFs here', multi = true) {
   toolContent.classList.add('ws-empty-layout');
-  toolContent.appendChild(createDropzoneCard(text, multi));
+  const card = createDropzoneCard(text, multi);
+  if (shouldEnter(`${activeTool}-empty`)) card.classList.add('ws-content-enter');
+  toolContent.appendChild(card);
 }
 
 // ---------------------------------------------------------------------------

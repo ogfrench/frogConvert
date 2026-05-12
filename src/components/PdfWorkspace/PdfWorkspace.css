@@ -808,8 +808,13 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   to { background-position: -200% 0; }
 }
 
-/* ws-card-enter removed, parent container (#pdf-tool-content .entrance.d5)
-   handles mode-switch animation; no separate card entrance needed. */
+/* The outer #pdf-tool-content.entrance.d5 fires during the page cascade but is
+   empty then (lazy chunk), so inner cards need their own entrance to avoid
+   popping. Gated by shouldEnter() in PdfWorkspace.ts so re-renders don't replay. */
+.ws-content-enter {
+  opacity: 0;
+  animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
 
 /* ===================================================================
    SortableJS

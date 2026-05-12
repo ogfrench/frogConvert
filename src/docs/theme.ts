@@ -1,6 +1,7 @@
 import hljsLightUrl from 'highlight.js/styles/github.min.css?url';
 import hljsDarkUrl from 'highlight.js/styles/github-dark.min.css?url';
 import { safeLocalStorageSet } from '../components/utils/index.ts';
+import { Icons } from '../components/icons.ts';
 
 const html = document.documentElement;
 const themeBtn = document.getElementById('theme-toggle')!;
@@ -33,7 +34,7 @@ function apply(dark: boolean, animate: boolean, onThemeChange: () => void) {
     }, 350);
   }
   html.classList.toggle('dark', dark);
-  themeBtn.textContent = dark ? '☼' : '☽';
+  themeBtn.innerHTML = dark ? Icons.sun() : Icons.moon();
   safeLocalStorageSet('theme', dark ? 'dark' : 'light');
   hljsLightLink.disabled = dark;
   hljsDarkLink.disabled = !dark;
