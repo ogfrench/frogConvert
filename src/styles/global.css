@@ -998,8 +998,8 @@ summary {
 
 @media only screen and (max-width: 800px) {
   .page-title {
-    font-size: 2.25rem;
-    margin-top: calc(var(--space-16) + var(--space-10));
+    font-size: 2.125rem;
+    margin-top: calc(var(--space-16) + var(--space-8));
     margin-bottom: var(--space-4);
     width: 100%;
     max-width: 100%;
