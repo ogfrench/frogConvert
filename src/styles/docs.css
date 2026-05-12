@@ -1,6 +1,5 @@
 :root {
-  /* topbar-h = padding-top + button height (2rem) + padding-bottom */
-  --topbar-h: calc(var(--space-4) + 2rem + var(--space-6));
+  --topbar-h: calc(var(--space-4) + var(--control-size) + var(--space-4));
   --sidebar-w: 240px;
   --toc-w: 220px;
 }
@@ -27,7 +26,7 @@
   position: fixed; top: 0; left: 0; right: 0;
   height: var(--topbar-h);
   display: flex; align-items: center; justify-content: space-between;
-  padding: var(--space-4) var(--space-6) var(--space-6);
+  padding: var(--space-4) var(--space-6);
   background-color: var(--top-bar-bg);
   backdrop-filter: var(--blur-bg-visual);
   -webkit-backdrop-filter: var(--blur-bg-visual);
@@ -64,7 +63,8 @@
 
 .topbar-btn {
   display: flex; align-items: center; gap: var(--space-1-5);
-  height: 2rem; padding: 0 var(--space-3);
+  height: var(--control-size); padding: 0 var(--space-3);
+  line-height: var(--leading-none);
   font-family: inherit; font-size: var(--text-sm); font-weight: var(--font-medium);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -76,8 +76,9 @@
 .topbar-btn:hover { background-color: var(--accent); border-color: var(--ring); }
 
 #theme-toggle {
-  width: 2rem; height: 2rem; padding: 0;
+  width: var(--control-size); height: var(--control-size); padding: 0;
   display: flex; align-items: center; justify-content: center;
+  line-height: var(--leading-none);
   font-size: var(--text-xl);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -91,7 +92,7 @@
 /* ── Mobile nav toggle ── */
 #nav-toggle {
   display: none;
-  width: 2rem; height: 2rem; padding: 0;
+  width: var(--control-size); height: var(--control-size); padding: 0;
   flex-direction: column; justify-content: center; align-items: center; gap: var(--space-1);
   border: 1px solid var(--border); border-radius: var(--radius);
   background-color: var(--secondary); cursor: pointer;
@@ -457,8 +458,6 @@
     --sidebar-w: 0px;
   }
 
-  #topbar { padding: var(--space-4) var(--space-6); }
-  #topbar-right { gap: var(--space-2); }
   .logo-text { display: none; }
   .logo-emoji { font-size: var(--text-3xl); }
 

@@ -143,7 +143,7 @@ export default defineConfig({
     dedupe: ['internmap'],
   },
   build: {
-    sourcemap: 'hidden',
+    sourcemap: true,
     target: "esnext",
     // Vendor chunks (vexflow ~1.1 MB, font ~1.2 MB, docs/mermaid ~1.6 MB, three.js ~720 KB)
     // are already lazy-loaded as separate chunks; further splitting yields no user-visible
@@ -332,6 +332,7 @@ export default defineConfig({
         // Auto-sync all documentation files
         { src: "*.md", dest: "docs" },
         { src: "docs/*.md", dest: "docs" },
+        { src: "LICENSE", dest: "docs" },
         {
           src: "node_modules/pdf-parse/dist/pdf-parse/web/pdf.worker.mjs",
           dest: "js"

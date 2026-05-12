@@ -1,0 +1,29 @@
+# frogConvert
+
+> 100% client-side file converter and PDF editor. Converts 70+ formats and edits PDFs entirely in the browser via WASM (FFmpeg, ImageMagick, Pandoc, 7z-wasm, pdf-lib). No uploads, no servers, no telemetry: files never leave the device. Also exposes a Model Context Protocol (MCP) server and a local REST API so agents and scripts can drive it.
+
+## Project
+
+- [README](https://frogconvert.xyz/docs/README.md): Overview, install, quick start
+- [Changelog](https://frogconvert.xyz/docs/CHANGELOG.md): Release history
+- [Security policy](https://frogconvert.xyz/docs/SECURITY.md): Reporting vulnerabilities, threat model
+- [License](https://frogconvert.xyz/docs/LICENSE): Open-source license terms
+
+## User documentation
+
+- [Converter guide](https://frogconvert.xyz/docs/CONVERTER.md): Supported formats, quality presets, batch mode
+- [PDF editor guide](https://frogconvert.xyz/docs/PDF_EDITOR.md): Merge, reorder, watermark, extract, organize
+- [Integrations](https://frogconvert.xyz/docs/INTEGRATIONS.md): MCP server, local REST API, automation
+
+## Contributor documentation
+
+- [Architecture](https://frogconvert.xyz/docs/ARCHITECTURE.md): Two-subsystem design (conversion pipeline + PDF workspace), worker model
+- [Handler authoring](https://frogconvert.xyz/docs/HANDLERS.md): FormatHandler interface, registration, quality planners
+- [Contributing](https://frogconvert.xyz/docs/CONTRIBUTING.md): Local setup, conventions, test commands
+- [Deployment](https://frogconvert.xyz/docs/DEPLOYMENT.md): Build, hosting, PWA, desktop build
+- [Agent rules](https://frogconvert.xyz/docs/AGENTS.md): Mandatory contributor rules (read first)
+
+## Crawler policy
+
+- [robots.txt](https://frogconvert.xyz/robots.txt): Crawler access; all standard search engines and GenAI bots (GPTBot, ClaudeBot, Google-Extended, PerplexityBot, etc.) are explicitly allowed
+- [sitemap.xml](https://frogconvert.xyz/sitemap.xml): Indexable URLs

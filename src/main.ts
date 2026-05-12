@@ -551,6 +551,7 @@ let convertRestoreAttempted = false;
     showLoadingBar(false);  // always hide bar when entire loading sequence ends
     isLoadingHandlers.value = false;
     updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
+    document.body.classList.add("app-ready");  // dismiss cold-start splash overlay
   }
 })();
 

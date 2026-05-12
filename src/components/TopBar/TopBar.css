@@ -424,9 +424,7 @@
 
 @media only screen and (max-width: 400px) {
   .page-title {
-    font-size: var(--space-7);
-    margin-top: calc(var(--space-16) + 0.5rem);
-    margin-bottom: var(--space-4);
+    font-size: var(--text-3xl);
   }
 }
 

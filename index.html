@@ -11,22 +11,16 @@
       document.documentElement.classList.add("dark");
     }
 
-    // FOUC prevention logic
-    document.documentElement.style.visibility = 'hidden';
-    document.documentElement.style.opacity = '0';
-    document.documentElement.style.transition = 'opacity 0.25s ease';
+    // FOUC prevention: keep body content hidden until CSS is applied. Splash overlay
+    // (#cold-start-splash) is exempt via a CSS rule so it remains visible during this window.
+    document.documentElement.classList.add("app-loading");
 
-    // Reveal on the first paint frame after CSS is applied.
-    // In production, render-blocking CSS means rAF only fires after styles are loaded.
-    // In dev (Vite), CSS is injected via JS so rAF can fire before it - we poll the
-    // --background CSS variable as a signal that our stylesheet has been applied.
-    // DOMContentLoaded is a safety-net fallback (e.g. rAF unavailable, edge cases).
     var _r = false;
     function _reveal() {
       if (_r) return;
       _r = true;
-      document.documentElement.style.visibility = 'visible';
-      document.documentElement.style.opacity = '1';
+      document.documentElement.classList.remove("app-loading");
+      document.documentElement.classList.add("app-revealed");
     }
     function _waitForCSS() {
       if (getComputedStyle(document.documentElement).getPropertyValue('--background').trim()) {
@@ -36,9 +30,75 @@
       }
     }
     requestAnimationFrame(function () { requestAnimationFrame(_waitForCSS); });
-    // Safety-net: reveal after 3s regardless (DOMContentLoaded fires before async CSS in production)
+    // Safety net: reveal page content after 3s even if CSS never loads.
     setTimeout(_reveal, 3000);
+    // Safety net: hide splash after 15s even if main.ts never signals app-ready
+    // (e.g. boot crash). Without this the splash would lock the screen forever.
+    setTimeout(function () { document.body && document.body.classList.add("app-ready"); }, 15000);
   </script>
+  <style>
+    /* Cold-start visibility gate: body content hidden until CSS loads, splash exempt. */
+    html.app-loading body > :not(#cold-start-splash) { visibility: hidden; }
+    html.app-revealed body > :not(#cold-start-splash) { animation: app-fade-in 0.25s ease forwards; }
+    @keyframes app-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+    /* Cold-start splash — shown until main.ts adds body.app-ready. */
+    #cold-start-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9998;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      background-color: #ffffff;
+      color: #0a0a0a;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      letter-spacing: -0.02em;
+      padding:
+        calc(1rem + env(safe-area-inset-top, 0px))
+        calc(1rem + env(safe-area-inset-right, 0px))
+        calc(1rem + env(safe-area-inset-bottom, 0px))
+        calc(1rem + env(safe-area-inset-left, 0px));
+      transition: opacity 0.4s ease, visibility 0s linear 0.4s;
+    }
+    html.dark #cold-start-splash { background-color: #0a0a0a; color: #fafafa; }
+    body.app-ready #cold-start-splash {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    #cold-start-splash .splash-frog {
+      width: 88px;
+      height: 88px;
+      animation: splash-bob 2s ease-in-out infinite;
+    }
+    #cold-start-splash .splash-frog img { display: block; width: 100%; height: 100%; }
+    #cold-start-splash .splash-title { font-size: 1.5rem; font-weight: 700; }
+    #cold-start-splash .splash-bar {
+      width: 140px;
+      height: 3px;
+      background: rgba(127, 127, 127, 0.18);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 0.25rem;
+    }
+    #cold-start-splash .splash-bar > span {
+      display: block;
+      width: 35%;
+      height: 100%;
+      background: currentColor;
+      border-radius: inherit;
+      animation: splash-slide 1.4s ease-in-out infinite;
+    }
+    @keyframes splash-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+    @keyframes splash-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(286%); } }
+    @media (prefers-reduced-motion: reduce) {
+      #cold-start-splash .splash-frog,
+      #cold-start-splash .splash-bar > span { animation: none; }
+    }
+  </style>
   <!-- Inter is self-hosted via @fontsource-variable/inter (src/styles/global.css).
        System-font fallback chain covers any load failure. No font CDN. -->
 
@@ -119,6 +179,12 @@
 </head>
 
 <body>
+
+  <div id="cold-start-splash" aria-hidden="true">
+    <div class="splash-frog"><img src="/frog-emoji.webp" alt="" width="128" height="128"></div>
+    <div class="splash-title">frogConvert</div>
+    <div class="splash-bar"><span></span></div>
+  </div>
 
   <a class="skip-link" href="#convert-card">Skip to content</a>
 

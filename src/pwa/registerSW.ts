@@ -68,10 +68,9 @@ function showUpdateAvailableNotice(onReload: () => void): void {
 
   const notice = document.createElement("div");
   notice.id = "pwa-update-notice";
-  notice.className = "convert-notice";
+  notice.className = "convert-notice convert-notice-pwa-update";
   notice.setAttribute("role", "status");
   notice.setAttribute("aria-live", "polite");
-  notice.style.cssText = "position:fixed;bottom:1rem;right:1rem;left:1rem;max-width:28rem;margin-left:auto;z-index:9999;";
 
   notice.innerHTML = `
     <button type="button" class="close-btn close-btn-md convert-notice-dismiss"

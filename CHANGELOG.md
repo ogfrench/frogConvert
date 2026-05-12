@@ -8,6 +8,30 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.3.3] - 2026-05-12
+
+Lighthouse audit cleanup plus a cold-start splash so the page no longer flashes blank while phase-2 handlers are still downloading. Source maps reach DevTools, agent-readable docs are honest, and the markdown URLs advertised to crawlers actually serve markdown.
+
+### Added
+- **Cold-start splash overlay.** [index.html](index.html) ships an inline `#cold-start-splash` div (frog logo + title + indeterminate progress bar) styled via an inline `<style>` block so it renders before any JS or CSS chunk arrives. The overlay is dismissed when [src/main.ts](src/main.ts) adds `body.app-ready` at the end of the loading sequence, with a 15s safety-net `setTimeout` so a boot crash can't lock the user on the splash. The existing FOUC gate moved off inline `style.cssText` mutations to `html.app-loading` / `html.app-revealed` classes for cleaner cascade.
+- **[public/llms.txt](public/llms.txt)** per the [llmstxt.org](https://llmstxt.org/) spec: H1 title, blockquote summary, link sections for project / user docs / contributor docs / crawler policy. Every URL points at `/docs/*.md` (verified to serve `text/markdown`) instead of the root-level paths that return HTML in production. Fixes Lighthouse's `llms-txt` failure (Agentic Browsing 67 → 100).
+
+### Fixed
+- **Source maps now resolve in DevTools.** [vite.config.js](vite.config.js) was building with `sourcemap: 'hidden'` — `.map` files were emitted but the `//# sourceMappingURL=` comment was stripped from every chunk, so DevTools couldn't auto-load them and Lighthouse's `valid-source-maps` audit failed. Flipped to `sourcemap: true`. No bundle-size delta (maps were already on disk), no privacy delta (public repo).
+- **Root-level `/README.md`, `/CHANGELOG.md`, `/SECURITY.md`, `/AGENTS.md` no longer 404-as-HTML.** Those URLs were advertised in [public/robots.txt](public/robots.txt) but the Netlify SPA fallback was serving `text/html` (the converter page) at them; markdown crawlers got the index page instead of the docs. Re-pointed the `robots.txt` comments at `/docs/<file>.md` (where `viteStaticCopy` actually mirrors root markdown via `{ src: "*.md", dest: "docs" }`).
+- **`LICENSE` now ships in `dist/`.** The `viteStaticCopy` glob `*.md` didn't match because `LICENSE` has no extension. Added `{ src: "LICENSE", dest: "docs" }` in [vite.config.js](vite.config.js) so `https://frogconvert.xyz/docs/LICENSE` resolves.
+- **`#loading-bar` respects iOS safe-area inset.** [src/styles/global.css](src/styles/global.css) fixed-position bar was sitting at `top: 0`, ending up under the notch / Dynamic Island on iOS PWAs. Switched to `top: env(safe-area-inset-top, 0px)`.
+- **`.convert-notice` mobile layout switches at the right breakpoint.** [src/components/ConvertCard/ConvertCard.css](src/components/ConvertCard/ConvertCard.css) was vertical-stacking notices only below 600px, but `MOBILE_BREAKPOINT` is 800px everywhere else. Aligned to 800px.
+
+### Changed
+- **PWA update banner moved off inline styles.** [src/pwa/registerSW.ts](src/pwa/registerSW.ts) was setting `position: fixed; bottom: 1rem; right: 1rem; ...` via `notice.style.cssText`. Extracted to `.convert-notice-pwa-update` in [src/components/ConvertCard/ConvertCard.css](src/components/ConvertCard/ConvertCard.css) with `env(safe-area-inset-bottom)` for notch handling and a `slide-up-fade` entrance.
+- **Docs topbar controls now use the `--control-size` token.** [src/styles/docs.css](src/styles/docs.css) `.topbar-btn`, `#theme-toggle`, `#nav-toggle` migrated off hardcoded `2rem` heights/widths. `--topbar-h` recomputed from the same token. Added `line-height: var(--leading-none)` so glyph-only buttons don't drift vertically. Drops the duplicate mobile padding rule.
+
+### Internal
+- **`.page-title` mobile sizing.** [src/styles/global.css](src/styles/global.css) bumps the title to `2.25rem` with extra top margin at ≤800px; [src/components/TopBar/TopBar.css](src/components/TopBar/TopBar.css) keeps the ≤400px font-size override but drops the now-redundant margin rules. Cleaner cascade, no visual change at supported widths.
+
+---
+
 ## [2.3.2] - 2026-05-09
 
 Three quiet defects fixed: a missing icon on the Electron build, a `manifest.webmanifest` 404 firing on every dev / E2E / desktop session, and uncaught `THREE.WebGLRenderer` failures on hardware-acceleration-disabled environments.

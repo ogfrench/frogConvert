@@ -103,7 +103,7 @@
   opacity: 0.9;
 }
 
-@media only screen and (max-width: 600px) {
+@media only screen and (max-width: 800px) {
   .convert-notice {
     flex-direction: column;
     gap: var(--space-3);
@@ -112,6 +112,20 @@
     align-self: stretch;
     text-align: center;
   }
+}
+
+/* --- PWA update banner (service-worker prompt) ---
+   Positioning + entrance for the floating "New version available" card. */
+.convert-notice-pwa-update {
+  position: fixed;
+  right: var(--space-4);
+  left: var(--space-4);
+  bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  max-width: 28rem;
+  margin-left: auto;
+  margin-top: 0;
+  z-index: var(--z-toast);
+  animation: slide-up-fade 0.35s var(--ease-out-expo) forwards;
 }
 
 @media only screen and (max-width: 800px) {
