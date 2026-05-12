@@ -8,6 +8,15 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.3.5] - 2026-05-12
+
+Restores the background-emoji unblur-on-cursor effect that's been gone since the a11y pass back in `781f9c9`. Intended to land as part of v2.3.4 but branch protection blocks force-pushing the release commit, so it ships as a patch.
+
+### Fixed
+- **Background emojis sharpen near the cursor again.** The `#bg-visuals span:hover` rule that unblurred emojis under the pointer was deleted in `781f9c9` because those spans had to flip to `pointer-events: none` to stop swallowing real clicks — once they were unhoverable, the CSS `:hover` route was dead. [src/components/AmbientBackground/AmbientBackground.ts](src/components/AmbientBackground/AmbientBackground.ts) now drives the unblur from JS using the `dist` value already computed for parallax: spans within 140px of the smoothed cursor lerp from `blur(12px)/opacity:0.22` toward `blur(0)/opacity:0.6`. The CSS `transition: filter, opacity` on [src/styles/global.css](src/styles/global.css) was dropped — per-frame JS writes would lag-chase a 0.5s transition, and the parallax smoothing already supplies the easing.
+
+---
+
 ## [2.3.4] - 2026-05-12
 
 Three UI alignment fixes after on-device review: the PDF editor's content arrival now mirrors the converter card's slide-up instead of popping in, the PWA "Reload now" pill no longer ships with the browser's default 3D button bevel, and the docs theme toggle uses an actual SVG icon instead of a Unicode glyph that sat off-center inside its button.

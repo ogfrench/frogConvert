@@ -24,6 +24,12 @@ export function initParallax() {
   let smoothX = -500;
   let smoothY = -500;
   const PARALLAX_LERP_BASE = 0.25; // lerp factor calibrated at 60fps
+  // Proximity unblur tuning. Matches the original :hover values (blur 0,
+  // opacity ~0.45–0.6) at the cursor and the rest tokens far from it.
+  const HALO_RADIUS = 140;  // px around cursor that get the clear-up
+  const REST_BLUR = 12;     // mirrors --blur-bg-visual
+  const REST_OPACITY = 0.22; // mirrors --opacity-bg-visual
+  const HOVER_OPACITY = 0.6;
   let prevParallaxTimestamp = 0;
   let isWide = window.innerWidth > MOBILE_BREAKPOINT;
   let dirty = false; // only start writing once the mouse has actually moved
@@ -51,6 +57,14 @@ export function initParallax() {
         const offsetX = (dx / (dist || 1)) * strength;
         const offsetY = (dy / (dist || 1)) * strength;
         span.style.translate = `${offsetX}px ${offsetY}px`;
+
+        // Proximity unblur: spans within HALO_RADIUS of the smoothed cursor
+        // sharpen and brighten. Reuses `dist` already computed for parallax.
+        // Replaces the old `#bg-visuals span:hover` rule (dropped in 781f9c9
+        // when spans got pointer-events:none to stop swallowing real clicks).
+        const haloT = Math.max(0, 1 - dist / HALO_RADIUS);
+        span.style.filter = `blur(${REST_BLUR * (1 - haloT)}px)`;
+        span.style.opacity = String(REST_OPACITY + (HOVER_OPACITY - REST_OPACITY) * haloT);
       });
 
       // Stop writing once smoothing has converged

@@ -732,7 +732,9 @@ summary {
   opacity: var(--opacity-bg-visual);
   filter: var(--blur-bg-visual);
   animation: float 20s ease-in-out infinite;
-  transition: filter 0.5s cubic-bezier(0.2, 0, 0, 1), opacity 0.5s ease, transform 0.5s cubic-bezier(0.2, 0, 0, 1);
+  /* filter + opacity are driven per-frame by AmbientBackground.ts proximity
+     unblur. CSS transitions on them would lag-chase the JS writes; the
+     parallax smoothing already provides motion easing. */
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
