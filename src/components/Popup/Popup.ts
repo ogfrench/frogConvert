@@ -6,10 +6,10 @@ import { ModalManager } from "../utils/ModalManager.ts";
 
 // --- Popup ---
 
-/** Content lives inside `.popup-scroll`, not directly on #popup, so the
- *  inner element owns the scrollbar. With the outer #popup clipping via
- *  border-radius + overflow:hidden, the scrollbar stays inside the rounded
- *  card instead of protruding past the corners.
+/** Content lives inside `.popup-scroll`, not directly on #popup. The outer
+ *  #popup clips with border-radius + overflow:hidden; popups that need
+ *  scrolling supply their own inner scroller (.type-filter-scroll,
+ *  .upload-summary-list).
  *
  *  Also strips any non-scroll direct children that earlier code appended as a
  *  sibling (e.g. ensureCancelButton's `.popup-actions-footer` from a progress

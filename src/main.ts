@@ -380,28 +380,6 @@ async function initCacheMissHandlers(subset: FormatHandler[]) {
   }
 }
 
-/** Show or complete/hide the top-of-page thin loading bar (cold start only). */
-function showLoadingBar(show: boolean) {
-  const id = "loading-bar";
-  if (show) {
-    if (document.getElementById(id)) return;
-    const bar = document.createElement("div");
-    bar.id = id;
-    document.body.prepend(bar);
-  } else {
-    const bar = document.getElementById(id) as HTMLElement | null;
-    if (!bar) return;
-    const currentWidth = getComputedStyle(bar).width;   // capture live animated position
-    bar.style.setProperty("--bar-start", currentWidth); // feed into @keyframes loading-bar-finish 0%
-    bar.style.width = currentWidth;                     // freeze: prevents flash to CSS width:0 on cancel
-    bar.style.animation = "none";                       // cancel grow+breathe
-    void bar.offsetHeight;                               // force reflow to commit inline values
-    bar.classList.add("complete");                      // !important in .complete overrides inline animation:none
-    bar.addEventListener("animationend", () => bar.remove(), { once: true });
-    setTimeout(() => bar.remove(), 1500);               // fallback cleanup
-  }
-}
-
 function updateFileInputAccept() {
   ui.fileInput.accept = buildAcceptString(allOptionsRef.value);
 }
@@ -466,13 +444,11 @@ let convertRestoreAttempted = false;
 
   // Load cache: localStorage → cache.json → nothing (cold start)
   let hasCache = false;
-  let hasLocalStorageCache = false;
   try {
     const stored = localStorage.getItem("supportedFormatCache");
     if (stored) {
       window.supportedFormatCache = new Map(JSON.parse(stored));
       hasCache = true;
-      hasLocalStorageCache = true;
     } else {
       throw "No localStorage cache";
     }
@@ -494,10 +470,6 @@ let convertRestoreAttempted = false;
     populateFromCache(handlers);
     refreshUI();
     attemptConvertRestore();
-  }
-  if (!hasLocalStorageCache) {
-    // Show loading bar whenever localStorage is empty (cold start or cache.json fallback)
-    showLoadingBar(true);
   }
 
   try {
@@ -548,7 +520,6 @@ let convertRestoreAttempted = false;
     }
     console.debug(`Phase 2: ${handlers.length - countBefore} background handlers loaded.`);
   } finally {
-    showLoadingBar(false);  // always hide bar when entire loading sequence ends
     isLoadingHandlers.value = false;
     updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
     document.body.classList.add("app-ready");  // dismiss cold-start splash overlay

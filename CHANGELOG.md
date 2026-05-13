@@ -8,6 +8,18 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.3.7] - 2026-05-13
+
+Two small follow-ups on v2.3.6: the cold-start splash now fully owns the boot UI (the legacy thin loading bar at the top is gone), and the popup scroll architecture is simplified so the wrapper is structural-only and each popup that needs scrolling provides its own inner scroller.
+
+### Removed
+- **`#loading-bar`.** v2.3.3's cold-start splash overlay covers the entire viewport during boot, so the 3px breathing bar at `top: 0` was hidden underneath and only visible in the brief window after the splash dismissed but before phase-2 handlers finished. Deleted [src/main.ts](src/main.ts) `showLoadingBar()`, the two call sites, the `hasLocalStorageCache` flag that gated them, and the `#loading-bar` CSS + `loading-bar-grow` / `loading-bar-breathe` / `loading-bar-finish` keyframes + `--z-loading-bar` token from [src/styles/global.css](src/styles/global.css). The splash is now the single source of "we're booting" feedback.
+
+### Changed
+- **`.popup-scroll` is structural, not a scroller.** [src/components/Popup/Popup.css](src/components/Popup/Popup.css) `.popup-scroll` flipped from `overflow-y: auto` to `overflow: visible`. The wrapper still exists to anchor margin-reset selectors and to give `popupContent()` a stable target to clear on rotation, but popups that genuinely need scrolling supply their own inner scroller (`.type-filter-scroll`, `.upload-summary-list`). Removes the awkward double-scroll situation where both `.popup-scroll` and an inner list could each show a scrollbar.
+
+---
+
 ## [2.3.6] - 2026-05-13
 
 Scrollbar-inside-the-card refactor across the three modal surfaces (Popup, FilesModal, PdfWorkspace mobile trays), a handful of UX defects that surfaced under v2.3.3's cold-start splash, and security/privacy hardening on the HAR handler, share-target SW, and CSP.

@@ -1,6 +1,8 @@
 /* --- Popup / Modal ---
  * Outer #popup clips with border-radius (overflow: hidden via .modal-container.popup-size).
- * Inner .popup-scroll owns the scrollbar so it stays inside the rounded card. */
+ * .popup-scroll is a flex wrapper for content; it does not own a scrollbar.
+ * Popups that need scrolling provide their own inner scroller
+ * (.type-filter-scroll, .upload-summary-list). */
 #popup {
   padding: var(--space-8) var(--space-6);
   display: flex;
@@ -10,7 +12,7 @@
 .popup-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }

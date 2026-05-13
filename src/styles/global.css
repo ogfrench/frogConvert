@@ -153,7 +153,6 @@
   --z-overlay: 300;
   --z-modal: 301;
   --z-toast: 400;
-  --z-loading-bar: 9999;
   --z-cursor: 9999;
   --z-skip-link: 10000;
 
@@ -934,66 +933,6 @@ summary {
 .muted-text {
   opacity: 0.6;
   font-size: 0.85em;
-}
-
-/* --- Loading bar (cold start) --- */
-
-#loading-bar {
-  position: fixed;
-  top: env(safe-area-inset-top, 0px);
-  left: 0;
-  width: 0;
-  height: 3px;
-  background-color: var(--primary);
-  z-index: var(--z-loading-bar);
-  pointer-events: none;
-  animation:
-    loading-bar-grow 10s linear forwards,
-    loading-bar-breathe 1.5s ease-in-out infinite;
-}
-
-@keyframes loading-bar-grow {
-  from {
-    width: 0;
-  }
-
-  to {
-    width: 100%;
-  }
-}
-
-@keyframes loading-bar-breathe {
-
-  0%,
-  100% {
-    opacity: 0.4;
-  }
-
-  50% {
-    opacity: 1;
-  }
-}
-
-#loading-bar.complete {
-  background: linear-gradient(to right, #ff0048, #ff7700, #ffd000, #00dd55, #0099ff, #cc00ff);
-  animation: loading-bar-finish 1.5s ease-out forwards !important;
-}
-
-@keyframes loading-bar-finish {
-  0% {
-    width: var(--bar-start);
-    clip-path: inset(0 0 0 0);
-  }
-
-  35% {
-    width: 100%;
-    clip-path: inset(0 0 0 0);
-  }
-
-  100% {
-    width: 100%;
-    clip-path: inset(0 0 0 100%);
-  }
 }
 
 /* --- Responsive --- */
