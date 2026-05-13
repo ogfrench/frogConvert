@@ -74,5 +74,12 @@ jobs:
             release/*.zip
             release/*.snap
             release/*.deb
+          # Publish straight away and re-target the GitHub "Latest" badge so the
+          # rolling release tracks the newest tag without a manual click. Use
+          # overwrite_files so a re-run on the same tag replaces stale binaries
+          # rather than uploading duplicates side-by-side.
           generate_release_notes: true
-          draft: true
+          draft: false
+          make_latest: "true"
+          overwrite_files: true
+
