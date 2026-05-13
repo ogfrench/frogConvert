@@ -1,5 +1,6 @@
 import type { FileData, FileFormat, FormatHandler, ProgressEvent } from "../core/FormatHandler/FormatHandler.ts";
 import handlers, { loadBackgroundHandlers } from "../handlers/index.ts";
+import { ensureHandlerInit } from "./handlerInit.ts";
 
 export type ConvertRequestMessage = {
     id: number;
@@ -22,9 +23,7 @@ async function getHandler(name: string): Promise<FormatHandler | undefined> {
     // Check statically imported handlers first
     let handler = handlers.find(h => h.name === name);
     if (handler) {
-        if (!handler.ready) {
-            await handler.init();
-        }
+        await ensureHandlerInit(handler);
         return handler;
     }
 
@@ -36,9 +35,7 @@ async function getHandler(name: string): Promise<FormatHandler | undefined> {
 
     handler = handlers.find(h => h.name === name);
     if (handler) {
-        if (!handler.ready) {
-            await handler.init();
-        }
+        await ensureHandlerInit(handler);
         return handler;
     }
     return undefined;

@@ -1,0 +1,2 @@
+/*
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https://cdn.sheetjs.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'

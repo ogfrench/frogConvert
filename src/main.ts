@@ -169,8 +169,8 @@ const pdfDescriptionEl = document.getElementById("pdf-description")!;
 let currentAppMode = "converter";
 
 const bgEmojis = {
-  converter: ["🖼️", "📝", "🎵", "🎥", "📖", "📊", "🔠", "💻", "⚡"],
-  "pdf-editor": ["📄", "✂️", "🔒", "🖊️", "📑", "🗂️", "🔗", "🖨️", "📐"],
+  converter: ["🖼️", "📝", "🎵", "🎥", "📖", "📊", "🎨", "💻", "📦"],
+  "pdf-editor": ["📄", "✂️", "💧", "🔗", "🗂️", "📑", "🔖", "👁️", "📓"],
 };
 const bgEmojiSpans = document.querySelectorAll<HTMLSpanElement>("#bg-visuals .bg-pop span");
 

@@ -91,6 +91,19 @@ registerRoute(
 
 async function handleShareTarget(request: Request): Promise<Response> {
   const redirectUrl = new URL(SHARE_TARGET_READY_PATH, self.location.origin).toString();
+
+  // Pre-parse size check: formData() would otherwise materialise the entire
+  // multipart body in memory before the post-parse loop has any chance to
+  // reject. On low-RAM devices a pathological share OOMs the SW before our
+  // caps run. Allow 10% slack for multipart envelope overhead so legit
+  // uploads near the cap aren't false-rejected.
+  const declaredSize = parseInt(request.headers.get("content-length") || "", 10);
+  const earlyCap = Math.floor(SHARE_TARGET_MAX_TOTAL_BYTES * 1.1);
+  if (Number.isFinite(declaredSize) && declaredSize > earlyCap) {
+    console.warn(`[sw] share-target rejected pre-parse: content-length ${declaredSize} exceeds ~${earlyCap}`);
+    return Response.redirect(redirectUrl, 303);
+  }
+
   try {
     // formData() materialises the entire request body. We have to read it
     // before any size check, but we count and reject as we go so a single

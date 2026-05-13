@@ -6,20 +6,44 @@ import { ModalManager } from "../utils/ModalManager.ts";
 
 // --- Popup ---
 
+/** Content lives inside `.popup-scroll`, not directly on #popup, so the
+ *  inner element owns the scrollbar. With the outer #popup clipping via
+ *  border-radius + overflow:hidden, the scrollbar stays inside the rounded
+ *  card instead of protruding past the corners.
+ *
+ *  Also strips any non-scroll direct children that earlier code appended as a
+ *  sibling (e.g. ensureCancelButton's `.popup-actions-footer` from a progress
+ *  popup). Pre-refactor, popup rotation did `popupBox.innerHTML = ""` and
+ *  wiped those automatically; this preserves that semantic so a stale cancel
+ *  button can't bleed into the next popup. */
+function popupContent(): HTMLDivElement {
+  let scroll = ui.popupBox.querySelector<HTMLDivElement>(":scope > .popup-scroll");
+  for (const child of Array.from(ui.popupBox.children)) {
+    if (child !== scroll) child.remove();
+  }
+  if (!scroll) {
+    scroll = document.createElement("div");
+    scroll.className = "popup-scroll";
+    ui.popupBox.appendChild(scroll);
+  }
+  return scroll;
+}
+
 /**
  * SECURITY: When content is a string it is injected via innerHTML.
  * Only pass hardcoded HTML strings, never pass user-supplied content.
  * Prefer the Node | Node[] overload to avoid innerHTML entirely.
  */
 export function showPopup(content: string | Node | Node[], persistent = false, onEscape?: () => void) {
+  const scroll = popupContent();
   if (typeof content === "string") {
-    ui.popupBox.innerHTML = content;
+    scroll.innerHTML = content;
   } else {
-    ui.popupBox.innerHTML = "";
+    scroll.innerHTML = "";
     if (Array.isArray(content)) {
-      content.forEach(node => ui.popupBox.appendChild(node));
+      content.forEach(node => scroll.appendChild(node));
     } else {
-      ui.popupBox.appendChild(content);
+      scroll.appendChild(content);
     }
   }
   ModalManager.open(ui.popupBox, ui.popupBackground, hidePopup, persistent, onEscape);
@@ -30,8 +54,9 @@ export function hidePopup() {
 }
 
 export function replacePopup(content: Node[], persistent = false, onEscape?: () => void) {
-  ui.popupBox.innerHTML = "";
-  content.forEach(node => ui.popupBox.appendChild(node));
+  const scroll = popupContent();
+  scroll.innerHTML = "";
+  content.forEach(node => scroll.appendChild(node));
   ModalManager.replaceTop(ui.popupBox, ui.popupBackground, hidePopup, persistent, onEscape);
 }
 

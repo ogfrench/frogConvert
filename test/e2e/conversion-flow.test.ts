@@ -148,6 +148,48 @@ describe("E2E Conversion Flow", () => {
         }
     }, 45000);
 
+    it("cold-start fade does not stick body-appended elements at opacity 1", async () => {
+        // Regression: the inline reveal CSS used `animation: app-fade-in forwards`
+        // on every body child. `html.app-revealed` was added on boot and never
+        // removed, so any element later appended to <body> (PDF Workspace mobile
+        // tray, overlay, toolbar, toasts, modals) inherited the forwards-fill
+        // and got stuck at opacity 1. That defeated the mobile tray's
+        // opacity-based hidden state.
+        //
+        // The fix is a one-shot: drop `app-revealed` after the fade ends, with
+        // a setTimeout fallback for prefers-reduced-motion. This test asserts
+        // both halves: the class is gone after reveal, and a body-appended
+        // element with an explicit opacity:0 style does NOT get overridden.
+        await page.setViewport({ width: 375, height: 812 });
+        await safeGoto(page, url, { waitUntil: "networkidle0", timeout: 45000 });
+
+        // Wait for the one-shot cleanup to have run. Reveal runs on rAF after
+        // CSS is applied, the fade is 0.25s, the setTimeout fallback is 350ms.
+        // 5s budget covers all of that with slack for slow CI.
+        await page.waitForFunction(
+            () => !document.documentElement.classList.contains("app-revealed"),
+            { timeout: 5000 }
+        );
+
+        const probe = await page.evaluate(() => {
+            // Mimic what PdfWorkspace.ts does: append a fresh element to <body>
+            // after boot, give it the same hidden-by-opacity contract as .ws-tray.
+            const el = document.createElement("div");
+            el.setAttribute("data-test", "post-boot-body-child");
+            el.style.cssText = "position:fixed;left:-9999px;width:1px;height:1px;opacity:0;";
+            document.body.appendChild(el);
+            const opacity = getComputedStyle(el).opacity;
+            const animationCount = el.getAnimations().length;
+            el.remove();
+            return { opacity, animationCount };
+        });
+
+        expect(probe.opacity).toBe("0");
+        expect(probe.animationCount).toBe(0);
+
+        await page.setViewport({ width: 800, height: 600 });
+    }, 60000);
+
     it("hamburger menu is visible when opened on mobile viewport", async () => {
         await page.setViewport({ width: 375, height: 667 });
         // Use networkidle0 to wait for Vite dependency re-optimization to finish

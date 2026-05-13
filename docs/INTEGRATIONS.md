@@ -39,7 +39,7 @@ For installation and CLI usage, see [DEPLOYMENT.md § CLI](DEPLOYMENT.md#cli-no-
 
 ## MCP Tools Reference
 
-Six tools, all over `stdio`. Three are format conversion; three are PDF editing.
+Seven tools, all over `stdio`: one metadata (`list_formats`), two conversion (`find_conversion_path`, `convert_file`), four PDF editing (`pdf_merge`, `pdf_organize`, `pdf_extract`, `pdf_watermark`).
 
 1. **`list_formats`**
    - **Description**: Returns a JSON array of all supported input and output formats available in the Node.js environment.
@@ -149,7 +149,7 @@ The PDF editor is exposed as three dedicated MCP tools. They operate on PDFs dir
 
 ## REST API Reference
 
-A local HTTP REST API is also available as an alternative to MCP - useful for shell scripts, curl, or any HTTP client. Binds to `http://127.0.0.1:3000`; override with the `PORT` env var.
+A local HTTP REST API is also available as an alternative to MCP - useful for shell scripts, curl, or any HTTP client. Binds to `http://127.0.0.1:3000` (loopback only) and rejects requests whose `Origin` or `Host` headers are not `localhost`, `127.0.0.1`, or `[::1]` (DNS-rebinding defense). Override the port with the `PORT` env var. See [../SECURITY.md](../SECURITY.md) for the full privacy posture.
 
 ### Endpoints
 

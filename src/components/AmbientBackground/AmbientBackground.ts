@@ -1,4 +1,4 @@
-import { MOBILE_BREAKPOINT, PARALLAX_MAX_DIST, PARALLAX_STRENGTH } from "../../constants/ui.ts";
+import { PARALLAX_MAX_DIST, PARALLAX_STRENGTH } from "../../constants/ui.ts";
 import { isTouchUi } from "../../core/utils/touchUi.ts";
 
 // --- Ambient Visuals ---
@@ -26,17 +26,13 @@ export function initParallax() {
   const PARALLAX_LERP_BASE = 0.25; // lerp factor calibrated at 60fps
   // Proximity unblur tuning. Matches the original :hover values (blur 0,
   // opacity ~0.45–0.6) at the cursor and the rest tokens far from it.
-  const HALO_RADIUS = 140;  // px around cursor that get the clear-up
+  const CORE_RADIUS = 60;   // px around cursor that are fully clear (blur 0)
+  const HALO_RADIUS = 180;  // px around cursor where the clear-up ramps in
   const REST_BLUR = 12;     // mirrors --blur-bg-visual
   const REST_OPACITY = 0.22; // mirrors --opacity-bg-visual
   const HOVER_OPACITY = 0.6;
   let prevParallaxTimestamp = 0;
-  let isWide = window.innerWidth > MOBILE_BREAKPOINT;
   let dirty = false; // only start writing once the mouse has actually moved
-
-  window.addEventListener("resize", () => {
-    isWide = window.innerWidth > MOBILE_BREAKPOINT;
-  });
 
   function updateParallax(timestamp: number) {
     const dt = prevParallaxTimestamp === 0 ? 1000 / 60 : timestamp - prevParallaxTimestamp;
@@ -47,7 +43,7 @@ export function initParallax() {
     smoothY += (mouseY - smoothY) * factor;
 
     // Only write to DOM when mouse has moved or smoothing hasn't converged
-    if (dirty && isWide) {
+    if (dirty) {
       bgSpans.forEach((span, i) => {
         const pos = originalPositions[i];
         const dx = smoothX - pos.x;
@@ -62,7 +58,9 @@ export function initParallax() {
         // sharpen and brighten. Reuses `dist` already computed for parallax.
         // Replaces the old `#bg-visuals span:hover` rule (dropped in 781f9c9
         // when spans got pointer-events:none to stop swallowing real clicks).
-        const haloT = Math.max(0, 1 - dist / HALO_RADIUS);
+        const haloT = dist <= CORE_RADIUS
+          ? 1
+          : Math.max(0, 1 - (dist - CORE_RADIUS) / (HALO_RADIUS - CORE_RADIUS));
         span.style.filter = `blur(${REST_BLUR * (1 - haloT)}px)`;
         span.style.opacity = String(REST_OPACITY + (HOVER_OPACITY - REST_OPACITY) * haloT);
       });

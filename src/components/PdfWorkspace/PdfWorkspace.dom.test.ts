@@ -405,6 +405,19 @@ describe('Watermark DOM interactions', () => {
     expect(iconBtn.innerHTML).not.toContain('M6 6l12 12');
   });
 
+  it('mounts the watermark tray in the closed state (no ws-tray-open, aria-expanded=false)', () => {
+    // Regression: an `app-fade-in` keyframe on body-children once forced the
+    // tray opaque on mount, making the non-interactive ghost visible before
+    // the kebab was tapped. Mount must produce a fully closed tray.
+    __testing.setupForTest('watermark', [sf(1, 2)]);
+    const tray = document.querySelector<HTMLElement>('.ws-tray')!;
+    const iconBtn = document.querySelector<HTMLButtonElement>('.ws-toolbar--watermark .ws-toolbar-icon')!;
+
+    expect(tray.classList.contains('ws-tray-open')).toBe(false);
+    expect(iconBtn.getAttribute('aria-expanded')).toBe('false');
+    expect(iconBtn.getAttribute('aria-label')).toBe('More options');
+  });
+
   it('empty watermark text keeps the Export PDF button enabled with no extra chrome', () => {
     const root = __testing.setupForTest('watermark', [sf(1, 2)]);
     const toolbar = document.querySelector<HTMLElement>('.ws-toolbar--watermark')!;

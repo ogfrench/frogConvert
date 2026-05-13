@@ -1023,9 +1023,12 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     font-size: var(--text-xs);
   }
 
-  /* --- Mobile tray: floating card above toolbar --- */
+  /* --- Mobile tray: floating card above toolbar.
+     Outer clips with border-radius; inner .ws-tray-scroll scrolls so the
+     scrollbar lives inside the rounded card instead of protruding past it. */
   .ws-tray {
-    display: block;
+    display: flex;
+    flex-direction: column;
     position: fixed;
     bottom: calc(var(--space-6) + var(--space-12) + var(--space-3) + env(safe-area-inset-bottom, 0px));
     left: 50%;
@@ -1033,7 +1036,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     width: calc(100% - var(--space-10));
     max-width: 28rem;
     max-height: 70vh;
-    overflow: hidden auto;
+    overflow: hidden;
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
@@ -1043,6 +1046,14 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
     pointer-events: none;
     transition: opacity var(--transition-normal), transform var(--transition-normal);
     padding: var(--space-6);
+  }
+
+  .ws-tray-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    width: 100%;
   }
 
   .ws-tray.ws-tray-open {

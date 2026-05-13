@@ -11,6 +11,10 @@ const harFormat = new FormatDefinition(
     Category.ARCHIVE
 );
 
+// HAR captures from Chrome DevTools commonly reach 100-200 MB on long sessions.
+// Reject above 250 MB so a pathological dump can't stall the worker on JSON.parse.
+const HAR_MAX_INPUT_BYTES = 250 * 1024 * 1024;
+
 class harHandler implements FormatHandler {
 
   public name: string = "har";
@@ -36,7 +40,30 @@ class harHandler implements FormatHandler {
     return bytes;
   }
 
+  private sanitizeZipPath(rawPath: string): string | null {
+    // Surface percent-encoded ".." before we strip them.
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(rawPath);
+    } catch {
+      decoded = rawPath;
+    }
+    decoded = decoded
+      .replace(/\\/g, "/")
+      .replace(/^[a-zA-Z]:/, "")
+      .replace(/^\/+/, "");
+    const parts = decoded.split("/").filter(p => p && p !== "." && p !== "..");
+    if (parts.length === 0) return null;
+    return parts.join("/");
+  }
+
   private async convertHarToZip(inputFile: FileData): Promise<FileData> {
+    if (inputFile.bytes.length > HAR_MAX_INPUT_BYTES) {
+      const mb = Math.round(inputFile.bytes.length / (1024 * 1024));
+      const cap = Math.round(HAR_MAX_INPUT_BYTES / (1024 * 1024));
+      throw new Error(`HAR file is ${mb} MB; conversion is capped at ${cap} MB to keep the page responsive.`);
+    }
+
     const zip = new JSZip();
     const textEncoder = new TextEncoder();
     const textDecoder = new TextDecoder();
@@ -49,7 +76,8 @@ class harHandler implements FormatHandler {
       if (!entry?.response?.content?.text) continue;
 
       const url = new URL(entry.request.url);
-      let pathName = url.host + url.pathname;
+      let pathName = this.sanitizeZipPath(url.host + url.pathname);
+      if (!pathName) continue;
       const fileName = pathName.split("/").at(-1)!;
       if (entry.response.content.mimeType?.includes("text/html") && !fileName.endsWith(".html")) {
         if (pathName[pathName.length-1] !== "/") pathName += "/";

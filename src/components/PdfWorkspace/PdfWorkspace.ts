@@ -195,7 +195,7 @@ function stompDragSelection<T>(set: Set<T>, id: T, onChanged: () => void): void 
 function refreshMergeUi(): void {
   updateMergeSelectionVisuals();
   if (mergeSidebarCard) updateMergeSidebarContent(mergeSidebarCard);
-  if (mergeMobileTray) updateMergeSidebarContent(mergeMobileTray);
+  if (mergeMobileTray) updateMergeSidebarContent(trayScroll(mergeMobileTray));
 }
 
 function moveSelection(dir: 'up' | 'down'): boolean {
@@ -436,6 +436,13 @@ let mergeGridContainer: HTMLElement | null = null;
 let mergeSidebarCard: HTMLElement | null = null;
 let mergeMobileTray: HTMLElement | null = null;
 let organizeMobileTray: HTMLElement | null = null;
+
+/** Mobile trays use an outer `.ws-tray` (rounded card, clips overflow) plus an
+ *  inner `.ws-tray-scroll` that holds content and owns the scrollbar. This
+ *  keeps the scrollbar inside the rounded corner instead of protruding. */
+function trayScroll(tray: HTMLElement): HTMLElement {
+  return tray.querySelector<HTMLElement>(':scope > .ws-tray-scroll') ?? tray;
+}
 let sortableInstance: Sortable | null = null;
 let pendingMultiDrag: { pages: PageEntry[]; dragIdx: number } | null = null;
 let thumbnailObserver: IntersectionObserver | null = null;
@@ -782,7 +789,7 @@ function updateMergeContent() {
   });
 
   if (mergeSidebarCard) updateMergeSidebarContent(mergeSidebarCard);
-  if (mergeMobileTray) updateMergeSidebarContent(mergeMobileTray);
+  if (mergeMobileTray) updateMergeSidebarContent(trayScroll(mergeMobileTray));
 
   if (mobileActionBtn) {
     mobileActionBtn.textContent = 'Merge PDF';
@@ -948,8 +955,10 @@ function appendMobileToolbar_merge(_gridCard: HTMLElement) {
   mobileActionBtn = actionBtn;
 
   const tray = el('div', { className: 'ws-tray' });
+  const scroll = el('div', { className: 'ws-tray-scroll' });
+  tray.appendChild(scroll);
   mergeMobileTray = tray;
-  updateMergeSidebarContent(tray);
+  updateMergeSidebarContent(scroll);
   const overlay = el('div', { className: 'ws-tray-overlay' });
   wireTrayToggle(tray, overlay, iconBtn);
 
@@ -1527,8 +1536,10 @@ function appendMobileToolbar_watermark(_gridCard: HTMLElement) {
   document.body.appendChild(toolbar);
 
   const tray = el('div', { className: 'ws-tray' });
+  const scroll = el('div', { className: 'ws-tray-scroll' });
+  tray.appendChild(scroll);
   watermarkMobileTray = tray;
-  buildWatermarkPanel(tray, { tray: true });
+  buildWatermarkPanel(scroll, { tray: true });
   const overlay = el('div', { className: 'ws-tray-overlay' });
   wireTrayToggle(tray, overlay, iconBtn);
 
@@ -2571,7 +2582,7 @@ function updateSidebar() {
   const sidebar = document.getElementById('pdf-sidebar');
   if (sidebar) updateSidebarContent(sidebar);
   // Update mobile tray content
-  if (organizeMobileTray) buildMobileTrayContent(organizeMobileTray);
+  if (organizeMobileTray) buildMobileTrayContent(trayScroll(organizeMobileTray));
   // Update mobile action button
   if (mobileActionBtn) {
     const active = pages.length;
@@ -3195,8 +3206,10 @@ function appendMobileToolbar(_gridCard: HTMLElement) {
 
   // Tray
   const tray = el('div', { className: 'ws-tray' });
+  const scroll = el('div', { className: 'ws-tray-scroll' });
+  tray.appendChild(scroll);
   organizeMobileTray = tray;
-  buildMobileTrayContent(tray);
+  buildMobileTrayContent(scroll);
   const overlay = el('div', { className: 'ws-tray-overlay' });
 
   wireTrayToggle(tray, overlay, iconBtn);

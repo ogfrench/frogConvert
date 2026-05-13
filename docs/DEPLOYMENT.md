@@ -62,9 +62,7 @@ See [INTEGRATIONS.md](INTEGRATIONS.md) for request/response shapes, authenticati
 
 ### Optional: pre-build the format cache
 
-When you first open the page, it generates the list of supported formats per handler. The console complains about missing caches while this runs.
-
-Once the console prints `Built initial format list`, call `printSupportedFormatCache()` to get a JSON string of the cache data and save it to `public/cache.json` to skip that loading screen on future startups.
+When you first open the page, frogConvert generates the list of supported formats per handler. The console complains about missing caches while this runs. Pre-building `public/cache.json` skips that loading screen on future startups; this is also what the production Docker, Netlify, and Electron builds use.
 
 Automated equivalent:
 
@@ -72,7 +70,9 @@ Automated equivalent:
 bun run build && bun run cache:build
 ```
 
-Regenerate the cache after adding, removing, or renaming a handler, or after changing a handler's `supportedFormats`.
+Regenerate the cache after adding, removing, or renaming a handler, or after changing a handler's `supportedFormats`. Manual capture (open the page, wait for `Built initial format list`, then call `printSupportedFormatCache()`) is supported but rarely needed.
+
+For the full mechanism (Puppeteer-driven build step, when to regenerate, dev fallback) see [CONTRIBUTING.md § 4. Cache system](CONTRIBUTING.md#4-cache-system).
 
 ## Docker (prebuilt image)
 

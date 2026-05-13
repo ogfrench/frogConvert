@@ -8,6 +8,40 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.3.6] - 2026-05-13
+
+Scrollbar-inside-the-card refactor across the three modal surfaces (Popup, FilesModal, PdfWorkspace mobile trays), a handful of UX defects that surfaced under v2.3.3's cold-start splash, and security/privacy hardening on the HAR handler, share-target SW, and CSP.
+
+### Fixed
+- **Scrollbar no longer escapes rounded corners.** [src/components/Popup/Popup.ts](src/components/Popup/Popup.ts), [src/components/FilesModal/FilesModal.css](src/components/FilesModal/FilesModal.css), and [src/components/PdfWorkspace/PdfWorkspace.css](src/components/PdfWorkspace/PdfWorkspace.css) all moved from outer-element `overflow: auto` to an inner `.popup-scroll` / `.ws-tray-scroll`. Outer stays `overflow: hidden` with `border-radius`; inner owns the scrollbar so it lives inside the rounded card instead of protruding past the corner. Drops the `direction: rtl` hack the FilesModal was using to fake scrollbar-on-the-left.
+- **PDF Workspace mobile tray, overlay, toolbar invisible at boot.** v2.3.3 added `html.app-revealed body > * { animation: app-fade-in 0.25s forwards }` to FOUC-gate the page. `forwards` stuck every body-appended element at opacity 1, which beat the mobile tray's opacity-based hidden state, so the tray ghost was visible (and intercepting taps) before the kebab was opened. [index.html](index.html) now drops `app-revealed` once the first `animationend` fires (with a `setTimeout(350)` fallback for prefers-reduced-motion), so any later body-appended element inherits no animation. Regression covered by a new [test/e2e/conversion-flow.test.ts](test/e2e/conversion-flow.test.ts) case that probes a post-boot `<div style="opacity:0">` plus a Watermark-tray DOM test in [src/components/PdfWorkspace/PdfWorkspace.dom.test.ts](src/components/PdfWorkspace/PdfWorkspace.dom.test.ts).
+- **Cancel button no longer bleeds into the next popup.** [src/components/Popup/Popup.ts](src/components/Popup/Popup.ts) `popupContent()` now strips any non-`.popup-scroll` direct children of `#popup` on rotation, matching the pre-refactor `popupBox.innerHTML = ""` semantic. `ensureCancelButton` in [src/conversion/cancellation.ts](src/conversion/cancellation.ts) appends `.popup-actions-footer` as a sibling of `.popup-scroll`; without the strip it survived `replacePopup([...])` and ghosted under the cancellation spinner and success modal.
+- **Background-emoji proximity unblur tuned.** [src/components/AmbientBackground/AmbientBackground.ts](src/components/AmbientBackground/AmbientBackground.ts) now uses CORE_RADIUS=60 (fully clear) plus HALO_RADIUS=180 (ramp). The single-radius linear ramp from v2.3.5 never quite let the cursor-area emoji fully sharpen. Also dropped the `isWide` MOBILE_BREAKPOINT gate: `isTouchUi()` is the correct gate, and the width gate was masking the effect on narrow desktop windows.
+- **`#bg-visuals` hidden by input modality, not viewport width.** [public/404.html](public/404.html) and [src/styles/global.css](src/styles/global.css) flipped `@media (max-width: 800px) { #bg-visuals: none }` to `@media (hover: none) and (pointer: coarse)`. iPad-landscape (~1024px wide, pure touch) was paying for parallax it can't trigger; narrow desktop windows now keep their visuals.
+- **Background-emoji set refresh.** [index.html](index.html), [public/404.html](public/404.html), [src/main.ts](src/main.ts): converter set drops ABC-letters and lightning for palette + package; PDF-editor set replaced printer / lock / ruler with bookmark / watermark drop / notebook (more on-the-nose for the tools).
+- **Long URLs in docs wrap.** [src/styles/docs.css](src/styles/docs.css) `#doc-body a` gains `overflow-wrap: anywhere`. A long unbroken URL in CONTRIBUTING.md was overflowing the doc body on narrow viewports.
+
+### Security
+- **HAR handler hardening.** [src/handlers/har.ts](src/handlers/har.ts) `sanitizeZipPath` strips `..` segments (both literal and percent-encoded), drive letters, and absolute-path prefixes before passing entry names to JSZip. Zip-slip surface neutralised. Also a 250 MB input cap so a pathological DevTools capture can't lock the worker on `JSON.parse`. Unit coverage at [src/handlers/har.test.ts](src/handlers/har.test.ts).
+- **Service-worker share-target pre-parse cap.** [src/pwa/sw.ts](src/pwa/sw.ts) rejects multipart POSTs whose `content-length` exceeds 110% of `SHARE_TARGET_MAX_TOTAL_BYTES` before calling `formData()`. The post-parse counter still runs for streams without a content-length header; this just prevents a multi-GB share from OOMing the SW on low-RAM phones before the per-byte loop has any chance to reject.
+- **CSP-Report-Only baseline.** [public/_headers](public/_headers) adds `Content-Security-Policy-Report-Only` to production deploys. No enforce, no breakage. Surfaces inline-script and unexpected connect-src violations in browser DevTools so the eventual flip to enforced can be planned with eyes open.
+
+### Internal
+- **`ensureHandlerInit` race-fix.** [src/workers/handlerInit.ts](src/workers/handlerInit.ts) wraps `FormatHandler.init()` in a WeakMap-keyed in-flight promise. Concurrent callers (two routes both warming the same handler) now share one init; failures clear the cache so retry is possible. Replaces three inline `if (!handler.ready) await handler.init()` sites in [src/workers/conversion.worker.ts](src/workers/conversion.worker.ts). Tests at [src/workers/handlerInit.test.ts](src/workers/handlerInit.test.ts).
+- **[SUBMODULES.md](SUBMODULES.md)** lists all nine vendored submodules under `src/handlers/` with pinned commit SHAs, upstream URLs, and a last-reviewed column (locked to 2026-05-13). Plus a short audit checklist for future updates.
+- **`fenToJson` handler test** at [src/handlers/fenToJson.test.ts](src/handlers/fenToJson.test.ts) closes the round-trip coverage gap.
+- **Format cache refreshed.** [public/cache.json](public/cache.json) regenerated to match the current handler registrations (post-v2.3.2 additions were not yet baked in).
+
+### Docs
+- **ARCHITECTURE.md** cross-links the PWA-entry-points and Session-persistence sections so the two "load files into the app" surfaces aren't conflated. New "Browser bridge" plus "Cancellation" subsections under MCP/REST.
+- **CONTRIBUTING.md** gains a five-line directory cheatsheet so new contributors don't have to crack ARCHITECTURE for first-touch directories.
+- **CONVERTER.md** splits Install / Entry points / Offline. iOS share-target caveat called out: iOS Safari's Web Share Target is limited, depending on iOS version the share menu may launch frogConvert without auto-loading the file.
+- **DEPLOYMENT.md** cache section rewritten. Pre-built `public/cache.json` is the production path (Docker, Netlify, Electron); manual capture via `printSupportedFormatCache()` is supported but rarely needed.
+- **INTEGRATIONS.md** corrects the MCP tool count (6 → 7; the four PDF tools are merge / organize / extract / watermark) and documents the REST API's loopback-only binding with the Origin/Host check (DNS-rebinding defense).
+- **PDF_EDITOR.md** Extract folded into the Organize section (Extract is a sub-mode of the Organize tab, not its own tab). Output description names the watermark "combined vs zip" choice.
+
+---
+
 ## [2.3.5] - 2026-05-12
 
 Restores the background-emoji unblur-on-cursor effect that's been gone since the a11y pass back in `781f9c9`. Intended to land as part of v2.3.4 but branch protection blocks force-pushing the release commit, so it ships as a patch.

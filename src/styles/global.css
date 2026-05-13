@@ -561,10 +561,10 @@ summary {
   width: var(--popup-width);
   min-height: 0 !important;
   text-align: center;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
-.modal-container.popup-size>*:last-child:not(.popup-actions-footer) {
+.modal-container.popup-size > .popup-scroll > *:last-child:not(.popup-actions-footer) {
   margin-bottom: 0;
 }
 
@@ -703,7 +703,7 @@ summary {
   pointer-events: none;
 }
 
-@media (max-width: 800px) {
+@media (hover: none) and (pointer: coarse) {
   #bg-visuals {
     display: none;
   }

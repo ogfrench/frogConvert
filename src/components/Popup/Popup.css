@@ -1,6 +1,16 @@
-/* --- Popup / Modal --- */
+/* --- Popup / Modal ---
+ * Outer #popup clips with border-radius (overflow: hidden via .modal-container.popup-size).
+ * Inner .popup-scroll owns the scrollbar so it stays inside the rounded card. */
 #popup {
   padding: var(--space-8) var(--space-6);
+  display: flex;
+  flex-direction: column;
+}
+
+.popup-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }

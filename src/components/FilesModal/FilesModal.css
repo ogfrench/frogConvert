@@ -1,19 +1,10 @@
-/* --- Files Management Modal --- */
+/* --- Files Management Modal ---
+ * Outer modal clips with border-radius (overflow: hidden) so the inner
+ * #files-list scrollbar stays inside the rounded card. The sticky header
+ * and top-actions remain pinned because they live inside the scroller. */
 #files-modal {
   max-height: 85vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-  direction: rtl;
-}
-
-/* Reset text/layout direction for all direct children */
-.files-modal-header,
-.files-modal-top-actions,
-#files-list,
-#files-drop-more,
-.files-error,
-.files-modal-footer {
-  direction: ltr;
+  overflow: hidden;
 }
 
 .files-modal-header {

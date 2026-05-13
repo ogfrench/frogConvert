@@ -29,7 +29,14 @@ Same address for security reports. See [../SECURITY.md](../SECURITY.md).
 
 ## 1. Directory structure
 
-The codebase is a vanilla TypeScript Vite project. Detailed responsibilities are in [ARCHITECTURE.md](ARCHITECTURE.md).
+The codebase is a vanilla TypeScript Vite project. Full responsibilities are in [ARCHITECTURE.md § Code Structure at a Glance](ARCHITECTURE.md#code-structure-at-a-glance). Day-to-day, these are the directories you will touch most:
+
+- [src/handlers/](../src/handlers/) - one file per conversion tool (FFmpeg, ImageMagick, Pandoc, etc.). New format support lives here.
+- [src/core/](../src/core/) - `FormatHandler` interface, base classes, `CommonFormats` registry, `TraversionGraph`, quality planners.
+- [src/components/](../src/components/) - UI (vanilla TS + DOM), including `store/store.ts` for state and `PdfWorkspace/` for the PDF editor.
+- [src/tools/](../src/tools/) - PDF editor primitives (`pdfMerge.ts`, `pdfOrganize.ts`, `pdfExtract.ts`, `pdfWatermark.ts`, `pdfThumbnails.ts`).
+- [src/mcp/](../src/mcp/) and [src/api/](../src/api/) - MCP server and REST API. Must stay in sync per [../AGENTS.md](../AGENTS.md).
+- [src/workers/](../src/workers/) - `conversion.worker.ts` and `route-search.worker.ts`. Most heavy work runs here, not on the main thread.
 
 **Two parallel subsystems.** Before adding code, know which one you are touching:
 

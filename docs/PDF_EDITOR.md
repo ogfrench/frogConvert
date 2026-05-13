@@ -24,9 +24,9 @@ Combine multiple PDFs into a single output.
 2. The files appear in a reorderable list. Drag to change the merge order.
 3. Click **Merge** to generate the combined PDF and download it.
 
-### Organize
+### Organize (and Extract)
 
-Reshape a single PDF at the page level.
+Reshape a single PDF at the page level. Extract is a sub-mode of the same tab, not a separate tab.
 
 1. Drop one PDF onto the workspace.
 2. Page thumbnails render in a grid.
@@ -35,11 +35,8 @@ Reshape a single PDF at the page level.
    - **Rotate** - click the rotate control on a page (±90°; rotations compose).
    - **Insert blank** - drop a blank page at any position.
    - **Delete** - remove unwanted pages.
-4. Click **Save** to generate the reorganized PDF.
-
-### Extract
-
-Pull a page range out of a PDF as a new standalone file. Available from the Organize view: select the page range you want and export.
+   - **Extract** - select the page range you want and export it as a new standalone PDF.
+4. Click **Save** (or **Export** for an extract) to generate the resulting PDF.
 
 ### Watermark
 
@@ -81,7 +78,7 @@ The tab bar (`Merge` / `Organize` / `Watermark`) supports `Arrow Left` / `Arrow 
 
 - **Input**: one or more `.pdf` files.
 - **Size**: limited only by your device memory. Large PDFs (hundreds of pages) render thumbnails lazily to stay responsive.
-- **Output**: a single `.pdf`, saved via your browser's standard download flow.
+- **Output**: one or more `.pdf` files, saved via your browser's standard download flow. Merge, Organize, and Extract always produce a single PDF. Watermarking multiple files at once offers a choice: one combined PDF, or one watermarked PDF per source (delivered as a zip).
 
 ## Known caveats
 

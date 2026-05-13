@@ -21,6 +21,20 @@
       _r = true;
       document.documentElement.classList.remove("app-loading");
       document.documentElement.classList.add("app-revealed");
+      // One-shot: drop the class once the reveal fade finishes so future
+      // body-appended elements (PDF Workspace mobile tray/overlay/toolbar,
+      // toasts, modals) aren't caught by the forwards-fill animation.
+      var dropRevealed = function () {
+        document.documentElement.classList.remove("app-revealed");
+        document.documentElement.removeEventListener("animationend", onFade, true);
+      };
+      function onFade(e) {
+        if (e.animationName !== "app-fade-in") return;
+        dropRevealed();
+      }
+      document.documentElement.addEventListener("animationend", onFade, true);
+      // Fallback for prefers-reduced-motion (animations are zeroed → no animationend).
+      setTimeout(dropRevealed, 350);
     }
     function _waitForCSS() {
       if (getComputedStyle(document.documentElement).getPropertyValue('--background').trim()) {
@@ -249,7 +263,7 @@
         style="font-size:2.8rem;animation-delay:0s;">🖼️</span></div>
     <div class="bg-pop" style="top:25%;right:15%;animation-delay:0.25s;"><span
         style="font-size:3.5rem;animation-delay:-5s;">📝</span></div>
-    <div class="bg-pop" style="top:65%;left:10%;animation-delay:0.375s;"><span
+    <div class="bg-pop" style="top:68%;left:10%;animation-delay:0.375s;"><span
         style="font-size:3.5rem;animation-delay:-10s;">🎵</span></div>
     <div class="bg-pop" style="top:55%;right:8%;animation-delay:0.5s;"><span
         style="font-size:4rem;animation-delay:-3s;">🎥</span></div>
@@ -258,11 +272,11 @@
     <div class="bg-pop" style="top:35%;left:18%;animation-delay:0.750s;"><span
         style="font-size:3.5rem;animation-delay:-13s;">📊</span></div>
     <div class="bg-pop" style="top:10%;left:40%;animation-delay:0.875s;"><span
-        style="font-size:3.5rem;animation-delay:-17s;">🔠</span></div>
+        style="font-size:3.5rem;animation-delay:-17s;">🎨</span></div>
     <div class="bg-pop" style="top:85%;left:45%;animation-delay:1.8s;"><span
         style="font-size:3.5rem;animation-delay:-20s;">💻</span></div>
     <div class="bg-pop" style="top:5%;right:35%;animation-delay:1.125s;"><span
-        style="font-size:3rem;animation-delay:-7s;">⚡</span></div>
+        style="font-size:3rem;animation-delay:-7s;">📦</span></div>
   </div>
 
   <header id="top-bar" class="entrance d1">

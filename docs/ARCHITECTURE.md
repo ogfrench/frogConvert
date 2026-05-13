@@ -167,16 +167,18 @@ Handlers with `requiresMainThread: true` are the exception - they need browser A
 
 ## PWA, offline, and external entry points
 
+This section covers **how a session starts**: install, service-worker cache strategy, and the OS-level entry points (share-target, "Open with…") that bring files into frogConvert. For **how a session survives a reload mid-task**, see [Session persistence](#session-persistence) below.
+
 frogConvert installs as a Progressive Web App. The service worker (`src/pwa/sw.ts`, built via `vite-plugin-pwa` with the `injectManifest` strategy) precaches entry HTMLs, CSS, icons, and fonts; everything else is runtime-cached as the user encounters it.
 
 ```mermaid
 flowchart LR
-    Net((Network)) --> SW[Service Worker\nsrc/pwa/sw.ts]
-    SW -->|CacheFirst, 30 entries, 7d| WC[/wasm/ cache\nFFmpeg, ImageMagick, etc./]
-    SW -->|StaleWhileRevalidate, 200 entries, 30d| AC[/assets/ cache]
-    SW -->|StaleWhileRevalidate| JC[/js/ cache - lazy chunks]
-    SW -->|NavigationRoute| HTML[/index.html precached]
-    SW -->|POST handler| ST[Share-target replay\nCacheStorage]
+    Net((Network)) --> SW["Service Worker<br/>src/pwa/sw.ts"]
+    SW -->|CacheFirst, 30 entries, 7d| WC["/wasm/ cache<br/>FFmpeg, ImageMagick, etc."]
+    SW -->|StaleWhileRevalidate, 200 entries, 30d| AC["/assets/ cache"]
+    SW -->|StaleWhileRevalidate| JC["/js/ cache - lazy chunks"]
+    SW -->|NavigationRoute| HTML["/index.html precached"]
+    SW -->|POST handler| ST["Share-target replay<br/>CacheStorage"]
 
     style SW fill:#fcd34d,stroke:#d97706,color:#000
 ```
@@ -214,6 +216,8 @@ PWA registration is gated on `!import.meta.env.VITE_IS_DESKTOP` and on `protocol
 ---
 
 ## Session persistence
+
+This section covers **mid-task survival**: persisting in-flight work to IndexedDB so the user can close a tab and resume later. The first-launch / entry-point surface is in [PWA, offline, and external entry points](#pwa-offline-and-external-entry-points) above.
 
 Both surfaces (Converter, PDF Workspace) persist their state to IndexedDB so the user can close a tab mid-task and resume later.
 
@@ -351,6 +355,10 @@ flowchart LR
 ```
 
 Both run 100% locally. The MCP server exposes 7 tools (`list_formats`, `find_conversion_path`, `convert_file`, `pdf_merge`, `pdf_organize`, `pdf_extract`, `pdf_watermark`). The REST API mirrors the same surface. See [INTEGRATIONS.md](INTEGRATIONS.md) for request/response shapes.
+
+**Browser bridge.** Conversions that need browser-only APIs (Canvas, WebGL, AudioContext, document) cannot run in pure Node.js. When a request lacks a native path, the server transparently launches headless Chromium via Puppeteer and executes the conversion there. Cold start is on the order of 30 seconds to 8 minutes depending on the handler's WASM size; warm calls are seconds. Full performance table and fallback strategy in [INTEGRATIONS.md § Browser-Assisted Conversions](INTEGRATIONS.md#browser-assisted-conversions---automatic-fallback).
+
+**Cancellation.** Mid-batch cancellation lives in [src/conversion/cancellation.ts](../src/conversion/cancellation.ts) (`isCancelled` flag plus a state machine). On cancel, completed files in the batch are still offered to the user via `showPartialDownloadPopup()`. The cancellation path is the same whether the conversion ran in a worker or on the main thread.
 
 ---
 
