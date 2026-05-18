@@ -1,11 +1,16 @@
 /* --- Conversion Modal Specific Styles --- */
 
+/* Single source of truth for the gap above the divider lives on the footer
+   side (`margin-top: var(--space-6)`). The preceding sibling has its
+   margin-bottom zeroed so flex non-collapsing margins don't double up to ~3rem
+   regardless of whether the body's last child is a <p>, notice card, or
+   custom div. Result: 1.5rem above divider, 1rem below (footer padding-top),
+   uniform across every popup that mounts a footer. */
+#popup .popup-scroll > *:has(+ .popup-actions-footer) {
+  margin-bottom: 0;
+}
+
 #popup .popup-actions-footer {
-  /* margin-top is a positive value (not `auto`) so the last body line keeps
-     breathing room above the divider. Auto was redundant: #popup is flex-column
-     and .popup-scroll is `flex: 1 1 auto`, so the wrapper already pushes the
-     footer to the bottom. Negative left/right and bottom margins still cancel
-     #popup's padding so the footer spans the card width and hugs the bottom. */
   margin: var(--space-6) calc(-1 * var(--space-6)) calc(-1 * var(--space-8));
   padding: var(--space-4) var(--space-6) var(--space-6);
   display: flex;

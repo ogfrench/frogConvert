@@ -8,6 +8,15 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.3.9] - 2026-05-18
+
+Spacing fix on top of v2.3.8: the gap above the action-footer divider was double-counted because flex containers don't collapse vertical margins, so `<p>`'s natural 1.5rem `margin-bottom` plus the footer's 1.5rem `margin-top` stacked to ~3rem.
+
+### Fixed
+- **Popup-footer gap normalised to 1.5rem.** [src/conversion/conversion.css](src/conversion/conversion.css) now zeroes the margin-bottom on the body element directly preceding `.popup-actions-footer` via `#popup .popup-scroll > *:has(+ .popup-actions-footer) { margin-bottom: 0 }`. The footer keeps its `margin-top: var(--space-6)` as the single source of truth for the gap above the divider. Result: uniform 1.5rem above divider / 1rem below (the footer's existing padding-top) on every popup with an action footer, regardless of whether the last body element is `<p>`, a notice card, or a custom `<div>`. Previously the gap ranged from ~1.5rem to ~3rem depending on what kind of element preceded the footer; now all popups read the same.
+
+---
+
 ## [2.3.8] - 2026-05-13
 
 Two polish items on top of v2.3.7: error popups no longer blame the file by default, and every popup with an action footer keeps breathing room between the body and the divider line.
