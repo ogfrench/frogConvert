@@ -1,7 +1,12 @@
 /* --- Conversion Modal Specific Styles --- */
 
 #popup .popup-actions-footer {
-  margin: auto calc(-1 * var(--space-6)) calc(-1 * var(--space-8));
+  /* margin-top is a positive value (not `auto`) so the last body line keeps
+     breathing room above the divider. Auto was redundant: #popup is flex-column
+     and .popup-scroll is `flex: 1 1 auto`, so the wrapper already pushes the
+     footer to the bottom. Negative left/right and bottom margins still cancel
+     #popup's padding so the footer spans the card width and hugs the bottom. */
+  margin: var(--space-6) calc(-1 * var(--space-6)) calc(-1 * var(--space-8));
   padding: var(--space-4) var(--space-6) var(--space-6);
   display: flex;
   flex-direction: column;

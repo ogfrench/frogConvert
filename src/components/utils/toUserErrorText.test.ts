@@ -55,6 +55,22 @@ describe("toUserErrorText", () => {
             .toEqual({ message: "This conversion isn't available yet.", kind: "not_available" });
     });
 
+    it("maps ImageMagick delegate/ghostscript errors to unavailable (not file-blaming) copy", () => {
+        // EPS without Ghostscript: ImageMagick throws a delegate error. Before
+        // this rule, it fell into the catch-all generic and rendered as
+        // "the file may be corrupted..." in the popup. Now classified as
+        // not_available so the popup says "X to Y isn't available yet."
+        // Note: cleanErrorText strips `<word>Error:` prefixes, so test strings
+        // here mirror the post-clean form (no leading "MagickError:").
+        expect(toUserErrorInfo("NoDecodeDelegateForThisImageFormat 'EPS'").kind).toBe("not_available");
+        expect(toUserErrorInfo("ghostscript required for PostScript").kind).toBe("not_available");
+        expect(toUserErrorInfo("unable to load module file: lib.so").kind).toBe("not_available");
+        // ImageMagick policy.xml denies (e.g. PDF read disabled)
+        expect(toUserErrorInfo("attempt to perform an operation not allowed by the security policy").kind).toBe("not_available");
+        // Realistic full error string from ImageMagick after the Error: prefix strip
+        expect(toUserErrorInfo("MagickError: NoDecodeDelegateForThisImageFormat 'EPS' @ error/constitute.c").kind).toBe("not_available");
+    });
+
     it("appends support contact once", () => {
         const withContact = appendSupportContact("Something failed.");
         expect(withContact).toContain(SUPPORT_CONTACT_EMAIL);

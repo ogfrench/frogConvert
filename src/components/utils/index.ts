@@ -113,7 +113,12 @@ export function toUserErrorInfo(err: unknown): UserErrorInfo {
             kind: "input_issue",
         };
     }
-    if (/^not found$/i.test(text) || /no conversion path|no path found|conversion isn'?t available|not found or not (readable|writable)|input format .+ not found|output format .+ not found|doesn'?t support/i.test(text)) {
+    if (/^not found$/i.test(text)
+        || /no conversion path|no path found|conversion isn'?t available|not found or not (readable|writable)|input format .+ not found|output format .+ not found|doesn'?t support/i.test(text)
+        // WASM-handler delegate / missing-module errors are capability gaps, not
+        // file-content issues. ImageMagick without Ghostscript on EPS/PS, policy
+        // denials on PDF, etc. all surface here.
+        || /no\s*decode\s*delegate|no\s*encode\s*delegate|delegate failed|missing delegate|ghostscript|unable to load module|imagemagick is not configured|not authoriz(ed|ation)|policy denies|not allowed by .*polic|security polic/i.test(text)) {
         return { message: CONVERSION_NOT_AVAILABLE_TEXT, kind: "not_available" };
     }
     if (/not ready after init|headless not yet initialized|headless initialization failed|browser bridge requires/i.test(text)) {

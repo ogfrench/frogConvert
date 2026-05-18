@@ -45,6 +45,8 @@ import {
     ensureMinDuration,
     toUserErrorInfo,
     SUPPORT_CONTACT_TEXT,
+    GENERIC_CONVERSION_ERROR_TEXT,
+    CONVERSION_NOT_AVAILABLE_TEXT,
     formatBytes,
     type UserErrorInfo,
 } from "../components/utils/index.ts";
@@ -529,19 +531,51 @@ function startConversionStatus({ main, subtitle }: { main: string; subtitle: str
 }
 
 function showConversionFailedPopup(fromFormat: string, toFormat: string, error: UserErrorInfo) {
-    const detail = error.message.length > 0 ? `<span class="muted-text error-detail">${escapeHTML(error.message)}</span>` : "";
+    // Cancellation routes through showPartialDownloadPopup; if one ever leaks
+    // here, don't render it under a failure title.
+    if (error.kind === "cancelled") return;
+
+    // Suppress the muted detail line when error.message is one of the catch-all
+    // strings already conveyed by the kind-specific body. Specific messages
+    // (password-protected, worker crashed, etc.) still surface.
+    const isInformativeDetail =
+        error.message.length > 0
+        && error.message !== GENERIC_CONVERSION_ERROR_TEXT
+        && error.message !== CONVERSION_NOT_AVAILABLE_TEXT;
+    const detail = isInformativeDetail ? `<span class="muted-text error-detail">${escapeHTML(error.message)}</span>` : "";
     const contact = `<span class="muted-text error-detail">${escapeHTML(SUPPORT_CONTACT_TEXT)}</span>`;
+    const fromTo = `<b>${fromFormat}</b> to <b>${toFormat}</b>`;
+
     if (error.kind === "not_available") {
         showAlertPopup(
             "Conversion not available yet",
-            `<b>${fromFormat}</b> to <b>${toFormat}</b> isn't available yet.${contact}`,
+            `${fromTo} isn't available yet.${detail}${contact}`,
         );
         return;
     }
+    if (error.kind === "unknown") {
+        // Default for unrecognised errors: a capability gap, not a file issue.
+        // Don't blame the file when we have no positive evidence the input is
+        // the cause; surface the maintainer email so the user can flag it.
+        showAlertPopup(
+            "Conversion not available yet",
+            `${fromTo} didn't complete this time. Try a different target format or another file.${detail}${contact}`,
+        );
+        return;
+    }
+
     const copy = modeCopy();
+    if (error.kind === "input_issue") {
+        showAlertPopup(
+            copy.failedTitle,
+            `${fromTo} didn't go through. The file may be password-protected, corrupted, or in a variant the ${copy.toolLabel} can't read.${detail}${contact}`,
+        );
+        return;
+    }
+    // runtime_failure
     showAlertPopup(
         copy.failedTitle,
-        `Something went wrong ${copy.verbIng} <b>${fromFormat}</b> to <b>${toFormat}</b>. The file may be corrupted, password-protected, or too complex for the ${copy.toolLabel}.${detail}${contact}`,
+        `${fromTo} was interrupted. Try again, or use a smaller file.${detail}${contact}`,
     );
 }
 

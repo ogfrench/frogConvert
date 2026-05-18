@@ -8,6 +8,18 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.3.8] - 2026-05-13
+
+Two polish items on top of v2.3.7: error popups no longer blame the file by default, and every popup with an action footer keeps breathing room between the body and the divider line.
+
+### Fixed
+- **Error popups stop blaming the file by default.** [src/conversion/actions.ts](src/conversion/actions.ts) `showConversionFailedPopup` was emitting the same body — *"The file may be corrupted, password-protected, or too complex for the converter."* — for every error kind except `not_available`, including the catch-all `kind: "unknown"` for errors that don't match any classification regex. EPS to PNG and similar routes that are advertised in the format graph but fail at runtime (ImageMagick WASM ships without Ghostscript) were falsely accusing the user's file. The function now branches by `kind`: `not_available` and `unknown` both render under "Conversion not available yet" with neutral, capability-gap copy and the maintainer email; `input_issue` keeps the file-side copy (password / corrupt / variant); `runtime_failure` says "X to Y was interrupted, try again or use a smaller file"; `cancelled` early-returns so a leaked cancellation can't render under a failure title.
+- **No more duplicate "Something went wrong" line in error popups.** The muted detail span was echoing the same generic string the body already conveyed. [src/conversion/actions.ts](src/conversion/actions.ts) `showConversionFailedPopup` now suppresses the detail span when `error.message` equals `GENERIC_CONVERSION_ERROR_TEXT` or `CONVERSION_NOT_AVAILABLE_TEXT`; specific messages (password, worker crashed, too-large) still surface.
+- **`toUserErrorInfo` recognises WASM-handler capability gaps.** [src/components/utils/index.ts](src/components/utils/index.ts) now classifies `NoDecodeDelegateForThisImageFormat`, `MagickDelegateError`, `Ghostscript`, `unable to load module`, `ImageMagick is not configured`, `not authorized` / `not authorization`, and `policy denies` as `kind: "not_available"`. Covers ImageMagick policy.xml denials (e.g. PDF read disabled) and the Ghostscript-missing case for EPS/PS. Regression test at [src/components/utils/toUserErrorText.test.ts](src/components/utils/toUserErrorText.test.ts).
+- **Popup-footer breathing room.** [src/conversion/conversion.css](src/conversion/conversion.css) `#popup .popup-actions-footer` flipped `margin-top: auto` to `var(--space-6)` (1.5rem). The `auto` was redundant — `#popup` is flex-column and `.popup-scroll` is `flex: 1 1 auto`, so the wrapper already pushes the footer to the bottom — and it left the body's last paragraph sitting flush against the 1px `border-top` divider above the action buttons. 1.5rem gap above divider, 1rem padding-top below (footer's existing `padding-top: var(--space-4)`) gives a uniform breathing pocket on every popup with a footer (`showAlertPopup`, `showConfirmPopup`, `showSizeWarningPopup`, `showFileTypeMismatchPopup`, `showUploadSummaryPopup`, `showUnsupportedFilePopup`, `ensureCancelButton`, `showPartialDownloadPopup`, conversion success modal, PDF success modal).
+
+---
+
 ## [2.3.7] - 2026-05-13
 
 Two small follow-ups on v2.3.6: the cold-start splash now fully owns the boot UI (the legacy thin loading bar at the top is gone), and the popup scroll architecture is simplified so the wrapper is structural-only and each popup that needs scrolling provides its own inner scroller.
