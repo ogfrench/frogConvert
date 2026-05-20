@@ -94,21 +94,22 @@
 
 /* Light mode cursor bead: visible on white with a dark edge and top gleam */
 :root #custom-cursor::after {
-  background: rgba(255, 255, 255, 0.50);
-  border: 1px solid rgba(0, 0, 0, 0.10);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.28);
   box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.10),
-    0 0 0 0.5px rgba(0, 0, 0, 0.06),
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.90);
 }
 
-/* Dark mode cursor bead: softer presence, less stark */
+/* Dark mode cursor bead */
 .dark #custom-cursor::after {
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.30),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 2px 8px rgba(0, 0, 0, 0.50),
+    inset 0 1px 0 rgba(255, 255, 255, 0.40);
 }
 
 

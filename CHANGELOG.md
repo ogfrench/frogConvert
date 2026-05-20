@@ -8,6 +8,15 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.3.10] - 2026-05-20
+
+Custom-cursor visibility fix for low-contrast displays.
+
+### Fixed
+- **Custom cursor visible on low-contrast displays.** [src/components/CustomCursor/CustomCursor.css](src/components/CustomCursor/CustomCursor.css) bead `::after` rules in both themes were tuned for the brand surface and disappeared once the display itself was poor (cheap LCDs, glare, dim brightness, narrow viewing angle). Light mode was `rgba(255, 255, 255, 0.50)` fill + `rgba(0, 0, 0, 0.10)` border, which read as ~50% white on a white page with a barely-there edge. Dark mode was `rgba(255, 255, 255, 0.07)` fill + `rgba(255, 255, 255, 0.13)` border, which on `#000000` produced a ~7% luma delta against the page (effectively a ghost). Bead fill now lifts to `rgba(255, 255, 255, 0.85)` (light) / `rgba(255, 255, 255, 0.32)` (dark), border to `rgba(0, 0, 0, 0.28)` (light) / `rgba(255, 255, 255, 0.55)` (dark), and an extra `0 0 0 1px` halo ring is added to the `box-shadow` stack in both themes so the bead always carries a one-pixel contrast edge regardless of the surface underneath. The rainbow `::before` highlight, the `.cursor-glow` aura, the interactive / active-click state transitions, and the `(pointer: coarse)` short-circuit are untouched. Picked from an A/B side-by-side prototype across white, black, mid-grey, gradient, brand accent, light-on-light text, dark-on-dark text, mixed-luma image content, and frosted top-bar surfaces.
+
+---
+
 ## [2.3.9] - 2026-05-18
 
 Spacing fix on top of v2.3.8: the gap above the action-footer divider was double-counted because flex containers don't collapse vertical margins, so `<p>`'s natural 1.5rem `margin-bottom` plus the footer's 1.5rem `margin-top` stacked to ~3rem.
