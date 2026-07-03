@@ -8,6 +8,18 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.3.11] - 2026-07-03
+
+Hamburger/close icon rendering fix: the three menu bars no longer rasterize at different thicknesses on fractional display scaling, and the menu-open ✕ is larger and crosses exactly at its middle.
+
+### Fixed
+- **Hamburger bars render at identical thickness on 125%/150% display scaling.** [src/components/TopBar/TopBar.css](src/components/TopBar/TopBar.css) `#hamburger-btn` bars sat on a 7px vertical pitch (2px bar + 5px gap). At fractional devicePixelRatios (Windows display scaling, browser zoom) 7px maps to a non-integer device-pixel step — 8.75 device px at 125% — so each bar landed on a different subpixel phase: one rasterized as solid rows while another smeared across an extra half-lit row and read as visibly thinner. Pitch is now 8px (2px bar + 6px `gap`); 8 × any quarter-step DPR (1, 1.25, 1.5, 1.75, 2…) is a whole number of device pixels, so all three bars share the same subpixel phase and rasterize identically. Verified by per-row pixel analysis in headless Chromium at DPR 1 / 1.25 / 1.5 / 2: byte-identical row signatures per bar after the fix.
+- **Hamburger bar ends no longer blurry.** Bars were `width: 85%` of the padded content box, resolving to a fractional 15.296875px at a fractional x-offset. Now a fixed `16px` at an integer offset inside the button (`padding: 0` — the fixed width replaces the padding-derived sizing), at both the 36px desktop and 44px coarse-pointer control sizes.
+- **Menu-open ✕ crosses at its middle and matches the hamburger's optical size.** The ✕ is the two outer bars converged with `translateY` and rotated ±45°. `translateY(±7px)` at 125% scaling is ±8.75 device px, so the two strokes snapped to the pixel grid in opposite directions and their intersection drifted off the middle of the glyph — very visible on what was a ~12px ✕ (the 45° rotation shrank the 15.3px bars' footprint by 1/√2). Now `translateY(±8px)` (matches the new 8px bar pitch, integer device px at quarter-step DPRs) plus `scaleX(1.4)` stretching each arm to 22.4px, so the ✕ spans ~15.8px — optically matching the 16×18px hamburger. Ink-map analysis confirms the crossing sits exactly on the button's center row/column with all four arms mirror-symmetric at DPR 1 / 1.25 / 1.5 / 2 / 4, including at fractional page offsets.
+- **Docs sidebar toggle aligned to the same geometry.** [src/styles/docs.css](src/styles/docs.css) `#nav-toggle` had the same defect worse: 1.5px bars can never fill a whole device-pixel row, so they rendered unevenly at every scale, on a fractional 5.5px pitch. Now the same 16×2px bars on an 8px pitch as the app hamburger.
+
+---
+
 ## [2.3.10] - 2026-05-20
 
 Custom-cursor visibility fix for low-contrast displays.
