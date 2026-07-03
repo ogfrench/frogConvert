@@ -108,12 +108,17 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  /* 2px bars on an 8px pitch: 8 x any quarter-step devicePixelRatio
-     (1, 1.25, 1.5, ...) is a whole number of device pixels, so all three
-     bars share the same subpixel phase and rasterize identically. A 7px
-     pitch made bars land on different phases at 125%/150% OS scaling,
-     rendering one bar visibly thinner than the others. */
-  gap: 6px;
+  /* 2px bars on a 6px pitch (2 + 4 gap). 6 x any quarter-step
+     devicePixelRatio (1, 1.25, 1.5, ...) has a fractional part of 0 or
+     exactly .5 — its own mirror — so the outer bars always rasterize
+     identically and the menu-open X strokes snap symmetrically. The old
+     7px pitch put bars on unrelated subpixel phases at 125%/150% OS
+     scaling, rendering one bar visibly thinner and drifting the X
+     crossing off its middle. Pitch 6 also keeps the glyph wide-format
+     (18x14) like a canonical hamburger — an 8px pitch made it taller
+     than wide and read as oversized, especially on the 44px mobile
+     control. */
+  gap: 4px;
   position: relative;
   width: var(--control-size);
   height: var(--control-size);
@@ -129,7 +134,7 @@
 #hamburger-btn span {
   /* Fixed integer width — a % of the padded content box resolved to a
      fractional width at a fractional x, blurring the bar ends. */
-  width: 16px;
+  width: 18px;
   height: 2px;
   background-color: var(--foreground);
   border-radius: 2px;
@@ -141,12 +146,12 @@
 }
 
 /* When the menu opens, converge lines to center and rotate.
-   With gap: 6px and height: 2px, the center of the first bar is 8px away
-   from the second. scaleX(1.4) stretches each arm from 16px to 22.4px so
-   the rotated X spans ~15.8px — optically matching the 16x18 hamburger
-   instead of shrinking to 70% of it. */
+   With gap: 4px and height: 2px, the center of the first bar is 6px away
+   from the second. scaleX(1.4) stretches each arm from 18px to 25.2px so
+   the rotated X spans ~17.8px — optically matching the 18px-wide
+   hamburger instead of shrinking to 70% of it. */
 #top-controls.menu-open #hamburger-btn span:nth-child(1) {
-  transform: translateY(8px) rotate(45deg) scaleX(1.4);
+  transform: translateY(6px) rotate(45deg) scaleX(1.4);
 }
 
 #top-controls.menu-open #hamburger-btn span:nth-child(2) {
@@ -155,7 +160,7 @@
 }
 
 #top-controls.menu-open #hamburger-btn span:nth-child(3) {
-  transform: translateY(-8px) rotate(-45deg) scaleX(1.4);
+  transform: translateY(-6px) rotate(-45deg) scaleX(1.4);
 }
 
 #mode-toggle {

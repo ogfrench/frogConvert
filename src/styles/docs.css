@@ -93,17 +93,18 @@
 #nav-toggle {
   display: none;
   width: var(--control-size); height: var(--control-size); padding: 0;
-  /* 2px bars on an 8px pitch render identically at fractional device
-     pixel ratios (125%/150% scaling); matches the app hamburger. 1.5px
-     bars can never fill a whole device pixel row and rendered unevenly. */
-  flex-direction: column; justify-content: center; align-items: center; gap: 6px;
+  /* 2px bars on a 6px pitch (2 + 4 gap) keep the outer bars on the same
+     subpixel phase at fractional device pixel ratios (125%/150% scaling);
+     matches the app hamburger's 18x14 glyph. 1.5px bars can never fill a
+     whole device pixel row and rendered unevenly. */
+  flex-direction: column; justify-content: center; align-items: center; gap: 4px;
   border: 1px solid var(--border); border-radius: var(--radius);
   background-color: var(--secondary); cursor: pointer;
   transition: background-color .15s ease;
 }
 #nav-toggle:hover { background-color: var(--accent); }
 #nav-toggle span {
-  width: 16px; height: 2px;
+  width: 18px; height: 2px;
   background-color: var(--foreground); border-radius: 2px;
   transition: transform .25s ease, opacity .25s ease;
 }
