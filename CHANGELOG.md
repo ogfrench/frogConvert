@@ -8,7 +8,7 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
-## [2.3.11] - 2026-07-03
+## [2.4.0] - 2026-07-04
 
 Hamburger/close icon rendering fix: the three menu bars no longer rasterize at different thicknesses on fractional display scaling, and the menu-open ✕ is larger and crosses exactly at its middle.
 
