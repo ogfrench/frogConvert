@@ -8,6 +8,19 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.5.0] - 2026-07-15
+
+Zip download names are now unique and content-descriptive. Repeated exports no longer overwrite the previous download or pick up browser `(1)`/`(2)` suffixes, and multi-file archives are named for the operation that produced them instead of borrowing one arbitrary source file's name.
+
+### Fixed
+- **Multi-file zip downloads collided on repeat.** Every zip name that a convert or PDF batch produced was either day-granular or had no time component at all, so running the same export twice handed the browser an identically named file — it silently overwrote the earlier download or appended `(1)`, `(2)`. The two convert archives, [src/conversion/actions.ts](src/conversion/actions.ts), used `frogConvert-${getFormattedDate()}.zip` / `original-files-${getFormattedDate()}.zip` where `getFormattedDate()` returned only `YYYY-MM-DD`, so any two "download all" clicks on the same day collided. The organize- and extract-per-source archives, [src/components/PdfWorkspace/PdfWorkspace.ts](src/components/PdfWorkspace/PdfWorkspace.ts), used `${firstName}_organized.zip` / `${firstName}_pages.zip` with **no** disambiguator, so they collided on every repeat. All six archive names now carry a compact ISO-8601 timestamp (see below) so they're unique to the second.
+
+### Changed
+- **New shared `timestampForFilename()` helper.** [src/conversion/download.ts](src/conversion/download.ts) exports `timestampForFilename(d = new Date())`, returning a compact ISO-8601 basic-format stamp `YYYYMMDD-HHMMSS` in local time — the de-facto standard for machine-generated exports (Google Takeout, `IMG_YYYYMMDD_HHMMSS` camera files, log rotation): sortable, filesystem-safe (no colons), unique to the second, and without the separator noise of a full `YYYY-MM-DD_HH-MM-SS` form. Lives in `download.ts` because both the converter (`actions.ts`) and the PDF workspace (`PdfWorkspace.ts`) already import their zip helper from there. Unit-tested in [src/conversion/download.test.ts](src/conversion/download.test.ts).
+- **Multi-file zip names now describe the operation, not one source file.** A per-source archive only exists when there is **more than one** output, so naming it after `files[0]` (`report_organized.zip`) misrepresented an N-file bundle as belonging to a single "report". [src/components/PdfWorkspace/PdfWorkspace.ts](src/components/PdfWorkspace/PdfWorkspace.ts) now emits `organized-pdfs-<ts>.zip`, `extracted-pages-<ts>.zip`, `watermarked-pdfs-<ts>.zip`, and `pdfs-<ts>.zip`; the converter emits `frogConvert-<ts>.zip` and `original-files-<ts>.zip`. Example: `organized-pdfs-20260715-143207.zip`. The dead `firstName` binding in `doOrganizeSavePerSource` was removed; the one in `doExtract` stays (it still names the single-file grouped-extract output). Individual (single-file) downloads are unaffected — only the multi-file archive names changed.
+
+---
+
 ## [2.4.0] - 2026-07-04
 
 Hamburger/close icon rendering fix: the three menu bars no longer rasterize at different thicknesses on fractional display scaling, and the menu-open ✕ is larger and crosses exactly at its middle.

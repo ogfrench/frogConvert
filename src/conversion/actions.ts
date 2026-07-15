@@ -1,5 +1,5 @@
 import normalizeMimeType from "../core/utils/normalizeMimeType.ts";
-import { downloadFile, downloadAsZip } from "./download.ts";
+import { downloadFile, downloadAsZip, timestampForFilename } from "./download.ts";
 import { isSafari } from "../tools/pdfThumbnails.ts";
 import type { FileFormat, FormatHandler, FileData, ConvertPathNode, ProgressEvent, QualityPreset, Notice } from "../core/FormatHandler/FormatHandler.ts";
 import { withQualityArg } from "../core/FormatHandler/FormatHandler.ts";
@@ -58,14 +58,6 @@ import { tierDown } from "../core/compression/tierDown.ts";
 const waitForPaint = () => new Promise<void>(resolve =>
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
 );
-
-function getFormattedDate() {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-}
 
 let isConverting = false;
 export const getIsConverting = () => isConverting;
@@ -218,7 +210,7 @@ export function setLastConvertedFiles(files: { name: string; bytes: Uint8Array }
 
 export async function downloadAllConvertedFiles() {
     if (lastConvertedFiles.length > 1) {
-        await downloadAsZip(lastConvertedFiles, `frogConvert-${getFormattedDate()}.zip`);
+        await downloadAsZip(lastConvertedFiles, `frogConvert-${timestampForFilename()}.zip`);
     } else {
         for (const file of lastConvertedFiles) {
             downloadFile(file.bytes, file.name);
@@ -802,7 +794,7 @@ export function initConvertButton() {
                         showAlertPopup(title, singleBody);
                     } else {
                         showAlertPopup(title, batchBody);
-                        await downloadAsZip(allOutputFiles, `original-files-${getFormattedDate()}.zip`);
+                        await downloadAsZip(allOutputFiles, `original-files-${timestampForFilename()}.zip`);
                     }
                     return;
                 }

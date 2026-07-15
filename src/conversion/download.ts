@@ -62,3 +62,19 @@ export async function downloadAsZip(files: { name: string; bytes: Uint8Array }[]
     const blob = await zip.generateAsync({ type: "blob" });
     saveAs(blob, sanitizeDownloadName(zipName));
 }
+
+/**
+ * Compact ISO-8601 basic-format timestamp for filenames: `YYYYMMDD-HHMMSS`
+ * (local time). This is the de-facto standard for machine-generated exports
+ * (Google Takeout, `IMG_YYYYMMDD_HHMMSS` camera files, log rotation): sortable,
+ * filesystem-safe (no colons), unique to the second, and readable without the
+ * separator noise of a full `YYYY-MM-DD_HH-MM-SS` form. Use it to disambiguate
+ * download names so repeated exports don't collide (browser overwrite / `(1)`).
+ */
+export function timestampForFilename(d: Date = new Date()): string {
+    const p = (n: number) => String(n).padStart(2, "0");
+    return (
+        `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}` +
+        `-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+    );
+}
