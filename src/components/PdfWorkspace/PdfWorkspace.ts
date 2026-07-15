@@ -19,7 +19,7 @@ import {
   type PdfWatermarkOptions,
 } from '../../tools/pdfWatermark.ts';
 import { renderPageThumbnail, renderPageBitmap, clearThumbnailCache, mockBlankPageThumb, mockPageThumb } from '../../tools/pdfThumbnails.ts';
-import { downloadFile, downloadAsZip } from '../../conversion/download.ts';
+import { downloadFile, downloadAsZip, timestampForFilename } from '../../conversion/download.ts';
 import { isTouchUi } from '../../core/utils/touchUi.ts';
 import { showToast } from '../Toast/Toast.ts';
 import { Icons } from '../icons.ts';
@@ -2027,7 +2027,7 @@ async function doWatermarkExportPerSource() {
         results.push({ bytes: r.bytes, name: r.name });
       }
       lastPdfResult = results;
-      lastPdfZipName = isBatch ? `watermarked_${Date.now()}.zip` : null;
+      lastPdfZipName = isBatch ? `watermarked-pdfs-${timestampForFilename()}.zip` : null;
       return results;
     },
     (results) => {
@@ -2058,7 +2058,7 @@ async function doWatermarkPassthroughPerSource() {
     async () => {
       const results = files.map(f => ({ bytes: f.bytes, name: f.name }));
       lastPdfResult = results;
-      lastPdfZipName = isBatch ? `pdfs_${Date.now()}.zip` : null;
+      lastPdfZipName = isBatch ? `pdfs-${timestampForFilename()}.zip` : null;
       return results;
     },
     (results) => {
@@ -2853,7 +2853,6 @@ async function doOrganizeSaveCombined() {
 }
 
 async function doOrganizeSavePerSource() {
-  const firstName = files[0].name.replace(/\.pdf$/i, '');
   await runWithPopup('Saving', 'Packing each source file separately. Hold tight.', 'Save failed. Try with fewer pages or a smaller file.', async () => {
     const out: { bytes: Uint8Array; name: string }[] = [];
     for (const sf of files) {
@@ -2863,7 +2862,7 @@ async function doOrganizeSavePerSource() {
       out.push({ bytes: r.bytes, name: r.name });
     }
     lastPdfResult = out;
-    lastPdfZipName = out.length > 1 ? `${firstName}_organized.zip` : null;
+    lastPdfZipName = out.length > 1 ? `organized-pdfs-${timestampForFilename()}.zip` : null;
     return out;
   }, (results) => {
     if (results.length > 1) {
@@ -3018,7 +3017,7 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
           allResults.push(...results);
         }
         lastPdfResult = allResults;
-        lastPdfZipName = allResults.length > 1 ? `${firstName}_pages.zip` : null;
+        lastPdfZipName = allResults.length > 1 ? `extracted-pages-${timestampForFilename()}.zip` : null;
         return allResults;
       }
     },
