@@ -1,0 +1,26 @@
+name: Edit Release Notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to edit"
+        required: true
+        default: "v2.5.0"
+
+jobs:
+  edit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set release title and notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ inputs.tag }}" \
+            --title "frogConvert ${{ inputs.tag }}" \
+            --notes-file release_notes.md
