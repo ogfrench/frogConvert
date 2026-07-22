@@ -87,10 +87,8 @@ jobs:
           # Publish straight away and re-target the GitHub "Latest" badge so the
           # rolling release tracks the newest tag without a manual click. Use
           # overwrite_files so a re-run on the same tag replaces stale binaries
-          # rather than uploading duplicates side-by-side. body_path pins the
-          # release notes to a committed file (deterministic across the three
-          # matrix legs, so the body isn't regenerated/duplicated per platform).
-          body_path: release_notes.md
+          # rather than uploading duplicates side-by-side.
+          generate_release_notes: true
           draft: false
           make_latest: "true"
           overwrite_files: true
