@@ -314,6 +314,16 @@ mobileModePill?.addEventListener("click", (e) => {
   navigateTo(btn.dataset.value!);
 });
 
+// In-app deep links to another mode (e.g. the Convert card's "Compress it
+// instead" signpost) come through as an event so components don't need a
+// handle on the shell.
+window.addEventListener("frog:set-mode", (e) => {
+  const mode = (e as CustomEvent<string>).detail as AppMode;
+  if (!APP_MODES.includes(mode) || mode === currentAppMode) return;
+  setAppMode(mode);
+  navigateTo(mode);
+});
+
 // --- Router (URL ↔ state sync) ---
 
 function applyRoute(route: RouteState) {

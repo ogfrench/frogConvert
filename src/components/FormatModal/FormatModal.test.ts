@@ -161,10 +161,10 @@ describe("updateConvertButtonState (DOM)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// updateConvertButtonState - same-format compression relabel + helper
+// updateConvertButtonState - same-format signpost to the Compress surface
 // ---------------------------------------------------------------------------
 
-describe("updateConvertButtonState (same-format compression)", () => {
+describe("updateConvertButtonState (same-format signpost)", () => {
     function makeFormat(mime: string, format: string, lossless = false): FileFormat {
         return {
             name: format.toUpperCase(),
@@ -196,7 +196,7 @@ describe("updateConvertButtonState (same-format compression)", () => {
         (ui as any).convertButton = null;
     });
 
-    it("relabels to 'Compress' and shows helper when PNG to PNG", () => {
+    it("points at the Compress surface when the same format is picked twice", () => {
         const png = makeFormat("image/png", "png", true);
         const handler = stubHandler("ImageMagick", [png]);
         allOptionsRef.value = [{ format: png, handler }];
@@ -204,56 +204,42 @@ describe("updateConvertButtonState (same-format compression)", () => {
 
         updateConvertButtonState(0, 0);
 
-        expect(ui.convertButton.classList.contains("compress-mode")).toBe(true);
-        expect(ui.convertButton.textContent).toContain("Compress");
-        expect(ui.convertButton.querySelector(".convert-strike")?.textContent).toBe("Convert");
+        // The button no longer lies about what it does.
+        expect(ui.convertButton.textContent).toBe("Convert");
         const hint = document.querySelector(".convert-hint") as HTMLElement;
-        expect(hint).not.toBeNull();
         expect(hint.hidden).toBe(false);
-        expect(hint.textContent).toContain("PNG");
-        expect(hint.textContent).toContain("compress");
+        expect(hint.textContent).toContain("nothing to convert");
+        expect(hint.querySelector(".convert-hint-action")).not.toBeNull();
         expect(hint.getAttribute("aria-live")).toBe("polite");
     });
 
-    it("relabels to 'Compress' for MP4 to MP4", () => {
-        const mp4 = makeFormat("video/mp4", "mp4");
-        const handler = stubHandler("FFmpeg", [mp4]);
-        allOptionsRef.value = [{ format: mp4, handler }];
-        (window as any).supportedFormatCache = new Map([["FFmpeg", [mp4]]]);
-
+    it("asks the shell to switch to Compress when the signpost is clicked", () => {
+        const png = makeFormat("image/png", "png", true);
+        allOptionsRef.value = [{ format: png, handler: stubHandler("ImageMagick", [png]) }];
         updateConvertButtonState(0, 0);
 
-        expect(ui.convertButton.classList.contains("compress-mode")).toBe(true);
-        expect(ui.convertButton.textContent).toContain("Compress");
-        const hint = document.querySelector(".convert-hint") as HTMLElement;
-        expect(hint.textContent).toContain("MP4");
+        const seen: string[] = [];
+        const onMode = (e: Event) => seen.push((e as CustomEvent<string>).detail);
+        window.addEventListener("frog:set-mode", onMode);
+        document.querySelector<HTMLElement>(".convert-hint-action")!.click();
+        window.removeEventListener("frog:set-mode", onMode);
+
+        expect(seen).toEqual(["compress"]);
     });
 
-    it("stays 'Convert' for PDF to PDF (not compressible)", () => {
+    it("signposts regardless of whether that format has a compressor", () => {
+        // PDF has no in-place compressor yet, but picking pdf->pdf still
+        // converts nothing, so the signpost is still the honest answer.
         const pdf = makeFormat("application/pdf", "pdf");
-        const handler = stubHandler("pdftoimg", [pdf]);
-        allOptionsRef.value = [{ format: pdf, handler }];
-        (window as any).supportedFormatCache = new Map([["pdftoimg", [pdf]]]);
+        allOptionsRef.value = [{ format: pdf, handler: stubHandler("pdftoimg", [pdf]) }];
 
         updateConvertButtonState(0, 0);
 
         expect(ui.convertButton.textContent).toBe("Convert");
-        const hint = document.querySelector(".convert-hint") as HTMLElement;
-        expect(hint.hidden).toBe(true);
+        expect((document.querySelector(".convert-hint") as HTMLElement).hidden).toBe(false);
     });
 
-    it("stays 'Convert' for SVG to SVG (excluded from whitelist even though image)", () => {
-        const svg = makeFormat("image/svg+xml", "svg");
-        const handler = stubHandler("ImageMagick", [svg]);
-        allOptionsRef.value = [{ format: svg, handler }];
-        (window as any).supportedFormatCache = new Map([["ImageMagick", [svg]]]);
-
-        updateConvertButtonState(0, 0);
-
-        expect(ui.convertButton.textContent).toBe("Convert");
-    });
-
-    it("stays 'Convert' when input and output formats differ", () => {
+    it("stays quiet when input and output formats differ", () => {
         const png = makeFormat("image/png", "png", true);
         const jpeg = makeFormat("image/jpeg", "jpeg");
         const handler = stubHandler("ImageMagick", [png, jpeg]);
@@ -261,23 +247,10 @@ describe("updateConvertButtonState (same-format compression)", () => {
             { format: png, handler },
             { format: jpeg, handler },
         ];
-        (window as any).supportedFormatCache = new Map([["ImageMagick", [png, jpeg]]]);
 
         updateConvertButtonState(0, 1);
 
         expect(ui.convertButton.textContent).toBe("Convert");
-        const hint = document.querySelector(".convert-hint") as HTMLElement;
-        expect(hint.hidden).toBe(true);
-    });
-
-    it("stays 'Convert' when required handler is absent (fallback)", () => {
-        const png = makeFormat("image/png", "png", true);
-        const canvasHandler = stubHandler("canvasToBlob", [png]);
-        allOptionsRef.value = [{ format: png, handler: canvasHandler }];
-        (window as any).supportedFormatCache = new Map([["canvasToBlob", [png]]]);
-
-        updateConvertButtonState(0, 0);
-
-        expect(ui.convertButton.textContent).toBe("Convert");
+        expect((document.querySelector(".convert-hint") as HTMLElement).hidden).toBe(true);
     });
 });

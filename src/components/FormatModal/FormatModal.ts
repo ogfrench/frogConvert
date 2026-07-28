@@ -2,7 +2,6 @@ import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatH
 import "./FormatModal.css";
 import { ui, CATEGORY_LABELS, formatDisplayName, formatMode, getFormatCategory, activeCategory, allOptionsRef, isLoadingPhase2, isLoadingHandlers, updateScrollLock, isFormatVisible, isCategoryVisible, reachableIdentifiers, selectedFromIndex } from "../store/store.ts";
 import { formatToIdentifier } from "../../core/TraversionGraph/TraversionGraph.ts";
-import { isSameFormatCompressible } from "../../core/compression/resolveCompressor.ts";
 
 // --- Format modal ---
 
@@ -176,10 +175,11 @@ export function clearFormatSelection(activeCategory: string = "") {
 }
 
 /**
- * Compression helper line shown under the Convert button when the user
- * picks the same format for input and output AND that format supports
- * same-format compression (see `resolveSameFormatHandler`). Lazy-created
- * on first use so it only enters the DOM for users who hit the feature.
+ * Signpost shown under the Convert button when the user picks the same format
+ * for input and output. Compressing in place used to be an easter egg hidden
+ * behind exactly this pick; it now lives on the Compress surface, so rather
+ * than quietly doing something other than what the button says, point there.
+ * Lazy-created so it only enters the DOM for users who hit the case.
  */
 let _convertHintEl: HTMLSpanElement | null = null;
 function ensureConvertHint(): HTMLSpanElement {
@@ -190,38 +190,36 @@ function ensureConvertHint(): HTMLSpanElement {
   el.setAttribute("aria-live", "polite");
   el.hidden = true;
   ui.convertButton.insertAdjacentElement("afterend", el);
+  el.addEventListener("click", (e) => {
+    if (!(e.target as HTMLElement).closest(".convert-hint-action")) return;
+    // Decoupled from the shell: main.ts owns mode switching and listens here.
+    window.dispatchEvent(new CustomEvent("frog:set-mode", { detail: "compress" }));
+  });
   _convertHintEl = el;
   return el;
 }
 
 export function updateConvertButtonState(selectedFromIndex: number | null, selectedToIndex: number | null) {
   const hint = ensureConvertHint();
-  let showCompress = false;
-  let formatLabel = "";
+  const bothPicked = selectedFromIndex !== null && selectedToIndex !== null;
+  let samePick = false;
 
-  if (selectedFromIndex !== null && selectedToIndex !== null) {
+  if (bothPicked) {
     ui.convertButton.classList.remove("disabled");
     const fromOpt = allOptionsRef.value[selectedFromIndex];
     const toOpt = allOptionsRef.value[selectedToIndex];
-    const samePick = fromOpt && toOpt
+    samePick = !!(fromOpt && toOpt
       && fromOpt.format.mime === toOpt.format.mime
-      && fromOpt.format.format === toOpt.format.format;
-    showCompress = !!(samePick && isSameFormatCompressible(toOpt.format, allOptionsRef.value));
-    if (showCompress) formatLabel = toOpt.format.format.toUpperCase();
-    if (showCompress) {
-      ui.convertButton.innerHTML = `<span class="convert-strike">Convert</span> Compress`;
-    } else {
-      ui.convertButton.textContent = "Convert";
-    }
+      && fromOpt.format.format === toOpt.format.format);
+    ui.convertButton.textContent = "Convert";
   } else {
     ui.convertButton.classList.add("disabled");
-    ui.convertButton.textContent = isLoadingHandlers.value ? "Loading formats…" : "Convert";
+    ui.convertButton.textContent = isLoadingHandlers.value ? "Loading formats\u2026" : "Convert";
   }
 
-  ui.convertButton.classList.toggle("compress-mode", showCompress);
-
-  if (showCompress) {
-    hint.textContent = `${formatLabel} \u2192 ${formatLabel}? This will compress it, not convert it. Available for select formats.`;
+  if (samePick) {
+    hint.innerHTML = "Same format in and out \u2014 nothing to convert. "
+      + "<button type=\"button\" class=\"convert-hint-action\">Compress it instead</button>";
     hint.hidden = false;
   } else {
     hint.hidden = true;
