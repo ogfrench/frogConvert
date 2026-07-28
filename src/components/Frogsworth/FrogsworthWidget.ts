@@ -4,7 +4,7 @@ type PdfTool = "merge" | "organize" | "watermark";
 type Context = {
   from: string | null;
   to: string | null;
-  page?: "convert" | "pdf-editor";
+  page?: "convert" | "pdf-editor" | "compress";
   pdfTool?: PdfTool;
 };
 type Face = "idle" | "thinking" | "happy" | "excited" | "smug" | "hungry";
@@ -76,6 +76,29 @@ const PDF_GENERIC_QUIPS: Quip[] = [
   q("need fewer pages? extract. more pages? merge. same pages but different? organize. need a stamp? watermark.", "excited"),
   q("frogsworth: pdf surgeon", "excited"),
   q("pdfs don't edit themselves. well, not yet.", "smug"),
+];
+
+const COMPRESS_QUIPS: Quip[] = [
+  q("smaller file, same frog", "happy"),
+  q("squish. that's the whole feature.", "smug"),
+  q("drop something chunky. i'll trim it.", "hungry"),
+  q("megabytes in, kilobytes out. ideally.", "excited"),
+  q("i'm about to make this file regret its size", "excited"),
+  q("your file, but on a diet", "happy"),
+  q("lossy forgets, lossless forgives. pick your fighter.", "smug"),
+  q("jpeg throws away what your eyes won't miss. mostly.", "smug"),
+  q("deflate: the algorithm quietly holding the internet together", "happy"),
+  q("the first jpeg spec landed in 1992. we've been dropping pixels ever since.", "smug"),
+  q("70 percent smaller and nobody notices. that's the craft.", "happy"),
+  q("nothing leaves your pond. the squishing happens right here.", "smug"),
+  q("already tiny? i'll leave it be. some files are just perfect.", "idle"),
+  q("a pdf that's all text won't shrink much. that's physics, not laziness.", "idle"),
+  q("smaller is faster. faster is happier. i've done the research.", "happy"),
+  q("recommended for most. extreme for the brave. lossless for the precious.", "smug"),
+  q("compression is just folding up the boring parts of a file", "smug"),
+  q("i squish files now. deeply satisfying work.", "excited"),
+  q("that raw png could lose half its weight and never know", "smug"),
+  q("feed me your biggest file. i dare you.", "hungry"),
 ];
 
 const PDF_MERGE_QUIPS: Quip[] = [
@@ -682,6 +705,10 @@ export function pick(
   const t = to?.toLowerCase();
 
   if (!f && !t) {
+    if (page === "compress") {
+      // Blended with the idle pool so the frog still has general chatter here.
+      return resolve(pickFrom([...COMPRESS_QUIPS, ...IDLE_QUIPS], exclude));
+    }
     if (page === "pdf-editor") {
       const toolPool =
         pdfTool === "watermark" ? PDF_WATERMARK_QUIPS :

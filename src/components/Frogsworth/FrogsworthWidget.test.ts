@@ -250,3 +250,28 @@ describe("pick() - all results have valid face values", () => {
         }
     });
 });
+
+// ---------------------------------------------------------------------------
+// Compress page quips
+// ---------------------------------------------------------------------------
+
+describe("pick() on the compress page", () => {
+    it("returns compression-flavoured chatter when no format is selected", () => {
+        const seen = new Set<string>();
+        for (let i = 0; i < 200; i++) {
+            seen.add(pick(null, null, null, "compress").text);
+        }
+        // The pool is blended with IDLE_QUIPS, so assert the compress pool is
+        // actually reachable rather than that every draw is compression copy.
+        const compressish = [...seen].filter(t =>
+            /squish|smaller|compress|kilobyte|lossless|lossy|jpeg|deflate|diet/i.test(t));
+        expect(compressish.length).toBeGreaterThan(0);
+    });
+
+    it("never leaks PDF tool quips onto the compress page", () => {
+        for (let i = 0; i < 200; i++) {
+            const t = pick(null, null, null, "compress").text;
+            expect(t).not.toMatch(/watermark|merge two pdfs|rearrange pages/i);
+        }
+    });
+});

@@ -630,14 +630,22 @@ if (typeof window !== 'undefined') {
 
 initFrogsworth(() => {
   const onPdf = document.getElementById("pdf-workspace")?.style.display !== "none";
+  const onCompress = currentAppMode === "compress";
+  // The converter's format selection is meaningless on the other surfaces, and
+  // pick() prefers format quips whenever from/to are set - so clear them or the
+  // frog talks about PNG while you're compressing.
+  const from = !onPdf && !onCompress && selectedFromIndex.value !== null
+    ? allOptionsRef.value[selectedFromIndex.value].format.format
+    : null;
+  const to = !onPdf && !onCompress && selectedToIndex.value !== null
+    ? allOptionsRef.value[selectedToIndex.value].format.format
+    : null;
   return {
-    from: selectedFromIndex.value !== null
-      ? allOptionsRef.value[selectedFromIndex.value].format.format
-      : null,
-    to: selectedToIndex.value !== null
-      ? allOptionsRef.value[selectedToIndex.value].format.format
-      : null,
-    page: onPdf ? "pdf-editor" as const : "convert" as const,
+    from,
+    to,
+    page: onCompress ? "compress" as const
+      : onPdf ? "pdf-editor" as const
+      : "convert" as const,
     pdfTool: onPdf ? _pdfWsModule?.getActiveTool() : undefined,
   };
 });
