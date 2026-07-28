@@ -4,6 +4,17 @@ import { showToast } from "../Toast/Toast.ts";
 import { escapeHTML, formatBytes, shortenFileName } from "../utils/index.ts";
 import { isTouchUi } from "../../core/utils/touchUi.ts";
 import { ABSOLUTE_MAX_FILES, MAX_TOTAL_FILE_SIZE } from "../../constants/ui.ts";
+import { allOptionsRef } from "../store/store.ts";
+import { findMatchingFormat } from "../../core/FormatHandler/detectFormat.ts";
+import {
+  compressBatch,
+  totalSaved,
+  type CompressInput,
+  type CompressOutcome,
+} from "../../core/compression/compressBatch.ts";
+import { runInWorker } from "../../conversion/workerClient.ts";
+import { downloadFile, downloadAsZip, timestampForFilename } from "../../conversion/download.ts";
+import { triggerConfetti } from "../../effects/Confetti/Confetti.ts";
 
 /**
  * Compress workspace — the dedicated "make my files smaller" surface, a peer
@@ -38,11 +49,17 @@ export const COMPRESS_LEVELS: readonly CompressLevel[] = [
 export const DEFAULT_LEVEL: QualityPreset = "medium";
 
 type Entry = { id: number; file: File };
+type Phase = "idle" | "running" | "done";
 
 let files: Entry[] = [];
 let level: QualityPreset = DEFAULT_LEVEL;
 let nextId = 1;
 let initialized = false;
+
+let phase: Phase = "idle";
+let results: CompressOutcome[] = [];
+let progress = { done: 0, total: 0, current: "" };
+let cancelRequested = false;
 
 let rootEl: HTMLElement | null = null;
 let fileInput: HTMLInputElement | null = null;
@@ -50,6 +67,8 @@ let fileInput: HTMLInputElement | null = null;
 /** Test seam + share-target entry point. */
 export function getFiles(): readonly Entry[] { return files; }
 export function getLevel(): QualityPreset { return level; }
+export function getPhase(): Phase { return phase; }
+export function getResults(): readonly CompressOutcome[] { return results; }
 
 /**
  * Cheap intake filter. The authoritative "can this actually be compressed?"
@@ -109,6 +128,91 @@ function removeFile(id: number) {
   render();
 }
 
+// --- Running a batch ---
+
+const REASON_COPY: Record<string, string> = {
+  "already-minimal": "already squished",
+  "no-gain": "no gain",
+  "unsupported": "can't squish this",
+  "failed": "failed",
+};
+
+export async function runCompression() {
+  if (phase === "running" || !files.length) return;
+
+  cancelRequested = false;
+  phase = "running";
+  progress = { done: 0, total: files.length, current: "" };
+  render();
+
+  const options = allOptionsRef.value;
+  const outcomes: (CompressOutcome | null)[] = files.map(() => null);
+  const recognized: CompressInput[] = [];
+  const recognizedAt: number[] = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i].file;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const idx = findMatchingFormat([file], options);
+    if (idx < 0) {
+      // Handlers may still be loading, or it's genuinely a format we don't know.
+      outcomes[i] = {
+        name: file.name, bytes, originalSize: bytes.byteLength,
+        shrunk: false, reason: "unsupported",
+      };
+      continue;
+    }
+    recognizedAt.push(i);
+    recognized.push({ name: file.name, bytes, format: options[idx].format });
+  }
+
+  const alreadyDone = files.length - recognized.length;
+  const batch = await compressBatch(recognized, {
+    options,
+    level,
+    run: runInWorker,
+    onProgress: (done, _total, current) => {
+      progress = { done: alreadyDone + done, total: files.length, current };
+      paintProgress();
+    },
+    isCancelled: () => cancelRequested,
+  });
+
+  batch.forEach((outcome, k) => { outcomes[recognizedAt[k]] = outcome; });
+  results = outcomes.filter((o): o is CompressOutcome => o !== null);
+  phase = "done";
+  render();
+
+  if (results.some(r => r.shrunk)) triggerConfetti();
+}
+
+/** Light in-place update so per-file progress doesn't re-render the whole view. */
+function paintProgress() {
+  if (!rootEl) return;
+  const label = rootEl.querySelector<HTMLElement>(".cw-progress-label");
+  const bar = rootEl.querySelector<HTMLElement>(".cw-progress-bar-fill");
+  if (label) {
+    label.textContent = progress.current
+      ? `Squishing ${shortenFileName(progress.current, 28)} — ${progress.done} of ${progress.total}`
+      : `Squishing ${progress.done} of ${progress.total}`;
+  }
+  if (bar) bar.style.width = `${Math.round((progress.done / Math.max(progress.total, 1)) * 100)}%`;
+}
+
+export async function downloadResults() {
+  if (!results.length) return;
+  const out = results.map(r => ({ name: r.name, bytes: r.bytes }));
+  if (out.length === 1) downloadFile(out[0].bytes, out[0].name);
+  else await downloadAsZip(out, `compressed-${timestampForFilename()}.zip`);
+}
+
+/** Back to the batch view, keeping the files so a different level can be tried. */
+export function backToFiles() {
+  phase = "idle";
+  results = [];
+  render();
+}
+
 // --- Rendering ---
 
 function dropzoneMarkup(): string {
@@ -163,11 +267,81 @@ function fileListMarkup(): string {
   `;
 }
 
+function progressMarkup(): string {
+  return `
+    <div class="card-base cw-progress-card">
+      <p class="cw-progress-label">Squishing ${progress.done} of ${progress.total}</p>
+      <div class="cw-progress-bar"><div class="cw-progress-bar-fill" style="width:0%"></div></div>
+      <button class="cw-cancel" type="button">Stop</button>
+    </div>
+  `;
+}
+
+function resultsMarkup(): string {
+  const saved = totalSaved(results);
+  const originalTotal = results.reduce((sum, r) => sum + r.originalSize, 0);
+  const pct = originalTotal ? Math.round((saved / originalTotal) * 100) : 0;
+  const shrunkCount = results.filter(r => r.shrunk).length;
+
+  const headline = saved > 0
+    ? `Saved ${formatBytes(saved)} <span class="cw-pct">(${pct}% smaller)</span>`
+    : `Nothing left to shave off`;
+  const sub = saved > 0
+    ? `${shrunkCount} of ${results.length} file${results.length === 1 ? "" : "s"} got smaller.`
+    : `These were already as small as they usefully get.`;
+
+  const rows = results.map(r => {
+    const detail = r.shrunk
+      ? `<span class="cw-res-from">${formatBytes(r.originalSize)}</span>
+         <span class="cw-res-arrow" aria-hidden="true">→</span>
+         <span class="cw-res-to">${formatBytes(r.bytes.byteLength)}</span>
+         <span class="cw-res-pct">−${Math.round((1 - r.bytes.byteLength / r.originalSize) * 100)}%</span>`
+      : `<span class="cw-res-from">${formatBytes(r.originalSize)}</span>
+         <span class="cw-res-note">${escapeHTML(REASON_COPY[r.reason ?? "no-gain"] ?? "unchanged")}</span>`;
+    return `
+      <li class="cw-res-row ${r.shrunk ? "shrunk" : "kept"}">
+        <span class="cw-row-name" title="${escapeHTML(r.name)}">${escapeHTML(shortenFileName(r.name, 36))}</span>
+        <span class="cw-res-detail">${detail}</span>
+      </li>
+    `;
+  }).join("");
+
+  return `
+    <div class="card-base cw-results-card">
+      <div class="cw-results-head">
+        <p class="cw-results-headline">${headline}</p>
+        <p class="cw-results-sub">${escapeHTML(sub)}</p>
+      </div>
+      <ul class="cw-results-list">${rows}</ul>
+      <div class="cw-results-actions">
+        <button class="cw-download" type="button">
+          ${results.length === 1 ? "Download" : "Download all (.zip)"}
+        </button>
+        <button class="cw-back" type="button">Try another level</button>
+      </div>
+    </div>
+  `;
+}
+
+function actionMarkup(): string {
+  return `
+    <button class="cw-compress" type="button">
+      Compress ${files.length} file${files.length === 1 ? "" : "s"}
+    </button>
+  `;
+}
+
 function render() {
   if (!rootEl) return;
-  rootEl.innerHTML = files.length
-    ? `${levelPickerMarkup()}${fileListMarkup()}`
-    : dropzoneMarkup();
+  if (phase === "running") {
+    rootEl.innerHTML = progressMarkup();
+  } else if (phase === "done") {
+    rootEl.innerHTML = resultsMarkup();
+  } else {
+    rootEl.innerHTML = files.length
+      ? `${levelPickerMarkup()}${fileListMarkup()}${actionMarkup()}`
+      : dropzoneMarkup();
+  }
   wireRendered();
 }
 
@@ -214,6 +388,16 @@ function wireRendered() {
       render();
     });
   }
+
+  rootEl.querySelector<HTMLElement>(".cw-compress")?.addEventListener("click", () => { void runCompression(); });
+  rootEl.querySelector<HTMLElement>(".cw-download")?.addEventListener("click", () => { void downloadResults(); });
+  rootEl.querySelector<HTMLElement>(".cw-back")?.addEventListener("click", backToFiles);
+  rootEl.querySelector<HTMLElement>(".cw-cancel")?.addEventListener("click", () => {
+    // Between-files cancellation: the in-flight file finishes, then the batch
+    // stops. Hard mid-file cancel would need the shared cancellation singleton.
+    cancelRequested = true;
+    showToast("Stopping after this file…", "info", 4000);
+  });
 }
 
 // --- Lifecycle (mirrors PdfWorkspace) ---
@@ -250,6 +434,9 @@ export function cleanup() {
 export function resetAll() {
   files = [];
   level = DEFAULT_LEVEL;
+  phase = "idle";
+  results = [];
+  cancelRequested = false;
   if (rootEl) render();
 }
 

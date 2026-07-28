@@ -223,6 +223,169 @@
   color: var(--foreground);
 }
 
+/* --- Primary action --- */
+
+.cw-compress {
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  border-radius: var(--radius);
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+
+.cw-compress:hover { opacity: 0.9; }
+
+/* --- Progress --- */
+
+.cw-progress-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-4);
+}
+
+.cw-progress-label {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--foreground);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.cw-progress-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background-color: var(--secondary);
+  overflow: hidden;
+}
+
+.cw-progress-bar-fill {
+  height: 100%;
+  background-color: var(--primary);
+  transition: width var(--transition-fast);
+}
+
+.cw-cancel {
+  min-height: 36px;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.cw-cancel:hover { color: var(--foreground); border-color: var(--muted-foreground); }
+
+/* --- Results --- */
+
+.cw-results-card { padding: var(--space-4); }
+
+.cw-results-head {
+  text-align: center;
+  margin-bottom: var(--space-4);
+}
+
+.cw-results-headline {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-xl);
+  font-weight: var(--font-medium);
+  color: var(--foreground);
+}
+
+.cw-pct { color: var(--muted-foreground); font-weight: var(--font-normal, 400); }
+
+.cw-results-sub {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+}
+
+.cw-results-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 22rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.cw-res-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: calc(var(--radius) - 2px);
+  background-color: var(--secondary);
+}
+
+.cw-res-row.kept { opacity: 0.72; }
+
+.cw-res-detail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cw-res-to { color: var(--foreground); }
+
+.cw-res-pct {
+  color: var(--primary);
+  font-weight: var(--font-medium);
+}
+
+.cw-res-note { font-style: italic; }
+
+.cw-results-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.cw-download {
+  flex: 1;
+  min-height: 44px;
+  border: none;
+  border-radius: var(--radius);
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+}
+
+.cw-download:hover { opacity: 0.9; }
+
+.cw-back {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.cw-back:hover { color: var(--foreground); border-color: var(--muted-foreground); }
+
 /* --- Responsive / touch --- */
 
 @media (pointer: coarse) {
@@ -261,4 +424,15 @@
   .cw-row-name { grid-area: name; white-space: normal; overflow-wrap: anywhere; }
   .cw-row-size { grid-area: size; }
   .cw-row-remove { grid-area: remove; justify-self: end; }
+
+  .cw-res-row {
+    /* Stack so the size figures never squeeze the filename off-screen. */
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+  }
+
+  .cw-res-row .cw-row-name { white-space: normal; overflow-wrap: anywhere; }
+
+  .cw-results-actions { flex-direction: column; }
 }

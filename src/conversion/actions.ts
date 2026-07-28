@@ -53,6 +53,7 @@ import {
 import { probeInputQuality } from "../core/compression/inputQuality.ts";
 import { tierDown } from "../core/compression/tierDown.ts";
 import { resolveSameFormatHandler, handlerSupportsFormat } from "../core/compression/resolveCompressor.ts";
+import { runInWorker, WORKER_TIMEOUT_MS } from "./workerClient.ts";
 
 // --- Helpers ---
 
@@ -89,44 +90,9 @@ export function setOnConversionEnd(fn: (() => void) | null) {
 
 // --- Format matching ---
 
-export function findMatchingFormat(
-    files: File[],
-    allOptions: Array<{ format: FileFormat; handler: FormatHandler }>,
-): number {
-    // Intentionally format-mode-agnostic: detect the real format regardless of the
-    // current display mode. refreshUI() re-runs after each handler phase and handles
-    // switching to the matched category tab if the format wasn't yet loaded on upload.
-    const mimeType = normalizeMimeType(files[0].type);
-    // Only treat a trailing segment as an extension when there's an actual dot
-    // in the filename. Otherwise `"photo".split(".").pop()` returns the whole
-    // name, which would accidentally match a format whose extension happened
-    // to equal the filename.
-    const name = files[0].name;
-    const dotIdx = name.lastIndexOf(".");
-    const fileExtension = dotIdx > 0 ? name.slice(dotIdx + 1).toLowerCase() : undefined;
-    // Best match: MIME + extension
-    let mimeMatch = -1;
-    for (let i = 0; i < allOptions.length; i++) {
-        const { format } = allOptions[i];
-        if (!format.from || format.mime !== mimeType) continue;
-
-        if (fileExtension && format.extension === fileExtension) return i; // Exact MIME+ext match
-        if (mimeMatch === -1) mimeMatch = i; // First MIME-only match as fallback
-    }
-    if (mimeMatch !== -1) return mimeMatch;
-
-    // Fallback: extension-only match
-    if (fileExtension) {
-        for (let i = 0; i < allOptions.length; i++) {
-            const { format } = allOptions[i];
-            if (format.from && format.extension.toLowerCase() === fileExtension) {
-                return i;
-            }
-        }
-    }
-
-    return -1;
-}
+// Moved to core/FormatHandler/detectFormat.ts so surfaces can detect a file's
+// format without importing this module. Re-exported for existing callers.
+export { findMatchingFormat } from "../core/FormatHandler/detectFormat.ts";
 
 // --- Same-format compression ---
 // The dispatch layer (resolveSameFormatHandler + helpers + whitelists) now
@@ -149,97 +115,6 @@ export async function downloadAllConvertedFiles() {
             downloadFile(file.bytes, file.name);
         }
     }
-}
-
-// --- Worker Manager ---
-let conversionWorker: Worker | null = null;
-let workerMsgId = 0;
-const WORKER_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
-let workerErrorCallback: ((e: ErrorEvent) => void) | null = null;
-
-function getConversionWorker(): Worker {
-    if (!conversionWorker) {
-        conversionWorker = new Worker(new URL("../workers/conversion.worker.ts", import.meta.url), { type: "module" });
-        conversionWorker.onerror = (err) => {
-            // Worker crashed - reject the in-flight promise with a real error, then discard the dead worker
-            const cb = workerErrorCallback;
-            workerErrorCallback = null;
-            setWorkerCancelCallback(null);
-            conversionWorker = null;
-            cb?.(err);
-        };
-    }
-    return conversionWorker;
-}
-
-// bfcache restore: drop stale worker ref so getConversionWorker() re-spawns.
-if (typeof window !== "undefined") {
-    window.addEventListener("pageshow", (ev) => {
-        if ((ev as PageTransitionEvent).persisted) {
-            if (conversionWorker) {
-                try { conversionWorker.terminate(); } catch { /* already gone */ }
-                conversionWorker = null;
-            }
-        }
-    });
-}
-
-async function runInWorker(handlerName: string, inputFiles: FileData[], inputFormat: FileFormat, outputFormat: FileFormat, args?: string[], onProgress?: (p: ProgressEvent) => void): Promise<FileData[]> {
-    const worker = getConversionWorker();
-    const id = ++workerMsgId;
-    return new Promise((resolve, reject) => {
-        if (isCancelled) { reject(new Error("Cancelled")); return; }
-
-        const cleanup = () => {
-            clearTimeout(timeoutId);
-            worker.removeEventListener("message", onMessage);
-            setWorkerCancelCallback(null);
-            workerErrorCallback = null;
-        };
-
-        const onMessage = (ev: MessageEvent) => {
-            const msg = ev.data;
-            if (msg.id !== id) return;
-            if (msg.type === "progress") {
-                onProgress?.({ ratio: msg.ratio, detail: msg.detail });
-                return;
-            }
-            cleanup();
-            if (msg.type === "success") {
-                resolve(msg.outputFiles);
-            } else {
-                reject(msg.error);
-            }
-        };
-
-        const timeoutId = setTimeout(() => {
-            cleanup();
-            reject(new Error(`Conversion timed out after ${WORKER_TIMEOUT_MS / 60000} minutes.`));
-        }, WORKER_TIMEOUT_MS);
-
-        worker.addEventListener("message", onMessage);
-        setWorkerCancelCallback(() => {
-            cleanup();
-            worker.terminate();
-            conversionWorker = null;
-            reject(new Error("Cancelled"));
-        });
-        // Hard-cancel fallback if the normal cancel path doesn't bring us down.
-        setForceCleanupCallback(() => {
-            cleanup();
-            try { worker.terminate(); } catch { /* already terminated */ }
-            conversionWorker = null;
-            reject(new Error("Cancelled (forced)"));
-        });
-        workerErrorCallback = (err: ErrorEvent) => {
-            cleanup();
-            reject(new Error(`Conversion worker crashed: ${err.message}`));
-        };
-        // Copy bytes before transferring - originals must remain usable if this path fails and another is retried
-        const inputCopies = inputFiles.map(f => ({ ...f, bytes: f.bytes.slice() }));
-        const transferables = inputCopies.map(f => f.bytes.buffer).filter(b => b.byteLength > 0);
-        worker.postMessage({ id, handlerName, inputFiles: inputCopies, inputFormat, outputFormat, args }, transferables);
-    });
 }
 
 // --- Conversion logic helpers ---
