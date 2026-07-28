@@ -1,18 +1,33 @@
 // ---------------------------------------------------------------------------
-// Lightweight History API router for /convert and /pdf paths
+// Lightweight History API router for /convert, /pdf and /compress paths
 // ---------------------------------------------------------------------------
 
+export type AppMode = 'converter' | 'pdf-editor' | 'compress';
+
 export interface RouteState {
-  mode: 'converter' | 'pdf-editor';
+  mode: AppMode;
 }
+
+/** Single source of truth for mode ↔ path. Add a mode here and both
+ *  directions follow; nothing else in the router needs touching. */
+const MODE_PATHS: Record<AppMode, string> = {
+  converter: '/convert',
+  'pdf-editor': '/pdf',
+  compress: '/compress',
+};
+
+const PATH_MODES: Record<string, AppMode> = {
+  pdf: 'pdf-editor',
+  compress: 'compress',
+};
 
 export function parseURL(pathname = location.pathname): RouteState {
   const base = pathname.replace(/^\/+|\/+$/g, '').split('/')[0];
-  return { mode: base === 'pdf' ? 'pdf-editor' : 'converter' };
+  return { mode: PATH_MODES[base] ?? 'converter' };
 }
 
 export function buildPath(mode: string): string {
-  return mode === 'pdf-editor' ? '/pdf' : '/convert';
+  return MODE_PATHS[mode as AppMode] ?? MODE_PATHS.converter;
 }
 
 /** Push a new URL via History API. Skips if already at the target path or in Electron. */

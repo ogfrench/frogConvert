@@ -9,7 +9,14 @@ function getPdfWorkspace(): Promise<PdfWorkspaceModule> {
   _pdfWsPromise ??= import("./components/PdfWorkspace/PdfWorkspace.ts").then(m => { _pdfWsModule = m; return m; });
   return _pdfWsPromise;
 }
-import { initRouter, navigateTo, type RouteState } from "./router.ts";
+type CompressWorkspaceModule = typeof import("./components/CompressWorkspace/CompressWorkspace.ts");
+let _compressWsPromise: Promise<CompressWorkspaceModule> | null = null;
+let _compressWsModule: CompressWorkspaceModule | null = null;
+function getCompressWorkspace(): Promise<CompressWorkspaceModule> {
+  _compressWsPromise ??= import("./components/CompressWorkspace/CompressWorkspace.ts").then(m => { _compressWsModule = m; return m; });
+  return _compressWsPromise;
+}
+import { initRouter, navigateTo, type RouteState, type AppMode } from "./router.ts";
 import { isTouchUi } from "./core/utils/touchUi.ts";
 
 // Kick off TraversionGraph load immediately in the background - does not block paint.
@@ -161,16 +168,42 @@ mobileCategoryMq.addEventListener("change", resetHiddenMobileCategory);
 const modeToggleBtn = document.getElementById("app-mode-toggle")!;
 const modeIconConverter = document.getElementById("mode-icon-converter")!;
 const modeIconPdf = document.getElementById("mode-icon-pdf")!;
+const modeIconCompress = document.getElementById("mode-icon-compress")!;
 const topControlsMenu = document.getElementById("top-controls-menu")!;
 const converterEls = ["hero-title", "category-tabs", "convert-card", "description"].map(id => document.getElementById(id)!);
 const pdfWorkspaceEl = document.getElementById("pdf-workspace")!;
 const pdfDescriptionEl = document.getElementById("pdf-description")!;
+const compressWorkspaceEl = document.getElementById("compress-workspace")!;
+const compressDescriptionEl = document.getElementById("compress-description")!;
 
-let currentAppMode = "converter";
+let currentAppMode: AppMode = "converter";
+
+/** Ordered so the desktop single-button control can cycle predictably. */
+const APP_MODES: AppMode[] = ["converter", "pdf-editor", "compress"];
+
+const MODE_LABELS: Record<AppMode, string> = {
+  converter: "Converter",
+  "pdf-editor": "PDF Editor",
+  compress: "Compress",
+};
+
+/** Elements owned by each mode; everything not in the active list gets hidden. */
+const MODE_SURFACES: Record<AppMode, HTMLElement[]> = {
+  converter: converterEls,
+  "pdf-editor": [pdfWorkspaceEl, pdfDescriptionEl],
+  compress: [compressWorkspaceEl, compressDescriptionEl],
+};
+
+const MODE_ICONS: Record<AppMode, HTMLElement> = {
+  converter: modeIconConverter,
+  "pdf-editor": modeIconPdf,
+  compress: modeIconCompress,
+};
 
 const bgEmojis = {
   converter: ["🖼️", "📝", "🎵", "🎥", "📖", "📊", "🎨", "💻", "📦"],
   "pdf-editor": ["📄", "✂️", "💧", "🔗", "🗂️", "📑", "🔖", "👁️", "📓"],
+  compress: ["🗜️", "📉", "🤏", "📦", "⚡", "🫙", "🎈", "🪄", "🐸"],
 };
 const bgEmojiSpans = document.querySelectorAll<HTMLSpanElement>("#bg-visuals .bg-pop span");
 
@@ -189,7 +222,7 @@ function replayEntranceAnimations(roots: Element[]) {
   for (const [el, cls] of pairs) el.classList.add(cls);
 }
 
-function setAppMode(mode: string) {
+function setAppMode(mode: AppMode) {
   currentAppMode = mode;
 
   // Swap background emojis with pop animation
@@ -214,12 +247,13 @@ function setAppMode(mode: string) {
     });
   }, 200);
 
-  // Update button icon and tooltip
-  const isConverter = mode === "converter";
-  modeIconConverter.style.display = isConverter ? "" : "none";
-  modeIconPdf.style.display = isConverter ? "none" : "";
-  modeToggleBtn.title = isConverter ? "Converter" : "PDF Editor";
-  modeToggleBtn.setAttribute("aria-label", `Switch app mode: ${isConverter ? "Converter" : "PDF Editor"}`);
+  // Update button icon and tooltip. The desktop control is a single button
+  // that cycles, so the label names the mode it will switch *to* while the
+  // icon shows where you are now.
+  for (const m of APP_MODES) MODE_ICONS[m].style.display = m === mode ? "" : "none";
+  const nextMode = APP_MODES[(APP_MODES.indexOf(mode) + 1) % APP_MODES.length];
+  modeToggleBtn.title = MODE_LABELS[mode];
+  modeToggleBtn.setAttribute("aria-label", `App mode: ${MODE_LABELS[mode]}. Switch to ${MODE_LABELS[nextMode]}`);
 
   // Update mobile pill group
   const mobilePill = document.getElementById("app-mode-segmented");
@@ -231,33 +265,42 @@ function setAppMode(mode: string) {
     }
   }
 
-  // Toggle pdf-mode class on menu to hide formats section
-  topControlsMenu.classList.toggle("pdf-mode", mode === "pdf-editor");
+  // The format filter only means something in converter mode.
+  topControlsMenu.classList.toggle("no-formats", mode !== "converter");
 
+  // Show the active mode's elements, hide every other mode's.
+  for (const m of APP_MODES) {
+    const visible = m === mode;
+    for (const el of MODE_SURFACES[m]) el.style.display = visible ? "" : "none";
+  }
+  replayEntranceAnimations(MODE_SURFACES[mode]);
+
+  // Lazy surfaces: init on enter, cleanup on leave. cleanup() preserves
+  // module-level state (loaded files, page order, selections, watermark
+  // settings, the compress batch) so users who toggle modes don't lose their
+  // work. resetAll() is the destructive cousin and is not called here.
+  // Only *entering* a mode pulls its chunk in; leaving cleans up through the
+  // already-resolved module so a user who never opens a surface never
+  // downloads it.
   if (mode === "pdf-editor") {
-    for (const el of converterEls) el.style.display = "none";
-    pdfWorkspaceEl.style.display = "";
-    pdfDescriptionEl.style.display = "";
-    replayEntranceAnimations([pdfWorkspaceEl, pdfDescriptionEl]);
     getPdfWorkspace().then(ws => ws.initPdfWorkspace())
       .catch((e) => console.warn("[main] PDF workspace init failed:", e));
   } else {
-    // cleanup() preserves module-level state (loaded files, page order,
-    // selections, watermark settings) so users who toggle modes don't lose
-    // their work. resetAll() is the destructive cousin and is no longer
-    // called on mode switches.
-    getPdfWorkspace().then(ws => ws.cleanup())
-      .catch((e) => console.warn("[main] PDF workspace cleanup failed:", e));
-    pdfWorkspaceEl.style.display = "none";
-    pdfDescriptionEl.style.display = "none";
-    for (const el of converterEls) el.style.display = "";
-    replayEntranceAnimations(converterEls);
+    _pdfWsModule?.cleanup();
+  }
+
+  if (mode === "compress") {
+    getCompressWorkspace().then(ws => ws.initCompressWorkspace())
+      .catch((e) => console.warn("[main] Compress workspace init failed:", e));
+  } else {
+    _compressWsModule?.cleanup();
   }
 }
 
-// Desktop mode toggle button
+// Desktop mode toggle button. Single compact control, so it cycles through
+// the modes in APP_MODES order.
 modeToggleBtn.addEventListener("click", () => {
-  const next = currentAppMode === "converter" ? "pdf-editor" : "converter";
+  const next = APP_MODES[(APP_MODES.indexOf(currentAppMode) + 1) % APP_MODES.length];
   setAppMode(next);
   navigateTo(next);
 });
@@ -267,7 +310,7 @@ const mobileModePill = document.getElementById("app-mode-segmented");
 mobileModePill?.addEventListener("click", (e) => {
   const btn = (e.target as HTMLElement).closest(".pill-option") as HTMLButtonElement | null;
   if (!btn || btn.classList.contains("active")) return;
-  setAppMode(btn.dataset.value!);
+  setAppMode(btn.dataset.value as AppMode);
   navigateTo(btn.dataset.value!);
 });
 

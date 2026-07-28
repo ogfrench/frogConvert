@@ -217,7 +217,7 @@
 }
 
 /* Hide filter controls in PDF mode (both desktop and mobile) */
-#top-controls-menu.pdf-mode #mode-toggle {
+#top-controls-menu.no-formats #mode-toggle {
   opacity: 0;
   transform: scale(0.95);
   pointer-events: none;
@@ -429,9 +429,9 @@
   }
 
   /* Hide formats section in PDF mode */
-  #top-controls-menu.pdf-mode #formats-divider,
-  #top-controls-menu.pdf-mode #formats-label,
-  #top-controls-menu.pdf-mode #formats-section {
+  #top-controls-menu.no-formats #formats-divider,
+  #top-controls-menu.no-formats #formats-label,
+  #top-controls-menu.no-formats #formats-section {
     display: none;
   }
 

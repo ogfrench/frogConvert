@@ -1,0 +1,264 @@
+/* ===================================================================
+   Compress workspace — dedicated "make my files smaller" surface.
+   Visual language deliberately mirrors the PDF workspace dropzone/cards
+   so the third mode doesn't read as a bolted-on tool.
+   =================================================================== */
+
+#compress-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+/* --- Dropzone (empty state) --- */
+
+.cw-dropzone-card {
+  padding: var(--space-2);
+}
+
+.cw-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: calc(var(--space-16) * 2.5);
+  padding: var(--space-4);
+  border: 1px dashed var(--border);
+  border-radius: inherit;
+  background-color: var(--secondary);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.cw-dropzone:hover {
+  border-color: var(--muted-foreground);
+  color: var(--foreground);
+}
+
+.cw-dropzone.drag-over {
+  border-color: var(--primary);
+  background-color: var(--accent);
+}
+
+.cw-dropzone .upload-text {
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  color: var(--foreground);
+  margin: 0 0 var(--space-0-5);
+  text-align: center;
+}
+
+.cw-dropzone .upload-hint {
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
+.cw-dropzone-types {
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+  margin: var(--space-2) 0 0;
+  letter-spacing: 0.02em;
+}
+
+.cw-privacy {
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  text-align: center;
+  margin: 0;
+}
+
+/* --- Level picker --- */
+
+.cw-levels-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cw-levels {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--secondary);
+}
+
+.cw-level {
+  /* 44px min target: coarse pointers get a real tap area (see media query). */
+  min-height: 36px;
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.cw-level:hover {
+  color: var(--foreground);
+}
+
+.cw-level.active {
+  background-color: var(--background);
+  color: var(--foreground);
+  box-shadow: var(--shadow-sm);
+}
+
+.cw-level-blurb {
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  margin: 0;
+  text-align: center;
+  min-height: 1.25em;
+}
+
+/* --- File list --- */
+
+.cw-list-card {
+  padding: var(--space-4);
+}
+
+.cw-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--foreground);
+  margin-bottom: var(--space-2);
+}
+
+.cw-list-total {
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.cw-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  /* Long batches scroll inside the card — the page itself never scrolls sideways. */
+  max-height: 22rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.cw-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: calc(var(--radius) - 2px);
+  background-color: var(--secondary);
+}
+
+.cw-row-name {
+  font-size: var(--text-sm);
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.cw-row-size {
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.cw-row-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-full, 999px);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--text-lg);
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.cw-row-remove:hover {
+  background-color: var(--accent);
+  color: var(--destructive);
+}
+
+.cw-add-more {
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  width: 100%;
+  min-height: 36px;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.cw-add-more:hover {
+  border-color: var(--muted-foreground);
+  color: var(--foreground);
+}
+
+/* --- Responsive / touch --- */
+
+@media (pointer: coarse) {
+  .cw-level,
+  .cw-add-more {
+    min-height: 44px;
+  }
+
+  .cw-row-remove {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+@media (max-width: 800px) {
+  .cw-levels {
+    /* Stay one row of pills; wrap rather than overflow the viewport. */
+    width: 100%;
+  }
+
+  .cw-level {
+    flex: 1 1 auto;
+    padding: var(--space-2);
+  }
+
+  .cw-row {
+    /* Name gets its own line so the size/remove controls never push the
+       row wider than the card on narrow screens. */
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "name name"
+      "size remove";
+    gap: var(--space-1) var(--space-2);
+  }
+
+  .cw-row-name { grid-area: name; white-space: normal; overflow-wrap: anywhere; }
+  .cw-row-size { grid-area: size; }
+  .cw-row-remove { grid-area: remove; justify-self: end; }
+}

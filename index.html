@@ -298,6 +298,7 @@
         <button id="app-mode-toggle" title="Converter" aria-label="Switch app mode: Converter">
           <svg class="top-control-icon" id="mode-icon-converter" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
           <svg class="top-control-icon" id="mode-icon-pdf" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <svg class="top-control-icon" id="mode-icon-compress" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
         </button>
         <!-- Mobile menu content -->
         <span class="menu-list-label">Theme</span>
@@ -321,6 +322,10 @@
           <button class="pill-option" data-value="pdf-editor">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
             PDF Editor
+          </button>
+          <button class="pill-option" data-value="compress">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            Compress
           </button>
         </div>
         <div class="menu-divider" id="formats-divider"></div>
@@ -465,6 +470,24 @@
 
   <p id="pdf-description" class="page-description entrance d6" style="display:none">
     Merge, organize, and watermark PDFs right here in your browser. Your files never leave your device.
+  </p>
+
+  <main id="compress-workspace" style="display:none" aria-label="Compress">
+    <h1 id="compress-hero-title" class="page-title" aria-label="What are we squishing today?">
+      <span class="word-entrance" style="animation-delay: 0.1s" aria-hidden="true">What</span>
+      <span class="word-entrance" style="animation-delay: 0.15s" aria-hidden="true">are</span>
+      <span class="word-entrance" style="animation-delay: 0.2s" aria-hidden="true">we</span>
+      <span class="word-entrance" style="animation-delay: 0.25s" aria-hidden="true">squishing</span>
+      <span class="word-entrance" style="animation-delay: 0.3s" aria-hidden="true">today?</span>
+    </h1>
+
+    <div id="compress-content" class="entrance d5"></div>
+
+    <input id="compress-file-input" type="file" multiple accept="image/*,audio/*,video/*" style="display:none">
+  </main>
+
+  <p id="compress-description" class="page-description entrance d6" style="display:none">
+    Make files smaller without sending them anywhere. Images, audio and video, right here in your browser.
   </p>
 
   <div id="frogsworth-slot"></div>
