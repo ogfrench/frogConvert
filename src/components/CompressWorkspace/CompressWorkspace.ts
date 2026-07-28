@@ -119,6 +119,13 @@ export function handleFiles(incoming: File[]) {
   }
   if (!withinBudget.length) return;
 
+  // Dropping onto a finished batch means starting a new one; without this the
+  // results view stays up and the added files are invisible.
+  if (phase === "done") {
+    phase = "idle";
+    results = [];
+  }
+
   for (const file of withinBudget) files.push({ id: nextId++, file });
   render();
 }
@@ -139,6 +146,14 @@ const REASON_COPY: Record<string, string> = {
 
 export async function runCompression() {
   if (phase === "running" || !files.length) return;
+
+  // Landing straight on /compress can beat the handler registry loading. With
+  // an empty option list every file fails format detection and would be
+  // reported "can't squish this", which is a lie about the file.
+  if (!allOptionsRef.value.length) {
+    showToast("Still warming up the engines — give me a second.", "info", 5000);
+    return;
+  }
 
   cancelRequested = false;
   phase = "running";

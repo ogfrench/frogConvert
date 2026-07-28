@@ -189,6 +189,37 @@ describe('CompressWorkspace — running a batch', () => {
     expect(downloadAsZipMock.mock.calls[0][1]).toMatch(/^compressed-\d{8}-\d{6}\.zip$/);
   });
 
+  it('starts a new batch when files are added to a finished one', async () => {
+    // Regression: render() is phase-driven, so adding files while the results
+    // view was up left them invisible.
+    compressBatchMock.mockResolvedValue([outcome()]);
+    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    await ws.runCompression();
+    expect(ws.getPhase()).toBe('done');
+
+    ws.handleFiles([fakeFile('b.png', 'image/png')]);
+
+    expect(ws.getPhase()).toBe('idle');
+    expect(document.querySelector('.cw-results-card')).toBeNull();
+    expect(document.querySelectorAll('.cw-row')).toHaveLength(2);
+  });
+
+  it('refuses to run before the handler registry has loaded', async () => {
+    // Regression: an empty option list made every file fail detection and get
+    // reported as "can't squish this".
+    const store = await import('../store/store.ts');
+    const saved = store.allOptionsRef.value;
+    store.allOptionsRef.value = [];
+    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+
+    await ws.runCompression();
+
+    expect(compressBatchMock).not.toHaveBeenCalled();
+    expect(ws.getPhase()).toBe('idle');
+    expect(showToastMock).toHaveBeenCalled();
+    store.allOptionsRef.value = saved;
+  });
+
   it('can go back to the batch to try another level', async () => {
     compressBatchMock.mockResolvedValue([outcome()]);
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
