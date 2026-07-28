@@ -2,7 +2,7 @@ import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatH
 import "./FormatModal.css";
 import { ui, CATEGORY_LABELS, formatDisplayName, formatMode, getFormatCategory, activeCategory, allOptionsRef, isLoadingPhase2, isLoadingHandlers, updateScrollLock, isFormatVisible, isCategoryVisible, reachableIdentifiers, selectedFromIndex } from "../store/store.ts";
 import { formatToIdentifier } from "../../core/TraversionGraph/TraversionGraph.ts";
-import { isSameFormatCompressible } from "../../conversion/actions.ts";
+import { isSameFormatCompressible } from "../../core/compression/resolveCompressor.ts";
 
 // --- Format modal ---
 
