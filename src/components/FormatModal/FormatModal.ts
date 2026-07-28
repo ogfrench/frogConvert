@@ -206,7 +206,7 @@ export function updateConvertButtonState(selectedFromIndex: number | null, selec
     const samePick = fromOpt && toOpt
       && fromOpt.format.mime === toOpt.format.mime
       && fromOpt.format.format === toOpt.format.format;
-    showCompress = !!(samePick && isSameFormatCompressible(toOpt.format));
+    showCompress = !!(samePick && isSameFormatCompressible(toOpt.format, allOptionsRef.value));
     if (showCompress) formatLabel = toOpt.format.format.toUpperCase();
     if (showCompress) {
       ui.convertButton.innerHTML = `<span class="convert-strike">Convert</span> Compress`;

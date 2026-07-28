@@ -550,7 +550,7 @@ export function initConvertButton() {
                 && inputFormat.format === outputFormat.format;
 
             const sameFormatDispatch = isSameFormatPick
-                ? resolveSameFormatHandler(inputFormat)
+                ? resolveSameFormatHandler(inputFormat, allOptionsRef.value)
                 : null;
 
             const isPureCompression = Boolean(sameFormatDispatch);

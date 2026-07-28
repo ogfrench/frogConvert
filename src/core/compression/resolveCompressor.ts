@@ -1,6 +1,5 @@
 import type { FileFormat, FormatHandler, QualityPreset } from "../FormatHandler/FormatHandler.ts";
 import { DEFAULT_PRESET } from "../FormatHandler/qualityPresets.ts";
-import { allOptionsRef } from "../../components/store/store.ts";
 
 /**
  * Compression engine — dispatch layer. Maps a format to the handler that can
@@ -8,17 +7,23 @@ import { allOptionsRef } from "../../components/store/store.ts";
  * drive it. Extracted from the convert flow so any surface (the Convert card,
  * a dedicated Compress view, MCP/REST) can route to the compressor without
  * pulling in the format-picker UI.
+ *
+ * Takes the loaded handler/format list as a parameter rather than reading the
+ * UI store on purpose: `src/core/` must not depend on `src/components/`.
  */
 
 export type SameFormatDispatch = { handler: FormatHandler; args: string[] };
+
+/** One entry of the app's loaded handler/format list (`allOptionsRef.value`). */
+export type HandlerOption = { format: FileFormat; handler: FormatHandler };
 
 const SAME_FORMAT_IMAGE_WHITELIST = new Set([
     "png", "jpeg", "jpg", "webp", "tiff", "tif", "bmp",
 ]);
 const SAME_FORMAT_ANIMATED = new Set(["gif", "apng"]);
 
-function findHandlerByName(name: string): FormatHandler | null {
-    for (const opt of allOptionsRef.value) {
+function findHandlerByName(name: string, options: readonly HandlerOption[]): FormatHandler | null {
+    for (const opt of options) {
         if (opt.handler.name === name) return opt.handler;
     }
     return null;
@@ -42,33 +47,36 @@ export function handlerSupportsFormat(handler: FormatHandler, format: FileFormat
  * purpose: SVG/PSD/raw etc. would get rasterised or flattened, so they
  * stay in pass-through mode.
  */
-export function resolveSameFormatHandler(format: FileFormat): SameFormatDispatch | null {
+export function resolveSameFormatHandler(
+    format: FileFormat,
+    options: readonly HandlerOption[],
+): SameFormatDispatch | null {
     const fmt = (format.format || "").toLowerCase();
     const mime = (format.mime || "").toLowerCase();
     const quality: QualityPreset = format.lossless ? "lossless" : DEFAULT_PRESET;
     const baseArgs = ["--quality", quality];
 
     if (SAME_FORMAT_ANIMATED.has(fmt)) {
-        const h = findHandlerByName("FFmpeg");
+        const h = findHandlerByName("FFmpeg", options);
         if (!h || !handlerSupportsFormat(h, format)) return null;
         return { handler: h, args: baseArgs };
     }
 
     if (SAME_FORMAT_IMAGE_WHITELIST.has(fmt) && mime.startsWith("image/")) {
-        const h = findHandlerByName("ImageMagick");
+        const h = findHandlerByName("ImageMagick", options);
         if (!h || !handlerSupportsFormat(h, format)) return null;
         return { handler: h, args: baseArgs };
     }
 
     if (mime.startsWith("video/")) {
-        const h = findHandlerByName("FFmpeg");
+        const h = findHandlerByName("FFmpeg", options);
         if (!h || !handlerSupportsFormat(h, format)) return null;
         // Force re-encode: stream-copy fast path would remux without shrinking.
         return { handler: h, args: [...baseArgs, "--no-stream-copy"] };
     }
 
     if (mime.startsWith("audio/")) {
-        const h = findHandlerByName("FFmpeg");
+        const h = findHandlerByName("FFmpeg", options);
         if (!h || !handlerSupportsFormat(h, format)) return null;
         return { handler: h, args: baseArgs };
     }
@@ -77,6 +85,9 @@ export function resolveSameFormatHandler(format: FileFormat): SameFormatDispatch
 }
 
 /** Category-agnostic check, used by the format modal to decide whether to show the "Compress" button copy. */
-export function isSameFormatCompressible(format: FileFormat): boolean {
-    return resolveSameFormatHandler(format) !== null;
+export function isSameFormatCompressible(
+    format: FileFormat,
+    options: readonly HandlerOption[],
+): boolean {
+    return resolveSameFormatHandler(format, options) !== null;
 }
