@@ -370,79 +370,62 @@ window.addEventListener("frog:set-mode", (e) => {
   navigateTo(mode);
 });
 
-// --- Conversion compression (Converter only) ---
-// Scoped to the Converter on purpose: the Compress surface has its own visible
-// level, and sharing one value meant changing it in one place silently moved
-// the other. Hidden outside converter mode, like the format filter.
+// --- Conversion compression ---
+// On the card, not in the settings menu: it changes the file you get, so it
+// belongs next to the action. Living on the card also scopes it to the
+// Converter for free, since the card is hidden in the other modes.
 
-const qualityToggle = document.getElementById("quality-toggle")!;
-const qualityMenu = document.getElementById("quality-menu")!;
-const qualitySegmented = document.getElementById("quality-segmented");
+const ccToggle = document.getElementById("convert-compression-toggle")!;
+const ccMenu = document.getElementById("convert-compression-menu")!;
+const ccCurrent = document.getElementById("convert-compression-current")!;
 
-function syncQualityUI() {
+function syncCompressionUI() {
   const current = convertQuality.value;
-  const label = CONVERT_QUALITY_CHOICES.find(c => c.value === current)?.label ?? "Recommended";
-  qualityToggle.title = `Compression: ${label}`;
-  qualityToggle.setAttribute("aria-label", `Compression when converting: ${label}. Change`);
-  for (const item of qualityMenu.querySelectorAll<HTMLElement>(".quality-item")) {
+  ccCurrent.textContent = CONVERT_QUALITY_CHOICES.find(c => c.value === current)?.label ?? "Recommended";
+  for (const item of ccMenu.querySelectorAll<HTMLElement>(".cc-item")) {
     item.setAttribute("aria-current", String(item.dataset.value === current));
   }
-  for (const pill of qualitySegmented?.querySelectorAll<HTMLElement>(".pill-option") ?? []) {
-    const active = pill.dataset.value === current;
-    pill.classList.toggle("active", active);
-    pill.setAttribute("aria-pressed", String(active));
-  }
 }
 
-function setQualityMenuOpen(open: boolean) {
-  qualityMenu.hidden = !open;
-  qualityToggle.setAttribute("aria-expanded", String(open));
-  if (open) qualityMenu.querySelector<HTMLElement>(".quality-item")?.focus();
+function setCompressionMenuOpen(open: boolean) {
+  ccMenu.hidden = !open;
+  ccToggle.setAttribute("aria-expanded", String(open));
+  if (open) ccMenu.querySelector<HTMLElement>('.cc-item[aria-current="true"]')?.focus();
 }
 
-function chooseQuality(next: ConvertQuality) {
-  setConvertQuality(next);
-  syncQualityUI();
-}
-
-qualityToggle.addEventListener("click", (e) => {
+ccToggle.addEventListener("click", (e) => {
   e.stopPropagation();
-  setQualityMenuOpen(qualityMenu.hidden);
+  setCompressionMenuOpen(ccMenu.hidden);
 });
 
-qualityMenu.addEventListener("click", (e) => {
-  const item = (e.target as HTMLElement).closest(".quality-item") as HTMLElement | null;
+ccMenu.addEventListener("click", (e) => {
+  const item = (e.target as HTMLElement).closest(".cc-item") as HTMLElement | null;
   if (!item) return;
-  setQualityMenuOpen(false);
-  qualityToggle.focus();
-  chooseQuality(item.dataset.value as ConvertQuality);
+  setCompressionMenuOpen(false);
+  ccToggle.focus();
+  setConvertQuality(item.dataset.value as ConvertQuality);
+  syncCompressionUI();
 });
 
-qualityMenu.addEventListener("keydown", (e) => {
-  const items = [...qualityMenu.querySelectorAll<HTMLElement>(".quality-item")];
+ccMenu.addEventListener("keydown", (e) => {
+  const items = [...ccMenu.querySelectorAll<HTMLElement>(".cc-item")];
   const at = items.indexOf(document.activeElement as HTMLElement);
   if (e.key === "ArrowDown" || e.key === "ArrowUp") {
     e.preventDefault();
     items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
   } else if (e.key === "Escape") {
-    setQualityMenuOpen(false);
-    qualityToggle.focus();
+    setCompressionMenuOpen(false);
+    ccToggle.focus();
   }
 });
 
-qualitySegmented?.addEventListener("click", (e) => {
-  const pill = (e.target as HTMLElement).closest(".pill-option") as HTMLElement | null;
-  if (!pill || pill.classList.contains("active")) return;
-  chooseQuality(pill.dataset.value as ConvertQuality);
-});
-
 document.addEventListener("click", (e) => {
-  if (qualityMenu.hidden) return;
-  if ((e.target as HTMLElement).closest("#quality-picker")) return;
-  setQualityMenuOpen(false);
+  if (ccMenu.hidden) return;
+  if ((e.target as HTMLElement).closest("#convert-compression")) return;
+  setCompressionMenuOpen(false);
 });
 
-syncQualityUI();
+syncCompressionUI();
 
 // --- Router (URL ↔ state sync) ---
 

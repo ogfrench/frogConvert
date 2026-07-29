@@ -217,8 +217,7 @@
 }
 
 /* Hide filter controls in PDF mode (both desktop and mobile) */
-#top-controls-menu.not-converter #mode-toggle,
-#top-controls-menu.not-converter #quality-picker {
+#top-controls-menu.not-converter #mode-toggle {
   opacity: 0;
   transform: scale(0.95);
   pointer-events: none;
@@ -432,10 +431,7 @@
   /* Hide formats section in PDF mode */
   #top-controls-menu.not-converter #formats-divider,
   #top-controls-menu.not-converter #formats-label,
-  #top-controls-menu.not-converter #formats-section,
-  #top-controls-menu.not-converter #quality-label,
-  #top-controls-menu.not-converter #quality-divider,
-  #top-controls-menu.not-converter #quality-segmented {
+  #top-controls-menu.not-converter #formats-section {
     display: none;
   }
 
@@ -510,84 +506,4 @@
   #app-mode-picker { display: none; }
 }
 
-/* --- Output quality picker ---------------------------------------------
-   App-wide setting: it is the Compress surface's level *and* the quality the
-   Converter encodes at. Same dropdown mechanics as the mode picker. */
-#quality-picker {
-  position: relative;
-  display: flex;
-}
-
-#quality-toggle {
-  width: var(--control-size);
-  height: var(--control-size);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  line-height: var(--leading-none);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background-color: var(--card);
-  color: var(--foreground);
-  cursor: pointer;
-  transition: background-color var(--transition-fast), border-color var(--transition-fast);
-}
-
-#quality-toggle:hover { background-color: var(--accent); }
-
-#quality-menu {
-  position: absolute;
-  top: calc(100% + var(--space-2));
-  right: 0;
-  z-index: 60;
-  display: flex;
-  flex-direction: column;
-  min-width: 13rem;
-  padding: var(--space-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background-color: var(--card);
-  box-shadow: var(--shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.15));
-}
-
-#quality-menu[hidden] { display: none; }
-
-.quality-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  border: none;
-  border-radius: calc(var(--radius) - 2px);
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: var(--text-sm);
-  text-align: left;
-  cursor: pointer;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
-}
-
-.quality-item:hover,
-.quality-item:focus-visible {
-  background-color: var(--accent);
-  color: var(--foreground);
-}
-
-.quality-item[aria-current="true"] {
-  color: var(--foreground);
-  font-weight: var(--font-medium);
-}
-
-.quality-item-blurb {
-  font-size: var(--text-xs);
-  color: var(--muted-foreground);
-  font-weight: var(--font-normal, 400);
-}
-
-@media only screen and (max-width: 800px) {
-  /* The pill group replaces it in the mobile menu. */
-  #quality-picker { display: none; }
 }
