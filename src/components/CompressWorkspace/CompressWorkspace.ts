@@ -354,11 +354,21 @@ function resultsMarkup(): string {
     `;
   }).join("");
 
+  // A text-heavy PDF genuinely cannot shrink: Ghostscript's presets only
+  // resample images, and there are none. Without saying so, a correct result
+  // reads as a broken feature.
+  const stubbornPdf = results.some(r =>
+    !r.shrunk && r.reason === "no-gain" && /\.pdf$/i.test(r.name));
+  const pdfNote = stubbornPdf
+    ? `<p class="cw-results-note">PDFs that are mostly text can't shrink much — their pages are fonts and vector shapes, not images. Scans and image-heavy PDFs squish far more.</p>`
+    : "";
+
   return `
     <div class="card-base cw-results-card">
       <div class="cw-results-head" role="status" aria-live="polite" aria-atomic="true">
         <p class="cw-results-headline">${headline}</p>
         <p class="cw-results-sub">${escapeHTML(sub)}</p>
+        ${pdfNote}
       </div>
       <ul class="cw-results-list">${rows}</ul>
       <div class="cw-results-actions">

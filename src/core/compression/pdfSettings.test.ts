@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pdfSettingsFor, ghostscriptArgs, expectedSavingsNote } from "./pdfSettings.ts";
+import { pdfSettingsFor, ghostscriptArgs } from "./pdfSettings.ts";
 
 describe("pdfSettingsFor", () => {
     it("maps the quality target onto Ghostscript's distiller presets", () => {
@@ -42,16 +42,5 @@ describe("ghostscriptArgs", () => {
                 .find(a => a.startsWith("-dPDFSETTINGS="));
         expect(of("low")).toBe("-dPDFSETTINGS=/screen");
         expect(of("high")).toBe("-dPDFSETTINGS=/printer");
-    });
-});
-
-describe("expectedSavingsNote", () => {
-    it("promises less when the document is mostly text", () => {
-        // Ghostscript's presets only resample images, so a text PDF genuinely
-        // cannot shrink much. Saying so keeps a correct result from reading as
-        // a broken one.
-        expect(expectedSavingsNote(20_000)).toMatch(/text-heavy|small/i);
-        expect(expectedSavingsNote(2_000_000)).toMatch(/image-heavy|big/i);
-        expect(expectedSavingsNote(500_000)).toMatch(/mixed|moderate/i);
     });
 });

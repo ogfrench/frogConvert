@@ -437,3 +437,11 @@
 @media (pointer: coarse) {
   .cw-clear { width: 44px; height: 44px; }
 }
+
+/* Explains a "no gain" PDF instead of leaving a correct result looking broken. */
+.cw-results-note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+  line-height: 1.45;
+}

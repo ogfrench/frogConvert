@@ -11,8 +11,8 @@ import type { QualityPreset } from "../FormatHandler/FormatHandler.ts";
  * Ghostscript's own preset names describe intent, not amount: `/screen` targets
  * 72 dpi images, `/ebook` 150 dpi, `/printer` and `/prepress` 300 dpi. Note the
  * presets only bound *image* resampling — text and vector content is untouched,
- * which is why a text-only PDF barely shrinks at any level. See
- * `expectedSavingsNote` for the copy that admits this to the user.
+ * which is why a text-only PDF barely shrinks at any level. The Compress
+ * results view says so out loud when it happens.
  */
 
 /** Ghostscript `-dPDFSETTINGS` value. */
@@ -51,16 +51,4 @@ export function ghostscriptArgs(opts: {
         `-sOutputFile=${opts.outputPath}`,
         opts.inputPath,
     ];
-}
-
-/**
- * Honest expectation-setting, keyed off what the probe found rather than a
- * blanket promise. Scans are mostly embedded raster and shrink a lot; a text
- * whitepaper is fonts and vectors and will barely move, and claiming otherwise
- * makes the feature look broken when it is working correctly.
- */
-export function expectedSavingsNote(bytesPerPage: number): string {
-    if (bytesPerPage > 1_000_000) return "Looks image-heavy — expect a big drop.";
-    if (bytesPerPage > 300_000) return "Mixed text and images — expect a moderate drop.";
-    return "Looks text-heavy, so there's little to squeeze — expect only a small drop.";
 }

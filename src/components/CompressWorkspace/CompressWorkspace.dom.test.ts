@@ -353,3 +353,37 @@ describe('CompressWorkspace — assistive technology', () => {
     expect(head.textContent).toMatch(/\d/);
   });
 });
+
+describe('CompressWorkspace — honest PDF messaging', () => {
+  it('explains why a text-heavy PDF did not shrink', async () => {
+    // Ghostscript's presets only resample images, so a text PDF genuinely
+    // cannot shrink. Left unexplained, a correct result reads as a bug.
+    compressBatchMock.mockResolvedValue([
+      { name: 'spec.pdf', bytes: new Uint8Array(1000), originalSize: 1000, shrunk: false, reason: 'no-gain' },
+    ] as any);
+    ws.handleFiles([fakeFile('spec.pdf', 'application/pdf')]);
+    await ws.runCompression();
+
+    const note = document.querySelector('.cw-results-note');
+    expect(note).not.toBeNull();
+    expect(note!.textContent).toMatch(/text/i);
+  });
+
+  it('stays quiet when the PDF did shrink', async () => {
+    compressBatchMock.mockResolvedValue([
+      { name: 'scan.pdf', bytes: new Uint8Array(300), originalSize: 1000, shrunk: true },
+    ] as any);
+    ws.handleFiles([fakeFile('scan.pdf', 'application/pdf')]);
+    await ws.runCompression();
+    expect(document.querySelector('.cw-results-note')).toBeNull();
+  });
+
+  it('does not blame PDFs for a non-PDF that made no gain', async () => {
+    compressBatchMock.mockResolvedValue([
+      { name: 'tiny.png', bytes: new Uint8Array(1000), originalSize: 1000, shrunk: false, reason: 'no-gain' },
+    ] as any);
+    ws.handleFiles([fakeFile('tiny.png', 'image/png')]);
+    await ws.runCompression();
+    expect(document.querySelector('.cw-results-note')).toBeNull();
+  });
+});
