@@ -301,6 +301,32 @@ export default defineConfig({
           src: "src/handlers/pandoc/pandoc.wasm",
           dest: "wasm"
         },
+        // Ghostscript ships as a directory, not a single wasm: gs.mjs imports
+        // ./browser.js and ./gs.js by relative path at runtime. Copying the set
+        // verbatim (rather than bundling) keeps those relative imports working
+        // and is the only loading path verified to initialise - see
+        // scripts/ghostscript-smoke.mjs. LICENSE travels with it because
+        // Ghostscript is AGPL-3.0.
+        {
+          src: "node_modules/@jspawn/ghostscript-wasm/gs.mjs",
+          dest: "wasm/gs"
+        },
+        {
+          src: "node_modules/@jspawn/ghostscript-wasm/gs.js",
+          dest: "wasm/gs"
+        },
+        {
+          src: "node_modules/@jspawn/ghostscript-wasm/browser.js",
+          dest: "wasm/gs"
+        },
+        {
+          src: "node_modules/@jspawn/ghostscript-wasm/gs.wasm",
+          dest: "wasm/gs"
+        },
+        {
+          src: "node_modules/@jspawn/ghostscript-wasm/LICENSE",
+          dest: "wasm/gs"
+        },
         {
           src: "src/handlers/libopenmpt/libopenmpt.wasm",
           dest: "wasm"

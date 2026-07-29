@@ -81,6 +81,14 @@ export function resolveSameFormatHandler(
         return { handler: h, args: baseArgs };
     }
 
+    if (fmt === "pdf" || mime === "application/pdf") {
+        // Ghostscript only. The canvas/pdf-lib route would rasterise the page,
+        // which is not compression — it is throwing the document away.
+        const h = findHandlerByName("Ghostscript", options);
+        if (!h || !handlerSupportsFormat(h, format)) return null;
+        return { handler: h, args: baseArgs };
+    }
+
     return null;
 }
 

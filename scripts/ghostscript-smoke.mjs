@@ -11,11 +11,16 @@
  *     wasm through a file:// URL that fetch() rejects, so it cannot init under
  *     Bun or Node directly.
  *   - The browser branch reads `globalThis.exports.Module`, a side-channel set
- *     by browser.js at import time.
- *   - The reliable path is therefore: load it in a browser AND pass
- *     `wasmBinary` explicitly, so Emscripten never tries to locate the file
- *     itself. That also gives us control over lazy-loading the 16 MB payload
- *     and reporting download progress.
+ *     by browser.js at import time, so the files must be loaded as a set.
+ *   - CAVEAT, learned while wiring the real handler: this build **ignores**
+ *     `Module.wasmBinary`. It always locates the binary itself, via a
+ *     `_scriptDir` taken from `document.currentScript` — which is null for an
+ *     ESM import, so it resolves gs.wasm against the page URL. This script only
+ *     works because it serves gs.wasm next to the loader; on any real route
+ *     that 404s. The option that actually steers it is `locateFile`, which is
+ *     what src/handlers/ghostscript.ts uses. Passing `wasmBinary` below is
+ *     therefore a no-op, kept only so this file still mirrors the original
+ *     experiment.
  *
  * Verified result on a 53 KB vector-only PDF (no images at all): /screen
  * returns a valid PDF 36% smaller — the case an image-downsampling approach

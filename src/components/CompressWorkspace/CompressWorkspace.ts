@@ -69,10 +69,12 @@ export function getResults(): readonly CompressOutcome[] { return results; }
  * Cheap intake filter. The authoritative "can this actually be compressed?"
  * check needs the loaded handler list and happens at compress time; here we
  * only keep obviously-wrong drops out of the batch.
- * PDF lands in Phase 2 (#14).
  */
 export function isLikelyCompressible(file: File): boolean {
   const mime = (file.type || "").toLowerCase();
+  if (mime === "application/pdf") return true;
+  // Some browsers hand over an empty type for a PDF picked from disk.
+  if (!mime && /\.pdf$/i.test(file.name)) return true;
   return mime.startsWith("image/") || mime.startsWith("audio/") || mime.startsWith("video/");
 }
 
@@ -84,7 +86,7 @@ export function handleFiles(incoming: File[]) {
   if (rejected > 0) {
     showToast(
       rejected === incoming.length
-        ? "Nothing there i can squish. Images, audio and video for now."
+        ? "Nothing there i can squish. Images, audio, video and PDFs."
         : `Skipped ${rejected} file${rejected === 1 ? "" : "s"} i can't squish yet.`,
       "warn",
       8000,

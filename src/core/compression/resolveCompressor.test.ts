@@ -34,10 +34,12 @@ const GIF = fmt("image/gif", "gif");
 const MP4 = fmt("video/mp4", "mp4");
 const MP3 = fmt("audio/mpeg", "mp3");
 const SVG = fmt("image/svg+xml", "svg");
+const PDF = fmt("application/pdf", "pdf");
 
 const imageMagick = handler("ImageMagick", [PNG, JPEG, WEBP, SVG]);
 const ffmpeg = handler("FFmpeg", [GIF, MP4, MP3]);
-const ALL = optionsFor([imageMagick, ffmpeg]);
+const ghostscript = handler("Ghostscript", [PDF]);
+const ALL = optionsFor([imageMagick, ffmpeg, ghostscript]);
 
 beforeEach(() => {
     // The cache is consulted before `handler.supportedFormats`; most tests want
@@ -148,9 +150,31 @@ describe("handlerSupportsFormat", () => {
     });
 });
 
+describe("resolveSameFormatHandler — PDF", () => {
+    it("routes PDFs to Ghostscript", () => {
+        const got = resolveSameFormatHandler(PDF, ALL);
+        expect(got?.handler.name).toBe("Ghostscript");
+        expect(got?.args).toEqual(["--quality", "medium"]);
+    });
+
+    it("never routes a PDF to the rasterising handlers", () => {
+        // pdftoimg / canvas would turn the page into pixels, which is not
+        // compression — it discards the text layer and the vectors.
+        const withRasterisers = optionsFor([
+            handler("pdftoimg", [PDF]),
+            handler("canvasToBlob", [PDF]),
+        ]);
+        expect(resolveSameFormatHandler(PDF, withRasterisers)).toBeNull();
+    });
+
+    it("passes the PDF through when Ghostscript is not loaded", () => {
+        expect(resolveSameFormatHandler(PDF, optionsFor([imageMagick, ffmpeg]))).toBeNull();
+    });
+});
+
 describe("isSameFormatCompressible", () => {
     it("agrees with the resolver on every format", () => {
-        for (const f of [PNG, JPEG, WEBP, GIF, MP4, MP3, SVG]) {
+        for (const f of [PNG, JPEG, WEBP, GIF, MP4, MP3, SVG, PDF]) {
             expect(isSameFormatCompressible(f, ALL))
                 .toBe(resolveSameFormatHandler(f, ALL) !== null);
         }

@@ -120,8 +120,19 @@ describe('CompressWorkspace — intake', () => {
     expect(showToastMock).toHaveBeenCalled();
   });
 
-  it('does not yet accept PDFs (Phase 2)', () => {
-    expect(ws.isLikelyCompressible(fakeFile('doc.pdf', 'application/pdf'))).toBe(false);
+  it('accepts PDFs', () => {
+    expect(ws.isLikelyCompressible(fakeFile('doc.pdf', 'application/pdf'))).toBe(true);
+  });
+
+  it('accepts a PDF whose mime the browser left blank', () => {
+    // File pickers on some platforms hand over an empty type; refusing those
+    // would tell the user we cannot squish a PDF we can.
+    expect(ws.isLikelyCompressible(fakeFile('doc.pdf', ''))).toBe(true);
+    expect(ws.isLikelyCompressible(fakeFile('doc.PDF', ''))).toBe(true);
+  });
+
+  it('still refuses an unknown type with no mime', () => {
+    expect(ws.isLikelyCompressible(fakeFile('mystery.bin', ''))).toBe(false);
   });
 
   it('removes a file when its remove button is clicked', () => {
