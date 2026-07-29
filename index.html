@@ -295,6 +295,15 @@
         <button id="mode-toggle" title="Filter the formats you can select"
           aria-label="Toggle format filter: Core Formats"><svg class="top-control-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg><span id="mode-toggle-text">Core Formats</span></button>
         <button id="theme-toggle" title="Toggle theme" aria-label="Toggle colour theme"><svg class="top-control-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+        <div id="quality-picker">
+          <button id="quality-toggle" title="Compression: Recommended" aria-haspopup="menu" aria-expanded="false"
+            aria-controls="quality-menu" aria-label="Compression when converting: Recommended. Change"><svg class="top-control-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></button>
+          <div id="quality-menu" role="menu" aria-label="Compression when converting" hidden>
+            <button class="quality-item" role="menuitem" data-value="lossless" tabindex="-1"><span>No compression</span><span class="quality-item-blurb">Largest files</span></button>
+            <button class="quality-item" role="menuitem" data-value="high" tabindex="-1"><span>Less compression</span><span class="quality-item-blurb">Best quality</span></button>
+            <button class="quality-item" role="menuitem" data-value="medium" tabindex="-1"><span>Recommended</span><span class="quality-item-blurb">Balanced</span></button>
+            <button class="quality-item" role="menuitem" data-value="low" tabindex="-1"><span>Extreme compression</span><span class="quality-item-blurb">Smallest files</span></button>
+          </div>
         </div>
         <div id="app-mode-picker">
           <button id="app-mode-toggle" title="Converter" aria-haspopup="menu" aria-expanded="false"
@@ -322,6 +331,14 @@
           </button>
         </div>
         <div class="menu-divider"></div>
+        <span class="menu-list-label" id="quality-label">Compression</span>
+        <div class="menu-pill-group menu-pill-vertical" id="quality-segmented" role="group" aria-label="Compression when converting">
+          <button class="pill-option" data-value="lossless">No compression</button>
+          <button class="pill-option" data-value="high">Less compression</button>
+          <button class="pill-option active" data-value="medium">Recommended</button>
+          <button class="pill-option" data-value="low">Extreme compression</button>
+        </div>
+        <div class="menu-divider" id="quality-divider"></div>
         <div class="menu-divider"></div>
         <span class="menu-list-label">Mode</span>
         <div class="menu-pill-group menu-pill-vertical" id="app-mode-segmented" role="group" aria-label="App mode">
@@ -444,23 +461,6 @@
          target="_blank" rel="noopener noreferrer">
         Install LibreOffice &rarr;
       </a>
-    </div>
-
-    <div id="convert-compression">
-      <span id="convert-compression-label">Compression</span>
-      <div class="cc-picker">
-        <button id="convert-compression-toggle" type="button" aria-haspopup="menu" aria-expanded="false"
-          aria-controls="convert-compression-menu" aria-labelledby="convert-compression-label convert-compression-current">
-          <span id="convert-compression-current">Recommended</span>
-          <span class="cc-chevron" aria-hidden="true">&#9662;</span>
-        </button>
-        <div id="convert-compression-menu" role="menu" aria-label="Compression when converting" hidden>
-          <button class="cc-item" role="menuitem" data-value="lossless" tabindex="-1"><span>No compression</span><span class="cc-item-blurb">Largest files</span></button>
-          <button class="cc-item" role="menuitem" data-value="high" tabindex="-1"><span>Less compression</span><span class="cc-item-blurb">Best quality</span></button>
-          <button class="cc-item" role="menuitem" data-value="medium" tabindex="-1"><span>Recommended</span><span class="cc-item-blurb">Balanced</span></button>
-          <button class="cc-item" role="menuitem" data-value="low" tabindex="-1"><span>Extreme compression</span><span class="cc-item-blurb">Smallest files</span></button>
-        </div>
-      </div>
     </div>
 
     <button id="convert-button" class="btn-primary disabled" aria-disabled="true">Convert</button>
