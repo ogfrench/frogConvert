@@ -446,3 +446,62 @@
 @media (any-pointer: coarse) {
   .pill-option { min-height: var(--space-12); }
 }
+
+/* --- App mode picker (desktop dropdown) ---------------------------------
+   A single icon button can't express three modes: cycling hides where you
+   are going and gives no hint a third mode exists. The button opens a menu
+   instead; the mobile pill group (below 800px) stays the mobile answer. */
+#app-mode-picker {
+  position: relative;
+  display: flex;
+}
+
+#app-mode-menu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--card);
+  box-shadow: var(--shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.15));
+}
+
+#app-mode-menu[hidden] { display: none; }
+
+.app-mode-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.app-mode-item:hover,
+.app-mode-item:focus-visible {
+  background-color: var(--accent);
+  color: var(--foreground);
+}
+
+.app-mode-item[aria-current="true"] {
+  color: var(--foreground);
+  font-weight: var(--font-medium);
+}
+
+@media only screen and (max-width: 800px) {
+  /* The pill group replaces it entirely down here. */
+  #app-mode-picker { display: none; }
+}

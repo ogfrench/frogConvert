@@ -25,7 +25,7 @@ const STORE_FILE_BYTES = 'fileBytes';
 const SCHEMA_VERSION = 1;
 const STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
-export type SessionKind = 'pdfWorkspace' | 'convertPage';
+export type SessionKind = 'pdfWorkspace' | 'convertPage' | 'compressPage';
 
 export interface PersistedFileMeta {
   id: number;
@@ -57,7 +57,13 @@ export interface ConvertPagePayload {
   targetFormat: string | null;
 }
 
-export type SessionPayload = PdfWorkspacePayload | ConvertPagePayload;
+export interface CompressPagePayload {
+  files: PersistedFileMeta[];
+  /** QualityPreset the user picked (low | medium | high | lossless). */
+  level: string;
+}
+
+export type SessionPayload = PdfWorkspacePayload | ConvertPagePayload | CompressPagePayload;
 
 export interface StoredSession<P extends SessionPayload = SessionPayload> {
   sessionId: string;

@@ -15,6 +15,12 @@ import {
 import { runInWorker } from "../../conversion/workerClient.ts";
 import { downloadFile, downloadAsZip, timestampForFilename } from "../../conversion/download.ts";
 import { triggerConfetti } from "../../effects/Confetti/Confetti.ts";
+import {
+  markCompressDirty,
+  flushCompressOnHide,
+  clearCompressSession,
+  tryRestoreCompressSession,
+} from "../persistence/compressPersist.ts";
 
 /**
  * Compress workspace — the dedicated "make my files smaller" surface, a peer
@@ -127,11 +133,13 @@ export function handleFiles(incoming: File[]) {
   }
 
   for (const file of withinBudget) files.push({ id: nextId++, file });
+  markCompressDirty("files");
   render();
 }
 
 function removeFile(id: number) {
   files = files.filter(e => e.id !== id);
+  markCompressDirty("files");
   render();
 }
 
@@ -400,6 +408,7 @@ function wireRendered() {
       const next = btn.dataset.level as QualityPreset;
       if (next === level) return;
       level = next;
+      markCompressDirty("manifest");
       render();
     });
   }
@@ -425,6 +434,29 @@ export function initCompressWorkspace() {
   }
   initialized = true;
   resolveRefs();
+
+  // Async and non-blocking: the empty state paints first when no session exists.
+  void tryRestoreCompressSession({
+    getFiles: () => files.map(e => e.file),
+    getLevel: () => level,
+    applyRestored: (restored, restoredLevel) => {
+      files = restored.map(file => ({ id: nextId++, file }));
+      level = restoredLevel as QualityPreset;
+      phase = "idle";
+      results = [];
+      render();
+    },
+  });
+
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") void flushCompressOnHide();
+    });
+  }
+  // pagehide covers the mobile / OS-killed-tab cases visibilitychange misses.
+  if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", () => { void flushCompressOnHide(); });
+  }
 
   fileInput?.addEventListener("change", () => {
     if (!fileInput?.files) return;
@@ -452,6 +484,7 @@ export function resetAll() {
   phase = "idle";
   results = [];
   cancelRequested = false;
+  void clearCompressSession();
   if (rootEl) render();
 }
 

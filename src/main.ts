@@ -247,13 +247,10 @@ function setAppMode(mode: AppMode) {
     });
   }, 200);
 
-  // Update button icon and tooltip. The desktop control is a single button
-  // that cycles, so the label names the mode it will switch *to* while the
-  // icon shows where you are now.
+  // The trigger icon shows where you are; the menu shows where you can go.
   for (const m of APP_MODES) MODE_ICONS[m].style.display = m === mode ? "" : "none";
-  const nextMode = APP_MODES[(APP_MODES.indexOf(mode) + 1) % APP_MODES.length];
   modeToggleBtn.title = MODE_LABELS[mode];
-  modeToggleBtn.setAttribute("aria-label", `App mode: ${MODE_LABELS[mode]}. Switch to ${MODE_LABELS[nextMode]}`);
+  modeToggleBtn.setAttribute("aria-label", `App mode: ${MODE_LABELS[mode]}. Change app mode`);
 
   // Update mobile pill group
   const mobilePill = document.getElementById("app-mode-segmented");
@@ -297,12 +294,56 @@ function setAppMode(mode: AppMode) {
   }
 }
 
-// Desktop mode toggle button. Single compact control, so it cycles through
-// the modes in APP_MODES order.
-modeToggleBtn.addEventListener("click", () => {
-  const next = APP_MODES[(APP_MODES.indexOf(currentAppMode) + 1) % APP_MODES.length];
-  setAppMode(next);
-  navigateTo(next);
+// Desktop mode picker. A dropdown rather than a cycling button: with three
+// modes, cycling hides the destination and never reveals that a third exists.
+const modeMenu = document.getElementById("app-mode-menu")!;
+
+function setModeMenuOpen(open: boolean) {
+  modeMenu.hidden = !open;
+  modeToggleBtn.setAttribute("aria-expanded", String(open));
+  if (open) {
+    for (const item of modeMenu.querySelectorAll<HTMLElement>(".app-mode-item")) {
+      item.setAttribute("aria-current", String(item.dataset.value === currentAppMode));
+      item.tabIndex = -1;
+    }
+    modeMenu.querySelector<HTMLElement>(".app-mode-item")?.focus();
+  }
+}
+
+modeToggleBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  setModeMenuOpen(modeMenu.hidden);
+});
+
+modeMenu.addEventListener("click", (e) => {
+  const item = (e.target as HTMLElement).closest(".app-mode-item") as HTMLElement | null;
+  if (!item) return;
+  const mode = item.dataset.value as AppMode;
+  setModeMenuOpen(false);
+  modeToggleBtn.focus();
+  if (mode === currentAppMode) return;
+  setAppMode(mode);
+  navigateTo(mode);
+});
+
+// Roving arrow-key navigation, matching the PDF tablist's keyboard contract.
+modeMenu.addEventListener("keydown", (e) => {
+  const items = [...modeMenu.querySelectorAll<HTMLElement>(".app-mode-item")];
+  const at = items.indexOf(document.activeElement as HTMLElement);
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    const delta = e.key === "ArrowDown" ? 1 : -1;
+    items[(at + delta + items.length) % items.length]?.focus();
+  } else if (e.key === "Escape") {
+    setModeMenuOpen(false);
+    modeToggleBtn.focus();
+  }
+});
+
+document.addEventListener("click", (e) => {
+  if (modeMenu.hidden) return;
+  if ((e.target as HTMLElement).closest("#app-mode-picker")) return;
+  setModeMenuOpen(false);
 });
 
 // Mobile hamburger pill control
