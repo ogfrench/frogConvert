@@ -50,6 +50,7 @@ import {
     type UserErrorInfo,
 } from "../components/utils/index.ts";
 import { runInWorker, WORKER_TIMEOUT_MS } from "./workerClient.ts";
+import { qualityForHop } from "../core/compression/hopQuality.ts";
 
 // --- Helpers ---
 
@@ -211,22 +212,13 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
             const isLastHop = i === path.length - 2;
             const hopProgress = isLastHop ? onProgress : undefined;
 
-            // Every hop carries a quality, not just the last. Intermediate
-            // hops used to pass no args at all, so handlers fell back to their
-            // own hard-coded "medium" - a HEIC->PNG->WebP route asked to keep
-            // quality was already degraded halfway before the final hop tried
-            // to preserve it, and generation loss compounds. Intermediates now
-            // take the gentlest setting so the only deliberate quality
-            // reduction happens once, on the output the user actually keeps.
-            const target = path[i + 1].format;
-            const quality: QualityPreset = target.lossless
-                ? "lossless"                              // can't be shrunk by quality anyway
-                : isLastHop
-                    ? convertQuality.value                // the user's choice, applied once
-                    : convertQuality.value === "lossless"
-                        ? "lossless"                      // honour "No compression" end to end
-                        : "high";                         // gentlest bounded intermediate
-            const hopArgs: string[] = ["--quality", quality];
+            // One shared rule across every surface, so the browser, MCP, REST
+            // and CLI all reduce quality once rather than at each hop.
+            const hopArgs: string[] = ["--quality", qualityForHop({
+                target: path[i + 1].format,
+                isLastHop,
+                requested: convertQuality.value,
+            })];
 
             let outputFiles: FileData[];
             if (handler.requiresMainThread) {

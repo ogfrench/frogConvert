@@ -200,7 +200,9 @@ Returns `400` on bad input, `413` if the file exceeds `MAX_UPLOAD_MB`, `415` if 
 
 #### Quality preset
 
-Both `POST /convert` and the MCP `convert_file` tool accept an optional `quality` preset. When omitted, both default to `"medium"` (the same profile the web UI uses).
+Both `POST /convert` and the MCP `convert_file` tool accept an optional `quality` preset. When omitted, both default to `"medium"`.
+
+The preset is a request-level parameter here. The web UI's equivalent settings — **Compression** in the Converter's settings menu and the level picker on the **Compress** surface — are per-surface browser preferences stored in `localStorage`; they do not reach the API or MCP server, which run in a separate process. Pass `quality` explicitly to get a specific tier.
 
 | Preset | JPEG singleton | PDF page render cap | Video-frame cap | Video-to-GIF cap | Audio (stereo lossy) | Auto-adaptation |
 |---|---|---|---|---|---|---|
@@ -208,6 +210,21 @@ Both `POST /convert` and the MCP `convert_file` tool accept an optional `quality
 | `medium` | q90 | 2.5 MP | ~300 frames, 1920 px | 60s | 192 kbps | Default |
 | `high` | q93 | 5.0 MP | ~1000 frames, 3840 px | 180s | 256 kbps | Fires latest |
 | `lossless` | q100 | 25 MP | no cap | no cap | uncompressed | Disabled |
+
+#### Quality across multi-step routes
+
+A conversion may take more than one hop (e.g. HEIC → PNG → WebP). Quality is
+reduced **once**, on the final hop that produces the file you receive;
+intermediate hops run at the gentlest practical setting. Re-applying the target
+preset at every step would compound generation loss, and quality discarded on an
+early hop cannot be recovered by a gentler later one.
+
+`quality: "lossless"` is honoured on every hop, so "no compression" means it end
+to end. A hop whose output format is inherently lossless (PNG, FLAC…) always
+runs lossless, since a quality knob can't shrink it.
+
+This rule is shared by every surface — web UI, REST, MCP and CLI — so the same
+file and the same `quality` produce the same result whichever way you convert.
 
 ### Same-format compression
 

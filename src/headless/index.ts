@@ -14,6 +14,7 @@
  * in parallel in the background so WASM is compiled before the first conversion.
  */
 
+import { qualityForHop } from "../core/compression/hopQuality.ts";
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 import { TraversionGraph } from "../core/TraversionGraph/TraversionGraph.ts";
 import handlers, { loadBackgroundHandlers } from "../handlers/index.ts";
@@ -167,7 +168,6 @@ async function ensureHandlerReady(handler: FormatHandler): Promise<void> {
     const validQuality = quality === "low" || quality === "high" || quality === "lossless"
       ? quality
       : "medium";
-    const hopArgs = ["--quality", validQuality];
 
     const conversionPromise = (async () => {
         for (let i = 1; i < path.length; i++) {
@@ -179,7 +179,12 @@ async function ensureHandlerReady(handler: FormatHandler): Promise<void> {
             // Throws clearly if init fails rather than silently continuing.
             await ensureHandlerReady(stepHandler);
 
-            currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat, hopArgs);
+            currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat,
+                                ["--quality", qualityForHop({
+                                    target: nextFormat,
+                                    isLastHop: i === path.length - 1,
+                                    requested: validQuality,
+                                })]);
         }
 
         const allWarnings = Array.from(new Set(currentFiles.flatMap(f => f.warnings ?? [])));

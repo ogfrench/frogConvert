@@ -1,3 +1,4 @@
+import { qualityForHop } from "../../core/compression/hopQuality.ts";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { writeFile } from "fs/promises";
@@ -81,7 +82,6 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
             if (resolved === null) {
                 return await serializeResults([{ name: resolvedName, bytes }], outputFilePath);
             }
-            const hopArgs = ["--quality", resolved];
 
             // Try native path when both formats are known to native handlers
             if (inputMatch && outputMatch) {
@@ -102,7 +102,12 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
                             const stepHandler = path[i].handler;
                             const prevFormat = path[i - 1].format;
                             const nextFormat = path[i].format;
-                            currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat, hopArgs);
+                            currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat,
+                                ["--quality", qualityForHop({
+                                    target: nextFormat,
+                                    isLastHop: i === path.length - 1,
+                                    requested: resolved,
+                                })]);
                         }
 
                         return await serializeResults(currentFiles, outputFilePath);
