@@ -250,42 +250,60 @@ export const formatMode: { value: FormatMode } = {
 };
 
 /**
- * App-wide output quality. One concept for the whole app: it sets the target
- * for the Compress surface *and* the quality the Converter encodes its output
- * at. The Converter has always compressed its output (that's what keeps a 4K
- * re-encode from landing as a 400 MB file) - this makes that default visible
- * and adjustable instead of hard-coded.
+ * Two independent quality settings, deliberately not shared.
  *
- * Deliberately excludes the engine's `lossless` preset: as a user-facing
- * choice it only ever means "don't shrink", which the Converter expresses via
- * the target format and the Compress surface can't use at all.
+ * An earlier build made these one app-wide value. It was tidier on paper but
+ * surprising in use: dialling the Compress surface up to Extreme silently
+ * changed what your next conversion encoded at. Each surface now owns its own
+ * setting, so changing one never moves the other.
+ *
+ * Note the inversion in both: the engine's `low` preset means "low quality
+ * target", i.e. the *most* compression, while `high` compresses least.
  */
-export type QualityChoice = "high" | "medium" | "low";
 
-export const QUALITY_CHOICES: ReadonlyArray<{ value: QualityChoice; label: string; blurb: string }> = [
-  { value: "high", label: "Less", blurb: "Barely touched. Best quality, modest savings." },
-  { value: "medium", label: "Recommended", blurb: "Balanced. Big savings, quality you won't miss." },
-  { value: "low", label: "Extreme", blurb: "Smallest files. Quality loss you can see." },
+/** Conversion output. Includes lossless - "convert but don't compress" is a
+ *  meaningful request when you're changing format. */
+export type ConvertQuality = "lossless" | "high" | "medium" | "low";
+
+export const CONVERT_QUALITY_CHOICES: ReadonlyArray<{ value: ConvertQuality; label: string; blurb: string }> = [
+  { value: "lossless", label: "No compression", blurb: "Largest files" },
+  { value: "high", label: "Less compression", blurb: "Best quality" },
+  { value: "medium", label: "Recommended", blurb: "Balanced" },
+  { value: "low", label: "Extreme compression", blurb: "Smallest files" },
 ];
 
-export const qualityPreference: { value: QualityChoice } = {
+export const convertQuality: { value: ConvertQuality } = {
   value: (() => {
-    const saved = safeGetLocalStorage("qualityPreference");
+    const saved = safeGetLocalStorage("convertQuality");
+    return saved === "lossless" || saved === "high" || saved === "low" ? saved : "medium";
+  })(),
+};
+
+export function setConvertQuality(next: ConvertQuality) {
+  convertQuality.value = next;
+  try { localStorage.setItem("convertQuality", next); } catch { /* private mode */ }
+}
+
+/** Compress surface. No lossless: as a compression level it can only ever
+ *  mean "do nothing", and the keep-threshold would discard every result. */
+export type CompressLevel = "high" | "medium" | "low";
+
+export const COMPRESS_LEVEL_CHOICES: ReadonlyArray<{ value: CompressLevel; label: string; blurb: string }> = [
+  { value: "high", label: "Less compression", blurb: "Best quality, modest savings." },
+  { value: "medium", label: "Recommended", blurb: "Balanced. Big savings, quality you won't miss." },
+  { value: "low", label: "Extreme compression", blurb: "Smallest files. Quality loss you can see." },
+];
+
+export const compressLevel: { value: CompressLevel } = {
+  value: (() => {
+    const saved = safeGetLocalStorage("compressLevel");
     return saved === "high" || saved === "low" ? saved : "medium";
   })(),
 };
 
-export function setQualityPreference(next: QualityChoice) {
-  qualityPreference.value = next;
-  try { localStorage.setItem("qualityPreference", next); } catch { /* private mode */ }
-  for (const cb of qualityListeners) cb(next);
-}
-
-const qualityListeners = new Set<(q: QualityChoice) => void>();
-/** Subscribe to changes so surfaces can re-render their own controls. */
-export function onQualityChange(cb: (q: QualityChoice) => void): () => void {
-  qualityListeners.add(cb);
-  return () => qualityListeners.delete(cb);
+export function setCompressLevel(next: CompressLevel) {
+  compressLevel.value = next;
+  try { localStorage.setItem("compressLevel", next); } catch { /* private mode */ }
 }
 
 // Lightweight reactive state: plain { value: T } wrappers shared across components.

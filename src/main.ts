@@ -69,10 +69,10 @@ import {
   buildAcceptString,
 } from "./components/index.ts";
 import {
-  qualityPreference,
-  setQualityPreference,
-  QUALITY_CHOICES,
-  type QualityChoice,
+  convertQuality,
+  setConvertQuality,
+  CONVERT_QUALITY_CHOICES,
+  type ConvertQuality,
 } from "./components/store/store.ts";
 import {
   findMatchingFormat,
@@ -268,8 +268,8 @@ function setAppMode(mode: AppMode) {
     }
   }
 
-  // The format filter only means something in converter mode.
-  topControlsMenu.classList.toggle("no-formats", mode !== "converter");
+  // Format filter and compression level are both converter-only controls.
+  topControlsMenu.classList.toggle("not-converter", mode !== "converter");
 
   // Show the active mode's elements, hide every other mode's.
   for (const m of APP_MODES) {
@@ -370,20 +370,20 @@ window.addEventListener("frog:set-mode", (e) => {
   navigateTo(mode);
 });
 
-// --- Output quality (app-wide) ---
-// One setting drives both the Compress surface's level and the quality the
-// Converter encodes its output at. The Converter has always compressed - this
-// makes the level visible and adjustable rather than a hard-coded constant.
+// --- Conversion compression (Converter only) ---
+// Scoped to the Converter on purpose: the Compress surface has its own visible
+// level, and sharing one value meant changing it in one place silently moved
+// the other. Hidden outside converter mode, like the format filter.
 
 const qualityToggle = document.getElementById("quality-toggle")!;
 const qualityMenu = document.getElementById("quality-menu")!;
 const qualitySegmented = document.getElementById("quality-segmented");
 
 function syncQualityUI() {
-  const current = qualityPreference.value;
-  const label = QUALITY_CHOICES.find(c => c.value === current)?.label ?? "Recommended";
-  qualityToggle.title = `Output quality: ${label}`;
-  qualityToggle.setAttribute("aria-label", `Output quality: ${label}. Change output quality`);
+  const current = convertQuality.value;
+  const label = CONVERT_QUALITY_CHOICES.find(c => c.value === current)?.label ?? "Recommended";
+  qualityToggle.title = `Compression: ${label}`;
+  qualityToggle.setAttribute("aria-label", `Compression when converting: ${label}. Change`);
   for (const item of qualityMenu.querySelectorAll<HTMLElement>(".quality-item")) {
     item.setAttribute("aria-current", String(item.dataset.value === current));
   }
@@ -400,8 +400,8 @@ function setQualityMenuOpen(open: boolean) {
   if (open) qualityMenu.querySelector<HTMLElement>(".quality-item")?.focus();
 }
 
-function chooseQuality(next: QualityChoice) {
-  setQualityPreference(next);
+function chooseQuality(next: ConvertQuality) {
+  setConvertQuality(next);
   syncQualityUI();
 }
 
@@ -415,7 +415,7 @@ qualityMenu.addEventListener("click", (e) => {
   if (!item) return;
   setQualityMenuOpen(false);
   qualityToggle.focus();
-  chooseQuality(item.dataset.value as QualityChoice);
+  chooseQuality(item.dataset.value as ConvertQuality);
 });
 
 qualityMenu.addEventListener("keydown", (e) => {
@@ -433,7 +433,7 @@ qualityMenu.addEventListener("keydown", (e) => {
 qualitySegmented?.addEventListener("click", (e) => {
   const pill = (e.target as HTMLElement).closest(".pill-option") as HTMLElement | null;
   if (!pill || pill.classList.contains("active")) return;
-  chooseQuality(pill.dataset.value as QualityChoice);
+  chooseQuality(pill.dataset.value as ConvertQuality);
 });
 
 document.addEventListener("click", (e) => {

@@ -3,7 +3,8 @@ import {
     isCategoryVisible, isFormatVisible, type FormatMode,
     checkFileSizeLimits, sortFilesByName, formatDisplayName, getFormatCategory,
     isLoadingHandlers, getMaxFiles,
-    qualityPreference, setQualityPreference, onQualityChange, QUALITY_CHOICES,
+    convertQuality, setConvertQuality, CONVERT_QUALITY_CHOICES,
+    compressLevel, setCompressLevel, COMPRESS_LEVEL_CHOICES,
 } from "./store.ts";
 import { ABSOLUTE_MAX_FILES } from "../../constants/ui.ts";
 import type { FileFormat } from "../../core/FormatHandler/FormatHandler.ts";
@@ -311,41 +312,54 @@ describe("getMaxFiles", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Global output quality
+// Per-surface quality settings
 // ---------------------------------------------------------------------------
 
-describe("qualityPreference", () => {
-    beforeEach(() => setQualityPreference("medium"));
+describe("convertQuality (Converter)", () => {
+    beforeEach(() => setConvertQuality("medium"));
 
     it("defaults to Recommended", () => {
-        expect(qualityPreference.value).toBe("medium");
+        expect(convertQuality.value).toBe("medium");
     });
 
-    it("offers exactly three choices and no lossless", () => {
-        expect(QUALITY_CHOICES.map(c => c.value)).toEqual(["high", "medium", "low"]);
+    it("offers a no-compression option, since converting without shrinking is a real request", () => {
+        expect(CONVERT_QUALITY_CHOICES.map(c => c.value)).toEqual(["lossless", "high", "medium", "low"]);
     });
 
     it("maps labels to the inverted engine presets", () => {
-        // The engine's `low` is the lowest quality target, i.e. MOST compression.
-        const byLabel = Object.fromEntries(QUALITY_CHOICES.map(c => [c.label, c.value]));
-        expect(byLabel.Less).toBe("high");
-        expect(byLabel.Recommended).toBe("medium");
-        expect(byLabel.Extreme).toBe("low");
+        const byLabel = Object.fromEntries(CONVERT_QUALITY_CHOICES.map(c => [c.label, c.value]));
+        expect(byLabel["Less compression"]).toBe("high");
+        expect(byLabel["Recommended"]).toBe("medium");
+        expect(byLabel["Extreme compression"]).toBe("low");
     });
 
-    it("persists the choice so it survives a reload", () => {
-        setQualityPreference("low");
-        expect(qualityPreference.value).toBe("low");
-        expect(localStorage.getItem("qualityPreference")).toBe("low");
+    it("persists the choice", () => {
+        setConvertQuality("lossless");
+        expect(localStorage.getItem("convertQuality")).toBe("lossless");
+    });
+});
+
+describe("compressLevel (Compress surface)", () => {
+    beforeEach(() => setCompressLevel("medium"));
+
+    it("offers three levels and no lossless", () => {
+        expect(COMPRESS_LEVEL_CHOICES.map(c => c.value)).toEqual(["high", "medium", "low"]);
+        expect(COMPRESS_LEVEL_CHOICES.map(c => c.value)).not.toContain("lossless");
     });
 
-    it("notifies subscribers, and stops after unsubscribe", () => {
-        const seen: string[] = [];
-        const off = onQualityChange(q => seen.push(q));
-        setQualityPreference("high");
-        setQualityPreference("low");
-        off();
-        setQualityPreference("medium");
-        expect(seen).toEqual(["high", "low"]);
+    it("persists separately from the converter setting", () => {
+        setConvertQuality("lossless");
+        setCompressLevel("low");
+        expect(compressLevel.value).toBe("low");
+        expect(convertQuality.value).toBe("lossless");
+        expect(localStorage.getItem("compressLevel")).toBe("low");
+    });
+
+    it("changing one surface never moves the other", () => {
+        setConvertQuality("high");
+        setCompressLevel("low");
+        expect(convertQuality.value).toBe("high");
+        setConvertQuality("low");
+        expect(compressLevel.value).toBe("low");
     });
 });

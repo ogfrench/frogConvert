@@ -3,7 +3,7 @@ import { showToast } from "../Toast/Toast.ts";
 import { escapeHTML, formatBytes, shortenFileName } from "../utils/index.ts";
 import { isTouchUi } from "../../core/utils/touchUi.ts";
 import { ABSOLUTE_MAX_FILES, MAX_TOTAL_FILE_SIZE } from "../../constants/ui.ts";
-import { allOptionsRef, qualityPreference, setQualityPreference, onQualityChange, QUALITY_CHOICES, type QualityChoice } from "../store/store.ts";
+import { allOptionsRef, compressLevel, setCompressLevel, COMPRESS_LEVEL_CHOICES, type CompressLevel } from "../store/store.ts";
 import { findMatchingFormat } from "../../core/FormatHandler/detectFormat.ts";
 import {
   compressBatch,
@@ -31,18 +31,16 @@ import {
  */
 
 /**
- * Levels come from the app-wide quality preference (store.ts) so the Compress
- * surface and the Converter share one concept: changing it here changes what
- * the Converter encodes at too.
+ * This surface's own level, independent of the Converter's setting so neither
+ * moves the other. Definition lives in the store so it can persist.
  *
- * NOTE the deliberate inversion baked into QUALITY_CHOICES: the engine's `low`
- * preset means "low quality target", i.e. the *most* aggressive compression,
- * while `high` compresses the least. Less -> high, Recommended -> medium,
- * Extreme -> low.
+ * NOTE the deliberate inversion: the engine's `low` preset means "low quality
+ * target", i.e. the *most* aggressive compression, while `high` compresses the
+ * least. Less -> high, Recommended -> medium, Extreme -> low.
  */
-export const COMPRESS_LEVELS = QUALITY_CHOICES;
+export const COMPRESS_LEVELS = COMPRESS_LEVEL_CHOICES;
 
-export const DEFAULT_LEVEL: QualityChoice = "medium";
+export const DEFAULT_LEVEL: CompressLevel = "medium";
 
 type Entry = { id: number; file: File };
 type Phase = "idle" | "running" | "done";
@@ -61,7 +59,7 @@ let fileInput: HTMLInputElement | null = null;
 
 /** Test seam + share-target entry point. */
 export function getFiles(): readonly Entry[] { return files; }
-export function getLevel(): QualityChoice { return qualityPreference.value; }
+export function getLevel(): CompressLevel { return compressLevel.value; }
 export function getPhase(): Phase { return phase; }
 export function getResults(): readonly CompressOutcome[] { return results; }
 
@@ -181,7 +179,7 @@ export async function runCompression() {
   const alreadyDone = files.length - recognized.length;
   const batch = await compressBatch(recognized, {
     options,
-    level: qualityPreference.value,
+    level: compressLevel.value,
     run: runInWorker,
     onProgress: (done, _total, current) => {
       progress = { done: alreadyDone + done, total: files.length, current };
@@ -242,7 +240,7 @@ function dropzoneMarkup(): string {
 }
 
 function levelPickerMarkup(): string {
-  const current = qualityPreference.value;
+  const current = compressLevel.value;
   const options = COMPRESS_LEVELS.map(l => `
     <button class="cw-level ${l.value === current ? "active" : ""}" data-level="${l.value}"
       type="button" aria-pressed="${l.value === current}">
@@ -395,10 +393,9 @@ function wireRendered() {
 
   for (const btn of rootEl.querySelectorAll<HTMLElement>(".cw-level")) {
     btn.addEventListener("click", () => {
-      const next = btn.dataset.level as QualityChoice;
-      if (next === qualityPreference.value) return;
-      // App-wide setting: this also changes what the Converter encodes at.
-      setQualityPreference(next);
+      const next = btn.dataset.level as CompressLevel;
+      if (next === compressLevel.value) return;
+      setCompressLevel(next);
       markCompressDirty("manifest");
       render();
     });
@@ -429,19 +426,17 @@ export function initCompressWorkspace() {
   // Async and non-blocking: the empty state paints first when no session exists.
   void tryRestoreCompressSession({
     getFiles: () => files.map(e => e.file),
-    getLevel: () => qualityPreference.value,
+    getLevel: () => compressLevel.value,
     applyRestored: (restored, restoredLevel) => {
       files = restored.map(file => ({ id: nextId++, file }));
       if (restoredLevel === "high" || restoredLevel === "medium" || restoredLevel === "low") {
-        setQualityPreference(restoredLevel);
+        setCompressLevel(restoredLevel);
       }
       phase = "idle";
       results = [];
       render();
     },
   });
-
-  onQualityChange(() => { if (rootEl && phase === "idle") render(); });
 
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", () => {
@@ -475,7 +470,7 @@ export function cleanup() {
 /** Destructive reset — clears the batch and the chosen level. */
 export function resetAll() {
   files = [];
-  setQualityPreference(DEFAULT_LEVEL);
+  setCompressLevel(DEFAULT_LEVEL);
   phase = "idle";
   results = [];
   cancelRequested = false;

@@ -14,22 +14,16 @@ vi.mock('../../core/compression/compressBatch.ts', async (orig) => ({
   compressBatch: vi.fn(),
 }));
 vi.mock('../store/store.ts', () => {
-  // Stateful stub: quality is now an app-wide setting the surface reads and
-  // writes, so the mock has to behave like the real store, not a constant.
-  const qualityPreference = { value: 'medium' as 'high' | 'medium' | 'low' };
-  const listeners = new Set<(q: string) => void>();
+  // Stateful stub: the surface reads and writes its own persisted level.
+  const compressLevel = { value: 'medium' as 'high' | 'medium' | 'low' };
   return {
     allOptionsRef: { value: [{ format: { mime: 'image/png', format: 'png' }, handler: { name: 'ImageMagick' } }] },
-    qualityPreference,
-    setQualityPreference: (q: 'high' | 'medium' | 'low') => {
-      qualityPreference.value = q;
-      for (const cb of listeners) cb(q);
-    },
-    onQualityChange: (cb: (q: string) => void) => { listeners.add(cb); return () => listeners.delete(cb); },
-    QUALITY_CHOICES: [
-      { value: 'high', label: 'Less', blurb: 'Barely touched.' },
+    compressLevel,
+    setCompressLevel: (q: 'high' | 'medium' | 'low') => { compressLevel.value = q; },
+    COMPRESS_LEVEL_CHOICES: [
+      { value: 'high', label: 'Less compression', blurb: 'Best quality, modest savings.' },
       { value: 'medium', label: 'Recommended', blurb: 'Balanced.' },
-      { value: 'low', label: 'Extreme', blurb: 'Smallest files.' },
+      { value: 'low', label: 'Extreme compression', blurb: 'Smallest files.' },
     ],
   };
 });
@@ -137,9 +131,9 @@ describe('CompressWorkspace — level picker', () => {
   it('maps user-facing labels to the inverted engine presets', () => {
     // Guards the trap: engine `low` = lowest quality = MOST compression.
     const byLabel = Object.fromEntries(ws.COMPRESS_LEVELS.map(l => [l.label, l.value]));
-    expect(byLabel.Less).toBe('high');
-    expect(byLabel.Recommended).toBe('medium');
-    expect(byLabel.Extreme).toBe('low');
+    expect(byLabel['Less compression']).toBe('high');
+    expect(byLabel['Recommended']).toBe('medium');
+    expect(byLabel['Extreme compression']).toBe('low');
   });
 
   it('does not offer a lossless level', () => {
@@ -153,7 +147,7 @@ describe('CompressWorkspace — level picker', () => {
   it('switches level on click and reflects it in the UI', () => {
     document.querySelector<HTMLElement>('[data-level="low"]')!.click();
     expect(ws.getLevel()).toBe('low');
-    expect(document.querySelector('.cw-level.active')?.textContent).toContain('Extreme');
+    expect(document.querySelector('.cw-level.active')?.textContent).toContain('Extreme compression');
   });
 });
 

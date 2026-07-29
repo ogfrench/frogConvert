@@ -10,7 +10,7 @@ import {
     selectedToIndex,
     allOptionsRef,
     CATEGORY_LABELS,
-    qualityPreference,
+    convertQuality,
 } from "../components/store/store.ts";
 import { escapeHTML } from "../components/utils/index.ts";
 import {
@@ -214,13 +214,13 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
             let hopArgs: string[] | undefined;
             if (isLastHop) {
                 const target = path[i + 1].format;
-                // A lossless target can't be shrunk by quality, so it opts out.
-                // Everything else follows the app-wide quality preference - the
-                // Converter has always compressed its output, this just makes
-                // the level the user's choice rather than a constant.
+                // A lossless target can't be shrunk by quality, so it opts out
+                // regardless. Otherwise follow the user's conversion setting -
+                // the Converter has always compressed its output, this makes
+                // the level their choice rather than a constant.
                 const quality: QualityPreset = target.lossless
                     ? "lossless"
-                    : qualityPreference.value;
+                    : convertQuality.value;
                 hopArgs = ["--quality", quality];
             }
 

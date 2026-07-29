@@ -217,7 +217,8 @@
 }
 
 /* Hide filter controls in PDF mode (both desktop and mobile) */
-#top-controls-menu.no-formats #mode-toggle {
+#top-controls-menu.not-converter #mode-toggle,
+#top-controls-menu.not-converter #quality-picker {
   opacity: 0;
   transform: scale(0.95);
   pointer-events: none;
@@ -429,9 +430,12 @@
   }
 
   /* Hide formats section in PDF mode */
-  #top-controls-menu.no-formats #formats-divider,
-  #top-controls-menu.no-formats #formats-label,
-  #top-controls-menu.no-formats #formats-section {
+  #top-controls-menu.not-converter #formats-divider,
+  #top-controls-menu.not-converter #formats-label,
+  #top-controls-menu.not-converter #formats-section,
+  #top-controls-menu.not-converter #quality-label,
+  #top-controls-menu.not-converter #quality-divider,
+  #top-controls-menu.not-converter #quality-segmented {
     display: none;
   }
 
