@@ -1,3 +1,5 @@
+/* `.upload-zone` rather than `#upload-zone` so the Compress surface can
+   present the same drop target without duplicating any of this. */
 /* --- Convert Field --- */
 .convert-field {
   position: relative;
@@ -15,7 +17,7 @@
 }
 
 /* --- Upload Zone --- */
-#upload-zone {
+.upload-zone {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -31,37 +33,37 @@
   text-align: center;
 }
 
-#upload-zone:hover {
+.upload-zone:hover {
   border-color: var(--muted-foreground);
   color: var(--foreground);
 }
 
-#upload-zone.drag-over {
+.upload-zone.drag-over {
   border-color: var(--primary);
   background-color: var(--accent);
 }
 
-#upload-zone.drag-reject {
+.upload-zone.drag-reject {
   border-color: var(--destructive);
   background-color: color-mix(in srgb, var(--destructive) 8%, var(--secondary));
   cursor: not-allowed;
 }
 
-#upload-zone.has-file {
+.upload-zone.has-file {
   border-style: solid;
   border-color: var(--ring);
   cursor: default;
   background-color: var(--input-surface);
 }
 
-#upload-zone .upload-text {
+.upload-zone .upload-text {
   margin: 0;
   font-size: var(--text-md);
   font-weight: var(--font-medium);
   color: var(--foreground);
 }
 
-#upload-zone .upload-hint {
+.upload-zone .upload-hint {
   margin: var(--space-1-5) 0 0;
   font-size: var(--text-sm);
   color: var(--muted-foreground);

@@ -23,62 +23,11 @@
   }
 }
 
-/* --- Dropzone (empty state) --- */
-
-.cw-dropzone-card,
-.cw-list-card,
-.cw-results-card,
-.cw-progress-card {
-  padding: var(--space-6);
-}
-
-.cw-dropzone {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: calc(var(--space-16) * 2.5);
-  padding: var(--space-4);
-  border: 1px dashed var(--border);
-  border-radius: inherit;
-  background-color: var(--secondary);
-  color: var(--muted-foreground);
-  cursor: pointer;
-  transition: border-color var(--transition-fast), color var(--transition-fast),
-    background-color var(--transition-fast);
-}
-
-.cw-dropzone:hover {
-  border-color: var(--muted-foreground);
-  color: var(--foreground);
-}
-
-.cw-dropzone.drag-over {
-  border-color: var(--primary);
-  background-color: var(--accent);
-}
-
-.cw-dropzone .upload-text {
-  font-size: var(--text-base);
-  font-weight: var(--font-medium);
-  color: var(--foreground);
-  margin: 0 0 var(--space-0-5);
-  text-align: center;
-}
-
-.cw-dropzone .upload-hint {
-  font-size: var(--text-sm);
-  color: var(--muted-foreground);
-  margin: 0;
-}
-
-.cw-dropzone-types {
-  font-size: var(--text-xs);
-  color: var(--muted-foreground);
-  margin: var(--space-2) 0 0;
-  letter-spacing: 0.02em;
-}
+/* --- Reused from the convert card ---------------------------------------
+   .convert-field, .upload-zone (+ file info and action buttons),
+   .format-selector and .btn-primary all come from the Converter's own
+   stylesheets, so this surface tracks any change made there. Only what is
+   genuinely specific to compressing lives below. */
 
 .cw-privacy {
   font-size: var(--text-sm);
@@ -87,59 +36,64 @@
   margin: 0;
 }
 
-/* --- Level picker --- */
+/* --- Level dropdown (mirrors the format selector it sits in place of) --- */
 
-.cw-levels-wrap {
+.cw-level-field { position: relative; }
+
+.cw-level-menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  right: 0;
+  z-index: 60;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.cw-levels {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-1);
   padding: var(--space-1);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background-color: var(--secondary);
+  background-color: var(--card);
+  box-shadow: var(--shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.15));
 }
 
-.cw-level {
-  /* 44px min target: coarse pointers get a real tap area (see media query). */
-  min-height: 36px;
-  padding: var(--space-2) var(--space-4);
+.cw-level-menu[hidden] { display: none; }
+
+.cw-level-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
   border: none;
   border-radius: calc(var(--radius) - 2px);
   background: transparent;
   color: var(--muted-foreground);
   font-size: var(--text-sm);
-  font-weight: var(--font-medium);
+  text-align: left;
   cursor: pointer;
   transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
-.cw-level:hover {
+.cw-level-option:hover,
+.cw-level-option:focus-visible {
+  background-color: var(--accent);
   color: var(--foreground);
 }
 
-.cw-level.active {
-  background-color: var(--background);
+.cw-level-option[aria-current="true"] {
   color: var(--foreground);
-  box-shadow: var(--shadow-sm);
+  font-weight: var(--font-medium);
 }
 
 .cw-level-blurb {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--muted-foreground);
-  margin: 0;
-  text-align: center;
-  min-height: 1.25em;
+  font-weight: var(--font-normal, 400);
 }
 
 /* --- File list --- */
+
+.cw-list[hidden] { display: none; }
 
 .cw-list-head {
   display: flex;
@@ -236,21 +190,7 @@
 
 /* --- Primary action --- */
 
-.cw-compress {
-  width: 100%;
-  min-height: 44px;
-  padding: var(--space-3) var(--space-4);
-  border: none;
-  border-radius: var(--radius);
-  background-color: var(--primary);
-  color: var(--primary-foreground);
-  font-size: var(--text-base);
-  font-weight: var(--font-medium);
-  cursor: pointer;
-  transition: opacity var(--transition-fast);
-}
-
-.cw-compress:hover { opacity: 0.9; }
+.cw-compress { width: 100%; }
 
 /* --- Progress --- */
 

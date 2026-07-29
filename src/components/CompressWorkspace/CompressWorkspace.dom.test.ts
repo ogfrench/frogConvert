@@ -64,8 +64,8 @@ beforeEach(() => {
 
 describe('CompressWorkspace — empty state', () => {
   it('renders a dropzone when no files are loaded', () => {
-    expect(document.querySelector('.cw-dropzone')).not.toBeNull();
-    expect(document.querySelector('.cw-list')).toBeNull();
+    expect(document.querySelector('.upload-zone')).not.toBeNull();
+    expect(document.querySelector('.upload-file-info.visible')).toBeNull();
   });
 
   it('states the privacy promise up front', () => {
@@ -85,10 +85,27 @@ describe('CompressWorkspace — intake', () => {
     expect(document.querySelectorAll('.cw-row')).toHaveLength(3);
   });
 
-  it('swaps the dropzone for the file list once files land', () => {
+  it('shows the file-info row and its actions once files land', () => {
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
-    expect(document.querySelector('.cw-dropzone')).toBeNull();
-    expect(document.querySelector('.cw-list')).not.toBeNull();
+    // Same drop target as the convert card, switched to its has-file state.
+    expect(document.querySelector('.upload-zone.has-file')).not.toBeNull();
+    expect(document.querySelector('.upload-file-info.visible')).not.toBeNull();
+    expect(document.querySelector('.cw-manage')).not.toBeNull();
+    expect(document.querySelector('.cw-replace')).not.toBeNull();
+    expect(document.querySelector('.cw-clear')).not.toBeNull();
+  });
+
+  it('toggles the file list from the manage button', () => {
+    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    expect(document.querySelector<HTMLElement>('.cw-list')!.hidden).toBe(true);
+    document.querySelector<HTMLElement>('.cw-manage')!.click();
+    expect(document.querySelector<HTMLElement>('.cw-list')!.hidden).toBe(false);
+  });
+
+  it('clears the batch from the remove-all button', () => {
+    ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('b.png', 'image/png')]);
+    document.querySelector<HTMLElement>('.cw-clear')!.click();
+    expect(ws.getFiles()).toHaveLength(0);
   });
 
   it('rejects file types it cannot compress and says so', () => {
@@ -109,6 +126,7 @@ describe('CompressWorkspace — intake', () => {
 
   it('removes a file when its remove button is clicked', () => {
     ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('b.png', 'image/png')]);
+    document.querySelector<HTMLElement>('.cw-manage')!.click();
     document.querySelector<HTMLElement>('[data-remove]')!.click();
     expect(ws.getFiles()).toHaveLength(1);
     expect(document.querySelectorAll('.cw-row')).toHaveLength(1);
@@ -126,7 +144,7 @@ describe('CompressWorkspace — level picker', () => {
 
   it('defaults to the Recommended level', () => {
     expect(ws.getLevel()).toBe('medium');
-    expect(document.querySelector('.cw-level.active')?.textContent).toContain('Recommended');
+    expect(document.querySelector('.cw-level-selector .selector-text')?.textContent).toContain('Recommended');
   });
 
   it('maps user-facing labels to the inverted engine presets', () => {
@@ -146,9 +164,10 @@ describe('CompressWorkspace — level picker', () => {
   });
 
   it('switches level on click and reflects it in the UI', () => {
+    document.querySelector<HTMLElement>('.cw-level-selector')!.click();
     document.querySelector<HTMLElement>('[data-level="low"]')!.click();
     expect(ws.getLevel()).toBe('low');
-    expect(document.querySelector('.cw-level.active')?.textContent).toContain('Extreme compression');
+    expect(document.querySelector('.cw-level-selector .selector-text')?.textContent).toContain('Extreme compression');
   });
 });
 
@@ -176,6 +195,7 @@ describe('CompressWorkspace — running a batch', () => {
   it('passes the chosen level through to the engine', async () => {
     compressBatchMock.mockResolvedValue([outcome()]);
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    document.querySelector<HTMLElement>('.cw-level-selector')!.click();
     document.querySelector<HTMLElement>('[data-level="low"]')!.click();
     await ws.runCompression();
     expect(compressBatchMock.mock.calls[0][1].level).toBe('low');
@@ -261,10 +281,11 @@ describe('CompressWorkspace — lifecycle', () => {
 
   it('resetAll clears the batch and restores the default level', () => {
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    document.querySelector<HTMLElement>('.cw-level-selector')!.click();
     document.querySelector<HTMLElement>('[data-level="low"]')!.click();
     ws.resetAll();
     expect(ws.getFiles()).toHaveLength(0);
     expect(ws.getLevel()).toBe('medium');
-    expect(document.querySelector('.cw-dropzone')).not.toBeNull();
+    expect(document.querySelector('.upload-zone')).not.toBeNull();
   });
 });

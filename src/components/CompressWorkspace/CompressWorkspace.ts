@@ -50,6 +50,8 @@ let nextId = 1;
 let initialized = false;
 
 let phase: Phase = "idle";
+/** Whether the file list under the drop zone is expanded (the "manage" toggle). */
+let listOpen = false;
 let results: CompressOutcome[] = [];
 let progress = { done: 0, total: 0, current: "" };
 let cancelRequested = false;
@@ -225,39 +227,72 @@ export function backToFiles() {
 
 // --- Rendering ---
 
-function dropzoneMarkup(): string {
+/**
+ * The whole idle view, deliberately mirroring the convert card: same
+ * `.convert-field` wrappers, the same `.upload-zone` drop target with its
+ * file-info row and action buttons, and `.format-selector` for the level.
+ * Reusing those classes means this surface inherits the Converter's look and
+ * every future tweak to it, instead of drifting into a lookalike.
+ */
+function uploadFieldMarkup(): string {
   const hint = isTouchUi() ? "or tap to browse" : "or click to browse";
+  const total = files.reduce((sum, e) => sum + e.file.size, 0);
+  const hasFiles = files.length > 0;
+  const label = hasFiles
+    ? `${files.length} file${files.length === 1 ? "" : "s"} ready · ${formatBytes(total)}`
+    : "";
+  const displayName = files.length === 1
+    ? shortenFileName(files[0].file.name, 32)
+    : `${files.length} files selected`;
+
   return `
-    <div class="card-base cw-dropzone-card">
-      <div class="cw-dropzone" role="button" tabindex="0" aria-label="Drop files to compress">
-        <p class="upload-text">Drop files to squish</p>
-        <p class="upload-hint">${hint}</p>
-        <p class="cw-dropzone-types">images · audio · video</p>
+    <div class="convert-field">
+      <span class="field-label">${escapeHTML(label)}</span>
+      <div class="upload-zone ${hasFiles ? "has-file" : ""}" role="button" tabindex="0"
+        aria-label="Drop files to compress">
+        <p class="upload-text" ${hasFiles ? 'style="display:none"' : ""}>Drop your files</p>
+        <p class="upload-hint" ${hasFiles ? 'style="display:none"' : ""}>${hint}</p>
+        <div class="upload-file-info ${hasFiles ? "visible" : ""}" aria-live="polite" aria-atomic="true">
+          <span class="upload-file-name truncate">${escapeHTML(displayName)}</span>
+          <div class="upload-file-actions">
+            <button class="upload-action-btn icon-btn floating-card-surface cw-manage" type="button"
+              title="Manage files" aria-label="Manage files">&#9776;</button>
+            <button class="upload-action-btn icon-btn floating-card-surface cw-replace" type="button"
+              title="Add more files" aria-label="Add more files">&#8635;</button>
+            <button class="upload-action-btn icon-btn floating-card-surface cw-clear" type="button"
+              title="Remove all files" aria-label="Remove all files">&times;</button>
+          </div>
+        </div>
       </div>
     </div>
-    <p class="cw-privacy">Nothing leaves your device. The squishing happens right here.</p>
   `;
 }
 
-function levelPickerMarkup(): string {
+function levelFieldMarkup(): string {
   const current = compressLevel.value;
+  const active = COMPRESS_LEVELS.find(l => l.value === current);
   const options = COMPRESS_LEVELS.map(l => `
-    <button class="cw-level ${l.value === current ? "active" : ""}" data-level="${l.value}"
-      type="button" aria-pressed="${l.value === current}">
-      <span class="cw-level-label">${escapeHTML(l.label)}</span>
+    <button class="cw-level-option" type="button" role="menuitem" data-level="${l.value}"
+      aria-current="${l.value === current}">
+      <span>${escapeHTML(l.label)}</span>
+      <span class="cw-level-blurb">${escapeHTML(l.blurb)}</span>
     </button>
   `).join("");
-  const active = COMPRESS_LEVELS.find(l => l.value === current);
+
   return `
-    <div class="cw-levels-wrap">
-      <div class="cw-levels" role="group" aria-label="Compression level">${options}</div>
-      <p class="cw-level-blurb">${escapeHTML(active?.blurb ?? "")}</p>
+    <div class="convert-field cw-level-field">
+      <span class="convert-to-label">Compress by</span>
+      <button class="format-selector has-value cw-level-selector" type="button"
+        aria-haspopup="menu" aria-expanded="false">
+        <span class="selector-text truncate">${escapeHTML(active?.label ?? "Automatic")}</span>
+        <span class="selector-chevron" aria-hidden="true">&#9662;</span>
+      </button>
+      <div class="cw-level-menu" role="menu" aria-label="Compression level" hidden>${options}</div>
     </div>
   `;
 }
 
 function fileListMarkup(): string {
-  const total = files.reduce((sum, e) => sum + e.file.size, 0);
   const rows = files.map(e => `
     <li class="cw-row" data-id="${e.id}">
       <span class="cw-row-name" title="${escapeHTML(e.file.name)}">${escapeHTML(shortenFileName(e.file.name, 40))}</span>
@@ -266,20 +301,7 @@ function fileListMarkup(): string {
         aria-label="Remove ${escapeHTML(e.file.name)}">&times;</button>
     </li>
   `).join("");
-  return `
-    <div class="card-base cw-list-card">
-      <div class="cw-list-head">
-        <span>${files.length} file${files.length === 1 ? "" : "s"}</span>
-        <span class="cw-list-actions">
-          <span class="cw-list-total">${formatBytes(total)}</span>
-          <button class="cw-clear icon-btn" type="button" title="Remove all files"
-            aria-label="Remove all files">&times;</button>
-        </span>
-      </div>
-      <ul class="cw-list">${rows}</ul>
-      <button class="cw-add-more" type="button">Add more files</button>
-    </div>
-  `;
+  return `<ul class="cw-list" ${listOpen ? "" : "hidden"}>${rows}</ul>`;
 }
 
 function progressMarkup(): string {
@@ -338,9 +360,13 @@ function resultsMarkup(): string {
   `;
 }
 
+function privacyMarkup(): string {
+  return `<p class="cw-privacy">Nothing leaves your device. The squishing happens right here.</p>`;
+}
+
 function actionMarkup(): string {
   return `
-    <button class="cw-compress" type="button">
+    <button class="cw-compress btn-primary" type="button">
       Compress ${files.length} file${files.length === 1 ? "" : "s"}
     </button>
   `;
@@ -354,8 +380,8 @@ function render() {
     rootEl.innerHTML = resultsMarkup();
   } else {
     rootEl.innerHTML = files.length
-      ? `${levelPickerMarkup()}${fileListMarkup()}${actionMarkup()}`
-      : dropzoneMarkup();
+      ? `${uploadFieldMarkup()}${fileListMarkup()}${levelFieldMarkup()}${actionMarkup()}`
+      : `${uploadFieldMarkup()}${privacyMarkup()}`;
   }
   wireRendered();
 }
@@ -369,9 +395,13 @@ function openPicker() {
 function wireRendered() {
   if (!rootEl) return;
 
-  const zone = rootEl.querySelector<HTMLElement>(".cw-dropzone");
+  const zone = rootEl.querySelector<HTMLElement>(".upload-zone");
   if (zone) {
-    zone.addEventListener("click", openPicker);
+    zone.addEventListener("click", (e) => {
+      // The action buttons sit inside the zone; don't let them open the picker.
+      if ((e.target as HTMLElement).closest(".upload-file-actions")) return;
+      openPicker();
+    });
     zone.addEventListener("keydown", (e) => {
       if (e.key !== " " && e.key !== "Enter") return;
       e.preventDefault();
@@ -389,9 +419,19 @@ function wireRendered() {
     });
   }
 
-  rootEl.querySelector<HTMLElement>(".cw-add-more")?.addEventListener("click", openPicker);
-  rootEl.querySelector<HTMLElement>(".cw-clear")?.addEventListener("click", () => {
+  rootEl.querySelector<HTMLElement>(".cw-manage")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    listOpen = !listOpen;
+    render();
+  });
+  rootEl.querySelector<HTMLElement>(".cw-replace")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openPicker();
+  });
+  rootEl.querySelector<HTMLElement>(".cw-clear")?.addEventListener("click", (e) => {
+    e.stopPropagation();
     files = [];
+    listOpen = false;
     markCompressDirty("files");
     render();
   });
@@ -400,13 +440,36 @@ function wireRendered() {
     btn.addEventListener("click", () => removeFile(Number(btn.dataset.remove)));
   }
 
-  for (const btn of rootEl.querySelectorAll<HTMLElement>(".cw-level")) {
-    btn.addEventListener("click", () => {
-      const next = btn.dataset.level as CompressLevel;
+  // Level selector: same dropdown contract as the format picker it mirrors.
+  const levelSelector = rootEl.querySelector<HTMLElement>(".cw-level-selector");
+  const levelMenu = rootEl.querySelector<HTMLElement>(".cw-level-menu");
+  if (levelSelector && levelMenu) {
+    const setOpen = (open: boolean) => {
+      levelMenu.hidden = !open;
+      levelSelector.setAttribute("aria-expanded", String(open));
+    };
+    levelSelector.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setOpen(levelMenu.hidden);
+    });
+    levelMenu.addEventListener("click", (e) => {
+      const opt = (e.target as HTMLElement).closest(".cw-level-option") as HTMLElement | null;
+      if (!opt) return;
+      setOpen(false);
+      const next = opt.dataset.level as CompressLevel;
       if (next === compressLevel.value) return;
       setCompressLevel(next);
       markCompressDirty("manifest");
       render();
+    });
+    levelMenu.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { setOpen(false); levelSelector.focus(); }
+    });
+    document.addEventListener("click", function onAway(e) {
+      if (!levelMenu.isConnected) { document.removeEventListener("click", onAway); return; }
+      if (levelMenu.hidden) return;
+      if ((e.target as HTMLElement).closest(".cw-level-field")) return;
+      setOpen(false);
     });
   }
 
