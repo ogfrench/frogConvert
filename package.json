@@ -99,7 +99,6 @@
     "@ffmpeg/core": "^0.12.10",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
-    "@jspawn/ghostscript-wasm": "0.0.2",
     "@flo-audio/reflo": "^0.1.2",
     "@fontsource-variable/inter": "^5.2.8",
     "@imagemagick/magick-wasm": "^0.0.37",

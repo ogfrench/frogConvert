@@ -1,7 +1,12 @@
 /**
  * Ghostscript-WASM smoke test — run in a real browser, not Bun.
  *
+ *   bun add @jspawn/ghostscript-wasm     # not yet a project dependency
  *   node scripts/ghostscript-smoke.mjs
+ *
+ * The package is deliberately NOT in package.json yet: it is only needed once
+ * the handler lands (#14), and adding it without a matching bun.lock entry
+ * breaks `bun i --frozen-lockfile` in CI.
  *
  * Why this exists: @jspawn/ghostscript-wasm's loader is awkward and cost real
  * time to work out, so the working recipe is recorded here rather than
