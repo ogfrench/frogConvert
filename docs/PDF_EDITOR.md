@@ -12,7 +12,9 @@ It handles the operations most people reach for a paid tool to do: merging, reor
 
 ## Switching to editor mode
 
-The top bar has a **Converter / PDF Editor** pill toggle. Click **PDF Editor** to swap the workspace. Your app URL updates to `/pdf` so you can bookmark or share the editor directly.
+The top bar's mode control opens a menu with **Converter**, **PDF Editor** and **Compress**. Pick **PDF Editor** to swap the workspace. Your app URL updates to `/pdf` so you can bookmark or share the editor directly.
+
+Note that the PDF editor does not compress. Shrinking a PDF lives in the [Compress](COMPRESS.md) mode, which uses Ghostscript rather than the rasterising route the converter uses for PDF→image.
 
 ## What you can do
 

@@ -73,7 +73,9 @@ async function loadOnce(onProgress?: (p: ProgressEvent) => void): Promise<GsFact
     // frozen. Content-Length is present for a static asset but not guaranteed,
     // so fall back to a plain read when it is missing.
     const total = Number(resp.headers.get("content-length")) || 0;
-    let bytes: Uint8Array;
+    // Explicitly ArrayBuffer-backed, not ArrayBufferLike: BlobPart rejects a
+    // view that could be backed by a SharedArrayBuffer.
+    let bytes: Uint8Array<ArrayBuffer>;
     if (resp.body && total > 0) {
         const reader = resp.body.getReader();
         const chunks: Uint8Array[] = [];
@@ -88,7 +90,7 @@ async function loadOnce(onProgress?: (p: ProgressEvent) => void): Promise<GsFact
                 detail: `Fetching the PDF compressor — ${Math.round((got / total) * 100)}%`,
             });
         }
-        bytes = new Uint8Array(got);
+        bytes = new Uint8Array(new ArrayBuffer(got));
         let at = 0;
         for (const c of chunks) { bytes.set(c, at); at += c.byteLength; }
     } else {
