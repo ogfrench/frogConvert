@@ -328,10 +328,24 @@ describe("convertQuality (Converter)", () => {
     });
 
     it("maps labels to the inverted engine presets", () => {
+        // The engine's presets name the quality *target*, so "low" is the most
+        // compression. Labels read the same way round, which is why this
+        // mapping is worth pinning: swapping two of them would be invisible in
+        // review and would quietly invert the whole control.
         const byLabel = Object.fromEntries(CONVERT_QUALITY_CHOICES.map(c => [c.label, c.value]));
-        expect(byLabel["Less compression"]).toBe("high");
-        expect(byLabel["Recommended"]).toBe("medium");
-        expect(byLabel["Extreme compression"]).toBe("low");
+        expect(byLabel["Original quality"]).toBe("lossless");
+        expect(byLabel["High quality"]).toBe("high");
+        expect(byLabel["Balanced"]).toBe("medium");
+        expect(byLabel["Smallest file"]).toBe("low");
+    });
+
+    it("keeps one vocabulary across both surfaces", () => {
+        // A user who sets "Balanced" in Convert and sees "Recommended" in
+        // Compress has no way to know they are the same level.
+        const convert = new Map(CONVERT_QUALITY_CHOICES.map(c => [c.value as string, c.label]));
+        for (const c of COMPRESS_LEVEL_CHOICES) {
+            expect(convert.get(c.value)).toBe(c.label);
+        }
     });
 
     it("persists the choice", () => {

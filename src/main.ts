@@ -73,6 +73,10 @@ import {
   setConvertQuality,
   CONVERT_QUALITY_CHOICES,
   type ConvertQuality,
+  compressLevel,
+  setCompressLevel,
+  COMPRESS_LEVEL_CHOICES,
+  type CompressLevel,
 } from "./components/store/store.ts";
 import {
   findMatchingFormat,
@@ -268,8 +272,14 @@ function setAppMode(mode: AppMode) {
     }
   }
 
-  // Format filter and compression level are both converter-only controls.
+  // The format filter only makes sense while picking a target format.
   topControlsMenu.classList.toggle("not-converter", mode !== "converter");
+  // The compression setting follows the mode instead of vanishing: Converter
+  // and Compress each bind it to their own value, the PDF editor has no
+  // compression step so it hides there.
+  topControlsMenu.classList.toggle("no-compression-setting", mode === "pdf-editor");
+  renderQualityOptions();
+  syncQualityUI();
 
   // Show the active mode's elements, hide every other mode's.
   for (const m of APP_MODES) {
@@ -370,20 +380,70 @@ window.addEventListener("frog:set-mode", (e) => {
   navigateTo(mode);
 });
 
-// --- Conversion compression (Converter only) ---
-// Scoped to the Converter on purpose: the Compress surface has its own visible
-// level, and sharing one value meant changing it in one place silently moved
-// the other. Hidden outside converter mode, like the format filter.
+// --- Compression setting ---
+// One control, two backing values. Converter and Compress each keep their own
+// setting — they mean different things ("how much quality to give up while
+// changing format" vs "how hard to squeeze"), and sharing one value meant
+// changing it in one place silently moved the other. What is shared is the
+// control: hiding it outside the Converter made the setting look like it only
+// existed there. The PDF editor merges, organizes and watermarks — it has no
+// compression step — so there it stays hidden rather than showing a knob that
+// controls nothing.
 
 const qualityToggle = document.getElementById("quality-toggle")!;
 const qualityMenu = document.getElementById("quality-menu")!;
 const qualitySegmented = document.getElementById("quality-segmented");
 
+/** Which setting the control is bound to, decided by the active mode. */
+function qualityContext() {
+  return currentAppMode === "compress"
+    ? { choices: COMPRESS_LEVEL_CHOICES, current: compressLevel.value as string, scope: "when compressing" }
+    : { choices: CONVERT_QUALITY_CHOICES, current: convertQuality.value as string, scope: "when converting" };
+}
+
+/** Rebuild the option rows so each mode only offers levels it can honour. */
+function renderQualityOptions() {
+  const { choices, current } = qualityContext();
+  const title = qualityMenu.querySelector(".quality-menu-title");
+  qualityMenu.querySelectorAll(".quality-item").forEach(el => el.remove());
+  for (const c of choices) {
+    const btn = document.createElement("button");
+    btn.className = "quality-item";
+    btn.type = "button";
+    btn.setAttribute("role", "menuitem");
+    btn.tabIndex = -1;
+    btn.dataset.value = c.value;
+    btn.setAttribute("aria-current", String(c.value === current));
+    const label = document.createElement("span");
+    label.textContent = c.label;
+    const blurb = document.createElement("span");
+    blurb.className = "quality-item-blurb";
+    blurb.textContent = c.blurb;
+    btn.append(label, blurb);
+    qualityMenu.insertBefore(btn, null);
+  }
+  // Keep the heading first; insertBefore(null) appended past it.
+  if (title) qualityMenu.insertBefore(title, qualityMenu.firstChild);
+
+  // The mobile pill list mirrors the same option set.
+  if (qualitySegmented) {
+    qualitySegmented.innerHTML = "";
+    for (const c of choices) {
+      const pill = document.createElement("button");
+      pill.className = "pill-option";
+      pill.type = "button";
+      pill.dataset.value = c.value;
+      pill.textContent = c.label;
+      qualitySegmented.appendChild(pill);
+    }
+  }
+}
+
 function syncQualityUI() {
-  const current = convertQuality.value;
-  const label = CONVERT_QUALITY_CHOICES.find(c => c.value === current)?.label ?? "Recommended";
+  const { choices, current, scope } = qualityContext();
+  const label = choices.find(c => c.value === current)?.label ?? "Balanced";
   qualityToggle.title = `Compression: ${label}`;
-  qualityToggle.setAttribute("aria-label", `Compression when converting: ${label}. Change`);
+  qualityToggle.setAttribute("aria-label", `Compression ${scope}: ${label}. Change`);
   for (const item of qualityMenu.querySelectorAll<HTMLElement>(".quality-item")) {
     item.setAttribute("aria-current", String(item.dataset.value === current));
   }
@@ -400,8 +460,15 @@ function setQualityMenuOpen(open: boolean) {
   if (open) qualityMenu.querySelector<HTMLElement>(".quality-item")?.focus();
 }
 
-function chooseQuality(next: ConvertQuality) {
-  setConvertQuality(next);
+function chooseQuality(next: string) {
+  if (currentAppMode === "compress") {
+    setCompressLevel(next as CompressLevel);
+    // The Compress card renders its own copy of this setting, so tell it to
+    // repaint rather than leaving the two views disagreeing.
+    window.dispatchEvent(new CustomEvent("frog:compress-level"));
+  } else {
+    setConvertQuality(next as ConvertQuality);
+  }
   syncQualityUI();
 }
 
@@ -415,7 +482,7 @@ qualityMenu.addEventListener("click", (e) => {
   if (!item) return;
   setQualityMenuOpen(false);
   qualityToggle.focus();
-  chooseQuality(item.dataset.value as ConvertQuality);
+  chooseQuality(item.dataset.value!);
 });
 
 qualityMenu.addEventListener("keydown", (e) => {
@@ -433,7 +500,7 @@ qualityMenu.addEventListener("keydown", (e) => {
 qualitySegmented?.addEventListener("click", (e) => {
   const pill = (e.target as HTMLElement).closest(".pill-option") as HTMLElement | null;
   if (!pill || pill.classList.contains("active")) return;
-  chooseQuality(pill.dataset.value as ConvertQuality);
+  chooseQuality(pill.dataset.value!);
 });
 
 document.addEventListener("click", (e) => {
@@ -442,6 +509,11 @@ document.addEventListener("click", (e) => {
   setQualityMenuOpen(false);
 });
 
+// The Compress card carries its own copy of this setting; keep the menu in
+// step when the change originates there.
+window.addEventListener("frog:compress-level", () => syncQualityUI());
+
+renderQualityOptions();
 syncQualityUI();
 
 // --- Router (URL ↔ state sync) ---

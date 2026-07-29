@@ -13,6 +13,14 @@
   width: 100%;
   max-width: var(--card-max-width);
   margin: var(--space-8) auto 0;
+  /* Same guard as .ws-empty-layout in the PDF workspace. The entrance
+     animation leaves a transform here, which makes this an atomic stacking
+     context — so the level dropdown's own z-index only orders it *within* this
+     subtree. Without a positive z-index on the subtree itself, #compress-description
+     (a later sibling) painted over the part of the dropdown that overflows
+     this box. */
+  position: relative;
+  z-index: var(--z-content);
 }
 
 @media only screen and (max-width: 800px) {
@@ -28,6 +36,15 @@
    .format-selector and .btn-primary all come from the Converter's own
    stylesheets, so this surface tracks any change made there. Only what is
    genuinely specific to compressing lives below. */
+
+/* Compress is a drop-first surface — the zone is the whole point of the page,
+   not one field among several as on the Convert card — so it gets the taller
+   PDF-workspace footprint. Scoped to #compress-content so the Convert card
+   keeps its own 5.5rem height. */
+#compress-content .upload-zone {
+  height: auto;
+  min-height: calc(var(--space-16) * 2.5);
+}
 
 .cw-privacy {
   font-size: var(--text-sm);
@@ -45,7 +62,10 @@
   top: calc(100% + var(--space-1));
   left: 0;
   right: 0;
-  z-index: 60;
+  /* --z-floating is the app's layer for transient overlays: above card content
+     (--z-content/--z-elevated), below the top bar and modals. A raw number here
+     would sit outside the documented scale and silently drift out of order. */
+  z-index: var(--z-floating);
   display: flex;
   flex-direction: column;
   padding: var(--space-1);

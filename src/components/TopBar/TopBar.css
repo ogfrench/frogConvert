@@ -216,9 +216,10 @@
   background-color: var(--accent);
 }
 
-/* Hide filter controls in PDF mode (both desktop and mobile) */
+/* The format filter is Converter-only; the compression setting follows the
+   mode and only disappears where nothing compresses (the PDF editor). */
 #top-controls-menu.not-converter #mode-toggle,
-#top-controls-menu.not-converter #quality-picker {
+#top-controls-menu.no-compression-setting #quality-picker {
   opacity: 0;
   transform: scale(0.95);
   pointer-events: none;
@@ -433,9 +434,9 @@
   #top-controls-menu.not-converter #formats-divider,
   #top-controls-menu.not-converter #formats-label,
   #top-controls-menu.not-converter #formats-section,
-  #top-controls-menu.not-converter #quality-label,
-  #top-controls-menu.not-converter #quality-divider,
-  #top-controls-menu.not-converter #quality-segmented {
+  #top-controls-menu.no-compression-setting #quality-label,
+  #top-controls-menu.no-compression-setting #quality-divider,
+  #top-controls-menu.no-compression-setting #quality-segmented {
     display: none;
   }
 
@@ -464,7 +465,7 @@
   position: absolute;
   top: calc(100% + var(--space-2));
   right: 0;
-  z-index: 60;
+  z-index: var(--z-floating);
   display: flex;
   flex-direction: column;
   min-width: 11rem;
@@ -540,7 +541,7 @@
   position: absolute;
   top: calc(100% + var(--space-2));
   right: 0;
-  z-index: 60;
+  z-index: var(--z-floating);
   display: flex;
   flex-direction: column;
   min-width: 13rem;
@@ -552,6 +553,18 @@
 }
 
 #quality-menu[hidden] { display: none; }
+
+/* Names the axis the options sit on, so "Balanced" and "Smallest file" read as
+   compression settings rather than an unlabelled list of adjectives. */
+.quality-menu-title {
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 
 .quality-item {
   display: flex;

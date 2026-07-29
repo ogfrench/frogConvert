@@ -22,9 +22,9 @@ vi.mock('../store/store.ts', () => {
     setCompressLevel: (q: 'high' | 'medium' | 'low') => { compressLevel.value = q; },
     COMPRESS_LEVEL_CHOICES: [
       { value: 'auto', label: 'Automatic', blurb: 'Reads each file.' },
-      { value: 'high', label: 'Less compression', blurb: 'Best quality, modest savings.' },
-      { value: 'medium', label: 'Recommended', blurb: 'Balanced.' },
-      { value: 'low', label: 'Extreme compression', blurb: 'Smallest files.' },
+      { value: 'high', label: 'High quality', blurb: 'Modest savings.' },
+      { value: 'medium', label: 'Balanced', blurb: 'Recommended.' },
+      { value: 'low', label: 'Smallest file', blurb: 'Visible quality loss.' },
     ],
   };
 });
@@ -142,17 +142,17 @@ describe('CompressWorkspace — intake', () => {
 describe('CompressWorkspace — level picker', () => {
   beforeEach(() => ws.handleFiles([fakeFile('a.png', 'image/png')]));
 
-  it('defaults to the Recommended level', () => {
+  it('defaults to the Balanced level', () => {
     expect(ws.getLevel()).toBe('medium');
-    expect(document.querySelector('.cw-level-selector .selector-text')?.textContent).toContain('Recommended');
+    expect(document.querySelector('.cw-level-selector .selector-text')?.textContent).toContain('Balanced');
   });
 
   it('maps user-facing labels to the inverted engine presets', () => {
     // Guards the trap: engine `low` = lowest quality = MOST compression.
     const byLabel = Object.fromEntries(ws.COMPRESS_LEVELS.map(l => [l.label, l.value]));
-    expect(byLabel['Less compression']).toBe('high');
-    expect(byLabel['Recommended']).toBe('medium');
-    expect(byLabel['Extreme compression']).toBe('low');
+    expect(byLabel['High quality']).toBe('high');
+    expect(byLabel['Balanced']).toBe('medium');
+    expect(byLabel['Smallest file']).toBe('low');
   });
 
   it('does not offer a lossless level', () => {
@@ -167,7 +167,7 @@ describe('CompressWorkspace — level picker', () => {
     document.querySelector<HTMLElement>('.cw-level-selector')!.click();
     document.querySelector<HTMLElement>('[data-level="low"]')!.click();
     expect(ws.getLevel()).toBe('low');
-    expect(document.querySelector('.cw-level-selector .selector-text')?.textContent).toContain('Extreme compression');
+    expect(document.querySelector('.cw-level-selector .selector-text')?.textContent).toContain('Smallest file');
   });
 });
 

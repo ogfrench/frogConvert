@@ -470,6 +470,8 @@ function wireRendered() {
       setCompressLevel(next);
       markCompressDirty("manifest");
       render();
+      // Mirror into the settings menu, which shows this same setting.
+      window.dispatchEvent(new CustomEvent("frog:compress-level", { detail: { from: "card" } }));
     });
     levelMenu.addEventListener("keydown", (e) => {
       if (e.key === "Escape") { setOpen(false); levelSelector.focus(); }
@@ -527,6 +529,13 @@ export function initCompressWorkspace() {
   // pagehide covers the mobile / OS-killed-tab cases visibilitychange misses.
   if (typeof window !== "undefined") {
     window.addEventListener("pagehide", () => { void flushCompressOnHide(); });
+    // The settings menu shows the same level as the card's own picker. Repaint
+    // when it changes there, so the two views never disagree. Events the card
+    // raised itself are ignored — it has already rendered.
+    window.addEventListener("frog:compress-level", (e) => {
+      if ((e as CustomEvent).detail?.from === "card") return;
+      if (rootEl) render();
+    });
   }
 
   fileInput?.addEventListener("change", () => {

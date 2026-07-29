@@ -265,12 +265,20 @@ export const formatMode: { value: FormatMode } = {
  *  meaningful request when you're changing format. */
 export type ConvertQuality = "auto" | "lossless" | "high" | "medium" | "low";
 
+/**
+ * Naming follows the quality-forward convention Acrobat and the OS export
+ * dialogs use ("High Quality", "Smallest File Size"), rather than the
+ * compression-amount wording of the online PDF tools. Two reasons: it puts
+ * every option on one axis (how good does the output look), and it avoids the
+ * incoherence of listing "No compression" beside "Extreme compression" — those
+ * read as opposite ends of two different scales.
+ */
 export const CONVERT_QUALITY_CHOICES: ReadonlyArray<{ value: ConvertQuality; label: string; blurb: string }> = [
-  { value: "auto", label: "Automatic", blurb: "Match the source" },
-  { value: "lossless", label: "No compression", blurb: "Largest files" },
-  { value: "high", label: "Less compression", blurb: "Best quality" },
-  { value: "medium", label: "Recommended", blurb: "Balanced" },
-  { value: "low", label: "Extreme compression", blurb: "Smallest files" },
+  { value: "auto", label: "Automatic", blurb: "Picks a level to suit each file" },
+  { value: "lossless", label: "Original quality", blurb: "No compression — largest files" },
+  { value: "high", label: "High quality", blurb: "Slightly smaller files" },
+  { value: "medium", label: "Balanced", blurb: "Recommended for most files" },
+  { value: "low", label: "Smallest file", blurb: "Visible quality loss" },
 ];
 
 export const convertQuality: { value: ConvertQuality } = {
@@ -292,11 +300,12 @@ export function setConvertQuality(next: ConvertQuality) {
  *  mean "do nothing", and the keep-threshold would discard every result. */
 export type CompressLevel = "auto" | "high" | "medium" | "low";
 
+/** Same vocabulary as CONVERT_QUALITY_CHOICES, minus the do-nothing option. */
 export const COMPRESS_LEVEL_CHOICES: ReadonlyArray<{ value: CompressLevel; label: string; blurb: string }> = [
-  { value: "auto", label: "Automatic", blurb: "Reads each file and picks its own level. Won't re-crush what's already small." },
-  { value: "high", label: "Less compression", blurb: "Best quality, modest savings." },
-  { value: "medium", label: "Recommended", blurb: "Balanced. Big savings, quality you won't miss." },
-  { value: "low", label: "Extreme compression", blurb: "Smallest files. Quality loss you can see." },
+  { value: "auto", label: "Automatic", blurb: "Picks a level to suit each file. Won't re-crush what's already small." },
+  { value: "high", label: "High quality", blurb: "Modest savings." },
+  { value: "medium", label: "Balanced", blurb: "Recommended. Big savings, quality you won't miss." },
+  { value: "low", label: "Smallest file", blurb: "Visible quality loss." },
 ];
 
 export const compressLevel: { value: CompressLevel } = {
