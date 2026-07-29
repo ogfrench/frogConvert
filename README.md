@@ -49,4 +49,27 @@ The **PDF editor** (merge, organize, extract, watermark), the **MCP server**, th
 
 ## License
 
-See [LICENSE](LICENSE).
+frogConvert is licensed under the **GNU General Public License, version 3 or
+later** (GPL-3.0-or-later). The full GPLv2 text is retained in
+[LICENSE](LICENSE) as the upstream terms this fork inherited; see below.
+
+<details>
+<summary>Why GPLv3 when LICENSE contains the GPLv2 text</summary>
+
+The conversion pipeline is forked from [Convert to it!](https://github.com/p2r3/convert),
+which ships the stock GPLv2 text with the "How to Apply These Terms" template
+placeholders left unfilled, and states no version anywhere in its README or
+source headers. GPLv2 section 9 covers exactly that case:
+
+> If the Program does not specify a version number of this License, you may
+> choose any version ever published by the Free Software Foundation.
+
+frogConvert therefore elects **GPLv3** for this derivative work. This is
+recorded here rather than left implicit so the reasoning is auditable.
+
+The election matters because GPLv3 section 13 permits combining a covered work
+with AGPLv3 code, which is what allows the optional Ghostscript-based PDF
+compressor to ship. Where that engine is included, AGPLv3 section 13's
+network-interaction requirement applies to the combination — which is why the
+hosted app links to its own source.
+</details>
