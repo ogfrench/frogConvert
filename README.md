@@ -8,17 +8,18 @@ desc: What is it & how to use
 
 _(Backup domain: [frogconvert.netlify.app](https://frogconvert.netlify.app/)) · [GitHub](https://github.com/ogfrench/frogConvert)_
 
-**Truly universal online file converter, plus a built-in PDF editor.**
+**Truly universal online file converter, plus a built-in PDF editor and file compressor.**
 
 > Turn your file into the prince it always was.
 
-frogConvert runs entirely in your browser. Convert between 70+ file formats or edit PDFs (merge, reorder, extract, watermark) without uploading anything to a server. Also available as an MCP server and a local REST API for AI agents and scripts.
+frogConvert runs entirely in your browser. Convert between 70+ file formats, edit PDFs (merge, reorder, extract, watermark), or compress images, audio, video and PDFs — without uploading anything to a server. Also available as an MCP server and a local REST API for AI agents and scripts.
 
 ## Quick start
 
 - **Just use it**: [frogconvert.xyz](https://frogconvert.xyz).
 - **Convert a file**: [docs/CONVERTER.md](docs/CONVERTER.md).
 - **Edit a PDF**: [docs/PDF_EDITOR.md](docs/PDF_EDITOR.md).
+- **Make a file smaller**: [docs/COMPRESS.md](docs/COMPRESS.md).
 - **Run the MCP server or REST API**: `bunx frogconvert mcp` or `bunx frogconvert api`. See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 - **Self-host, Docker, desktop builds**: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
@@ -32,6 +33,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 |---|---|
 | [docs/CONVERTER.md](docs/CONVERTER.md) | End-user guide: converting files |
 | [docs/PDF_EDITOR.md](docs/PDF_EDITOR.md) | End-user guide: editing PDFs |
+| [docs/COMPRESS.md](docs/COMPRESS.md) | End-user guide: compressing files |
 | [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | MCP and REST API reference |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Self-host, Docker, desktop, CLI |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Internal design and subsystems |
@@ -68,8 +70,9 @@ frogConvert therefore elects **GPLv3** for this derivative work. This is
 recorded here rather than left implicit so the reasoning is auditable.
 
 The election matters because GPLv3 section 13 permits combining a covered work
-with AGPLv3 code, which is what allows the optional Ghostscript-based PDF
-compressor to ship. Where that engine is included, AGPLv3 section 13's
-network-interaction requirement applies to the combination — which is why the
-hosted app links to its own source.
+with AGPLv3 code, which is what allows the Ghostscript-based PDF compressor to
+ship. That engine is now part of the Compress mode rather than an optional
+extra, so AGPLv3 section 13's network-interaction requirement applies to the
+combination — which is why the hosted app links to its own source. The upstream
+Ghostscript LICENSE is shipped alongside the binary at `/wasm/gs/LICENSE`.
 </details>
