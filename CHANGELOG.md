@@ -8,6 +8,33 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Compression becomes a first-class feature. It was previously invisible — every conversion quietly applied a `medium` preset, and the only user-facing compression was a same-format easter egg in the Convert card. There is now a dedicated **Compress** mode, PDFs can actually be compressed, and the setting that was always being applied is now something you can see and change.
+
+### Added
+- **Compress mode**, a third app surface alongside the Converter and PDF Editor, at `/compress`. Same format in, same format out, for images, animated images, audio, video and PDFs. [src/components/CompressWorkspace/](src/components/CompressWorkspace/). Reuses the Convert card's dropzone, file-management and button styles rather than inventing a parallel visual language.
+- **PDF compression via Ghostscript-WASM.** [src/handlers/ghostscript.ts](src/handlers/ghostscript.ts). The existing canvas + pdf-lib route cannot do this job: it rasterises pages, so on a vector or text PDF it saves nothing (measured 0%) and on a scan it only "wins" by destroying the text layer. Ghostscript's `pdfwrite` device resamples embedded images and rebuilds object streams while leaving text as text. Measured on a vector-only PDF: 51.8 KB → 33.1 KB (−36%). The ~16 MB binary is fetched on first PDF compression only, never at page load, with download progress; it is deliberately excluded from the service-worker precache.
+- **Mixed-batch orchestrator.** [src/core/compression/compressBatch.ts](src/core/compression/compressBatch.ts) groups a batch by format so each engine initialises once, preserves input order, and applies a 98% keep-threshold — a re-encode that saves less than 2% is discarded and the original kept, so nothing is degraded for a rounding error.
+- **`docs/COMPRESS.md`**, including an explicit section on why a text-heavy PDF reports "no gain" and why that is correct rather than broken.
+
+### Changed
+- **Compression is now a visible setting.** The **Compression** control in the settings menu follows the active mode: in the Converter it sets converted-output quality and includes **Original quality**; in Compress it is the same value as the card's own picker, kept in sync; in the PDF Editor it is hidden, because merging and watermarking have no compression step. The two settings are independent and separately persisted — "how much quality to give up while changing format" and "how hard to squeeze" are different questions, and sharing one value meant changing it in one place silently moved the other.
+- **Level names use one quality-forward vocabulary**: Automatic / Original quality / High quality / Balanced / Smallest file. The previous set mixed two scales — "No compression" is a quality statement, "Extreme compression" is an amount — and "Automatic / Match the source" was simply wrong, since matching the source is what the lossless option does. Compress offers the same words minus the do-nothing option: as a compression *level*, lossless can only mean "do nothing", because it targets quality 100 and the re-encode comes back larger.
+- **Multi-hop conversions no longer compound quality loss.** One shared rule ([src/core/compression/hopQuality.ts](src/core/compression/hopQuality.ts)) applies the requested level to the final hop only, with intermediates at high quality. The browser and the MCP/REST/CLI surfaces previously disagreed in opposite directions; they now share the rule.
+
+### Fixed
+- **Compression progress and results are announced to screen readers.** The progress card was visual-only: a screen-reader user got silence from "Compress" until the results replaced the view, with no way to distinguish a long batch from a stalled one. The label is now a polite live region and the bar carries real `progressbar` semantics.
+- **The Compress level dropdown was painted over by the page description.** `#compress-content` carries a transform from the entrance animation, making it an atomic stacking context, so the dropdown's own `z-index` only ordered it *within* that subtree and `#compress-description` (a later sibling) covered the part that overflowed the box. Fixed with the same `position`/`z-index` guard `.ws-empty-layout` already uses in the PDF workspace; the two magic `z-index: 60` values became `--z-floating`, since a raw number outside the documented scale is what let this drift unnoticed.
+- Compress dropzone height now matches the PDF workspace footprint — it is the whole point of that page, not one field among several.
+
+### Known limits
+- Cancellation takes effect between files, not mid-file.
+- PDF compression is browser-only; the Ghostscript package ships a browser loader, so MCP/REST/CLI would need a native `gs`.
+- The whole batch is held in memory.
+
+---
+
 ## [2.5.0] - 2026-07-15
 
 Zip download names are now unique and content-descriptive. Repeated exports no longer overwrite the previous download or pick up browser `(1)`/`(2)` suffixes, and multi-file archives are named for the operation that produced them instead of borrowing one arbitrary source file's name.
