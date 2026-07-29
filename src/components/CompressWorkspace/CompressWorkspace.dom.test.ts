@@ -123,7 +123,14 @@ describe('CompressWorkspace — level picker', () => {
     expect(byLabel.Less).toBe('high');
     expect(byLabel.Recommended).toBe('medium');
     expect(byLabel.Extreme).toBe('low');
-    expect(byLabel.Lossless).toBe('lossless');
+  });
+
+  it('does not offer a lossless level', () => {
+    // Lossless targets quality 100 with no resize, so a re-encode of an
+    // already-compressed file comes back larger and the keep-threshold
+    // discards it - the level would reliably do nothing.
+    expect(ws.COMPRESS_LEVELS.map(l => l.preset)).not.toContain('lossless');
+    expect(document.querySelector('[data-level="lossless"]')).toBeNull();
   });
 
   it('switches level on click and reflects it in the UI', () => {

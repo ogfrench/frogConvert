@@ -38,6 +38,14 @@ import {
  * the base image quality), while `high` compresses the least. Labelling them
  * Less/Recommended/Extreme in preset order would do the exact opposite of what
  * the user asked for, so the mapping is spelled out here once.
+ *
+ * The engine's fourth preset, `lossless`, is deliberately NOT offered. It
+ * targets quality 100 with no resizing, so re-encoding an already-compressed
+ * JPEG or MP4 usually comes out *larger*; the keep-threshold then discards it
+ * and every file reports "no gain". A level that reliably does nothing has no
+ * place in a tool whose whole job is making files smaller. Losslessly-encoded
+ * inputs are still handled correctly - the handlers shrink those by resizing
+ * and palette reduction rather than by throwing away quality.
  */
 export type CompressLevel = {
   preset: QualityPreset;
@@ -49,7 +57,6 @@ export const COMPRESS_LEVELS: readonly CompressLevel[] = [
   { preset: "high", label: "Less", blurb: "Barely touched. Best quality, modest savings." },
   { preset: "medium", label: "Recommended", blurb: "Balanced. Big savings, quality you won't miss." },
   { preset: "low", label: "Extreme", blurb: "Smallest files. Quality loss you can see." },
-  { preset: "lossless", label: "Lossless", blurb: "Not a pixel lost. Savings vary a lot." },
 ];
 
 export const DEFAULT_LEVEL: QualityPreset = "medium";
