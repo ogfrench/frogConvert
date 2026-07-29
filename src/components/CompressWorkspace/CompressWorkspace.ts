@@ -203,12 +203,20 @@ function paintProgress() {
   if (!rootEl) return;
   const label = rootEl.querySelector<HTMLElement>(".cw-progress-label");
   const bar = rootEl.querySelector<HTMLElement>(".cw-progress-bar-fill");
+  const track = rootEl.querySelector<HTMLElement>(".cw-progress-bar");
   if (label) {
     label.textContent = progress.current
       ? `Squishing ${shortenFileName(progress.current, 28)} — ${progress.done} of ${progress.total}`
       : `Squishing ${progress.done} of ${progress.total}`;
   }
   if (bar) bar.style.width = `${Math.round((progress.done / Math.max(progress.total, 1)) * 100)}%`;
+  // Keep the assistive-tech view in step with the visual bar; the label above
+  // is a polite live region, so screen readers coalesce rapid file-to-file
+  // updates instead of reading every one of a long batch.
+  if (track) {
+    track.setAttribute("aria-valuemax", String(progress.total));
+    track.setAttribute("aria-valuenow", String(progress.done));
+  }
 }
 
 export async function downloadResults() {
@@ -307,8 +315,9 @@ function fileListMarkup(): string {
 function progressMarkup(): string {
   return `
     <div class="card-base cw-progress-card">
-      <p class="cw-progress-label">Squishing ${progress.done} of ${progress.total}</p>
-      <div class="cw-progress-bar"><div class="cw-progress-bar-fill" style="width:0%"></div></div>
+      <p class="cw-progress-label" role="status" aria-live="polite" aria-atomic="true">Squishing ${progress.done} of ${progress.total}</p>
+      <div class="cw-progress-bar" role="progressbar" aria-label="Compression progress"
+        aria-valuemin="0" aria-valuemax="${progress.total}" aria-valuenow="${progress.done}"><div class="cw-progress-bar-fill" style="width:0%"></div></div>
       <button class="cw-cancel" type="button">Stop</button>
     </div>
   `;
@@ -345,7 +354,7 @@ function resultsMarkup(): string {
 
   return `
     <div class="card-base cw-results-card">
-      <div class="cw-results-head">
+      <div class="cw-results-head" role="status" aria-live="polite" aria-atomic="true">
         <p class="cw-results-headline">${headline}</p>
         <p class="cw-results-sub">${escapeHTML(sub)}</p>
       </div>

@@ -289,3 +289,56 @@ describe('CompressWorkspace — lifecycle', () => {
     expect(document.querySelector('.upload-zone')).not.toBeNull();
   });
 });
+
+describe('CompressWorkspace — assistive technology', () => {
+  /** Start a run that never settles, so the surface stays in the running phase. */
+  async function startStalledRun(files = ['a.png', 'b.png', 'c.png']) {
+    let emit: ((done: number, total: number, current: string) => void) | undefined;
+    compressBatchMock.mockImplementation((async (_files: any, opts: any) => {
+      emit = opts.onProgress;
+      return new Promise(() => { /* never settles */ });
+    }) as any);
+    ws.handleFiles(files.map(n => fakeFile(n, 'image/png')));
+    void ws.runCompression();
+    // runCompression reads each file's bytes before it reaches compressBatch,
+    // so wait for the real task queue rather than a single microtask.
+    for (let i = 0; i < 20 && !emit; i++) await new Promise(r => setTimeout(r, 0));
+    return { emit: (done: number, total: number, current: string) => emit!(done, total, current) };
+  }
+
+  it('exposes the progress bar with real progressbar semantics', async () => {
+    await startStalledRun();
+    const track = document.querySelector('.cw-progress-bar')!;
+    expect(track.getAttribute('role')).toBe('progressbar');
+    expect(track.getAttribute('aria-valuemin')).toBe('0');
+    expect(track.getAttribute('aria-valuemax')).toBe('3');
+    expect(track.getAttribute('aria-valuenow')).toBe('0');
+    expect(track.getAttribute('aria-label')).toBeTruthy();
+  });
+
+  it('announces which file is being squished as the batch advances', async () => {
+    const { emit } = await startStalledRun();
+    const label = document.querySelector('.cw-progress-label')!;
+    // Without a live region a screen-reader user gets silence for the whole run.
+    expect(label.getAttribute('aria-live')).toBe('polite');
+    expect(label.getAttribute('aria-atomic')).toBe('true');
+
+    emit(1, 3, 'b.png');
+    expect(label.textContent).toContain('b.png');
+    expect(label.textContent).toContain('1 of 3');
+    expect(document.querySelector('.cw-progress-bar')!.getAttribute('aria-valuenow')).toBe('1');
+  });
+
+  it('announces the outcome when the batch finishes', async () => {
+    compressBatchMock.mockResolvedValue([
+      { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+    ] as any);
+    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    await ws.runCompression();
+
+    const head = document.querySelector('.cw-results-head')!;
+    expect(head.getAttribute('role')).toBe('status');
+    expect(head.getAttribute('aria-live')).toBe('polite');
+    expect(head.textContent).toMatch(/\d/);
+  });
+});
