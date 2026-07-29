@@ -13,9 +13,26 @@ vi.mock('../../core/compression/compressBatch.ts', async (orig) => ({
   ...(await orig<typeof import('../../core/compression/compressBatch.ts')>()),
   compressBatch: vi.fn(),
 }));
-vi.mock('../store/store.ts', () => ({
-  allOptionsRef: { value: [{ format: { mime: 'image/png', format: 'png' }, handler: { name: 'ImageMagick' } }] },
-}));
+vi.mock('../store/store.ts', () => {
+  // Stateful stub: quality is now an app-wide setting the surface reads and
+  // writes, so the mock has to behave like the real store, not a constant.
+  const qualityPreference = { value: 'medium' as 'high' | 'medium' | 'low' };
+  const listeners = new Set<(q: string) => void>();
+  return {
+    allOptionsRef: { value: [{ format: { mime: 'image/png', format: 'png' }, handler: { name: 'ImageMagick' } }] },
+    qualityPreference,
+    setQualityPreference: (q: 'high' | 'medium' | 'low') => {
+      qualityPreference.value = q;
+      for (const cb of listeners) cb(q);
+    },
+    onQualityChange: (cb: (q: string) => void) => { listeners.add(cb); return () => listeners.delete(cb); },
+    QUALITY_CHOICES: [
+      { value: 'high', label: 'Less', blurb: 'Barely touched.' },
+      { value: 'medium', label: 'Recommended', blurb: 'Balanced.' },
+      { value: 'low', label: 'Extreme', blurb: 'Smallest files.' },
+    ],
+  };
+});
 
 const ws = await import('./CompressWorkspace.ts');
 import { showToast } from '../Toast/Toast.ts';
@@ -119,7 +136,7 @@ describe('CompressWorkspace — level picker', () => {
 
   it('maps user-facing labels to the inverted engine presets', () => {
     // Guards the trap: engine `low` = lowest quality = MOST compression.
-    const byLabel = Object.fromEntries(ws.COMPRESS_LEVELS.map(l => [l.label, l.preset]));
+    const byLabel = Object.fromEntries(ws.COMPRESS_LEVELS.map(l => [l.label, l.value]));
     expect(byLabel.Less).toBe('high');
     expect(byLabel.Recommended).toBe('medium');
     expect(byLabel.Extreme).toBe('low');
@@ -129,7 +146,7 @@ describe('CompressWorkspace — level picker', () => {
     // Lossless targets quality 100 with no resize, so a re-encode of an
     // already-compressed file comes back larger and the keep-threshold
     // discards it - the level would reliably do nothing.
-    expect(ws.COMPRESS_LEVELS.map(l => l.preset)).not.toContain('lossless');
+    expect(ws.COMPRESS_LEVELS.map(l => l.value)).not.toContain('lossless');
     expect(document.querySelector('[data-level="lossless"]')).toBeNull();
   });
 

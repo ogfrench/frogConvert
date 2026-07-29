@@ -69,6 +69,12 @@ import {
   buildAcceptString,
 } from "./components/index.ts";
 import {
+  qualityPreference,
+  setQualityPreference,
+  QUALITY_CHOICES,
+  type QualityChoice,
+} from "./components/store/store.ts";
+import {
   findMatchingFormat,
   initConvertButton,
   getIsConverting,
@@ -355,15 +361,88 @@ mobileModePill?.addEventListener("click", (e) => {
   navigateTo(btn.dataset.value!);
 });
 
-// In-app deep links to another mode (e.g. the Convert card's "Compress it
-// instead" signpost) come through as an event so components don't need a
-// handle on the shell.
+// In-app deep links to another mode come through as an event so components can
+// route without a handle on the shell.
 window.addEventListener("frog:set-mode", (e) => {
   const mode = (e as CustomEvent<string>).detail as AppMode;
   if (!APP_MODES.includes(mode) || mode === currentAppMode) return;
   setAppMode(mode);
   navigateTo(mode);
 });
+
+// --- Output quality (app-wide) ---
+// One setting drives both the Compress surface's level and the quality the
+// Converter encodes its output at. The Converter has always compressed - this
+// makes the level visible and adjustable rather than a hard-coded constant.
+
+const qualityToggle = document.getElementById("quality-toggle")!;
+const qualityMenu = document.getElementById("quality-menu")!;
+const qualitySegmented = document.getElementById("quality-segmented");
+
+function syncQualityUI() {
+  const current = qualityPreference.value;
+  const label = QUALITY_CHOICES.find(c => c.value === current)?.label ?? "Recommended";
+  qualityToggle.title = `Output quality: ${label}`;
+  qualityToggle.setAttribute("aria-label", `Output quality: ${label}. Change output quality`);
+  for (const item of qualityMenu.querySelectorAll<HTMLElement>(".quality-item")) {
+    item.setAttribute("aria-current", String(item.dataset.value === current));
+  }
+  for (const pill of qualitySegmented?.querySelectorAll<HTMLElement>(".pill-option") ?? []) {
+    const active = pill.dataset.value === current;
+    pill.classList.toggle("active", active);
+    pill.setAttribute("aria-pressed", String(active));
+  }
+}
+
+function setQualityMenuOpen(open: boolean) {
+  qualityMenu.hidden = !open;
+  qualityToggle.setAttribute("aria-expanded", String(open));
+  if (open) qualityMenu.querySelector<HTMLElement>(".quality-item")?.focus();
+}
+
+function chooseQuality(next: QualityChoice) {
+  setQualityPreference(next);
+  syncQualityUI();
+}
+
+qualityToggle.addEventListener("click", (e) => {
+  e.stopPropagation();
+  setQualityMenuOpen(qualityMenu.hidden);
+});
+
+qualityMenu.addEventListener("click", (e) => {
+  const item = (e.target as HTMLElement).closest(".quality-item") as HTMLElement | null;
+  if (!item) return;
+  setQualityMenuOpen(false);
+  qualityToggle.focus();
+  chooseQuality(item.dataset.value as QualityChoice);
+});
+
+qualityMenu.addEventListener("keydown", (e) => {
+  const items = [...qualityMenu.querySelectorAll<HTMLElement>(".quality-item")];
+  const at = items.indexOf(document.activeElement as HTMLElement);
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+  } else if (e.key === "Escape") {
+    setQualityMenuOpen(false);
+    qualityToggle.focus();
+  }
+});
+
+qualitySegmented?.addEventListener("click", (e) => {
+  const pill = (e.target as HTMLElement).closest(".pill-option") as HTMLElement | null;
+  if (!pill || pill.classList.contains("active")) return;
+  chooseQuality(pill.dataset.value as QualityChoice);
+});
+
+document.addEventListener("click", (e) => {
+  if (qualityMenu.hidden) return;
+  if ((e.target as HTMLElement).closest("#quality-picker")) return;
+  setQualityMenuOpen(false);
+});
+
+syncQualityUI();
 
 // --- Router (URL ↔ state sync) ---
 

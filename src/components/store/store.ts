@@ -249,6 +249,45 @@ export const formatMode: { value: FormatMode } = {
   })()
 };
 
+/**
+ * App-wide output quality. One concept for the whole app: it sets the target
+ * for the Compress surface *and* the quality the Converter encodes its output
+ * at. The Converter has always compressed its output (that's what keeps a 4K
+ * re-encode from landing as a 400 MB file) - this makes that default visible
+ * and adjustable instead of hard-coded.
+ *
+ * Deliberately excludes the engine's `lossless` preset: as a user-facing
+ * choice it only ever means "don't shrink", which the Converter expresses via
+ * the target format and the Compress surface can't use at all.
+ */
+export type QualityChoice = "high" | "medium" | "low";
+
+export const QUALITY_CHOICES: ReadonlyArray<{ value: QualityChoice; label: string; blurb: string }> = [
+  { value: "high", label: "Less", blurb: "Barely touched. Best quality, modest savings." },
+  { value: "medium", label: "Recommended", blurb: "Balanced. Big savings, quality you won't miss." },
+  { value: "low", label: "Extreme", blurb: "Smallest files. Quality loss you can see." },
+];
+
+export const qualityPreference: { value: QualityChoice } = {
+  value: (() => {
+    const saved = safeGetLocalStorage("qualityPreference");
+    return saved === "high" || saved === "low" ? saved : "medium";
+  })(),
+};
+
+export function setQualityPreference(next: QualityChoice) {
+  qualityPreference.value = next;
+  try { localStorage.setItem("qualityPreference", next); } catch { /* private mode */ }
+  for (const cb of qualityListeners) cb(next);
+}
+
+const qualityListeners = new Set<(q: QualityChoice) => void>();
+/** Subscribe to changes so surfaces can re-render their own controls. */
+export function onQualityChange(cb: (q: QualityChoice) => void): () => void {
+  qualityListeners.add(cb);
+  return () => qualityListeners.delete(cb);
+}
+
 // Lightweight reactive state: plain { value: T } wrappers shared across components.
 export const currentFiles: { value: File[] } = { value: [] };
 export const onFilesChanged: { value: ((files: File[]) => void) | null } = { value: null };

@@ -196,7 +196,7 @@ describe("updateConvertButtonState (same-format signpost)", () => {
         (ui as any).convertButton = null;
     });
 
-    it("points at the Compress surface when the same format is picked twice", () => {
+    it("labels the same-format pick as a pass-through, not a conversion", () => {
         const png = makeFormat("image/png", "png", true);
         const handler = stubHandler("ImageMagick", [png]);
         allOptionsRef.value = [{ format: png, handler }];
@@ -204,30 +204,15 @@ describe("updateConvertButtonState (same-format signpost)", () => {
 
         updateConvertButtonState(0, 0);
 
-        // The button no longer lies about what it does.
-        expect(ui.convertButton.textContent).toBe("Convert");
+        // The button says what actually happens: you get your file back.
+        expect(ui.convertButton.textContent).toBe("Download original");
         const hint = document.querySelector(".convert-hint") as HTMLElement;
         expect(hint.hidden).toBe(false);
         expect(hint.textContent).toContain("nothing to convert");
-        expect(hint.querySelector(".convert-hint-action")).not.toBeNull();
         expect(hint.getAttribute("aria-live")).toBe("polite");
     });
 
-    it("asks the shell to switch to Compress when the signpost is clicked", () => {
-        const png = makeFormat("image/png", "png", true);
-        allOptionsRef.value = [{ format: png, handler: stubHandler("ImageMagick", [png]) }];
-        updateConvertButtonState(0, 0);
-
-        const seen: string[] = [];
-        const onMode = (e: Event) => seen.push((e as CustomEvent<string>).detail);
-        window.addEventListener("frog:set-mode", onMode);
-        document.querySelector<HTMLElement>(".convert-hint-action")!.click();
-        window.removeEventListener("frog:set-mode", onMode);
-
-        expect(seen).toEqual(["compress"]);
-    });
-
-    it("signposts regardless of whether that format has a compressor", () => {
+    it("labels the pass-through regardless of whether that format has a compressor", () => {
         // PDF has no in-place compressor yet, but picking pdf->pdf still
         // converts nothing, so the signpost is still the honest answer.
         const pdf = makeFormat("application/pdf", "pdf");
@@ -235,7 +220,7 @@ describe("updateConvertButtonState (same-format signpost)", () => {
 
         updateConvertButtonState(0, 0);
 
-        expect(ui.convertButton.textContent).toBe("Convert");
+        expect(ui.convertButton.textContent).toBe("Download original");
         expect((document.querySelector(".convert-hint") as HTMLElement).hidden).toBe(false);
     });
 

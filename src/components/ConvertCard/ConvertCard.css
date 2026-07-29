@@ -31,16 +31,6 @@
   display: none;
 }
 
-.convert-hint-action {
-  border: none;
-  background: none;
-  padding: 0;
-  font: inherit;
-  color: var(--primary);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
 /* --- Convert Notice (quality warning when a better handler isn't available) --- */
 .convert-notice {
   position: relative;

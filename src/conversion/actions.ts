@@ -2,7 +2,6 @@ import normalizeMimeType from "../core/utils/normalizeMimeType.ts";
 import { downloadFile, downloadAsZip, timestampForFilename } from "./download.ts";
 import { isSafari } from "../tools/pdfThumbnails.ts";
 import type { FileFormat, FormatHandler, FileData, ConvertPathNode, ProgressEvent, QualityPreset, Notice } from "../core/FormatHandler/FormatHandler.ts";
-import { DEFAULT_PRESET } from "../core/FormatHandler/qualityPresets.ts";
 import { triggerConfetti } from "../effects/Confetti/Confetti.ts";
 import {
     ui,
@@ -11,6 +10,7 @@ import {
     selectedToIndex,
     allOptionsRef,
     CATEGORY_LABELS,
+    qualityPreference,
 } from "../components/store/store.ts";
 import { escapeHTML } from "../components/utils/index.ts";
 import {
@@ -214,7 +214,13 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
             let hopArgs: string[] | undefined;
             if (isLastHop) {
                 const target = path[i + 1].format;
-                const quality: QualityPreset = target.lossless ? "lossless" : DEFAULT_PRESET;
+                // A lossless target can't be shrunk by quality, so it opts out.
+                // Everything else follows the app-wide quality preference - the
+                // Converter has always compressed its output, this just makes
+                // the level the user's choice rather than a constant.
+                const quality: QualityPreset = target.lossless
+                    ? "lossless"
+                    : qualityPreference.value;
                 hopArgs = ["--quality", quality];
             }
 

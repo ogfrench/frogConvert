@@ -175,10 +175,10 @@ export function clearFormatSelection(activeCategory: string = "") {
 }
 
 /**
- * Signpost shown under the Convert button when the user picks the same format
- * for input and output. Compressing in place used to be an easter egg hidden
- * behind exactly this pick; it now lives on the Compress surface, so rather
- * than quietly doing something other than what the button says, point there.
+ * Same-format notice under the Convert button. Picking one format for both
+ * sides converts nothing, so say that plainly up front and label the action
+ * for what it actually does - hand the file back untouched - rather than
+ * letting the user press "Convert" and discover it afterwards.
  * Lazy-created so it only enters the DOM for users who hit the case.
  */
 let _convertHintEl: HTMLSpanElement | null = null;
@@ -190,11 +190,6 @@ function ensureConvertHint(): HTMLSpanElement {
   el.setAttribute("aria-live", "polite");
   el.hidden = true;
   ui.convertButton.insertAdjacentElement("afterend", el);
-  el.addEventListener("click", (e) => {
-    if (!(e.target as HTMLElement).closest(".convert-hint-action")) return;
-    // Decoupled from the shell: main.ts owns mode switching and listens here.
-    window.dispatchEvent(new CustomEvent("frog:set-mode", { detail: "compress" }));
-  });
   _convertHintEl = el;
   return el;
 }
@@ -211,15 +206,15 @@ export function updateConvertButtonState(selectedFromIndex: number | null, selec
     samePick = !!(fromOpt && toOpt
       && fromOpt.format.mime === toOpt.format.mime
       && fromOpt.format.format === toOpt.format.format);
-    ui.convertButton.textContent = "Convert";
+    // Honest label: this path returns the input unchanged.
+    ui.convertButton.textContent = samePick ? "Download original" : "Convert";
   } else {
     ui.convertButton.classList.add("disabled");
     ui.convertButton.textContent = isLoadingHandlers.value ? "Loading formats\u2026" : "Convert";
   }
 
   if (samePick) {
-    hint.innerHTML = "Same format in and out \u2014 nothing to convert. "
-      + "<button type=\"button\" class=\"convert-hint-action\">Compress it instead</button>";
+    hint.textContent = "Same format in and out, so there's nothing to convert \u2014 you'll get your file back unchanged.";
     hint.hidden = false;
   } else {
     hint.hidden = true;

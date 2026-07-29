@@ -3,6 +3,7 @@ import {
     isCategoryVisible, isFormatVisible, type FormatMode,
     checkFileSizeLimits, sortFilesByName, formatDisplayName, getFormatCategory,
     isLoadingHandlers, getMaxFiles,
+    qualityPreference, setQualityPreference, onQualityChange, QUALITY_CHOICES,
 } from "./store.ts";
 import { ABSOLUTE_MAX_FILES } from "../../constants/ui.ts";
 import type { FileFormat } from "../../core/FormatHandler/FormatHandler.ts";
@@ -306,5 +307,45 @@ describe("getMaxFiles", () => {
         const max = getMaxFiles(files);
         // budget 2GB / (100MB * 1.5) = ~13
         expect(max).toBe(13);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Global output quality
+// ---------------------------------------------------------------------------
+
+describe("qualityPreference", () => {
+    beforeEach(() => setQualityPreference("medium"));
+
+    it("defaults to Recommended", () => {
+        expect(qualityPreference.value).toBe("medium");
+    });
+
+    it("offers exactly three choices and no lossless", () => {
+        expect(QUALITY_CHOICES.map(c => c.value)).toEqual(["high", "medium", "low"]);
+    });
+
+    it("maps labels to the inverted engine presets", () => {
+        // The engine's `low` is the lowest quality target, i.e. MOST compression.
+        const byLabel = Object.fromEntries(QUALITY_CHOICES.map(c => [c.label, c.value]));
+        expect(byLabel.Less).toBe("high");
+        expect(byLabel.Recommended).toBe("medium");
+        expect(byLabel.Extreme).toBe("low");
+    });
+
+    it("persists the choice so it survives a reload", () => {
+        setQualityPreference("low");
+        expect(qualityPreference.value).toBe("low");
+        expect(localStorage.getItem("qualityPreference")).toBe("low");
+    });
+
+    it("notifies subscribers, and stops after unsubscribe", () => {
+        const seen: string[] = [];
+        const off = onQualityChange(q => seen.push(q));
+        setQualityPreference("high");
+        setQualityPreference("low");
+        off();
+        setQualityPreference("medium");
+        expect(seen).toEqual(["high", "low"]);
     });
 });
