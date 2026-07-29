@@ -211,18 +211,22 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
             const isLastHop = i === path.length - 2;
             const hopProgress = isLastHop ? onProgress : undefined;
 
-            let hopArgs: string[] | undefined;
-            if (isLastHop) {
-                const target = path[i + 1].format;
-                // A lossless target can't be shrunk by quality, so it opts out
-                // regardless. Otherwise follow the user's conversion setting -
-                // the Converter has always compressed its output, this makes
-                // the level their choice rather than a constant.
-                const quality: QualityPreset = target.lossless
-                    ? "lossless"
-                    : convertQuality.value;
-                hopArgs = ["--quality", quality];
-            }
+            // Every hop carries a quality, not just the last. Intermediate
+            // hops used to pass no args at all, so handlers fell back to their
+            // own hard-coded "medium" - a HEIC->PNG->WebP route asked to keep
+            // quality was already degraded halfway before the final hop tried
+            // to preserve it, and generation loss compounds. Intermediates now
+            // take the gentlest setting so the only deliberate quality
+            // reduction happens once, on the output the user actually keeps.
+            const target = path[i + 1].format;
+            const quality: QualityPreset = target.lossless
+                ? "lossless"                              // can't be shrunk by quality anyway
+                : isLastHop
+                    ? convertQuality.value                // the user's choice, applied once
+                    : convertQuality.value === "lossless"
+                        ? "lossless"                      // honour "No compression" end to end
+                        : "high";                         // gentlest bounded intermediate
+            const hopArgs: string[] = ["--quality", quality];
 
             let outputFiles: FileData[];
             if (handler.requiresMainThread) {
