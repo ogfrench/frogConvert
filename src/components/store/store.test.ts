@@ -316,10 +316,11 @@ describe("getMaxFiles", () => {
 // ---------------------------------------------------------------------------
 
 describe("convertQuality (Converter)", () => {
-    beforeEach(() => setConvertQuality("medium"));
+    beforeEach(() => setConvertQuality("auto"));
 
-    it("defaults to Recommended", () => {
-        expect(convertQuality.value).toBe("medium");
+    it("defaults to Automatic, matching the Compress surface", () => {
+        expect(convertQuality.value).toBe("auto");
+        expect(CONVERT_QUALITY_CHOICES[0].value).toBe("auto");
     });
 
     it("offers a no-compression option, since converting without shrinking is a real request", () => {

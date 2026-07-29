@@ -275,8 +275,11 @@ export const CONVERT_QUALITY_CHOICES: ReadonlyArray<{ value: ConvertQuality; lab
 
 export const convertQuality: { value: ConvertQuality } = {
   value: (() => {
+    // Automatic is the default here too: it reads the source rather than
+    // applying a fixed tier, which is the right answer when the user hasn't
+    // expressed a preference.
     const saved = safeGetLocalStorage("convertQuality");
-    return saved === "auto" || saved === "lossless" || saved === "high" || saved === "low" ? saved : "medium";
+    return saved === "lossless" || saved === "high" || saved === "medium" || saved === "low" ? saved : "auto";
   })(),
 };
 
