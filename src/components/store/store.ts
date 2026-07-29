@@ -263,9 +263,10 @@ export const formatMode: { value: FormatMode } = {
 
 /** Conversion output. Includes lossless - "convert but don't compress" is a
  *  meaningful request when you're changing format. */
-export type ConvertQuality = "lossless" | "high" | "medium" | "low";
+export type ConvertQuality = "auto" | "lossless" | "high" | "medium" | "low";
 
 export const CONVERT_QUALITY_CHOICES: ReadonlyArray<{ value: ConvertQuality; label: string; blurb: string }> = [
+  { value: "auto", label: "Automatic", blurb: "Match the source" },
   { value: "lossless", label: "No compression", blurb: "Largest files" },
   { value: "high", label: "Less compression", blurb: "Best quality" },
   { value: "medium", label: "Recommended", blurb: "Balanced" },
@@ -275,7 +276,7 @@ export const CONVERT_QUALITY_CHOICES: ReadonlyArray<{ value: ConvertQuality; lab
 export const convertQuality: { value: ConvertQuality } = {
   value: (() => {
     const saved = safeGetLocalStorage("convertQuality");
-    return saved === "lossless" || saved === "high" || saved === "low" ? saved : "medium";
+    return saved === "auto" || saved === "lossless" || saved === "high" || saved === "low" ? saved : "medium";
   })(),
 };
 
@@ -286,9 +287,10 @@ export function setConvertQuality(next: ConvertQuality) {
 
 /** Compress surface. No lossless: as a compression level it can only ever
  *  mean "do nothing", and the keep-threshold would discard every result. */
-export type CompressLevel = "high" | "medium" | "low";
+export type CompressLevel = "auto" | "high" | "medium" | "low";
 
 export const COMPRESS_LEVEL_CHOICES: ReadonlyArray<{ value: CompressLevel; label: string; blurb: string }> = [
+  { value: "auto", label: "Automatic", blurb: "Reads each file and picks its own level. Won't re-crush what's already small." },
   { value: "high", label: "Less compression", blurb: "Best quality, modest savings." },
   { value: "medium", label: "Recommended", blurb: "Balanced. Big savings, quality you won't miss." },
   { value: "low", label: "Extreme compression", blurb: "Smallest files. Quality loss you can see." },
@@ -296,8 +298,10 @@ export const COMPRESS_LEVEL_CHOICES: ReadonlyArray<{ value: CompressLevel; label
 
 export const compressLevel: { value: CompressLevel } = {
   value: (() => {
+    // Automatic is the default: it's what the app did before compression had a
+    // visible control, and it's the right answer when the user has no opinion.
     const saved = safeGetLocalStorage("compressLevel");
-    return saved === "high" || saved === "low" ? saved : "medium";
+    return saved === "high" || saved === "low" || saved === "medium" ? saved : "auto";
   })(),
 };
 

@@ -270,7 +270,11 @@ function fileListMarkup(): string {
     <div class="card-base cw-list-card">
       <div class="cw-list-head">
         <span>${files.length} file${files.length === 1 ? "" : "s"}</span>
-        <span class="cw-list-total">${formatBytes(total)}</span>
+        <span class="cw-list-actions">
+          <span class="cw-list-total">${formatBytes(total)}</span>
+          <button class="cw-clear icon-btn" type="button" title="Remove all files"
+            aria-label="Remove all files">&times;</button>
+        </span>
       </div>
       <ul class="cw-list">${rows}</ul>
       <button class="cw-add-more" type="button">Add more files</button>
@@ -386,6 +390,11 @@ function wireRendered() {
   }
 
   rootEl.querySelector<HTMLElement>(".cw-add-more")?.addEventListener("click", openPicker);
+  rootEl.querySelector<HTMLElement>(".cw-clear")?.addEventListener("click", () => {
+    files = [];
+    markCompressDirty("files");
+    render();
+  });
 
   for (const btn of rootEl.querySelectorAll<HTMLElement>("[data-remove]")) {
     btn.addEventListener("click", () => removeFile(Number(btn.dataset.remove)));

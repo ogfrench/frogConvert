@@ -19,7 +19,7 @@ export function qualityForHop(opts: {
     target: FileFormat;
     /** True for the hop that produces the file the caller receives. */
     isLastHop: boolean;
-    /** The quality the caller asked for. */
+    /** The quality the caller asked for, already resolved (never "auto"). */
     requested: QualityPreset;
 }): QualityPreset {
     const { target, isLastHop, requested } = opts;
@@ -38,4 +38,30 @@ export function qualityForHop(opts: {
     // lossless intermediate for video would be enormous in a browser tab, and
     // "high" captures nearly all of the benefit.
     return "high";
+}
+
+/**
+ * Resolve an "automatic" request into a concrete preset for a conversion.
+ *
+ * The Compress surface can probe per file, but a conversion runs a whole batch
+ * down one route, so the choice is made once from the inputs. Takes the
+ * gentlest tier any file warrants, so a mixed batch never over-compresses its
+ * best input.
+ *
+ * A source already at minimum useful quality resolves to "high": it has
+ * nothing left to give, so the right move is to stop taking.
+ */
+export async function resolveAutoQuality<T extends string>(
+    inputs: readonly { bytes: Uint8Array; mime: string }[],
+    probe: (bytes: Uint8Array, mime: string) => Promise<{ inputTier: T }>,
+    tierDown: (tier: T) => { kind: string; tier?: QualityPreset },
+): Promise<QualityPreset> {
+    const rank: Record<string, number> = { lossless: 0, high: 1, medium: 2, low: 3 };
+    let gentlest: QualityPreset = "low";
+    for (const input of inputs) {
+        const next = tierDown((await probe(input.bytes, input.mime)).inputTier);
+        const tier: QualityPreset = next.kind === "skip" ? "high" : (next.tier ?? "medium");
+        if (rank[tier] < rank[gentlest]) gentlest = tier;
+    }
+    return inputs.length ? gentlest : "medium";
 }

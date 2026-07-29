@@ -53,8 +53,12 @@ export type RunHandler = (
 export type CompressBatchOptions = {
     /** The app's loaded handler/format list (`allOptionsRef.value`). */
     options: readonly HandlerOption[];
-    /** User-chosen target. Overrides the auto tier-down the convert flow uses. */
-    level: QualityPreset;
+    /**
+     * User-chosen target, or "auto" to let each file pick its own: the input
+     * is probed and its detected quality decides the output tier, so a file
+     * that's already small isn't crushed again.
+     */
+    level: QualityPreset | "auto";
     /** Off-main-thread runner. Main-thread-only handlers bypass it. */
     run: RunHandler;
     onProgress?: (done: number, total: number, current: string) => void;
@@ -143,19 +147,24 @@ export async function compressBatch(
             if (isCancelled?.()) break;
             onProgress?.(done, total, input.name);
 
-            // The probe only tells us whether the input is *already* at minimum
-            // useful quality; the target itself comes from the user's level.
-            // Re-encoding a minimal file trades visible quality for ~no bytes.
+            // Probe unless the caller asked for something the probe can't
+            // improve on. Two things come out of it: whether the input is
+            // already at minimum useful quality (re-encoding it would trade
+            // visible quality for ~no bytes), and - under "auto" - which tier
+            // this particular file deserves.
+            let effective: QualityPreset = level === "auto" ? "medium" : level;
             if (level !== "lossless") {
                 const probe = await probeInputQuality(input.bytes, input.format.mime ?? "");
-                if (tierDown(probe.inputTier).kind === "skip") {
+                const next = tierDown(probe.inputTier);
+                if (next.kind === "skip") {
                     passthrough(index, input, "already-minimal");
                     done++;
                     continue;
                 }
+                if (level === "auto") effective = next.tier;
             }
 
-            const perFileArgs = withQualityArg(args, level);
+            const perFileArgs = withQualityArg(args, effective);
             const originalSize = input.bytes.byteLength;
             let output: FileData | null = null;
             try {

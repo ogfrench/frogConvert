@@ -323,7 +323,7 @@ describe("convertQuality (Converter)", () => {
     });
 
     it("offers a no-compression option, since converting without shrinking is a real request", () => {
-        expect(CONVERT_QUALITY_CHOICES.map(c => c.value)).toEqual(["lossless", "high", "medium", "low"]);
+        expect(CONVERT_QUALITY_CHOICES.map(c => c.value)).toEqual(["auto", "lossless", "high", "medium", "low"]);
     });
 
     it("maps labels to the inverted engine presets", () => {
@@ -342,8 +342,13 @@ describe("convertQuality (Converter)", () => {
 describe("compressLevel (Compress surface)", () => {
     beforeEach(() => setCompressLevel("medium"));
 
+    it("offers Automatic, which reads each file instead of applying a fixed tier", () => {
+        expect(COMPRESS_LEVEL_CHOICES[0].value).toBe("auto");
+        expect(COMPRESS_LEVEL_CHOICES[0].label).toBe("Automatic");
+    });
+
     it("offers three levels and no lossless", () => {
-        expect(COMPRESS_LEVEL_CHOICES.map(c => c.value)).toEqual(["high", "medium", "low"]);
+        expect(COMPRESS_LEVEL_CHOICES.map(c => c.value)).toEqual(["auto", "high", "medium", "low"]);
         expect(COMPRESS_LEVEL_CHOICES.map(c => c.value)).not.toContain("lossless");
     });
 

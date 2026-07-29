@@ -4,17 +4,32 @@
    so the third mode doesn't read as a bolted-on tool.
    =================================================================== */
 
+/* Matches #convert-card's footprint so the two surfaces read as siblings
+   rather than two unrelated tools that happen to live in one app. */
 #compress-content {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   width: 100%;
+  max-width: var(--card-max-width);
+  margin: var(--space-8) auto 0;
+}
+
+@media only screen and (max-width: 800px) {
+  #compress-content {
+    margin: var(--space-6) auto 0;
+    width: var(--modal-width);
+    max-width: var(--mobile-content-width);
+  }
 }
 
 /* --- Dropzone (empty state) --- */
 
-.cw-dropzone-card {
-  padding: var(--space-2);
+.cw-dropzone-card,
+.cw-list-card,
+.cw-results-card,
+.cw-progress-card {
+  padding: var(--space-6);
 }
 
 .cw-dropzone {
@@ -125,10 +140,6 @@
 }
 
 /* --- File list --- */
-
-.cw-list-card {
-  padding: var(--space-4);
-}
 
 .cw-list-head {
   display: flex;
@@ -248,7 +259,6 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-6) var(--space-4);
 }
 
 .cw-progress-label {
@@ -287,8 +297,6 @@
 .cw-cancel:hover { color: var(--foreground); border-color: var(--muted-foreground); }
 
 /* --- Results --- */
-
-.cw-results-card { padding: var(--space-4); }
 
 .cw-results-head {
   text-align: center;
@@ -435,4 +443,37 @@
   .cw-res-row .cw-row-name { white-space: normal; overflow-wrap: anywhere; }
 
   .cw-results-actions { flex-direction: column; }
+}
+
+/* File-management affordances, mirroring the convert card's upload-zone
+   actions (manage / replace / remove) in the shape this surface needs. */
+.cw-list-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cw-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--radius-full, 999px);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--text-base);
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.cw-clear:hover {
+  background-color: var(--accent);
+  color: var(--destructive);
+}
+
+@media (pointer: coarse) {
+  .cw-clear { width: 44px; height: 44px; }
 }

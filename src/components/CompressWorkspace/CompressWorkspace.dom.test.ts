@@ -21,6 +21,7 @@ vi.mock('../store/store.ts', () => {
     compressLevel,
     setCompressLevel: (q: 'high' | 'medium' | 'low') => { compressLevel.value = q; },
     COMPRESS_LEVEL_CHOICES: [
+      { value: 'auto', label: 'Automatic', blurb: 'Reads each file.' },
       { value: 'high', label: 'Less compression', blurb: 'Best quality, modest savings.' },
       { value: 'medium', label: 'Recommended', blurb: 'Balanced.' },
       { value: 'low', label: 'Extreme compression', blurb: 'Smallest files.' },

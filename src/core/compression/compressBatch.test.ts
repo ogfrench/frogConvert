@@ -214,3 +214,53 @@ describe("totalSaved", () => {
         ])).toBe(600);
     });
 });
+
+describe("compressBatch — automatic level", () => {
+    it("lets each file's own detected quality pick its tier", async () => {
+        resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: ["--quality", "medium"] });
+        // The probe says this input warrants "low"; auto should honour that
+        // rather than falling back to a fixed tier.
+        tierDownMock.mockReturnValue({ kind: "tier", tier: "low" } as any);
+        const run = shrinkingRun(0.5);
+
+        await compressBatch(
+            [input("a.png", 1000, fmt("image/png", "png"))],
+            { options: [], level: "auto", run },
+        );
+
+        expect(run.mock.calls[0][4]).toEqual(["--quality", "low"]);
+    });
+
+    it("still refuses to re-crush a file that is already minimal", async () => {
+        resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
+        tierDownMock.mockReturnValue({ kind: "skip" } as any);
+        const run = shrinkingRun(0.5);
+
+        const out = await compressBatch(
+            [input("tiny.jpg", 900, fmt("image/jpeg", "jpeg"))],
+            { options: [], level: "auto", run },
+        );
+
+        expect(out[0].reason).toBe("already-minimal");
+        expect(run).not.toHaveBeenCalled();
+    });
+
+    it("differs from a fixed level: two files can get different tiers", async () => {
+        resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
+        tierDownMock
+            .mockReturnValueOnce({ kind: "tier", tier: "low" } as any)
+            .mockReturnValueOnce({ kind: "tier", tier: "high" } as any);
+        const run = shrinkingRun(0.5);
+
+        await compressBatch(
+            [
+                input("a.png", 1000, fmt("image/png", "png")),
+                input("b.png", 1000, fmt("image/png", "png")),
+            ],
+            { options: [], level: "auto", run },
+        );
+
+        expect(run.mock.calls[0][4]).toEqual(["--quality", "low"]);
+        expect(run.mock.calls[1][4]).toEqual(["--quality", "high"]);
+    });
+});

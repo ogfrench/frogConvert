@@ -50,7 +50,9 @@ import {
     type UserErrorInfo,
 } from "../components/utils/index.ts";
 import { runInWorker, WORKER_TIMEOUT_MS } from "./workerClient.ts";
-import { qualityForHop } from "../core/compression/hopQuality.ts";
+import { qualityForHop, resolveAutoQuality } from "../core/compression/hopQuality.ts";
+import { probeInputQuality } from "../core/compression/inputQuality.ts";
+import { tierDown } from "../core/compression/tierDown.ts";
 
 // --- Helpers ---
 
@@ -186,6 +188,16 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
     _lastConversionError = null;
     ensureCancelButton();
 
+    // "Automatic" reads the sources and picks a tier once for the whole route,
+    // so an already-low-quality input isn't squeezed a second time.
+    const requestedQuality: QualityPreset = convertQuality.value === "auto"
+        ? await resolveAutoQuality(
+            files.map(f => ({ bytes: f.bytes, mime: path[0]?.format.mime ?? "" })),
+            probeInputQuality,
+            tierDown,
+        )
+        : convertQuality.value;
+
     for (let i = 0; i < path.length - 1; i++) {
         if (isCancelled) return null;
         const handler = path[i + 1].handler;
@@ -217,7 +229,7 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
             const hopArgs: string[] = ["--quality", qualityForHop({
                 target: path[i + 1].format,
                 isLastHop,
-                requested: convertQuality.value,
+                requested: requestedQuality,
             })];
 
             let outputFiles: FileData[];
