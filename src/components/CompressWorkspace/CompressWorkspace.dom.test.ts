@@ -846,3 +846,46 @@ describe('CompressWorkspace — singular and plural', () => {
     expect(head).toMatch(/That format isn't one i can compress/);
   });
 });
+
+describe('CompressWorkspace — the download control', () => {
+  it('names the number of files it will actually produce', async () => {
+    // Not the number of rows: a file that was never opened is listed with its
+    // reason but is not in the archive.
+    compressBatchMock.mockResolvedValue([
+      { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+      { name: 'b.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+      { name: 'c.heic', bytes: new Uint8Array(0), originalSize: 1000, shrunk: false, reason: 'unsupported' },
+    ] as any);
+    ws.handleFiles([
+      fakeFile('a.png', 'image/png'), fakeFile('b.png', 'image/png'), fakeFile('c.heic', 'image/heic'),
+    ]);
+    await ws.runCompression();
+    expect(document.querySelectorAll('.cw-res-row')).toHaveLength(3);
+    expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download 2 files (.zip)');
+  });
+
+  it('says just "Download" for a single file', async () => {
+    compressBatchMock.mockResolvedValue([
+      { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+    ] as any);
+    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    await ws.runCompression();
+    expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download');
+  });
+
+  it('offers no download at all when nothing is downloadable', async () => {
+    // Reached by stopping a batch before the first file finishes — ordinary,
+    // not rare. "Download 0 files (.zip)" is a button whose only outcome is a
+    // toast explaining why it did nothing.
+    compressBatchMock.mockResolvedValue([
+      { name: 'big.mp4', bytes: new Uint8Array(0), originalSize: 17_000_000, shrunk: false, reason: 'cancelled' },
+    ] as any);
+    ws.handleFiles([fakeFile('big.mp4', 'video/mp4')]);
+    await ws.runCompression();
+
+    expect(document.querySelector('.cw-download')).toBeNull();
+    // The way back is still there.
+    expect(document.querySelector('.cw-back')).not.toBeNull();
+    expect(document.querySelector('.cw-results-headline')!.textContent).toMatch(/Stopped/);
+  });
+});

@@ -504,6 +504,24 @@ function fileListMarkup(): string {
   return `<ul class="cw-list" ${listOpen ? "" : "hidden"}>${rows}</ul>`;
 }
 
+/**
+ * The download control, or nothing at all.
+ *
+ * With no downloadable results there is nothing to offer: every file either
+ * came back unchanged or was never opened, and both are already on disk exactly
+ * as they are here. Offering "Download 0 files" is worse than offering nothing —
+ * it is a button whose only outcome is a toast explaining why it did nothing.
+ * Stopping a batch before the first file finishes is the ordinary way to reach
+ * this, so it is not a rare state.
+ */
+function downloadButtonMarkup(): string {
+  const n = downloadableCount();
+  if (n === 0) return "";
+  return `<button class="cw-download" type="button">${
+    n === 1 ? "Download" : `Download ${n} files (.zip)`
+  }</button>`;
+}
+
 function resultsMarkup(): string {
   const saved = totalSaved(results);
   const originalTotal = results.reduce((sum, r) => sum + r.originalSize, 0);
@@ -601,9 +619,7 @@ function resultsMarkup(): string {
       </div>
       <ul class="cw-results-list">${rows}</ul>
       <div class="cw-results-actions">
-        <button class="cw-download" type="button">
-          ${downloadableCount() === 1 ? "Download" : `Download ${downloadableCount()} files (.zip)`}
-        </button>
+        ${downloadButtonMarkup()}
         <button class="cw-back" type="button">Try another level</button>
       </div>
     </div>
