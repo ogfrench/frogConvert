@@ -49,7 +49,13 @@ describe("the whole pipeline, real Ghostscript, real bytes", () => {
         (globalThis as unknown as { window: Record<string, unknown> }).window ??= {};
 
         return compressBatch(
-            [{ name: "report.pdf", bytes: pdf.slice(), format }],
+            [{
+                name: "report.pdf",
+                format,
+                size: pdf.byteLength,
+                // Lazy, exactly as the surface supplies it: read at compress time.
+                read: async () => pdf.slice(),
+            }],
             {
                 options: [{ format, handler }],
                 level,

@@ -179,10 +179,36 @@ describe('CompressWorkspace — intake', () => {
     expect(document.querySelectorAll('.cw-row')).toHaveLength(1);
   });
 
-  it('refuses a batch over the total size budget', () => {
-    ws.handleFiles([fakeFile('huge.mp4', 'video/mp4', 600 * 1024 * 1024)]);
+  it('accepts a single large video, which is the case people actually arrive with', () => {
+    // The old flat 500 MB batch cap refused this to guard against a batch of
+    // them. Inputs are read one at a time now, so one big file is fine.
+    ws.handleFiles([fakeFile('holiday.mp4', 'video/mp4', 900 * 1024 * 1024)]);
+    expect(ws.getFiles()).toHaveLength(1);
+  });
+
+  it('warns about a big file rather than silently starting a long job', () => {
+    ws.handleFiles([fakeFile('holiday.mp4', 'video/mp4', 900 * 1024 * 1024)]);
+    const said = showToastMock.mock.calls.map(c => String(c[0])).join(' ');
+    expect(said).toMatch(/big one|stop any time/i);
+  });
+
+  it('refuses a file larger than an engine can hold at once', () => {
+    // A real limit, not a policy one: the engines are 32-bit WASM builds.
+    ws.handleFiles([fakeFile('raw.mov', 'video/mp4', 3 * 1024 * 1024 * 1024)]);
     expect(ws.getFiles()).toHaveLength(0);
-    expect(showToastMock).toHaveBeenCalled();
+    const said = showToastMock.mock.calls.map(c => String(c[0])).join(' ');
+    expect(said).toMatch(/engines can hold/i);
+  });
+
+  it('takes the files that fit and says the batch is full, rather than dropping the lot', () => {
+    // 5 GB of 800 MB files exceeds any device budget; partial intake beats
+    // refusing everything.
+    ws.handleFiles(Array.from({ length: 7 },
+      (_, i) => fakeFile(`v${i}.mp4`, 'video/mp4', 800 * 1024 * 1024)));
+    expect(ws.getFiles().length).toBeGreaterThan(0);
+    expect(ws.getFiles().length).toBeLessThan(7);
+    const said = showToastMock.mock.calls.map(c => String(c[0])).join(' ');
+    expect(said).toMatch(/as big as this device can take/i);
   });
 });
 
@@ -586,25 +612,25 @@ describe('CompressWorkspace — nothing strands the surface', () => {
       expect.stringMatching(/went wrong/i), 'error', expect.any(Number));
   });
 
-  it('keeps going when one file cannot be read off disk', async () => {
-    // Picking a file and then moving or deleting it is ordinary user
-    // behaviour, and arrayBuffer() rejects for it.
-    const gone = fakeFile('gone.png', 'image/png');
-    Object.defineProperty(gone, 'arrayBuffer', {
-      value: () => Promise.reject(new DOMException('NotFoundError')),
-    });
+  it('hands unreadable files to the engine layer rather than pre-reading them', async () => {
+    // Reading a picked file that has since been moved or deleted is ordinary
+    // behaviour, and it is now handled inside `compressBatch` — which is where
+    // the read happens, one file at a time. The workspace no longer loads the
+    // batch up front, so it has nothing to catch here. Covered by
+    // "reports a file that vanished between picking and compressing as failed"
+    // in compressBatch.test.ts.
     compressBatchMock.mockResolvedValue([
+      { name: 'gone.png', bytes: new Uint8Array(0), originalSize: 1000, shrunk: false, reason: 'failed' },
       { name: 'ok.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
     ] as any);
 
-    ws.handleFiles([gone, fakeFile('ok.png', 'image/png')]);
+    ws.handleFiles([fakeFile('gone.png', 'image/png'), fakeFile('ok.png', 'image/png')]);
     await ws.runCompression();
 
     expect(ws.getPhase()).toBe('done');
-    const names = ws.getResults().map(r => r.name);
-    expect(names).toContain('gone.png');
-    expect(names).toContain('ok.png');
-    expect(ws.getResults().find(r => r.name === 'gone.png')?.reason).toBe('failed');
+    // Both files are still reported; only one is downloadable.
+    expect(ws.getResults().map(r => r.name)).toEqual(['gone.png', 'ok.png']);
+    expect(ws.getResults()[0].reason).toBe('failed');
   });
 });
 
@@ -656,15 +682,14 @@ describe('CompressWorkspace — savings copy', () => {
 describe('CompressWorkspace — download', () => {
   it('leaves an unreadable file out of the archive instead of shipping 0 bytes', async () => {
     // A 0-byte file under the original name reads as "the compressor ate it".
+    // The engine layer reports a file it could not read with no bytes; the
+    // surface must still list it, and must still leave it out of the archive.
     compressBatchMock.mockResolvedValue([
+      { name: 'gone.png', bytes: new Uint8Array(0), originalSize: 1000, shrunk: false, reason: 'failed' },
       { name: 'ok.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
     ] as any);
-    const gone = fakeFile('gone.png', 'image/png');
-    Object.defineProperty(gone, 'arrayBuffer', {
-      value: () => Promise.reject(new DOMException('NotFoundError')),
-    });
 
-    ws.handleFiles([gone, fakeFile('ok.png', 'image/png')]);
+    ws.handleFiles([fakeFile('gone.png', 'image/png'), fakeFile('ok.png', 'image/png')]);
     await ws.runCompression();
     await ws.downloadResults();
 

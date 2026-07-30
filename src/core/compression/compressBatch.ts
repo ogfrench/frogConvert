@@ -21,10 +21,26 @@ import { decideAutoQuality } from "./automatic.ts";
  * worker client, so `src/core/` keeps no dependency on a surface.
  */
 
+/**
+ * One file to compress, with its bytes still on disk.
+ *
+ * `read()` rather than a `bytes` field because the caller used to load the
+ * whole batch into memory before the first engine ran: peak usage was every
+ * input at once, plus every output, plus the copy `runInWorker` transfers. That
+ * is the real reason the surface capped batches at 500 MB, and it capped the
+ * wrong thing - someone compressing one 800 MB video was refused to protect
+ * against three of them.
+ *
+ * Read per file, inside the loop, the resident set is one input at a time.
+ * Format detection never needed the bytes anyway; it reads name and MIME.
+ */
 export type CompressInput = {
     name: string;
-    bytes: Uint8Array;
     format: FileFormat;
+    /** Known from the File handle, without reading it. */
+    size: number;
+    /** Called at most once, immediately before this file is compressed. */
+    read: () => Promise<Uint8Array>;
 };
 
 /**
@@ -91,6 +107,9 @@ export const KEEP_THRESHOLD = 0.98;
  */
 const MIN_COMPRESSIBLE_BYTES = 512;
 
+/** Shared zero-length view for outcomes whose file was never read. */
+const EMPTY = new Uint8Array(0);
+
 function groupKey(format: FileFormat): string {
     return `${(format.mime || "").toLowerCase()}|${(format.format || "").toLowerCase()}`;
 }
@@ -103,11 +122,24 @@ export async function compressBatch(
 
     // Preserve input order in the results regardless of grouping.
     const results = new Map<number, CompressOutcome>();
-    const passthrough = (i: number, input: CompressInput, reason: SkipReason) => {
+    /**
+     * Hand a file back unchanged.
+     *
+     * `bytes` is whatever we happen to already hold. For a file we never
+     * compressed - one we cannot handle, or one the user stopped us before
+     * reaching - that is nothing, and it stays nothing: reading a file off disk
+     * purely to hand back bytes identical to the ones already on disk is work
+     * nobody asked for, and in the cancelled case it is work they explicitly
+     * asked us to stop doing. The surface reports the file and its reason
+     * either way; it just does not put an untouched copy in the download.
+     */
+    const passthrough = (
+        i: number, input: CompressInput, reason: SkipReason, bytes: Uint8Array = EMPTY,
+    ) => {
         results.set(i, {
             name: input.name,
-            bytes: input.bytes,
-            originalSize: input.bytes.byteLength,
+            bytes,
+            originalSize: input.size,
             shrunk: false,
             reason,
         });
@@ -124,6 +156,7 @@ export async function compressBatch(
     inputs.forEach((input, index) => {
         const dispatch = resolveSameFormatHandler(input.format, options);
         if (!dispatch) {
+            // Decided from the format alone, so this costs no disk read at all.
             passthrough(index, input, "unsupported");
             return;
         }
@@ -168,13 +201,24 @@ export async function compressBatch(
             if (isCancelled?.()) break;
             onProgress?.(done, total, input.name);
 
-            // Probe unless the caller asked for something the probe can't
-            // improve on. Two things come out of it: whether the input is
-            // already at minimum useful quality (re-encoding it would trade
-            // visible quality for ~no bytes), and - under "auto" - which tier
-            // this particular file deserves.
-            if (input.bytes.byteLength < MIN_COMPRESSIBLE_BYTES) {
+            // Decided from the declared size, before any read: a file this
+            // small cannot claw back the 2% the keep-threshold wants.
+            if (input.size < MIN_COMPRESSIBLE_BYTES) {
                 passthrough(index, input, "already-minimal");
+                done++;
+                continue;
+            }
+
+            // The one read. Everything above this line is decided from metadata,
+            // so the resident set is a single file at a time however large the
+            // batch is. A file moved or deleted between picking and compressing
+            // rejects here — ordinary behaviour, not an edge case.
+            let bytes: Uint8Array;
+            try {
+                bytes = await input.read();
+            } catch (e) {
+                console.error("[compress] couldn't read", input.name, e);
+                passthrough(index, input, "failed");
                 done++;
                 continue;
             }
@@ -196,9 +240,9 @@ export async function compressBatch(
                 // one surface that can honour "already minimal" literally: it
                 // hands the file back untouched, because the user asked for a
                 // smaller file and there isn't one to give.
-                const decision = await decideAutoQuality(input.bytes, input.format.mime ?? "");
+                const decision = await decideAutoQuality(bytes, input.format.mime ?? "");
                 if (decision.kind === "already-minimal") {
-                    passthrough(index, input, "already-minimal");
+                    passthrough(index, input, "already-minimal", bytes);
                     done++;
                     continue;
                 }
@@ -206,8 +250,8 @@ export async function compressBatch(
             }
 
             const perFileArgs = withQualityArg(args, effective);
-            const originalSize = input.bytes.byteLength;
-            const fileData: FileData = { name: input.name, bytes: input.bytes };
+            const originalSize = bytes.byteLength;
+            const fileData: FileData = { name: input.name, bytes };
 
             const attempt = async (h: typeof handler, a: string[]) => {
                 // Resolve the format against the handler that will actually run
@@ -256,12 +300,12 @@ export async function compressBatch(
                 // because the user asked it to. Reporting it "failed" would
                 // blame us for their decision, and it is the *likeliest* file
                 // to be interrupted - the big one they pressed Stop over.
-                passthrough(index, input, "cancelled");
+                passthrough(index, input, "cancelled", bytes);
                 break;
             } else {
                 // A fallback that produced nothing useful is not worth
                 // explaining — the file is unchanged either way.
-                passthrough(index, input, output ? "no-gain" : "failed");
+                passthrough(index, input, output ? "no-gain" : "failed", bytes);
             }
             done++;
         }

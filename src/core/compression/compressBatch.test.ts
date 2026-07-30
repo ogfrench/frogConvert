@@ -34,8 +34,16 @@ function handler(name: string, opts: { mainThread?: boolean } = {}): FormatHandl
     } as unknown as FormatHandler;
 }
 
+/**
+ * Inputs are lazy: `compressBatch` reads each file at the moment it compresses
+ * it, so a batch is never all resident at once. `read` here is instrumented so
+ * tests can assert *that a file was never opened* — which is the whole point of
+ * deciding "unsupported" and "too small to bother" from metadata alone.
+ */
 function input(name: string, size: number, format: FileFormat) {
-    return { name, bytes: new Uint8Array(size), format };
+    const bytes = new Uint8Array(size);
+    const read = vi.fn(async () => bytes);
+    return { name, format, size, read };
 }
 
 /** A runner that shrinks output to `ratio` of the input. */
@@ -521,5 +529,85 @@ describe("compressBatch — hard cancel mid-file", () => {
         expect(fallbackRun).not.toHaveBeenCalled();
         expect(out[0].reason).toBe("cancelled");
         expect(out[0].warning).toBeUndefined();
+    });
+});
+
+describe("compressBatch — lazy input reads", () => {
+    /**
+     * The batch used to be loaded into memory in full before the first engine
+     * ran, so peak usage was every input at once plus every output. That is
+     * what the surface's 500 MB cap was really protecting, and it capped the
+     * wrong thing: someone compressing one large video was refused in order to
+     * guard against a batch of them.
+     */
+    it("never opens a file it cannot compress", async () => {
+        resolveMock.mockReturnValue(null);
+        const svg = input("a.svg", 5_000_000, fmt("image/svg+xml", "svg"));
+        const out = await compressBatch([svg], { options: [], level: "medium", run: shrinkingRun(0.5) });
+        expect(svg.read).not.toHaveBeenCalled();
+        expect(out[0].reason).toBe("unsupported");
+        // Reported at its real size even though nothing was read.
+        expect(out[0].originalSize).toBe(5_000_000);
+    });
+
+    it("never opens a file too small to be worth compressing", async () => {
+        resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
+        const tiny = input("t.png", 100, fmt("image/png", "png"));
+        const out = await compressBatch([tiny], { options: [], level: "medium", run: shrinkingRun(0.5) });
+        expect(tiny.read).not.toHaveBeenCalled();
+        expect(out[0].reason).toBe("already-minimal");
+    });
+
+    it("reads each file at most once", async () => {
+        resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
+        const a = input("a.png", 10_000, fmt("image/png", "png"));
+        await compressBatch([a], { options: [], level: "medium", run: shrinkingRun(0.5) });
+        expect(a.read).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not read the whole batch before starting work", async () => {
+        // The guarantee that makes large batches possible: by the time the
+        // first file reaches the engine, the later ones are still on disk.
+        resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
+        const a = input("a.png", 10_000, fmt("image/png", "png"));
+        const b = input("b.png", 10_000, fmt("image/png", "png"));
+        const c = input("c.png", 10_000, fmt("image/png", "png"));
+
+        let readsAtFirstRun = -1;
+        const run = vi.fn(async (_n: string, files: any[]) => {
+            if (readsAtFirstRun < 0) {
+                readsAtFirstRun = [a, b, c].filter(i => i.read.mock.calls.length > 0).length;
+            }
+            return [{ name: files[0].name, bytes: new Uint8Array(100) }];
+        });
+
+        await compressBatch([a, b, c], { options: [], level: "medium", run });
+        expect(readsAtFirstRun).toBe(1);
+    });
+
+    it("reports a file that vanished between picking and compressing as failed", async () => {
+        resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
+        const gone = input("gone.png", 10_000, fmt("image/png", "png"));
+        gone.read.mockRejectedValueOnce(new Error("NotFoundError") as never);
+        const run = shrinkingRun(0.5);
+
+        const out = await compressBatch([gone], { options: [], level: "medium", run });
+        expect(out[0].reason).toBe("failed");
+        expect(out[0].originalSize).toBe(10_000);
+        // One unreadable file must not take the batch down with it.
+        expect(run).not.toHaveBeenCalled();
+    });
+
+    it("keeps going after one file fails to read", async () => {
+        resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
+        const gone = input("gone.png", 10_000, fmt("image/png", "png"));
+        gone.read.mockRejectedValueOnce(new Error("NotFoundError") as never);
+        const ok = input("ok.png", 10_000, fmt("image/png", "png"));
+
+        const out = await compressBatch([gone, ok], {
+            options: [], level: "medium", run: shrinkingRun(0.5),
+        });
+        expect(out[0].reason).toBe("failed");
+        expect(out[1].shrunk).toBe(true);
     });
 });

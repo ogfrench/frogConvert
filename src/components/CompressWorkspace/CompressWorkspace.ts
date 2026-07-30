@@ -2,7 +2,12 @@ import "./CompressWorkspace.css";
 import { showToast } from "../Toast/Toast.ts";
 import { escapeHTML, formatBytes, shortenFileName } from "../utils/index.ts";
 import { isTouchUi } from "../../core/utils/touchUi.ts";
-import { ABSOLUTE_MAX_FILES, MAX_TOTAL_FILE_SIZE } from "../../constants/ui.ts";
+import {
+  ABSOLUTE_MAX_FILES,
+  MAX_SINGLE_FILE_SIZE,
+  LARGE_FILE_WARN_SIZE,
+  compressBatchBudget,
+} from "../../constants/ui.ts";
 import { allOptionsRef, compressLevel, setCompressLevel, COMPRESS_LEVEL_CHOICES, type CompressLevel } from "../store/store.ts";
 import { findMatchingFormat } from "../../core/FormatHandler/detectFormat.ts";
 import {
@@ -131,17 +136,53 @@ export function handleFiles(incoming: File[]) {
     showToast(`Only took the first ${withinCount.length}. That's the ${ABSOLUTE_MAX_FILES}-file ceiling.`, "warn", 8000);
   }
 
+  // Two separate questions, and they used to be conflated into one 500 MB
+  // batch cap. "Is this one file bigger than an engine can hold?" is a hard
+  // technical limit. "Is this batch bigger than the tab can carry?" is about
+  // accumulated *output*, and is far more generous now that inputs are read one
+  // at a time. Someone arriving with a single large video is the common case,
+  // and the old cap refused them in order to guard against the rare one.
+  const budget = compressBatchBudget();
   let total = files.reduce((sum, e) => sum + e.file.size, 0);
   const withinBudget: File[] = [];
+  let oversized = 0;
+  let batchFull = false;
   for (const f of withinCount) {
-    if (total + f.size > MAX_TOTAL_FILE_SIZE) {
-      showToast(`Batch caps out at ${formatBytes(MAX_TOTAL_FILE_SIZE)}. Some files didn't make it.`, "warn", 8000);
+    if (f.size > MAX_SINGLE_FILE_SIZE) {
+      oversized++;
+      continue;
+    }
+    if (total + f.size > budget) {
+      batchFull = true;
       break;
     }
     total += f.size;
     withinBudget.push(f);
   }
+  if (oversized > 0) {
+    showToast(
+      oversized === 1
+        ? `That file is over ${formatBytes(MAX_SINGLE_FILE_SIZE)}, which is more than the compression engines can hold at once.`
+        : `${oversized} files are over ${formatBytes(MAX_SINGLE_FILE_SIZE)}, which is more than the compression engines can hold at once.`,
+      "warn", 8000,
+    );
+  }
+  if (batchFull) {
+    showToast(`This batch is as big as this device can take (${formatBytes(budget)}). Compress these first, then add more.`, "warn", 8000);
+  }
   if (!withinBudget.length) return;
+
+  // Allowed, but worth setting expectations: a file this size is minutes of
+  // engine time, not seconds, and saying nothing reads as a hang.
+  const huge = withinBudget.filter(f => f.size >= LARGE_FILE_WARN_SIZE).length;
+  if (huge > 0) {
+    showToast(
+      huge === 1
+        ? "That's a big one. It'll take a few minutes, and you can stop any time."
+        : `${huge} big files there. This'll take a few minutes, and you can stop any time.`,
+      "info", 7000,
+    );
+  }
 
   // Dropping onto a finished batch means starting a new one; without this the
   // results view stays up and the added files are invisible.
@@ -237,29 +278,25 @@ export async function runCompression() {
   try {
     for (let i = 0; i < files.length; i++) {
       const file = files[i].file;
-      let bytes: Uint8Array;
-      try {
-        bytes = new Uint8Array(await file.arrayBuffer());
-      } catch (e) {
-        // One unreadable file shouldn't take the batch down with it.
-        console.error("[compress] couldn't read", file.name, e);
-        outcomes[i] = {
-          name: file.name, bytes: new Uint8Array(0), originalSize: file.size,
-          shrunk: false, reason: "failed",
-        };
-        continue;
-      }
+      // Detection reads the name and MIME only, so nothing is loaded here.
+      // The bytes are fetched inside `compressBatch`, one file at a time, which
+      // is what lets a batch be far larger than memory would otherwise allow.
       const idx = findMatchingFormat([file], options);
       if (idx < 0) {
         // Handlers may still be loading, or it's genuinely a format we don't know.
         outcomes[i] = {
-          name: file.name, bytes, originalSize: bytes.byteLength,
+          name: file.name, bytes: new Uint8Array(0), originalSize: file.size,
           shrunk: false, reason: "unsupported",
         };
         continue;
       }
       recognizedAt.push(i);
-      recognized.push({ name: file.name, bytes, format: options[idx].format });
+      recognized.push({
+        name: file.name,
+        format: options[idx].format,
+        size: file.size,
+        read: async () => new Uint8Array(await file.arrayBuffer()),
+      });
     }
 
     const alreadyDone = files.length - recognized.length;
@@ -352,16 +389,29 @@ export function compressedName(name: string): string {
   return `${stem}-compressed${ext}`;
 }
 
+/**
+ * Results that have bytes worth downloading.
+ *
+ * A file we never opened has none, and that is now the normal case rather than
+ * an error one: a format with no compressor, or a file the user stopped us
+ * before reaching, is never read off disk at all. Shipping a 0-byte entry under
+ * the original name would read as "the compressor destroyed it", and shipping
+ * a byte-identical copy of a file the user already has is not worth the read.
+ */
+function downloadable() {
+  return results.filter(r => r.bytes.byteLength > 0);
+}
+
+function downloadableCount(): number {
+  return downloadable().length;
+}
+
 export async function downloadResults() {
   if (!results.length) return;
-  // A file we could not even read has no bytes to give back. Shipping a 0-byte
-  // file under the original name looks like the compressor destroyed it, which
-  // is worse than it simply not being in the archive.
-  const out = results
-    .filter(r => !(r.bytes.byteLength === 0 && r.originalSize > 0))
+  const out = downloadable()
     .map(r => ({ name: r.shrunk ? compressedName(r.name) : r.name, bytes: r.bytes }));
   if (!out.length) {
-    showToast("Nothing to download. None of those files could be read.", "warn", 6000);
+    showToast("Nothing to download. None of these files changed.", "warn", 6000);
     return;
   }
   if (out.length === 1) downloadFile(out[0].bytes, out[0].name);
@@ -538,7 +588,7 @@ function resultsMarkup(): string {
       <ul class="cw-results-list">${rows}</ul>
       <div class="cw-results-actions">
         <button class="cw-download" type="button">
-          ${results.length === 1 ? "Download" : "Download all (.zip)"}
+          ${downloadableCount() === 1 ? "Download" : `Download ${downloadableCount()} files (.zip)`}
         </button>
         <button class="cw-back" type="button">Try another level</button>
       </div>

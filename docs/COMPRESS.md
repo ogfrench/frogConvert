@@ -72,7 +72,7 @@ Stop abandons the file being compressed rather than waiting for it to finish —
 
 ### Download names
 
-A shrunk file downloads as `name-compressed.ext`, so it stays distinguishable from its source once both sit in the same folder ("photo (1).png" says nothing; "photo-compressed.png" does). Files that passed through untouched keep their original names — they *are* the originals. Multi-file results arrive as `compressed-<timestamp>.zip`, timestamped so repeated runs never collide.
+A shrunk file downloads as `name-compressed.ext`, so it stays distinguishable from its source once both sit in the same folder ("photo (1).png" says nothing; "photo-compressed.png" does). Files that passed through untouched keep their original names — they *are* the originals. Files that were never opened at all (a format with no compressor, or one you stopped before it was reached) are listed in the results with their reason but left out of the archive: you already have them, byte for byte. Multi-file results arrive as `compressed-<timestamp>.zip`, timestamped so repeated runs never collide.
 
 ## PDF compression, honestly
 
@@ -157,8 +157,19 @@ Images, audio, video and PDFs all work. The same 2% size-guard applies, so a fil
 
 ## Limits
 
-- Batch ceiling and total-size budget are shared with the rest of the app.
-- The whole batch is held in memory; very large video batches are the practical limit.
+### Sizes
+
+| | Limit | Why |
+|---|---|---|
+| One file | **2 GB** | The engines are 32-bit WebAssembly builds with a 4 GB address space and need working room inside it. Past this the engine aborts, not the browser. |
+| One batch | **1–4 GB**, scaled to the device | A quarter of reported device memory, floored at 1 GB and capped at 4 GB. Lands at 2 GB on an ordinary 8 GB machine. |
+| File count | 300 | Shared with the rest of the app; rarely the binding limit. |
+
+Files over 512 MB are accepted with a heads-up that it will take a few minutes, rather than refused.
+
+These are deliberately not the kind of quota a hosted tool imposes. TinyPNG stops at 5 MB and CloudConvert at 1 GB because they pay for the bandwidth and the CPU; nothing here leaves your machine, so the only question is whether the tab survives. Intake is partial, not all-or-nothing: what fits is taken and you're told what wasn't.
+
+Compress reads **one file at a time**, at the moment it compresses it, so the batch total does not have to fit in memory. What accumulates is the *output*, and an output is smaller than its input or it is discarded. Files it cannot handle, and files you stop it before reaching, are never read off disk at all — and so are not included in the download, since they are byte-identical to what you already have.
 - **Cancel** abandons the file being worked on, not just the ones after it. Anything already compressed stays downloadable, and the interrupted file is reported *stopped* rather than *failed*. The one exception is the degraded canvas route for PDFs (used only when the Ghostscript payload is unreachable), which runs on the main thread and cannot be interrupted.
 - The PDF editor's optional compression step can be skipped mid-run. The edit itself is already complete by then, so skipping simply hands back the uncompressed document.
 - **The first PDF is slower.** The 16 MB engine is fetched and compiled on first use, then reused for the rest of the session. Every PDF after the first skips both steps.
