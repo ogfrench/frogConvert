@@ -17,10 +17,16 @@
  *     `_scriptDir` taken from `document.currentScript` — which is null for an
  *     ESM import, so it resolves gs.wasm against the page URL. This script only
  *     works because it serves gs.wasm next to the loader; on any real route
- *     that 404s. The option that actually steers it is `locateFile`, which is
- *     what src/handlers/ghostscript.ts uses. Passing `wasmBinary` below is
- *     therefore a no-op, kept only so this file still mirrors the original
- *     experiment.
+ *     that 404s. Passing `wasmBinary` below is therefore a no-op, kept only so
+ *     this file still mirrors the original experiment.
+ *   - What the real handlers use instead is `instantiateWasm`, which skips
+ *     Emscripten's binary lookup altogether: they compile the module once and
+ *     hand back a ready-made instance. That is what makes a batch of PDFs pay
+ *     the 16 MB compile once rather than per file, and it is the only reason
+ *     the Node/Bun sibling (src/handlers/ghostscript.node.ts) works at all,
+ *     since there is no `document.currentScript` to resolve against there.
+ *     Note the hook has no error channel — see the handlers for how a failed
+ *     instantiation is routed out rather than left to hang.
  *
  * Verified result on a 53 KB vector-only PDF (no images at all): /screen
  * returns a valid PDF 36% smaller — the case an image-downsampling approach
