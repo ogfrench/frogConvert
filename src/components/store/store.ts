@@ -319,7 +319,7 @@ export type ConvertQuality = QualityLevel;
 export const CONVERT_QUALITY_CHOICES = choices(
   ["auto", "lossless", "high", "medium", "low"] as const,
   {
-    auto: "Picks a level to suit each file",
+    auto: "Reads each file and picks a level",
     lossless: "No compression, largest files",
     high: "Slightly smaller files",
     medium: "Recommended for most files",
@@ -348,10 +348,12 @@ export type CompressLevel = Exclude<QualityLevel, "lossless">;
 export const COMPRESS_LEVEL_CHOICES = choices(
   ["auto", "high", "medium", "low"] as const,
   {
-    auto: "Picks a level to suit each file. Won't re-crush what's already small.",
-    high: "Modest savings.",
-    medium: "Recommended. Big savings, quality you won't miss.",
-    low: "Visible quality loss.",
+    // Fragments without trailing full stops, matching the Converter's set.
+    // These sat side by side in one menu and were punctuated differently.
+    auto: "Reads each file and picks a level",
+    high: "Modest savings",
+    medium: "Big savings, quality you won't miss",
+    low: "Visible quality loss",
   },
 );
 
@@ -383,10 +385,12 @@ export type PdfQuality = Exclude<QualityLevel, "auto">;
 export const PDF_QUALITY_CHOICES = choices(
   ["lossless", "high", "medium", "low"] as const,
   {
+    // A blurb that opens by repeating its own label ("Balanced. Good for...")
+    // spends the reader's attention saying nothing.
     lossless: "No compression, your pages untouched",
-    high: "Slightly smaller. Print-quality images.",
-    medium: "Balanced. Good for sharing and email.",
-    low: "Smallest file. Visible quality loss on images.",
+    high: "Print-quality images",
+    medium: "Good for sharing and email",
+    low: "Visible quality loss on images",
   },
 );
 

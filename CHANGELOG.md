@@ -35,7 +35,7 @@ Compression becomes a first-class feature. It was previously invisible — every
 ### Known limits
 - Cancellation takes effect between files, not mid-file. Files it never reached are reported as *stopped*, not *failed*.
 - The whole batch is held in memory.
-- The Compress drop zone filters on MIME type alone, so a few image types that have no same-format compressor (HEIC, AVIF) are accepted and then reported *can't squish this* per file. Erring this way is deliberate: the authoritative answer needs the handler registry, which loads later, and over-rejecting at the door would turn away files that can in fact be compressed.
+- The Compress drop zone filters on MIME type alone, so a few image types that have no same-format compressor (HEIC, AVIF) are accepted and then reported *can't compress this* per file. Erring this way is deliberate: the authoritative answer needs the handler registry, which loads later, and over-rejecting at the door would turn away files that can in fact be compressed.
 
 ---
 

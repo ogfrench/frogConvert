@@ -352,7 +352,7 @@ function levelFieldMarkup(): string {
 
   return `
     <div class="convert-field cw-level-field">
-      <span class="convert-to-label">Compress by</span>
+      <span class="convert-to-label">Compression level</span>
       <button class="format-selector has-value cw-level-selector" type="button"
         aria-haspopup="menu" aria-expanded="false">
         <span class="selector-text truncate">${escapeHTML(active?.label ?? "Automatic")}</span>

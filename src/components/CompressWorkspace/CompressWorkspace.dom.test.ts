@@ -144,7 +144,7 @@ describe('CompressWorkspace — intake', () => {
 
   it('accepts a PDF whose mime the browser left blank', () => {
     // File pickers on some platforms hand over an empty type; refusing those
-    // would tell the user we cannot squish a PDF we can.
+    // would tell the user we cannot compress a PDF we can.
     expect(ws.isLikelyCompressible(fakeFile('doc.pdf', ''))).toBe(true);
     expect(ws.isLikelyCompressible(fakeFile('doc.PDF', ''))).toBe(true);
   });
@@ -349,7 +349,7 @@ describe('CompressWorkspace — assistive technology', () => {
     expect(track.getAttribute('aria-label')).toBeTruthy();
   });
 
-  it('announces which file is being squished as the batch advances', async () => {
+  it('announces which file is being compressed as the batch advances', async () => {
     const { emit } = await startStalledRun();
     const label = document.querySelector('.cw-progress-label')!;
     // Without a live region a screen-reader user gets silence for the whole run.
@@ -463,7 +463,7 @@ describe('CompressWorkspace — batch edge cases', () => {
 
     const head = document.querySelector('.cw-results-head')!.textContent!;
     expect(head).not.toMatch(/already as small/i);
-    expect(head).toMatch(/aren't ones i can compress|can squish/i);
+    expect(head).toMatch(/aren't ones i can compress/i);
   });
 
   it('still says "already small" when we genuinely tried and could not win', async () => {

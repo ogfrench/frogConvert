@@ -26,7 +26,7 @@ The top bar's mode control (the icon showing the current mode) opens a menu with
 
 Documents, archives and plain text are refused at the drop zone with a toast, as is SVG — it's vector text, and the only thing a raster compressor could do to it is rasterise it.
 
-The drop-zone filter is deliberately *not* the final word. It can only look at the MIME type, and the authoritative "is there a compressor for this?" answer needs the handler registry, which loads later. So a few image types that pass the filter (HEIC and AVIF, for instance) turn out to have no same-format compressor and come back marked *can't squish this*. Erring this way is on purpose: over-rejecting at the door would turn away files that can in fact be compressed, and a truthful per-file result costs the user nothing but a moment.
+The drop-zone filter is deliberately *not* the final word. It can only look at the MIME type, and the authoritative "is there a compressor for this?" answer needs the handler registry, which loads later. So a few image types that pass the filter (HEIC and AVIF, for instance) turn out to have no same-format compressor and come back marked *can't compress this*. Erring this way is on purpose: over-rejecting at the door would turn away files that can in fact be compressed, and a truthful per-file result costs the user nothing but a moment.
 
 ## Levels
 
@@ -34,16 +34,16 @@ One control, four choices. The vocabulary is quality-forward — it names what t
 
 | Level | Meaning |
 |---|---|
-| **Automatic** (default) | Reads each file and picks its own level. Won't re-crush what's already small. |
+| **Automatic** (default) | Reads each file and picks a level. Won't recompress what's already small. |
 | **High quality** | Modest savings. |
-| **Balanced** | Recommended. Big savings, quality you won't miss. |
+| **Balanced** | Big savings, quality you won't miss. |
 | **Smallest file** | Visible quality loss. |
 
 There is deliberately **no "lossless" level here**. As a compression level it can only mean "do nothing": it targets quality 100 with no resize, so re-encoding an already-compressed file comes back *larger* and the keep-threshold discards it. The level would reliably accomplish nothing, so it isn't offered. (The Converter's own setting does include **Original quality**, because "convert this without shrinking it" is a real request.)
 
 ### How Automatic works
 
-Automatic doesn't apply a fixed tier. For each file it probes cheap metadata — bytes per megapixel for images, bytes per page for PDFs, container bitrate for audio/video — classifies the input into a quality band, then steps down one band. A file already at the bottom band is skipped and reported as *already squished* rather than re-crushed.
+Automatic doesn't apply a fixed tier. For each file it probes cheap metadata — bytes per megapixel for images, bytes per page for PDFs, container bitrate for audio/video — classifies the input into a quality band, then steps down one band. A file already at the bottom band is skipped and reported as *already compressed* rather than re-encoded.
 
 This is why two files dropped together can come out at different levels, and why Automatic is the default: it's the right answer when the user has no opinion.
 
@@ -53,8 +53,8 @@ Each row shows the outcome for one file. The wording is deliberate:
 
 - **−36%** — it shrank, and the smaller file is what you download.
 - **no gain** — the re-encode came back within 2% of the original, so the **original** is kept. Nothing was degraded for a rounding error.
-- **already squished** — the probe found it at minimum useful quality; it was never re-encoded.
-- **can't squish this** — no compressor for that format; the file passes through untouched.
+- **already compressed** — the probe found it at minimum useful quality; it was never re-encoded.
+- **can't compress this** — no compressor for that format; the file passes through untouched.
 - **stopped** — you pressed Stop before this file's turn. It was never opened.
 - **failed** — the engine errored. The original is kept.
 
@@ -103,9 +103,9 @@ It is titled for the mode you are in, because "Compression" on its own never say
 
 | Mode | Reads as | What it controls | Default | Levels offered |
 |---|---|---|---|---|
-| **Converter** | Compress on conversion | Quality of converted output | Automatic | Automatic, Original quality, High quality, Balanced, Smallest file |
-| **Compress** | Compression level | How hard to squeeze. The same value as the card's own **Compress by** picker, two views kept in sync | Automatic | Automatic, High quality, Balanced, Smallest file |
-| **PDF Editor** | Compress created PDF | Whether a saved PDF is also shrunk on the way out | **Original quality** | Original quality, High quality, Balanced, Smallest file |
+| **Converter** | Conversion compression | Quality of converted output | Automatic | Automatic, Original quality, High quality, Balanced, Smallest file |
+| **Compress** | Compression level | How hard to compress. The same value as the card's own **Compression level** picker, two views kept in sync | Automatic | Automatic, High quality, Balanced, Smallest file |
+| **PDF Editor** | PDF compression | Whether a saved PDF is also shrunk on the way out | **Original quality** | Original quality, High quality, Balanced, Smallest file |
 
 The three settings are **independent and separately persisted**. "How much quality to give up while changing format", "how hard to squeeze" and "should editing this also shrink it" are different questions, and an earlier build that shared one value meant changing it in one place silently moved the others.
 

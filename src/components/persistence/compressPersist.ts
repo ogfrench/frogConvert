@@ -87,7 +87,7 @@ function showResumePopup(stored: StoredSession<CompressPagePayload>): void {
     : `${fc} files`;
   showConfirmPopup(
     'Pick up where you left off?',
-    `${summary} waiting to be squished`,
+    `${summary} waiting to be compressed`,
     { label: 'Resume', onClick: async () => {
       const ok = await persistor.resume(stored);
       if (ok) showToast('Batch restored', 'info', 3000);

@@ -431,7 +431,7 @@ const QUALITY_BINDINGS: Record<AppMode, QualityBinding> = {
     choices: CONVERT_QUALITY_CHOICES,
     get: () => convertQuality.value,
     set: (v) => setConvertQuality(v as ConvertQuality),
-    title: "Compress on conversion",
+    title: "Conversion compression",
   },
   compress: {
     choices: COMPRESS_LEVEL_CHOICES,
@@ -443,7 +443,7 @@ const QUALITY_BINDINGS: Record<AppMode, QualityBinding> = {
     choices: PDF_QUALITY_CHOICES,
     get: () => pdfQuality.value,
     set: (v) => setPdfQuality(v as PdfQuality),
-    title: "Compress created PDF",
+    title: "PDF compression",
   },
 };
 
