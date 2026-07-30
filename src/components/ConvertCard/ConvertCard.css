@@ -31,6 +31,24 @@
   display: none;
 }
 
+/* The signpost's one action: reads as a link inside the sentence, because a
+   full button inside a hint this quiet would shout over the card. */
+.convert-hint-action {
+  display: inline;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.convert-hint-action:hover {
+  color: var(--primary, var(--foreground));
+}
+
 /* --- Convert Notice (quality warning when a better handler isn't available) --- */
 .convert-notice {
   position: relative;

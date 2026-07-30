@@ -213,15 +213,43 @@ describe("updateConvertButtonState (same-format signpost)", () => {
     });
 
     it("labels the pass-through regardless of whether that format has a compressor", () => {
-        // PDF has no in-place compressor yet, but picking pdf->pdf still
-        // converts nothing, so the signpost is still the honest answer.
+        // This registry has no Ghostscript loaded, so pdf->pdf has no
+        // compressor to offer. Picking it still converts nothing, so the
+        // signpost is still the honest answer, without the Compress nudge.
         const pdf = makeFormat("application/pdf", "pdf");
         allOptionsRef.value = [{ format: pdf, handler: stubHandler("pdftoimg", [pdf]) }];
 
         updateConvertButtonState(0, 0);
 
         expect(ui.convertButton.textContent).toBe("Download original");
-        expect((document.querySelector(".convert-hint") as HTMLElement).hidden).toBe(false);
+        const hint = document.querySelector(".convert-hint") as HTMLElement;
+        expect(hint.hidden).toBe(false);
+        expect(hint.textContent).toContain("unchanged");
+        expect(hint.querySelector(".convert-hint-action")).toBeNull();
+    });
+
+    it("points a compressible same-format pick at the Compress surface", () => {
+        // png->png with ImageMagick loaded: the user almost certainly wanted
+        // the file smaller, and a surface exists for exactly that. A dead-end
+        // "you get it back unchanged" would hide the feature at the one moment
+        // it is wanted.
+        const png = makeFormat("image/png", "png", true);
+        const handler = stubHandler("ImageMagick", [png]);
+        allOptionsRef.value = [{ format: png, handler }];
+        (window as any).supportedFormatCache = new Map([["ImageMagick", [png]]]);
+
+        updateConvertButtonState(0, 0);
+
+        const hint = document.querySelector(".convert-hint") as HTMLElement;
+        expect(hint.textContent).toContain("Want it smaller?");
+        const action = hint.querySelector<HTMLButtonElement>(".convert-hint-action");
+        expect(action).not.toBeNull();
+
+        const dispatched: string[] = [];
+        window.addEventListener("frog:set-mode", (e) =>
+            dispatched.push((e as CustomEvent).detail), { once: true });
+        action!.click();
+        expect(dispatched).toEqual(["compress"]);
     });
 
     it("stays quiet when input and output formats differ", () => {

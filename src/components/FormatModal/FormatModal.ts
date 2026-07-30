@@ -2,6 +2,7 @@ import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatH
 import "./FormatModal.css";
 import { ui, CATEGORY_LABELS, formatDisplayName, formatMode, getFormatCategory, activeCategory, allOptionsRef, isLoadingPhase2, isLoadingHandlers, updateScrollLock, isFormatVisible, isCategoryVisible, reachableIdentifiers, selectedFromIndex } from "../store/store.ts";
 import { formatToIdentifier } from "../../core/TraversionGraph/TraversionGraph.ts";
+import { isSameFormatCompressible } from "../../core/compression/resolveCompressor.ts";
 
 // --- Format modal ---
 
@@ -214,7 +215,29 @@ export function updateConvertButtonState(selectedFromIndex: number | null, selec
   }
 
   if (samePick) {
-    hint.textContent = "Same format in and out, so there's nothing to convert \u2014 you'll get your file back unchanged.";
+    // Two different situations share this signpost. If Compress can shrink
+    // this format, the user who picked png->png almost certainly wanted it
+    // smaller, so point them at the surface built for exactly that instead of
+    // leaving them at a dead end. Only when no compressor exists is "you'll
+    // get it back unchanged" the whole story.
+    hint.textContent = "";
+    // samePick implies bothPicked, but TS cannot see through the boolean.
+    const fromOpt = selectedFromIndex !== null ? allOptionsRef.value[selectedFromIndex] : undefined;
+    const compressible = fromOpt
+      ? isSameFormatCompressible(fromOpt.format, allOptionsRef.value)
+      : false;
+    if (compressible) {
+      hint.append("Same format in and out, so there's nothing to convert. Want it smaller? ");
+      const go = document.createElement("button");
+      go.type = "button";
+      go.className = "convert-hint-action";
+      go.textContent = "Open Compress";
+      go.addEventListener("click", () =>
+        window.dispatchEvent(new CustomEvent("frog:set-mode", { detail: "compress" })));
+      hint.append(go);
+    } else {
+      hint.append("Same format in and out, so there's nothing to convert. You'll get your file back unchanged.");
+    }
     hint.hidden = false;
   } else {
     hint.hidden = true;

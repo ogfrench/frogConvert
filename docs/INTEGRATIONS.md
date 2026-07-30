@@ -62,7 +62,7 @@ Seven tools, all over `stdio`: one metadata (`list_formats`), two conversion (`f
      | `outputMime` | required | Output MIME type. |
      | `outputExtension` | required | Output format extension. |
      | `outputFilePath` | optional | Absolute path where the output file should be saved. **Strongly recommended for large outputs** - avoids returning megabytes of base64 through the context window. |
-     | `quality` | optional | Quality preset: `"low"`, `"medium"`, `"high"`, or `"lossless"`. Defaults to `"medium"` (matches the web UI). See [Quality preset](#quality-preset) for what each tier does. |
+     | `quality` | optional | Quality preset: `"low"`, `"medium"`, `"high"`, or `"lossless"`. When omitted: cross-format requests use `"medium"`; same-format (compression) requests probe the input and pick a tier automatically, matching the web UI's Automatic. See [Quality preset](#quality-preset). |
    - **Description**: The core execution tool. Routes the file through the handler chain and returns all output files.
    - **Returns**:
      - When `outputFilePath` is omitted - a JSON array of output files:
@@ -184,7 +184,7 @@ curl -X POST http://127.0.0.1:3000/convert \
   -o output.png
 ```
 - Input MIME/extension are auto-detected from the uploaded filename.
-- `quality` is optional (`"low"`, `"medium"`, `"high"`, `"lossless"`) and defaults to `"medium"`.
+- `quality` is optional (`"low"`, `"medium"`, `"high"`, `"lossless"`). See [Quality preset](#quality-preset) for what happens when it is omitted.
 - Response: raw binary of the first output file with `Content-Disposition: attachment; filename*=UTF-8''...` header. If conversion produces multiple files, the remaining filenames are listed in an `X-Extra-Files` JSON header - use the JSON API instead if you need all files.
 
 **Option B - application/json**:
@@ -194,13 +194,13 @@ curl -X POST http://127.0.0.1:3000/convert \
   -d '{"fileName":"input.jpg","base64Bytes":"...","inputMime":"image/jpeg","inputExt":"jpg","outputMime":"image/png","outputExt":"png","quality":"high"}'
 ```
 - Response: `[{ "fileName": "output.png", "base64Bytes": "<base64>" }]` (array supports multi-file outputs)
-- `quality` field is optional; defaults to `"medium"`.
+- `quality` field is optional. See [Quality preset](#quality-preset) for the omitted-value behaviour.
 
 Returns `400` on bad input, `413` if the file exceeds `MAX_UPLOAD_MB`, `415` if Content-Type is unsupported, `422` if no path found or conversion fails.
 
 #### Quality preset
 
-Both `POST /convert` and the MCP `convert_file` tool accept an optional `quality` preset. When omitted, both default to `"medium"`.
+Both `POST /convert` and the MCP `convert_file` tool accept an optional `quality` preset. When omitted, a cross-format request runs at `"medium"`; a same-format (compression) request probes the input and picks a tier itself, the same Automatic behaviour the web UI defaults to, and may return the original untouched when the file is already at minimum useful quality.
 
 The preset is a request-level parameter here. The web UI's equivalent settings — **Compression** in the Converter's settings menu and the level picker on the **Compress** surface — are per-surface browser preferences stored in `localStorage`; they do not reach the API or MCP server, which run in a separate process. Pass `quality` explicitly to get a specific tier.
 
@@ -251,6 +251,16 @@ Two things to expect, so a correct result isn't mistaken for a broken one:
 
 - **A text or vector PDF barely shrinks, and that is right.** Ghostscript's presets bound *image* resampling; text and vector art are left alone because there is nothing to throw away. Scans and image-heavy decks are where the 30–80% savings live. If the result saves less than 2%, the size-guard returns the original.
 - **The first PDF in a process is slower.** The 16 MB WASM engine is compiled on first use and then reused, so subsequent files in the same process are markedly faster (measured: 718 ms then 248 ms). It is never loaded at startup — a session that touches no PDFs never pays for it.
+
+#### Compressing an edited PDF
+
+The browser's PDF editor has a **PDF compression** setting that shrinks whatever it saves. The PDF tools below deliberately do not take a `quality` parameter — on the agent surfaces the same result is composition, not a flag: chain the edit into a same-format conversion.
+
+```
+pdf_merge(inputs) -> convert_file(pdf -> pdf, quality: "medium")
+```
+
+The second step is the identical Ghostscript pass the browser runs, size-guard included, so a merge whose compression would not pay for itself comes back at its edited size rather than degraded.
 
 ### PDF editor endpoints
 
