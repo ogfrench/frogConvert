@@ -404,7 +404,8 @@ function qualityContext() {
 /** Rebuild the option rows so each mode only offers levels it can honour. */
 function renderQualityOptions() {
   const { choices, current } = qualityContext();
-  const title = qualityMenu.querySelector(".quality-menu-title");
+  // Only the rows are replaced, so the "Compression" heading keeps its place
+  // at the top without being moved back there.
   qualityMenu.querySelectorAll(".quality-item").forEach(el => el.remove());
   for (const c of choices) {
     const btn = document.createElement("button");
@@ -420,10 +421,8 @@ function renderQualityOptions() {
     blurb.className = "quality-item-blurb";
     blurb.textContent = c.blurb;
     btn.append(label, blurb);
-    qualityMenu.insertBefore(btn, null);
+    qualityMenu.appendChild(btn);
   }
-  // Keep the heading first; insertBefore(null) appended past it.
-  if (title) qualityMenu.insertBefore(title, qualityMenu.firstChild);
 
   // The mobile pill list mirrors the same option set.
   if (qualitySegmented) {
@@ -821,7 +820,10 @@ if (typeof window !== 'undefined') {
 }
 
 initFrogsworth(() => {
-  const onPdf = document.getElementById("pdf-workspace")?.style.display !== "none";
+  // Both read the same source. Asking the DOM for one and the state variable
+  // for the other invites them to disagree, and inline styles are only correct
+  // after the first setAppMode() anyway.
+  const onPdf = currentAppMode === "pdf-editor";
   const onCompress = currentAppMode === "compress";
   // The converter's format selection is meaningless on the other surfaces, and
   // pick() prefers format quips whenever from/to are set - so clear them or the

@@ -27,7 +27,10 @@ export function findMatchingFormat(
         const { format } = allOptions[i];
         if (!format.from || format.mime !== mimeType) continue;
 
-        if (fileExtension && format.extension === fileExtension) return i; // Exact MIME+ext match
+        // Lower-cased on both sides, matching the extension-only pass below —
+        // the two used to disagree, so a format declared with an upper-case
+        // extension could only ever be found by the fallback.
+        if (fileExtension && format.extension.toLowerCase() === fileExtension) return i;
         if (mimeMatch === -1) mimeMatch = i; // First MIME-only match as fallback
     }
     if (mimeMatch !== -1) return mimeMatch;

@@ -41,6 +41,15 @@ export function qualityForHop(opts: {
 }
 
 /**
+ * The same thing as {@link qualityForHop}, packaged as the argv every caller
+ * actually wants. Four surfaces walk a route and every one of them was
+ * hand-writing the identical `["--quality", qualityForHop({...})]`.
+ */
+export function hopQualityArgs(opts: Parameters<typeof qualityForHop>[0]): string[] {
+    return ["--quality", qualityForHop(opts)];
+}
+
+/**
  * Resolve an "automatic" request into a concrete preset for a conversion.
  *
  * The Compress surface can probe per file, but a conversion runs a whole batch

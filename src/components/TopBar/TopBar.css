@@ -195,8 +195,12 @@
   background-color: var(--accent);
 }
 
-/* --- Theme Toggle --- */
-#theme-toggle {
+/* --- Square icon controls (theme, app mode, compression) ---
+   One rule rather than three copies: these are the same control in three
+   places, and drifting apart is the only thing separate rules would buy. */
+#theme-toggle,
+#app-mode-toggle,
+#quality-toggle {
   width: var(--control-size);
   height: var(--control-size);
   display: flex;
@@ -212,7 +216,9 @@
   transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
-#theme-toggle:hover {
+#theme-toggle:hover,
+#app-mode-toggle:hover,
+#quality-toggle:hover {
   background-color: var(--accent);
 }
 
@@ -230,27 +236,6 @@
 .menu-list-label,
 .menu-divider {
   display: none;
-}
-
-/* App mode toggle, single button, matches theme-toggle */
-#app-mode-toggle {
-  width: var(--control-size);
-  height: var(--control-size);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  line-height: var(--leading-none);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background-color: var(--card);
-  color: var(--foreground);
-  cursor: pointer;
-  transition: background-color var(--transition-fast), border-color var(--transition-fast);
-}
-
-#app-mode-toggle:hover {
-  background-color: var(--accent);
 }
 
 .menu-list-label {
@@ -400,53 +385,27 @@
     transform: translateY(0);
   }
 
-  #top-controls.menu-open #top-controls-menu>*:nth-child(1) {
-    transition-delay: 0.03s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(2) {
-    transition-delay: 0.06s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(3) {
-    transition-delay: 0.09s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(4) {
-    transition-delay: 0.12s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(5) {
-    transition-delay: 0.15s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(6) {
-    transition-delay: 0.18s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(7) {
-    transition-delay: 0.21s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(8) {
-    transition-delay: 0.24s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(9) {
-    transition-delay: 0.27s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(10) {
-    transition-delay: 0.30s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(11) {
-    transition-delay: 0.33s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(12) {
-    transition-delay: 0.36s;
-  }
+  /* Staggered reveal, one step per child. This ladder has to reach the end of
+     the menu: a child past its last rung gets no delay at all and so animates
+     in *first*, ahead of everything above it. The trailing `n+16` rung is the
+     safety net — anything added later lands last rather than jumping the
+     queue. Keep the explicit rungs in step with the child count in index.html. */
+  #top-controls.menu-open #top-controls-menu>*:nth-child(1) { transition-delay: 0.03s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(2) { transition-delay: 0.06s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(3) { transition-delay: 0.09s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(4) { transition-delay: 0.12s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(5) { transition-delay: 0.15s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(6) { transition-delay: 0.18s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(7) { transition-delay: 0.21s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(8) { transition-delay: 0.24s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(9) { transition-delay: 0.27s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(10) { transition-delay: 0.30s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(11) { transition-delay: 0.33s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(12) { transition-delay: 0.36s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(13) { transition-delay: 0.39s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(14) { transition-delay: 0.42s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(15) { transition-delay: 0.45s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(n+16) { transition-delay: 0.48s; }
 
   /* Hide formats section in PDF mode */
   #top-controls-menu.not-converter #formats-divider,
@@ -474,19 +433,20 @@
    A single icon button can't express three modes: cycling hides where you
    are going and gives no hint a third mode exists. The button opens a menu
    instead; the mobile pill group (below 800px) stays the mobile answer. */
-#app-mode-picker {
+#app-mode-picker,
+#quality-picker {
   position: relative;
   display: flex;
 }
 
-#app-mode-menu {
+#app-mode-menu,
+#quality-menu {
   position: absolute;
   top: calc(100% + var(--space-2));
   right: 0;
   z-index: var(--z-floating);
   display: flex;
   flex-direction: column;
-  min-width: 11rem;
   padding: var(--space-1);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -494,12 +454,16 @@
   box-shadow: var(--shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.15));
 }
 
-#app-mode-menu[hidden] { display: none; }
+/* The quality menu is wider: its rows carry a blurb under the label. */
+#app-mode-menu { min-width: 11rem; }
+#quality-menu { min-width: 13rem; }
 
-.app-mode-item {
+#app-mode-menu[hidden],
+#quality-menu[hidden] { display: none; }
+
+.app-mode-item,
+.quality-item {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
   width: 100%;
   padding: var(--space-2) var(--space-3);
   border: none;
@@ -508,69 +472,47 @@
   color: var(--muted-foreground);
   font-size: var(--text-sm);
   text-align: left;
-  white-space: nowrap;
   cursor: pointer;
   transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
+/* Mode rows are icon + label on one line; quality rows stack label over blurb. */
+.app-mode-item {
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.quality-item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
 .app-mode-item:hover,
-.app-mode-item:focus-visible {
+.app-mode-item:focus-visible,
+.quality-item:hover,
+.quality-item:focus-visible {
   background-color: var(--accent);
   color: var(--foreground);
 }
 
-.app-mode-item[aria-current="true"] {
+.app-mode-item[aria-current="true"],
+.quality-item[aria-current="true"] {
   color: var(--foreground);
   font-weight: var(--font-medium);
 }
 
 @media only screen and (max-width: 800px) {
-  /* The pill group replaces it entirely down here. */
-  #app-mode-picker { display: none; }
+  /* The mobile pill groups replace both pickers entirely down here. */
+  #app-mode-picker,
+  #quality-picker { display: none; }
 }
 
-/* --- Output quality picker ---------------------------------------------
-   App-wide setting: it is the Compress surface's level *and* the quality the
-   Converter encodes at. Same dropdown mechanics as the mode picker. */
-#quality-picker {
-  position: relative;
-  display: flex;
-}
-
-#quality-toggle {
-  width: var(--control-size);
-  height: var(--control-size);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  line-height: var(--leading-none);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background-color: var(--card);
-  color: var(--foreground);
-  cursor: pointer;
-  transition: background-color var(--transition-fast), border-color var(--transition-fast);
-}
-
-#quality-toggle:hover { background-color: var(--accent); }
-
-#quality-menu {
-  position: absolute;
-  top: calc(100% + var(--space-2));
-  right: 0;
-  z-index: var(--z-floating);
-  display: flex;
-  flex-direction: column;
-  min-width: 13rem;
-  padding: var(--space-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background-color: var(--card);
-  box-shadow: var(--shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.15));
-}
-
-#quality-menu[hidden] { display: none; }
+/* --- Compression picker -------------------------------------------------
+   One control, two backing values: it edits the Converter's encode quality or
+   the Compress surface's level depending on the mode you are in. Same dropdown
+   mechanics as the mode picker, which is why they share the rules above. */
 
 /* Names the axis the options sit on, so "Balanced" and "Smallest file" read as
    compression settings rather than an unlabelled list of adjectives. */
@@ -584,41 +526,8 @@
   letter-spacing: 0.04em;
 }
 
-.quality-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  border: none;
-  border-radius: calc(var(--radius) - 2px);
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: var(--text-sm);
-  text-align: left;
-  cursor: pointer;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
-}
-
-.quality-item:hover,
-.quality-item:focus-visible {
-  background-color: var(--accent);
-  color: var(--foreground);
-}
-
-.quality-item[aria-current="true"] {
-  color: var(--foreground);
-  font-weight: var(--font-medium);
-}
-
 .quality-item-blurb {
   font-size: var(--text-xs);
   color: var(--muted-foreground);
   font-weight: var(--font-normal, 400);
-}
-
-@media only screen and (max-width: 800px) {
-  /* The pill group replaces it in the mobile menu. */
-  #quality-picker { display: none; }
 }

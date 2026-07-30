@@ -153,9 +153,12 @@ describe('CompressWorkspace — intake', () => {
 describe('CompressWorkspace — level picker', () => {
   beforeEach(() => ws.handleFiles([fakeFile('a.png', 'image/png')]));
 
-  it('defaults to the Balanced level', () => {
-    expect(ws.getLevel()).toBe('medium');
-    expect(document.querySelector('.cw-level-selector .selector-text')?.textContent).toContain('Balanced');
+  it('defaults to Automatic, the same default a fresh install gets', () => {
+    // resetAll() used to drop the user on Balanced while a first-time visitor
+    // started on Automatic, so "reset" moved you somewhere new.
+    expect(ws.DEFAULT_LEVEL).toBe('auto');
+    expect(ws.getLevel()).toBe('auto');
+    expect(document.querySelector('.cw-level-selector .selector-text')?.textContent).toContain('Automatic');
   });
 
   it('maps user-facing labels to the inverted engine presets', () => {
@@ -296,7 +299,8 @@ describe('CompressWorkspace — lifecycle', () => {
     document.querySelector<HTMLElement>('[data-level="low"]')!.click();
     ws.resetAll();
     expect(ws.getFiles()).toHaveLength(0);
-    expect(ws.getLevel()).toBe('medium');
+    expect(ws.getLevel()).toBe(ws.DEFAULT_LEVEL);
+    expect(ws.getLevel()).toBe('auto');
     expect(document.querySelector('.upload-zone')).not.toBeNull();
   });
 });
@@ -433,8 +437,10 @@ describe('CompressWorkspace — batch edge cases', () => {
 
   it('does not claim unsupported files were already small', async () => {
     // "Already as small as they usefully get" would be a lie: we never tried.
-    compressBatchMock.mockResolvedValue([unsupported('a.svg'), unsupported('b.heic')] as any);
-    ws.handleFiles([fakeFile('a.svg', 'image/svg+xml'), fakeFile('b.heic', 'image/heic')]);
+    // HEIC and AVIF pass the intake filter (they really are images) and only
+    // turn out to be uncompressible once the handler list has been consulted.
+    compressBatchMock.mockResolvedValue([unsupported('a.heic'), unsupported('b.avif')] as any);
+    ws.handleFiles([fakeFile('a.heic', 'image/heic'), fakeFile('b.avif', 'image/avif')]);
     await ws.runCompression();
 
     const head = document.querySelector('.cw-results-head')!.textContent!;
@@ -454,11 +460,26 @@ describe('CompressWorkspace — batch edge cases', () => {
   it('reports a partial win honestly when only some files were supported', async () => {
     compressBatchMock.mockResolvedValue([
       { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
-      unsupported('b.svg'),
+      unsupported('b.heic'),
     ] as any);
-    ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('b.svg', 'image/svg+xml')]);
+    ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('b.heic', 'image/heic')]);
     await ws.runCompression();
     expect(document.querySelector('.cw-results-head')!.textContent).toMatch(/1 of 2 files got smaller/i);
+  });
+
+  it('turns SVG away at the door rather than after a batch', () => {
+    // The one image type we know up front we can never compress. Letting it in
+    // only to report "can't squish this" later wastes the user's time.
+    ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('logo.svg', 'image/svg+xml')]);
+    expect(ws.getFiles().map(f => f.file.name)).toEqual(['a.png']);
+    expect(showToastMock).toHaveBeenCalled();
+  });
+
+  it('accepts a PDF from the file picker, not just from a drop', () => {
+    // The picker's accept list is what makes this reachable at all; a PDF-only
+    // batch is the headline case for this surface.
+    ws.handleFiles([fakeFile('scan.pdf', 'application/pdf')]);
+    expect(ws.getFiles().map(f => f.file.name)).toEqual(['scan.pdf']);
   });
 
   it('survives a zero-byte file without crashing or celebrating', async () => {
@@ -481,5 +502,110 @@ describe('CompressWorkspace — batch edge cases', () => {
     ]);
     expect(ws.getFiles().map(f => f.file.name)).toEqual(['a.png', 'b.mp3', 'c.mp4', 'd.pdf']);
     expect(showToastMock).toHaveBeenCalled();
+  });
+});
+
+describe('CompressWorkspace — nothing strands the surface', () => {
+  it('recovers to the file list when the batch throws', async () => {
+    // The failure mode this guards is not a wrong message, it is a dead end:
+    // leaving phase at "running" pins the UI on "Squishing…" until a reload.
+    compressBatchMock.mockRejectedValue(new Error('engine exploded'));
+    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    await ws.runCompression();
+
+    expect(ws.getPhase()).toBe('idle');
+    expect(ws.getFiles()).toHaveLength(1);
+    expect(document.querySelector('.cw-compress')).not.toBeNull();
+    expect(showToastMock).toHaveBeenCalledWith(
+      expect.stringMatching(/went wrong/i), 'error', expect.any(Number));
+  });
+
+  it('keeps going when one file cannot be read off disk', async () => {
+    // Picking a file and then moving or deleting it is ordinary user
+    // behaviour, and arrayBuffer() rejects for it.
+    const gone = fakeFile('gone.png', 'image/png');
+    Object.defineProperty(gone, 'arrayBuffer', {
+      value: () => Promise.reject(new DOMException('NotFoundError')),
+    });
+    compressBatchMock.mockResolvedValue([
+      { name: 'ok.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+    ] as any);
+
+    ws.handleFiles([gone, fakeFile('ok.png', 'image/png')]);
+    await ws.runCompression();
+
+    expect(ws.getPhase()).toBe('done');
+    const names = ws.getResults().map(r => r.name);
+    expect(names).toContain('gone.png');
+    expect(names).toContain('ok.png');
+    expect(ws.getResults().find(r => r.name === 'gone.png')?.reason).toBe('failed');
+  });
+});
+
+describe('CompressWorkspace — stopping early', () => {
+  it('says stopped, not failed, for files it never reached', async () => {
+    compressBatchMock.mockResolvedValue([
+      { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+      { name: 'b.png', bytes: new Uint8Array(1000), originalSize: 1000, shrunk: false, reason: 'cancelled' },
+    ] as any);
+    ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('b.png', 'image/png')]);
+    await ws.runCompression();
+
+    const card = document.querySelector('.cw-results-card')!.textContent!;
+    expect(card).toMatch(/stopped/i);
+    expect(card).not.toMatch(/failed/i);
+  });
+
+  it('does not claim nothing was left to shave off when it was cut short', async () => {
+    compressBatchMock.mockResolvedValue([
+      { name: 'a.png', bytes: new Uint8Array(1000), originalSize: 1000, shrunk: false, reason: 'cancelled' },
+    ] as any);
+    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    await ws.runCompression();
+
+    const head = document.querySelector('.cw-results-head')!.textContent!;
+    expect(head).not.toMatch(/already as small|nothing left/i);
+    expect(head).toMatch(/untouched/i);
+  });
+});
+
+describe('CompressWorkspace — savings copy', () => {
+  it('does not report a real saving as 0% smaller', async () => {
+    // The percentage is of the whole batch, so a genuine win on one small file
+    // next to a large untouched one rounds to zero. "Saved 600 B (0% smaller)"
+    // reads as a bug rather than as the true statement it is.
+    compressBatchMock.mockResolvedValue([
+      { name: 'small.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+      { name: 'big.mp4', bytes: new Uint8Array(1), originalSize: 10_000_000, shrunk: false, reason: 'no-gain' },
+    ] as any);
+    ws.handleFiles([fakeFile('small.png', 'image/png'), fakeFile('big.mp4', 'video/mp4')]);
+    await ws.runCompression();
+
+    const head = document.querySelector('.cw-results-head')!.textContent!;
+    expect(head).not.toMatch(/0% smaller/);
+    expect(head).toMatch(/under 1% smaller/i);
+  });
+});
+
+describe('CompressWorkspace — download', () => {
+  it('leaves an unreadable file out of the archive instead of shipping 0 bytes', async () => {
+    // A 0-byte file under the original name reads as "the compressor ate it".
+    compressBatchMock.mockResolvedValue([
+      { name: 'ok.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+    ] as any);
+    const gone = fakeFile('gone.png', 'image/png');
+    Object.defineProperty(gone, 'arrayBuffer', {
+      value: () => Promise.reject(new DOMException('NotFoundError')),
+    });
+
+    ws.handleFiles([gone, fakeFile('ok.png', 'image/png')]);
+    await ws.runCompression();
+    await ws.downloadResults();
+
+    // Two results, but only the readable one is worth downloading — so it goes
+    // out as a single file rather than a zip containing an empty entry.
+    expect(ws.getResults()).toHaveLength(2);
+    expect(downloadAsZipMock).not.toHaveBeenCalled();
+    expect(downloadFileMock).toHaveBeenCalledWith(expect.anything(), 'ok.png');
   });
 });

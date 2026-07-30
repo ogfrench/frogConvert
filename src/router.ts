@@ -16,10 +16,12 @@ const MODE_PATHS: Record<AppMode, string> = {
   compress: '/compress',
 };
 
-const PATH_MODES: Record<string, AppMode> = {
-  pdf: 'pdf-editor',
-  compress: 'compress',
-};
+/** Derived, not hand-written: a second literal map would be one more place to
+ *  forget, which is exactly what the claim above is supposed to rule out. */
+const PATH_MODES: Record<string, AppMode> = Object.fromEntries(
+  (Object.entries(MODE_PATHS) as [AppMode, string][])
+    .map(([mode, path]) => [path.replace(/^\//, ''), mode]),
+);
 
 export function parseURL(pathname = location.pathname): RouteState {
   const base = pathname.replace(/^\/+|\/+$/g, '').split('/')[0];

@@ -6,11 +6,7 @@ import { planImage } from "../core/compression/plan.ts";
 import { isSafari } from "../tools/pdfThumbnails.ts";
 import { rethrowIfPasswordProtected } from "./_pdfErrors.ts";
 
-import * as pdfjsLib from "pdfjs-dist";
 import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { PDFDocument } from "pdf-lib";
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
 /**
  * Last-resort PDF compressor: rasterise every page and rebuild the document
@@ -37,6 +33,30 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
 /** Matches pdftoimg: keeps a 400-page scan from exhausting canvas memory. */
 const MAX_TOTAL_MEGAPIXELS = 600;
+
+/**
+ * pdf.js and pdf-lib are loaded on demand, not at module scope.
+ *
+ * This handler is registered in the background for every session but only ever
+ * *runs* when Ghostscript could not be fetched at all — so a static import
+ * would put pdf-lib (which nothing else outside the PDF editor pulls) into
+ * every visitor's download to serve a path almost none of them take.
+ */
+type PdfLibs = {
+    pdfjsLib: typeof import("pdfjs-dist");
+    PDFDocument: typeof import("pdf-lib").PDFDocument;
+};
+let libs: Promise<PdfLibs> | null = null;
+
+function loadPdfLibs(): Promise<PdfLibs> {
+    libs ??= Promise.all([import("pdfjs-dist"), import("pdf-lib")])
+        .then(([pdfjsLib, pdfLib]) => {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+            return { pdfjsLib, PDFDocument: pdfLib.PDFDocument };
+        })
+        .catch((e) => { libs = null; throw e; });
+    return libs;
+}
 
 class PdfCanvasCompressHandler implements FormatHandler {
     public name = "PdfCanvasCompress";
@@ -77,19 +97,31 @@ class PdfCanvasCompressHandler implements FormatHandler {
             archetype: "document-page",
         }).imgQuality / 100;
 
+        const { pdfjsLib, PDFDocument } = await loadPdfLibs();
+
         const outputs: FileData[] = [];
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
         if (!ctx) throw new Error("Canvas 2D context unavailable");
 
-        for (const file of inputFiles) {
-            const bytes = await this.rebuild(file, preset.pdfDpi, jpegQuality, canvas, ctx, onProgress);
-            outputs.push({ ...file, name: file.name, bytes });
+        try {
+            for (const file of inputFiles) {
+                const bytes = await this.rebuild(
+                    { pdfjsLib, PDFDocument }, file, preset.pdfDpi, jpegQuality, canvas, ctx, onProgress);
+                outputs.push({ ...file, name: file.name, bytes });
+            }
+        } finally {
+            // A page-sized canvas holds several MB of backing store and the
+            // element itself is unreachable from here on. Zeroing it releases
+            // that immediately rather than at the GC's convenience.
+            canvas.width = 0;
+            canvas.height = 0;
         }
         return outputs;
     }
 
     private async rebuild(
+        { pdfjsLib, PDFDocument }: PdfLibs,
         file: FileData,
         dpi: number,
         jpegQuality: number,
@@ -105,49 +137,55 @@ class PdfCanvasCompressHandler implements FormatHandler {
             throw new Error(`Couldn't read ${file.name}.`);
         }
 
-        const out = await PDFDocument.create();
-        const scale = dpi / 72;
+        try {
+            const out = await PDFDocument.create();
+            const scale = dpi / 72;
 
-        // Budget the whole document, not each page: 400 small pages can add up
-        // to more pixels than a handful of large ones.
-        let budget = MAX_TOTAL_MEGAPIXELS * 1_000_000;
+            // Budget the whole document, not each page: 400 small pages can add
+            // up to more pixels than a handful of large ones.
+            let budget = MAX_TOTAL_MEGAPIXELS * 1_000_000;
 
-        for (let n = 1; n <= doc.numPages; n++) {
-            const page = await doc.getPage(n);
-            const base = page.getViewport({ scale: 1 });
-            let viewport = page.getViewport({ scale });
+            for (let n = 1; n <= doc.numPages; n++) {
+                const page = await doc.getPage(n);
+                const base = page.getViewport({ scale: 1 });
+                let viewport = page.getViewport({ scale });
 
-            const px = viewport.width * viewport.height;
-            if (px > budget) {
-                // Shrink this page to whatever budget remains rather than
-                // aborting the whole document.
-                const shrink = Math.sqrt(Math.max(budget, 1) / px);
-                viewport = page.getViewport({ scale: scale * shrink });
+                const px = viewport.width * viewport.height;
+                if (px > budget) {
+                    // Shrink this page to whatever budget remains rather than
+                    // aborting the whole document.
+                    const shrink = Math.sqrt(Math.max(budget, 1) / px);
+                    viewport = page.getViewport({ scale: scale * shrink });
+                }
+                budget -= viewport.width * viewport.height;
+
+                canvas.width = Math.max(1, Math.floor(viewport.width));
+                canvas.height = Math.max(1, Math.floor(viewport.height));
+                // Pages may be transparent; JPEG has no alpha, so paint white
+                // first or the transparent areas encode as black.
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+
+                const blob = await new Promise<Blob | null>(r =>
+                    canvas.toBlob(r, "image/jpeg", jpegQuality));
+                if (!blob) throw new Error(`Couldn't rasterise page ${n} of ${file.name}.`);
+
+                const jpg = await out.embedJpg(new Uint8Array(await blob.arrayBuffer()));
+                // Keep the original page geometry in points so the rebuilt
+                // document still prints at the right physical size.
+                const p = out.addPage([base.width, base.height]);
+                p.drawImage(jpg, { x: 0, y: 0, width: base.width, height: base.height });
+
+                onProgress?.({ ratio: n / doc.numPages, detail: `Rasterising page ${n} of ${doc.numPages}` });
             }
-            budget -= viewport.width * viewport.height;
 
-            canvas.width = Math.max(1, Math.floor(viewport.width));
-            canvas.height = Math.max(1, Math.floor(viewport.height));
-            // Pages may be transparent; JPEG has no alpha, so paint white
-            // first or the transparent areas encode as black.
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-
-            const blob = await new Promise<Blob | null>(r =>
-                canvas.toBlob(r, "image/jpeg", jpegQuality));
-            if (!blob) throw new Error(`Couldn't rasterise page ${n} of ${file.name}.`);
-
-            const jpg = await out.embedJpg(new Uint8Array(await blob.arrayBuffer()));
-            // Keep the original page geometry in points so the rebuilt document
-            // still prints at the right physical size.
-            const p = out.addPage([base.width, base.height]);
-            p.drawImage(jpg, { x: 0, y: 0, width: base.width, height: base.height });
-
-            onProgress?.({ ratio: n / doc.numPages, detail: `Rasterising page ${n} of ${doc.numPages}` });
+            return await out.save();
+        } finally {
+            // pdf.js keeps the parsed document alive in its worker until told
+            // otherwise; without this a multi-file batch accumulates every one.
+            await doc.destroy().catch(() => { /* already torn down */ });
         }
-
-        return await out.save();
     }
 }
 

@@ -204,6 +204,37 @@ describe("compressBatch — cancellation", () => {
         expect(out).toHaveLength(3);
         expect(out[1].shrunk).toBe(false);
     });
+
+    it("marks files it never reached as cancelled, not failed", async () => {
+        // The user pressed Stop. Telling them their files "failed" blames us
+        // for something they asked for, and reads like data loss.
+        resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
+        let calls = 0;
+        const run = vi.fn(async (_n: string, files: any[]) => {
+            calls++;
+            return [{ name: files[0].name, bytes: new Uint8Array(10) }];
+        });
+        const out = await compressBatch(
+            [
+                input("a.png", 1000, fmt("image/png", "png")),
+                input("b.png", 1000, fmt("image/png", "png")),
+            ],
+            { options: [], level: "medium", run, isCancelled: () => calls >= 1 },
+        );
+        expect(out[1].reason).toBe("cancelled");
+    });
+
+    it("still says failed when nothing was cancelled", async () => {
+        // The same sweep catches genuine gaps; those must not be softened into
+        // "cancelled" or a real bug would hide behind reassuring copy.
+        resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
+        const run = vi.fn(async () => { throw new Error("engine died"); });
+        const out = await compressBatch(
+            [input("a.png", 1000, fmt("image/png", "png"))],
+            { options: [], level: "medium", run },
+        );
+        expect(out[0].reason).toBe("failed");
+    });
 });
 
 describe("totalSaved", () => {

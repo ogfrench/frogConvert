@@ -94,7 +94,7 @@ const COMPRESS_QUIPS: Quip[] = [
   q("already tiny? i'll leave it be. some files are just perfect.", "idle"),
   q("a pdf that's all text won't shrink much. that's physics, not laziness.", "idle"),
   q("smaller is faster. faster is happier. i've done the research.", "happy"),
-  q("recommended for most. extreme for the brave. lossless for the precious.", "smug"),
+  q("balanced for most. smallest file for the brave.", "smug"),
   q("compression is just folding up the boring parts of a file", "smug"),
   q("i squish files now. deeply satisfying work.", "excited"),
   q("that raw png could lose half its weight and never know", "smug"),

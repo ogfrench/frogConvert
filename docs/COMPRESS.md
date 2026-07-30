@@ -24,7 +24,9 @@ The top bar's mode control (the icon showing the current mode) opens a menu with
 | Audio | FFmpeg | Driven by source bitrate |
 | PDF | Ghostscript (canvas fallback if unreachable) | 0% on text, 30–80% on image-heavy |
 
-Anything else is refused at the drop zone rather than accepted and silently passed through.
+Documents, archives and plain text are refused at the drop zone with a toast, as is SVG — it's vector text, and the only thing a raster compressor could do to it is rasterise it.
+
+The drop-zone filter is deliberately *not* the final word. It can only look at the MIME type, and the authoritative "is there a compressor for this?" answer needs the handler registry, which loads later. So a few image types that pass the filter (HEIC and AVIF, for instance) turn out to have no same-format compressor and come back marked *can't squish this*. Erring this way is on purpose: over-rejecting at the door would turn away files that can in fact be compressed, and a truthful per-file result costs the user nothing but a moment.
 
 ## Levels
 
@@ -53,9 +55,12 @@ Each row shows the outcome for one file. The wording is deliberate:
 - **no gain** — the re-encode came back within 2% of the original, so the **original** is kept. Nothing was degraded for a rounding error.
 - **already squished** — the probe found it at minimum useful quality; it was never re-encoded.
 - **can't squish this** — no compressor for that format; the file passes through untouched.
+- **stopped** — you pressed Stop before this file's turn. It was never opened.
 - **failed** — the engine errored. The original is kept.
 
-A batch reports the total saved across only the files that actually shrank.
+A batch reports the total saved across only the files that actually shrank. When that saving is real but rounds to zero against the batch total — a win on one small file next to a large untouched one — it reads *under 1% smaller* rather than the nonsensical *0% smaller*.
+
+Stop finishes the file currently being compressed and then halts; it does not abandon work mid-file. Everything already compressed is kept and downloadable.
 
 ## PDF compression, honestly
 
@@ -85,6 +90,8 @@ The 16 MB payload needs one online moment. If it can't be reached — offline, a
 This route is strictly worse and is never chosen while Ghostscript is available. It destroys the text layer, so selection, search, copy/paste, accessibility and links all go with it. On a text or vector PDF it usually produces a *larger* file, which the 98% keep-threshold then discards — so you get your original back rather than a damaged copy. It earns its place only on scans, where the pages were already images.
 
 It runs on the main thread (it needs a 2D canvas) while Ghostscript runs in a worker, which is why the two are separate handlers rather than one class with a branch.
+
+Its libraries (pdf.js and pdf-lib) are imported on demand rather than at module scope. The handler is registered for every session but only *runs* on the rare offline path, so a static import would have put pdf-lib into every visitor's download to serve a route almost none of them take.
 
 ## Compression when converting
 

@@ -40,6 +40,9 @@ let factory: GsFactory | null = null;
 /** Compiled once and reused: compiling 16 MB dwarfs instantiating it, and a
  *  fresh instance is needed per file because callMain is not re-entrant. */
 let compiled: WebAssembly.Module | null = null;
+/** The in-flight load, so two concurrent requests share one 16 MB compile
+ *  instead of racing to do it twice. Cleared on failure so a retry can work. */
+let loading: Promise<GsFactory> | null = null;
 
 /** Walk up for node_modules so a hoisted or nested install both resolve, the
  *  same strategy the MCP fetch polyfill uses for the other WASM engines. */
@@ -60,9 +63,13 @@ async function resolvePackageDir(): Promise<string> {
     throw new Error("Ghostscript WASM package not found. Run `bun install`.");
 }
 
-async function loadOnce(): Promise<GsFactory> {
-    if (factory && compiled) return factory;
+function loadOnce(): Promise<GsFactory> {
+    if (factory && compiled) return Promise.resolve(factory);
+    loading ??= readAndCompile().catch((e) => { loading = null; throw e; });
+    return loading;
+}
 
+async function readAndCompile(): Promise<GsFactory> {
     const [{ createRequire }, fs, path] = await Promise.all([
         import("module"), import("fs"), import("path"),
     ]);
@@ -74,12 +81,28 @@ async function loadOnce(): Promise<GsFactory> {
     return factory;
 }
 
-function instantiateWasm(
-    imports: WebAssembly.Imports,
-    success: (inst: WebAssembly.Instance, mod: WebAssembly.Module) => void,
-): Record<string, never> {
-    WebAssembly.instantiate(compiled!, imports).then(inst => success(inst, compiled!));
-    return {};
+/** Emscripten's `instantiateWasm` hook offers no error channel: a rejection
+ *  nobody listens for leaves the factory promise pending forever. Route it to
+ *  the caller's reject so a failure surfaces as an error, not a hang. */
+function instantiateWith(onError: (e: unknown) => void) {
+    return (
+        imports: WebAssembly.Imports,
+        success: (inst: WebAssembly.Instance, mod: WebAssembly.Module) => void,
+    ): Record<string, never> => {
+        WebAssembly.instantiate(compiled!, imports).then(inst => success(inst, compiled!), onError);
+        return {};
+    };
+}
+
+function createModule(create: GsFactory): Promise<GsModule> {
+    return new Promise<GsModule>((resolve, reject) => {
+        create({
+            noInitialRun: true,
+            instantiateWasm: instantiateWith(reject),
+            print: () => { /* -dQUIET still emits the odd line */ },
+            printErr: () => { /* surfaced via the return code */ },
+        }).then(resolve, reject);
+    });
 }
 
 class GhostscriptNodeHandler implements FormatHandler {
@@ -116,12 +139,7 @@ class GhostscriptNodeHandler implements FormatHandler {
         const outputs: FileData[] = [];
 
         for (const file of inputFiles) {
-            const Module = await create({
-                noInitialRun: true,
-                instantiateWasm,
-                print: () => { /* -dQUIET still emits the odd line */ },
-                printErr: () => { /* surfaced via the return code */ },
-            });
+            const Module = await createModule(create);
 
             Module.FS.writeFile("/in.pdf", file.bytes);
             const rc = Module.callMain(

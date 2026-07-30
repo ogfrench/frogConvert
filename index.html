@@ -343,7 +343,6 @@
           <button class="pill-option" data-value="low">Smallest file</button>
         </div>
         <div class="menu-divider" id="quality-divider"></div>
-        <div class="menu-divider"></div>
         <span class="menu-list-label">Mode</span>
         <div class="menu-pill-group menu-pill-vertical" id="app-mode-segmented" role="group" aria-label="App mode">
           <button class="pill-option active" data-value="converter">
@@ -514,7 +513,11 @@
 
     <div id="compress-content" class="entrance d5"></div>
 
-    <input id="compress-file-input" type="file" multiple accept="image/*,audio/*,video/*" style="display:none">
+    <!-- PDFs belong here as much as the media types: Ghostscript is the whole
+         reason this surface exists. `.pdf` as well as the MIME because some
+         browsers hand over an empty type for a PDF picked from disk. -->
+    <input id="compress-file-input" type="file" multiple
+      accept="image/*,audio/*,video/*,application/pdf,.pdf" style="display:none">
   </main>
 
   <p id="compress-description" class="page-description entrance d6" style="display:none">

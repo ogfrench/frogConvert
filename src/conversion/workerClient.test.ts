@@ -229,4 +229,19 @@ describe("runInWorker — teardown paths", () => {
         // If cleanup missed clearTimeout this would produce an unhandled rejection.
         await vi.advanceTimersByTimeAsync(WORKER_TIMEOUT_MS + 1);
     });
+
+    it("a completed run leaves no callbacks behind for the next one to trip over", async () => {
+        // Both callbacks close over *this* call's reject and its worker. Left
+        // registered after the run settles, a later hard-cancel would terminate
+        // a worker that is busy with something else entirely. Only the convert
+        // flow's resetCancellation() used to clear the force one, so a Compress
+        // run — which never calls it — left a live grenade in the singleton.
+        const { promise, worker } = start();
+        worker.emit({ id: worker.lastPost.id, type: "success", outputFiles: [] });
+        await promise;
+
+        expect(workerCancelCb).toBeNull();
+        expect(forceCleanupCb).toBeNull();
+        expect(worker.terminated).toBe(false);
+    });
 });

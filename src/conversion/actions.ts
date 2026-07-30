@@ -23,8 +23,6 @@ import {
     isCancelled,
     resetCancellation,
     showConversionInProgress,
-    setWorkerCancelCallback,
-    setForceCleanupCallback,
     setCanHardCancel,
     setCurrentFileProgress,
     setActiveConversionMode,
@@ -50,7 +48,7 @@ import {
     type UserErrorInfo,
 } from "../components/utils/index.ts";
 import { runInWorker, WORKER_TIMEOUT_MS } from "./workerClient.ts";
-import { qualityForHop, resolveAutoQuality } from "../core/compression/hopQuality.ts";
+import { hopQualityArgs, resolveAutoQuality } from "../core/compression/hopQuality.ts";
 import { probeInputQuality } from "../core/compression/inputQuality.ts";
 import { tierDown } from "../core/compression/tierDown.ts";
 
@@ -226,11 +224,11 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
 
             // One shared rule across every surface, so the browser, MCP, REST
             // and CLI all reduce quality once rather than at each hop.
-            const hopArgs: string[] = ["--quality", qualityForHop({
+            const hopArgs = hopQualityArgs({
                 target: path[i + 1].format,
                 isLastHop,
                 requested: requestedQuality,
-            })];
+            });
 
             let outputFiles: FileData[];
             if (handler.requiresMainThread) {

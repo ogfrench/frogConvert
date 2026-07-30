@@ -10,6 +10,7 @@ import {
   totalSaved,
   type CompressInput,
   type CompressOutcome,
+  type SkipReason,
 } from "../../core/compression/compressBatch.ts";
 import { runInWorker } from "../../conversion/workerClient.ts";
 import { downloadFile, downloadAsZip, timestampForFilename } from "../../conversion/download.ts";
@@ -36,11 +37,14 @@ import {
  *
  * NOTE the deliberate inversion: the engine's `low` preset means "low quality
  * target", i.e. the *most* aggressive compression, while `high` compresses the
- * least. Less -> high, Recommended -> medium, Extreme -> low.
+ * least. So the shipped labels map:
+ *   High quality -> high, Balanced -> medium, Smallest file -> low.
  */
 export const COMPRESS_LEVELS = COMPRESS_LEVEL_CHOICES;
 
-export const DEFAULT_LEVEL: CompressLevel = "medium";
+/** Matches the store's own default. Anything else and "reset" would quietly
+ *  move the user somewhere a fresh install never puts them. */
+export const DEFAULT_LEVEL: CompressLevel = "auto";
 
 type Entry = { id: number; file: File };
 type Phase = "idle" | "running" | "done";
@@ -75,6 +79,12 @@ export function isLikelyCompressible(file: File): boolean {
   if (mime === "application/pdf") return true;
   // Some browsers hand over an empty type for a PDF picked from disk.
   if (!mime && /\.pdf$/i.test(file.name)) return true;
+  // SVG is the one image type we know up front we will never compress — it's
+  // vector text, and the only thing a raster compressor could do to it is
+  // rasterise it. Better to say so on the drop than after a batch. Anything
+  // else images-ish is let through and gets an honest per-file answer, because
+  // over-rejecting here would turn files we *can* handle away at the door.
+  if (mime === "image/svg+xml" || (!mime && /\.svgz?$/i.test(file.name))) return false;
   return mime.startsWith("image/") || mime.startsWith("audio/") || mime.startsWith("video/");
 }
 
@@ -136,11 +146,13 @@ function removeFile(id: number) {
 
 // --- Running a batch ---
 
-const REASON_COPY: Record<string, string> = {
+/** Typed against SkipReason so a new reason can't be added without copy. */
+const REASON_COPY: Record<SkipReason, string> = {
   "already-minimal": "already squished",
   "no-gain": "no gain",
   "unsupported": "can't squish this",
   "failed": "failed",
+  "cancelled": "stopped",
 };
 
 export async function runCompression() {
@@ -163,41 +175,72 @@ export async function runCompression() {
   const outcomes: (CompressOutcome | null)[] = files.map(() => null);
   const recognized: CompressInput[] = [];
   const recognizedAt: number[] = [];
+  let celebrate = false;
 
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i].file;
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const idx = findMatchingFormat([file], options);
-    if (idx < 0) {
-      // Handlers may still be loading, or it's genuinely a format we don't know.
-      outcomes[i] = {
-        name: file.name, bytes, originalSize: bytes.byteLength,
-        shrunk: false, reason: "unsupported",
-      };
-      continue;
+  // Anything from here on has to leave `phase` somewhere the user can act
+  // from. Without this the surface can strand itself on "Squishing…" with no
+  // way back but a reload — and `file.arrayBuffer()` really does reject when
+  // a picked file is moved or deleted before the batch runs.
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i].file;
+      let bytes: Uint8Array;
+      try {
+        bytes = new Uint8Array(await file.arrayBuffer());
+      } catch (e) {
+        // One unreadable file shouldn't take the batch down with it.
+        console.error("[compress] couldn't read", file.name, e);
+        outcomes[i] = {
+          name: file.name, bytes: new Uint8Array(0), originalSize: file.size,
+          shrunk: false, reason: "failed",
+        };
+        continue;
+      }
+      const idx = findMatchingFormat([file], options);
+      if (idx < 0) {
+        // Handlers may still be loading, or it's genuinely a format we don't know.
+        outcomes[i] = {
+          name: file.name, bytes, originalSize: bytes.byteLength,
+          shrunk: false, reason: "unsupported",
+        };
+        continue;
+      }
+      recognizedAt.push(i);
+      recognized.push({ name: file.name, bytes, format: options[idx].format });
     }
-    recognizedAt.push(i);
-    recognized.push({ name: file.name, bytes, format: options[idx].format });
+
+    const alreadyDone = files.length - recognized.length;
+    const batch = await compressBatch(recognized, {
+      options,
+      level: compressLevel.value,
+      run: runInWorker,
+      onProgress: (done, _total, current) => {
+        progress = { done: alreadyDone + done, total: files.length, current };
+        paintProgress();
+      },
+      isCancelled: () => cancelRequested,
+    });
+
+    batch.forEach((outcome, k) => { outcomes[recognizedAt[k]] = outcome; });
+    results = outcomes.filter((o): o is CompressOutcome => o !== null);
+    celebrate = results.some(r => r.shrunk);
+  } catch (e) {
+    console.error("[compress] batch threw", e);
+    showToast("Something went wrong while squishing. Your files are untouched.", "error", 8000);
+    // Back to the file list rather than an empty results view: the batch is
+    // still there and re-running it is the obvious next move.
+    phase = "idle";
+    results = [];
+    render();
+    return;
+  } finally {
+    if (phase === "running") phase = "done";
   }
 
-  const alreadyDone = files.length - recognized.length;
-  const batch = await compressBatch(recognized, {
-    options,
-    level: compressLevel.value,
-    run: runInWorker,
-    onProgress: (done, _total, current) => {
-      progress = { done: alreadyDone + done, total: files.length, current };
-      paintProgress();
-    },
-    isCancelled: () => cancelRequested,
-  });
-
-  batch.forEach((outcome, k) => { outcomes[recognizedAt[k]] = outcome; });
-  results = outcomes.filter((o): o is CompressOutcome => o !== null);
-  phase = "done";
   render();
-
-  if (results.some(r => r.shrunk)) triggerConfetti();
+  // After the paint, not before: firing it while the progress card is still
+  // on screen celebrates a result the user cannot see yet.
+  if (celebrate) triggerConfetti();
 }
 
 /** Light in-place update so per-file progress doesn't re-render the whole view. */
@@ -223,7 +266,16 @@ function paintProgress() {
 
 export async function downloadResults() {
   if (!results.length) return;
-  const out = results.map(r => ({ name: r.name, bytes: r.bytes }));
+  // A file we could not even read has no bytes to give back. Shipping a 0-byte
+  // file under the original name looks like the compressor destroyed it, which
+  // is worse than it simply not being in the archive.
+  const out = results
+    .filter(r => !(r.bytes.byteLength === 0 && r.originalSize > 0))
+    .map(r => ({ name: r.name, bytes: r.bytes }));
+  if (!out.length) {
+    showToast("Nothing to download — none of those files could be read.", "warn", 6000);
+    return;
+  }
   if (out.length === 1) downloadFile(out[0].bytes, out[0].name);
   else await downloadAsZip(out, `compressed-${timestampForFilename()}.zip`);
 }
@@ -335,17 +387,29 @@ function resultsMarkup(): string {
   // every file was a format we cannot compress, saying that is a lie about
   // the files — the honest answer is that we could not help.
   const noneSupported = results.length > 0 && results.every(r => r.reason === "unsupported");
+  // Stopping early leaves files untouched by request, not by failure. Saying
+  // "nothing left to shave off" about files we never opened is just untrue.
+  const stoppedCount = results.filter(r => r.reason === "cancelled").length;
+
+  // A real saving that rounds to 0% ("saved 60 KB of 400 MB") reads as a bug.
+  const pctText = pct > 0 ? `${pct}% smaller` : "under 1% smaller";
 
   const headline = saved > 0
-    ? `Saved ${formatBytes(saved)} <span class="cw-pct">(${pct}% smaller)</span>`
-    : noneSupported
-      ? `Nothing i can squish here`
-      : `Nothing left to shave off`;
+    ? `Saved ${formatBytes(saved)} <span class="cw-pct">(${pctText})</span>`
+    : stoppedCount > 0
+      ? `Stopped`
+      : noneSupported
+        ? `Nothing i can squish here`
+        : `Nothing left to shave off`;
   const sub = saved > 0
-    ? `${shrunkCount} of ${results.length} file${results.length === 1 ? "" : "s"} got smaller.`
-    : noneSupported
-      ? `These formats aren't ones i can compress. Images, audio, video and PDFs are.`
-      : `These were already as small as they usefully get.`;
+    ? stoppedCount > 0
+      ? `${shrunkCount} file${shrunkCount === 1 ? "" : "s"} got smaller before you stopped. The rest are untouched.`
+      : `${shrunkCount} of ${results.length} file${results.length === 1 ? "" : "s"} got smaller.`
+    : stoppedCount > 0
+      ? `Stopped before anything got smaller. Your files are untouched.`
+      : noneSupported
+        ? `These formats aren't ones i can compress. Images, audio, video and PDFs are.`
+        : `These were already as small as they usefully get.`;
 
   const rows = results.map(r => {
     const detail = r.shrunk
@@ -507,12 +571,8 @@ function wireRendered() {
     levelMenu.addEventListener("keydown", (e) => {
       if (e.key === "Escape") { setOpen(false); levelSelector.focus(); }
     });
-    document.addEventListener("click", function onAway(e) {
-      if (!levelMenu.isConnected) { document.removeEventListener("click", onAway); return; }
-      if (levelMenu.hidden) return;
-      if ((e.target as HTMLElement).closest(".cw-level-field")) return;
-      setOpen(false);
-    });
+    // Click-away is handled once at init, not here: wireRendered() runs on
+    // every render and a listener added per render piles up on `document`.
   }
 
   rootEl.querySelector<HTMLElement>(".cw-compress")?.addEventListener("click", () => { void runCompression(); });
@@ -543,7 +603,10 @@ export function initCompressWorkspace() {
     getLevel: () => compressLevel.value,
     applyRestored: (restored, restoredLevel) => {
       files = restored.map(file => ({ id: nextId++, file }));
-      if (restoredLevel === "high" || restoredLevel === "medium" || restoredLevel === "low") {
+      // "auto" belongs in this list: it is the default, so leaving it out meant
+      // the one level most sessions are saved with was never restored.
+      if (restoredLevel === "auto" || restoredLevel === "high"
+        || restoredLevel === "medium" || restoredLevel === "low") {
         setCompressLevel(restoredLevel);
       }
       phase = "idle";
@@ -555,6 +618,16 @@ export function initCompressWorkspace() {
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") void flushCompressOnHide();
+    });
+    // One click-away listener for the lifetime of the surface. It looks the
+    // menu up per click rather than closing over it, so re-renders replacing
+    // the element don't need a fresh listener each time.
+    document.addEventListener("click", (e) => {
+      const menu = rootEl?.querySelector<HTMLElement>(".cw-level-menu");
+      if (!menu || menu.hidden) return;
+      if ((e.target as HTMLElement).closest(".cw-level-field")) return;
+      menu.hidden = true;
+      rootEl?.querySelector(".cw-level-selector")?.setAttribute("aria-expanded", "false");
     });
   }
   // pagehide covers the mobile / OS-killed-tab cases visibilitychange misses.

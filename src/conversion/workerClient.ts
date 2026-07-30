@@ -58,6 +58,12 @@ export async function runInWorker(handlerName: string, inputFiles: FileData[], i
             clearTimeout(timeoutId);
             worker.removeEventListener("message", onMessage);
             setWorkerCancelCallback(null);
+            // Also cleared: a stale force-cleanup callback still holds this
+            // promise's reject and would terminate the shared worker on a
+            // later hard-cancel that has nothing to do with this call. Only
+            // the convert flow's resetCancellation() used to clear it, so a
+            // Compress run left one behind indefinitely.
+            setForceCleanupCallback(null);
             workerErrorCallback = null;
         };
 

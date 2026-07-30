@@ -42,7 +42,6 @@ type GsModule = {
     FS: {
         writeFile: (path: string, data: Uint8Array) => void;
         readFile: (path: string) => Uint8Array;
-        unlink: (path: string) => void;
     };
     callMain: (args: string[]) => number;
 };
@@ -58,11 +57,21 @@ let factory: GsFactory | null = null;
  * PDFs from re-doing the expensive half every time.
  */
 let compiled: WebAssembly.Module | null = null;
+/**
+ * The in-flight load. Without it, two overlapping first calls each fetch and
+ * compile their own 16 MB — the exact cost this module exists to avoid. Cleared
+ * on failure so a load that failed offline can be retried once back online.
+ */
+let loading: Promise<GsFactory> | null = null;
 
 /** ~16 MB, so it is fetched once and only when a PDF is actually compressed. */
-async function loadOnce(onProgress?: (p: ProgressEvent) => void): Promise<GsFactory> {
-    if (factory && compiled) return factory;
+function loadOnce(onProgress?: (p: ProgressEvent) => void): Promise<GsFactory> {
+    if (factory && compiled) return Promise.resolve(factory);
+    loading ??= fetchAndCompile(onProgress).catch((e) => { loading = null; throw e; });
+    return loading;
+}
 
+async function fetchAndCompile(onProgress?: (p: ProgressEvent) => void): Promise<GsFactory> {
     onProgress?.({ ratio: 0, detail: "Fetching the PDF compressor (one-time, ~16 MB)" });
 
     // @vite-ignore: this must stay a runtime URL import of the copied asset.
@@ -112,14 +121,34 @@ async function loadOnce(onProgress?: (p: ProgressEvent) => void): Promise<GsFact
  * the loader works at all outside a browser page: left to itself it resolves
  * gs.wasm against `document.currentScript`, which does not exist for an ESM
  * import or in Node.
+ *
+ * The hook has no error channel — Emscripten only offers `success`. If
+ * instantiation rejects (out of memory on a small device is the realistic
+ * case) and nobody is listening, the factory promise never settles and the
+ * batch hangs on "Squishing…" forever. So the failure is routed back out to
+ * the caller's reject.
  */
-function instantiateWasm(
-    imports: WebAssembly.Imports,
-    success: (inst: WebAssembly.Instance, mod: WebAssembly.Module) => void,
-): Record<string, never> {
-    WebAssembly.instantiate(compiled!, imports).then(inst => success(inst, compiled!));
-    // Emscripten accepts an empty exports object and waits for `success`.
-    return {};
+function instantiateWith(onError: (e: unknown) => void) {
+    return (
+        imports: WebAssembly.Imports,
+        success: (inst: WebAssembly.Instance, mod: WebAssembly.Module) => void,
+    ): Record<string, never> => {
+        WebAssembly.instantiate(compiled!, imports).then(inst => success(inst, compiled!), onError);
+        // Emscripten accepts an empty exports object and waits for `success`.
+        return {};
+    };
+}
+
+/** A fresh Emscripten instance, or a rejection — never a promise that hangs. */
+function createModule(create: GsFactory): Promise<GsModule> {
+    return new Promise<GsModule>((resolve, reject) => {
+        create({
+            noInitialRun: true,
+            instantiateWasm: instantiateWith(reject),
+            print: () => { /* -dQUIET still emits the odd line */ },
+            printErr: () => { /* surfaced via the non-zero return code */ },
+        }).then(resolve, reject);
+    });
 }
 
 class GhostscriptHandler implements FormatHandler {
@@ -167,12 +196,7 @@ class GhostscriptHandler implements FormatHandler {
 
             // A fresh module per file: callMain() is not reliably re-entrant in
             // Emscripten builds, and Ghostscript keeps global state across a run.
-            const Module = await create({
-                noInitialRun: true,
-                instantiateWasm,
-                print: () => { /* -dQUIET still emits the odd line */ },
-                printErr: () => { /* surfaced via the non-zero return code */ },
-            });
+            const Module = await createModule(create);
 
             const inPath = "/in.pdf";
             const outPath = "/out.pdf";

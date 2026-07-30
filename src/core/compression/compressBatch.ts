@@ -28,8 +28,12 @@ export type CompressInput = {
     format: FileFormat;
 };
 
-/** Why a file came back no smaller than it went in. */
-export type SkipReason = "already-minimal" | "no-gain" | "unsupported" | "failed";
+/**
+ * Why a file came back no smaller than it went in. "cancelled" is kept
+ * distinct from "failed" because they are different news: one is the user's
+ * own doing, the other is ours.
+ */
+export type SkipReason = "already-minimal" | "no-gain" | "unsupported" | "failed" | "cancelled";
 
 export type CompressOutcome = {
     name: string;
@@ -150,9 +154,10 @@ export async function compressBatch(
             }
         }
 
+        // Same format in, same format out — that is what "compress" means
+        // here, so there is only ever one format to resolve.
         const inFmt = ready ? handlerSupportsFormat(handler, group.format) : null;
-        const outFmt = inFmt;
-        if (!ready || !inFmt || !outFmt) {
+        if (!ready || !inFmt) {
             for (const { index, input } of group.items) passthrough(index, input, "unsupported");
             done += group.items.length;
             continue;
@@ -190,9 +195,14 @@ export async function compressBatch(
             const fileData: FileData = { name: input.name, bytes: input.bytes };
 
             const attempt = async (h: typeof handler, a: string[]) => {
+                // Resolve the format against the handler that will actually run
+                // it. The group's inFmt came from the primary, and a fallback is
+                // a different handler with its own declared list — reusing the
+                // primary's entry only works while the two happen to agree.
+                const fmt = h === handler ? inFmt : (handlerSupportsFormat(h, group.format) ?? inFmt);
                 const produced = h.requiresMainThread
-                    ? await h.doConvert([fileData], inFmt, outFmt, a)
-                    : await run(h.name, [fileData], inFmt, outFmt, a);
+                    ? await h.doConvert([fileData], fmt, fmt, a)
+                    : await run(h.name, [fileData], fmt, fmt, a);
                 return produced?.length && produced[0].bytes.byteLength > 0 ? produced[0] : null;
             };
 
@@ -235,9 +245,12 @@ export async function compressBatch(
         }
     }
 
-    // Anything cancelled mid-flight never got a result; report it untouched.
+    // Anything that never got a result is reported untouched. Stopping early is
+    // the overwhelmingly likely reason, and telling someone who pressed Stop
+    // that their files "failed" is both wrong and alarming.
+    const stopped = isCancelled?.() ?? false;
     inputs.forEach((input, index) => {
-        if (!results.has(index)) passthrough(index, input, "failed");
+        if (!results.has(index)) passthrough(index, input, stopped ? "cancelled" : "failed");
     });
 
     return inputs.map((_, i) => results.get(i)!);
