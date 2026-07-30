@@ -302,7 +302,7 @@
           <div id="quality-menu" role="menu" aria-label="Compression" hidden>
             <p class="quality-menu-title" id="quality-menu-title">Compression</p>
             <button class="quality-item" role="menuitem" data-value="auto" tabindex="-1"><span>Automatic</span><span class="quality-item-blurb">Picks a level to suit each file</span></button>
-            <button class="quality-item" role="menuitem" data-value="lossless" tabindex="-1"><span>Original quality</span><span class="quality-item-blurb">No compression — largest files</span></button>
+            <button class="quality-item" role="menuitem" data-value="lossless" tabindex="-1"><span>Original quality</span><span class="quality-item-blurb">No compression, largest files</span></button>
             <button class="quality-item" role="menuitem" data-value="high" tabindex="-1"><span>High quality</span><span class="quality-item-blurb">Slightly smaller files</span></button>
             <button class="quality-item" role="menuitem" data-value="medium" tabindex="-1"><span>Balanced</span><span class="quality-item-blurb">Recommended for most files</span></button>
             <button class="quality-item" role="menuitem" data-value="low" tabindex="-1"><span>Smallest file</span><span class="quality-item-blurb">Visible quality loss</span></button>
@@ -476,7 +476,7 @@
 
 
   <p id="description" class="page-description entrance d6">
-    Convert between 70+ formats, or squish them smaller, right here in your browser. Your files never leave your device.
+    Convert between 70+ formats, or compress them smaller, right here in your browser. Your files never leave your device.
   </p>
 
   <main id="pdf-workspace" style="display:none" aria-label="PDF Editor">
@@ -507,15 +507,28 @@
   </p>
 
   <main id="compress-workspace" style="display:none" aria-label="Compress">
-    <h1 id="compress-hero-title" class="page-title" aria-label="What are we squishing today?">
+    <h1 id="compress-hero-title" class="page-title" aria-label="What will you compress today?">
       <span class="word-entrance" style="animation-delay: 0.1s" aria-hidden="true">What</span>
-      <span class="word-entrance" style="animation-delay: 0.15s" aria-hidden="true">are</span>
-      <span class="word-entrance" style="animation-delay: 0.2s" aria-hidden="true">we</span>
-      <span class="word-entrance" style="animation-delay: 0.25s" aria-hidden="true">squishing</span>
+      <span class="word-entrance" style="animation-delay: 0.15s" aria-hidden="true">will</span>
+      <span class="word-entrance" style="animation-delay: 0.2s" aria-hidden="true">you</span>
+      <span class="word-entrance" style="animation-delay: 0.25s" aria-hidden="true">compress</span>
       <span class="word-entrance" style="animation-delay: 0.3s" aria-hidden="true">today?</span>
     </h1>
 
-    <div id="compress-content" class="entrance d5"></div>
+    <!-- Same .tab-bar the Converter uses. Here the pills state what this
+         surface can take rather than filtering a format list: tapping one
+         opens the picker already narrowed to that kind of file. -->
+    <nav id="compress-category-tabs" class="tab-bar entrance d4" aria-label="What can be compressed">
+      <button class="cat-tab active" data-accept="" aria-pressed="true">Any</button>
+      <button class="cat-tab" data-accept="image/*" aria-pressed="false">Image</button>
+      <button class="cat-tab" data-accept="audio/*" aria-pressed="false">Audio</button>
+      <button class="cat-tab" data-accept="video/*" aria-pressed="false">Video</button>
+      <button class="cat-tab" data-accept="application/pdf,.pdf" aria-pressed="false">PDF</button>
+    </nav>
+
+    <div id="compress-card" class="card-base entrance d5">
+      <div id="compress-content"></div>
+    </div>
 
     <!-- PDFs belong here as much as the media types: Ghostscript is the whole
          reason this surface exists. `.pdf` as well as the MIME because some

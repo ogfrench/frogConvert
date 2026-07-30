@@ -145,13 +145,13 @@ class GhostscriptNodeHandler implements FormatHandler {
             const rc = Module.callMain(
                 ghostscriptArgs({ quality, inputPath: "/in.pdf", outputPath: "/out.pdf" }));
             if (rc !== 0) {
-                throw new Error(`Couldn't compress ${file.name} — the PDF may be corrupt or password-protected.`);
+                throw new Error(`Couldn't compress ${file.name}. The PDF may be corrupt or password-protected.`);
             }
 
             const bytes = Module.FS.readFile("/out.pdf");
             // Ghostscript can exit 0 having written something that is not a PDF.
             if (bytes.byteLength < 5 || String.fromCharCode(...bytes.slice(0, 5)) !== "%PDF-") {
-                throw new Error(`Couldn't compress ${file.name} — the result wasn't a readable PDF.`);
+                throw new Error(`Couldn't compress ${file.name}. The result wasn't a readable PDF.`);
             }
             outputs.push({ ...file, name: file.name, bytes });
         }

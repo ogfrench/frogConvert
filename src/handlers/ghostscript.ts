@@ -98,7 +98,7 @@ async function fetchAndCompile(onProgress?: (p: ProgressEvent) => void): Promise
             got += value.byteLength;
             onProgress?.({
                 ratio: (got / total) * 0.5,
-                detail: `Fetching the PDF compressor — ${Math.round((got / total) * 100)}%`,
+                detail: `Fetching the PDF compressor (${Math.round((got / total) * 100)}%)`,
             });
         }
         bytes = new Uint8Array(new ArrayBuffer(got));
@@ -202,13 +202,13 @@ class GhostscriptHandler implements FormatHandler {
             Module.FS.writeFile(inPath, file.bytes);
 
             const rc = Module.callMain(ghostscriptArgs({ quality, inputPath: inPath, outputPath: outPath }));
-            if (rc !== 0) throw new Error(`Couldn't compress ${file.name} — the PDF may be corrupt or password-protected.`);
+            if (rc !== 0) throw new Error(`Couldn't compress ${file.name}. The PDF may be corrupt or password-protected.`);
 
             const bytes = Module.FS.readFile(outPath);
             // Ghostscript can exit 0 having written something that is not a PDF
             // (e.g. an empty file for an unreadable input); refuse to hand that back.
             if (bytes.byteLength < 5 || String.fromCharCode(...bytes.slice(0, 5)) !== "%PDF-") {
-                throw new Error(`Couldn't compress ${file.name} — the result wasn't a readable PDF.`);
+                throw new Error(`Couldn't compress ${file.name}. The result wasn't a readable PDF.`);
             }
 
             outputs.push({ ...file, name: file.name, bytes });

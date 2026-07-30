@@ -444,16 +444,18 @@
   z-index: var(--z-floating);
   display: flex;
   flex-direction: column;
-  padding: var(--space-1);
+  padding: var(--space-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background-color: var(--card);
   box-shadow: var(--shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.15));
 }
 
-/* The quality menu is wider: its rows carry a blurb under the label. */
-#app-mode-menu { min-width: 11rem; }
-#quality-menu { min-width: 13rem; }
+/* The quality menu is wider: its rows carry a blurb under the label, and at
+   13rem the longer ones wrapped onto a third line, which is what made the list
+   read as cramped. */
+#app-mode-menu { min-width: 12rem; }
+#quality-menu { min-width: 17.5rem; }
 
 #app-mode-menu[hidden],
 #quality-menu[hidden] { display: none; }
@@ -462,7 +464,7 @@
 .quality-item {
   display: flex;
   width: 100%;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2-5) var(--space-3);
   border: none;
   border-radius: calc(var(--radius) - 2px);
   background: transparent;
@@ -483,7 +485,15 @@
 .quality-item {
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  gap: var(--space-1);
+  line-height: var(--leading-snug, 1.35);
+}
+
+/* Rows sat flush against each other, so four of them read as one block of
+   text rather than four choices. */
+.quality-item + .quality-item,
+.app-mode-item + .app-mode-item {
+  margin-top: var(--space-0-5, 2px);
 }
 
 .app-mode-item:hover,
@@ -514,8 +524,9 @@
 /* Names the axis the options sit on, so "Balanced" and "Smallest file" read as
    compression settings rather than an unlabelled list of adjectives. */
 .quality-menu-title {
-  margin: 0;
-  padding: var(--space-2) var(--space-3) var(--space-1);
+  margin: 0 0 var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
   font-size: var(--text-xs);
   font-weight: var(--font-medium);
   color: var(--muted-foreground);

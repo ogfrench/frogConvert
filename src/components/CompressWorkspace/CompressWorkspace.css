@@ -4,15 +4,17 @@
    so the third mode doesn't read as a bolted-on tool.
    =================================================================== */
 
-/* Matches #convert-card's footprint so the two surfaces read as siblings
-   rather than two unrelated tools that happen to live in one app. */
-#compress-content {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+/* The same card as #convert-card, not a lookalike: identical width, margin,
+   padding and radius, carrying .card-base for the surface and border. It used
+   to be a bare flex column with a gap, so the fields floated on the page while
+   the Converter's sat in a card — the two surfaces read as different products.
+   Every value below is copied from ConvertCard.css on purpose; if that card's
+   footprint changes, this one should be changed with it. */
+#compress-card {
   width: 100%;
   max-width: var(--card-max-width);
   margin: var(--space-8) auto 0;
+  padding: var(--space-6);
   /* Same guard as .ws-empty-layout in the PDF workspace. The entrance
      animation leaves a transform here, which makes this an atomic stacking
      context — so the level dropdown's own z-index only orders it *within* this
@@ -23,12 +25,29 @@
   z-index: var(--z-content);
 }
 
+/* .card-base sets a 200px floor for the Converter's taller layout. The
+   compress card is shorter in its empty state and would otherwise carry dead
+   space below the drop zone. */
+#compress-card { min-height: 0; }
+
 @media only screen and (max-width: 800px) {
-  #compress-content {
+  #compress-card {
     margin: var(--space-6) auto 0;
     width: var(--modal-width);
     max-width: var(--mobile-content-width);
   }
+}
+
+/* Spacing between the card's own sections, matching the rhythm the Converter
+   gets from #convert-arrow-wrap sitting between its two fields. */
+#compress-content > * + * {
+  margin-top: var(--space-5);
+}
+
+/* The primary action gets the Converter's larger gap above it, so the button
+   reads as the end of the card rather than another field. */
+#compress-content > .cw-compress {
+  margin-top: var(--space-6);
 }
 
 /* --- Reused from the convert card ---------------------------------------
@@ -47,11 +66,12 @@
    holding it at 10rem left one line of text floating in a void with the level
    picker and the button pushed down the page for nothing. With files it sizes
    to its content, the same way the Convert card's does. */
-#compress-content .upload-zone {
-  height: auto;
-}
-
+/* Once files are in, the zone is a summary row and keeps the Converter's exact
+   5.5rem — the two cards should be measurably the same object, not roughly
+   similar. Only the *empty* state is taller, because on a drop-first surface
+   the target being large is the whole point. */
 #compress-content .upload-zone:not(.has-file) {
+  height: auto;
   min-height: calc(var(--space-16) * 2.5);
 }
 

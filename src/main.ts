@@ -418,8 +418,12 @@ type QualityBinding = {
   choices: ReadonlyArray<{ value: string; label: string; blurb: string }>;
   get: () => string;
   set: (v: string) => void;
-  /** Completes "Compression …: Balanced" in the control's accessible name. */
-  scope: string;
+  /**
+   * The heading over the options. "Compression" alone is ambiguous once the
+   * control appears in three places — it never says compression *of what*.
+   * Each mode names the thing the level will actually be applied to.
+   */
+  title: string;
 };
 
 const QUALITY_BINDINGS: Record<AppMode, QualityBinding> = {
@@ -427,19 +431,19 @@ const QUALITY_BINDINGS: Record<AppMode, QualityBinding> = {
     choices: CONVERT_QUALITY_CHOICES,
     get: () => convertQuality.value,
     set: (v) => setConvertQuality(v as ConvertQuality),
-    scope: "when converting",
+    title: "Compress on conversion",
   },
   compress: {
     choices: COMPRESS_LEVEL_CHOICES,
     get: () => compressLevel.value,
     set: (v) => setCompressLevel(v as CompressLevel),
-    scope: "when compressing",
+    title: "Compression level",
   },
   "pdf-editor": {
     choices: PDF_QUALITY_CHOICES,
     get: () => pdfQuality.value,
     set: (v) => setPdfQuality(v as PdfQuality),
-    scope: "when saving a PDF",
+    title: "Compress created PDF",
   },
 };
 
@@ -486,10 +490,19 @@ function renderQualityOptions() {
 }
 
 function syncQualityUI() {
-  const { choices, current, scope } = qualityContext();
+  const { choices, current, title } = qualityContext();
   const label = choices.find(c => c.value === current)?.label ?? "Balanced";
-  qualityToggle.title = `Compression: ${label}`;
-  qualityToggle.setAttribute("aria-label", `Compression ${scope}: ${label}. Change`);
+
+  // The heading is rebuilt with the options, and named for the active mode, so
+  // the same control never reads as the same setting in three places.
+  const heading = qualityMenu.querySelector(".quality-menu-title");
+  if (heading) heading.textContent = title;
+  const mobileLabel = document.getElementById("quality-label");
+  if (mobileLabel) mobileLabel.textContent = title;
+  qualityMenu.setAttribute("aria-label", title);
+
+  qualityToggle.title = `${title}: ${label}`;
+  qualityToggle.setAttribute("aria-label", `${title}: ${label}. Change`);
   for (const item of qualityMenu.querySelectorAll<HTMLElement>(".quality-item")) {
     item.setAttribute("aria-current", String(item.dataset.value === current));
   }

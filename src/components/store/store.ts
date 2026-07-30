@@ -320,7 +320,7 @@ export const CONVERT_QUALITY_CHOICES = choices(
   ["auto", "lossless", "high", "medium", "low"] as const,
   {
     auto: "Picks a level to suit each file",
-    lossless: "No compression — largest files",
+    lossless: "No compression, largest files",
     high: "Slightly smaller files",
     medium: "Recommended for most files",
     low: "Visible quality loss",
@@ -383,7 +383,7 @@ export type PdfQuality = Exclude<QualityLevel, "auto">;
 export const PDF_QUALITY_CHOICES = choices(
   ["lossless", "high", "medium", "low"] as const,
   {
-    lossless: "No compression — your pages, untouched",
+    lossless: "No compression, your pages untouched",
     high: "Slightly smaller. Print-quality images.",
     medium: "Balanced. Good for sharing and email.",
     low: "Smallest file. Visible quality loss on images.",

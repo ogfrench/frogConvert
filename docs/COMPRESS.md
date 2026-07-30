@@ -99,11 +99,13 @@ Compress is not the only place compression happens. Every conversion has always 
 
 The **Compression** control lives at the bottom of the settings menu and is present in **every** mode — it rebinds to whichever setting the active mode owns rather than disappearing, because hiding it made the setting look like it only existed where you last saw it.
 
-| Mode | What it controls | Default | Levels offered |
-|---|---|---|---|
-| **Converter** | Quality of converted output | Automatic | Automatic, Original quality, High quality, Balanced, Smallest file |
-| **Compress** | How hard to squeeze — the same value as the card's own **Compress by** picker, two views kept in sync | Automatic | Automatic, High quality, Balanced, Smallest file |
-| **PDF Editor** | Whether a saved PDF is also shrunk on the way out | **Original quality** | Original quality, High quality, Balanced, Smallest file |
+It is titled for the mode you are in, because "Compression" on its own never says compression *of what*:
+
+| Mode | Reads as | What it controls | Default | Levels offered |
+|---|---|---|---|---|
+| **Converter** | Compress on conversion | Quality of converted output | Automatic | Automatic, Original quality, High quality, Balanced, Smallest file |
+| **Compress** | Compression level | How hard to squeeze. The same value as the card's own **Compress by** picker, two views kept in sync | Automatic | Automatic, High quality, Balanced, Smallest file |
+| **PDF Editor** | Compress created PDF | Whether a saved PDF is also shrunk on the way out | **Original quality** | Original quality, High quality, Balanced, Smallest file |
 
 The three settings are **independent and separately persisted**. "How much quality to give up while changing format", "how hard to squeeze" and "should editing this also shrink it" are different questions, and an earlier build that shared one value meant changing it in one place silently moved the others.
 

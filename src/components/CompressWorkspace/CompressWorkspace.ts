@@ -102,8 +102,8 @@ export function handleFiles(incoming: File[]) {
   if (rejected > 0) {
     showToast(
       rejected === incoming.length
-        ? "Nothing there i can squish. Images, audio, video and PDFs."
-        : `Skipped ${rejected} file${rejected === 1 ? "" : "s"} i can't squish yet.`,
+        ? "Nothing there i can compress. Images, audio, video and PDFs."
+        : `Skipped ${rejected} file${rejected === 1 ? "" : "s"} i can't compress yet.`,
       "warn",
       8000,
     );
@@ -117,7 +117,7 @@ export function handleFiles(incoming: File[]) {
   }
   const withinCount = accepted.slice(0, roomLeft);
   if (withinCount.length < accepted.length) {
-    showToast(`Only took the first ${withinCount.length} — ${ABSOLUTE_MAX_FILES}-file ceiling.`, "warn", 8000);
+    showToast(`Only took the first ${withinCount.length}. That's the ${ABSOLUTE_MAX_FILES}-file ceiling.`, "warn", 8000);
   }
 
   let total = files.reduce((sum, e) => sum + e.file.size, 0);
@@ -157,9 +157,9 @@ function removeFile(id: number) {
 
 /** Typed against SkipReason so a new reason can't be added without copy. */
 const REASON_COPY: Record<SkipReason, string> = {
-  "already-minimal": "already squished",
+  "already-minimal": "already compressed",
   "no-gain": "no gain",
-  "unsupported": "can't squish this",
+  "unsupported": "can't compress this",
   "failed": "failed",
   "cancelled": "stopped",
 };
@@ -169,9 +169,9 @@ export async function runCompression() {
 
   // Landing straight on /compress can beat the handler registry loading. With
   // an empty option list every file fails format detection and would be
-  // reported "can't squish this", which is a lie about the file.
+  // reported "can't compress this", which is a lie about the file.
   if (!allOptionsRef.value.length) {
-    showToast("Still warming up the engines — give me a second.", "info", 5000);
+    showToast("Still warming up the engines. Give me a second.", "info", 5000);
     return;
   }
 
@@ -187,7 +187,7 @@ export async function runCompression() {
   let celebrate = false;
 
   // Anything from here on has to leave `phase` somewhere the user can act
-  // from. Without this the surface can strand itself on "Squishing…" with no
+  // from. Without this the surface can strand itself on "Compressing…" with no
   // way back but a reload — and `file.arrayBuffer()` really does reject when
   // a picked file is moved or deleted before the batch runs.
   try {
@@ -235,7 +235,7 @@ export async function runCompression() {
     celebrate = results.some(r => r.shrunk);
   } catch (e) {
     console.error("[compress] batch threw", e);
-    showToast("Something went wrong while squishing. Your files are untouched.", "error", 8000);
+    showToast("Something went wrong while compressing. Your files are untouched.", "error", 8000);
     // Back to the file list rather than an empty results view: the batch is
     // still there and re-running it is the obvious next move.
     phase = "idle";
@@ -260,8 +260,8 @@ function paintProgress() {
   const track = rootEl.querySelector<HTMLElement>(".cw-progress-bar");
   if (label) {
     label.textContent = progress.current
-      ? `Squishing ${shortenFileName(progress.current, 28)} — ${progress.done} of ${progress.total}`
-      : `Squishing ${progress.done} of ${progress.total}`;
+      ? `Compressing ${shortenFileName(progress.current, 28)} (${progress.done} of ${progress.total})`
+      : `Compressing ${progress.done} of ${progress.total}`;
   }
   if (bar) bar.style.width = `${Math.round((progress.done / Math.max(progress.total, 1)) * 100)}%`;
   // Keep the assistive-tech view in step with the visual bar; the label above
@@ -282,7 +282,7 @@ export async function downloadResults() {
     .filter(r => !(r.bytes.byteLength === 0 && r.originalSize > 0))
     .map(r => ({ name: r.name, bytes: r.bytes }));
   if (!out.length) {
-    showToast("Nothing to download — none of those files could be read.", "warn", 6000);
+    showToast("Nothing to download. None of those files could be read.", "warn", 6000);
     return;
   }
   if (out.length === 1) downloadFile(out[0].bytes, out[0].name);
@@ -377,8 +377,8 @@ function fileListMarkup(): string {
 
 function progressMarkup(): string {
   return `
-    <div class="card-base cw-progress-card">
-      <p class="cw-progress-label" role="status" aria-live="polite" aria-atomic="true">Squishing ${progress.done} of ${progress.total}</p>
+    <div class="cw-progress-card">
+      <p class="cw-progress-label" role="status" aria-live="polite" aria-atomic="true">Compressing ${progress.done} of ${progress.total}</p>
       <div class="cw-progress-bar" role="progressbar" aria-label="Compression progress"
         aria-valuemin="0" aria-valuemax="${progress.total}" aria-valuenow="${progress.done}"><div class="cw-progress-bar-fill" style="width:0%"></div></div>
       <button class="cw-cancel" type="button">Stop</button>
@@ -408,7 +408,7 @@ function resultsMarkup(): string {
     : stoppedCount > 0
       ? `Stopped`
       : noneSupported
-        ? `Nothing i can squish here`
+        ? `Nothing i can compress here`
         : `Nothing left to shave off`;
   const sub = saved > 0
     ? stoppedCount > 0
@@ -442,7 +442,7 @@ function resultsMarkup(): string {
   const stubbornPdf = results.some(r =>
     !r.shrunk && r.reason === "no-gain" && /\.pdf$/i.test(r.name));
   const pdfNote = stubbornPdf
-    ? `<p class="cw-results-note">PDFs that are mostly text can't shrink much — their pages are fonts and vector shapes, not images. Scans and image-heavy PDFs squish far more.</p>`
+    ? `<p class="cw-results-note">PDFs that are mostly text can't shrink much. Their pages are fonts and vector shapes, not images. Scans and image-heavy PDFs compress far more.</p>`
     : "";
 
   // A degraded route ran because the real engine was unreachable. This is a
@@ -455,7 +455,7 @@ function resultsMarkup(): string {
     .join("");
 
   return `
-    <div class="card-base cw-results-card">
+    <div class="cw-results-card">
       <div class="cw-results-head" role="status" aria-live="polite" aria-atomic="true">
         <p class="cw-results-headline">${headline}</p>
         <p class="cw-results-sub">${escapeHTML(sub)}</p>
@@ -501,9 +501,14 @@ function render() {
   wireRendered();
 }
 
-function openPicker() {
+/** Everything this surface takes, and the picker filter for each. Empty accept
+ *  means "all of the above", which is the input's own markup default. */
+const ALL_ACCEPT = "image/*,audio/*,video/*,application/pdf,.pdf";
+
+function openPicker(accept = "") {
   if (!fileInput) return;
   fileInput.multiple = true;
+  fileInput.accept = accept || ALL_ACCEPT;
   fileInput.click();
 }
 
@@ -602,11 +607,13 @@ function wireRendered() {
 export function initCompressWorkspace() {
   if (initialized) {
     resolveRefs();
+    wireCategoryTabs();
     render();
     return;
   }
   initialized = true;
   resolveRefs();
+  wireCategoryTabs();
 
   // Async and non-blocking: the empty state paints first when no session exists.
   void tryRestoreCompressSession({
@@ -659,12 +666,39 @@ export function initCompressWorkspace() {
     fileInput.value = "";
   });
 
+  wireCategoryTabs();
   render();
 }
 
 function resolveRefs() {
   rootEl = document.getElementById("compress-content");
   fileInput = document.getElementById("compress-file-input") as HTMLInputElement | null;
+}
+
+/**
+ * The category pills above the card. On the Converter they filter a format
+ * list; there is no such list here, so they do the job the user actually came
+ * for — they state what this surface accepts, and tapping one opens the picker
+ * already narrowed to that kind of file. Wired once at init: they live outside
+ * `#compress-content` and so survive every re-render.
+ */
+function wireCategoryTabs() {
+  const tabs = document.getElementById("compress-category-tabs");
+  // The guard lives on the element, not in a module flag: a module flag would
+  // skip re-wiring if the markup were ever replaced, and would still
+  // double-wire a fresh element. This is idempotent either way.
+  if (!tabs || tabs.dataset.wired === "1") return;
+  tabs.dataset.wired = "1";
+  tabs.addEventListener("click", (e) => {
+    const tab = (e.target as HTMLElement).closest<HTMLElement>(".cat-tab");
+    if (!tab) return;
+    for (const t of tabs.querySelectorAll<HTMLElement>(".cat-tab")) {
+      const active = t === tab;
+      t.classList.toggle("active", active);
+      t.setAttribute("aria-pressed", String(active));
+    }
+    openPicker(tab.dataset.accept ?? "");
+  });
 }
 
 /** Tear down DOM refs but keep the user's batch, so mode switches don't lose work. */

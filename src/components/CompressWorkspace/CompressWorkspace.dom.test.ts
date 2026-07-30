@@ -44,7 +44,16 @@ function mountDom() {
   // card — the copy tests below only mean something if both are present.
   document.body.innerHTML = `
     <main id="compress-workspace">
-      <div id="compress-content"></div>
+      <nav id="compress-category-tabs" class="tab-bar">
+        <button class="cat-tab active" data-accept="" aria-pressed="true">Any</button>
+        <button class="cat-tab" data-accept="image/*" aria-pressed="false">Image</button>
+        <button class="cat-tab" data-accept="audio/*" aria-pressed="false">Audio</button>
+        <button class="cat-tab" data-accept="video/*" aria-pressed="false">Video</button>
+        <button class="cat-tab" data-accept="application/pdf,.pdf" aria-pressed="false">PDF</button>
+      </nav>
+      <div id="compress-card" class="card-base">
+        <div id="compress-content"></div>
+      </div>
       <input id="compress-file-input" type="file" multiple>
     </main>
     <p id="compress-description">Make files smaller without sending them anywhere.
@@ -230,7 +239,7 @@ describe('CompressWorkspace — running a batch', () => {
     ]);
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
     await ws.runCompression();
-    expect(document.querySelector('.cw-res-note')?.textContent).toContain('already squished');
+    expect(document.querySelector('.cw-res-note')?.textContent).toContain('already compressed');
     expect(document.querySelector('.cw-results-headline')?.textContent).toMatch(/Nothing left to shave/);
   });
 
@@ -268,7 +277,7 @@ describe('CompressWorkspace — running a batch', () => {
 
   it('refuses to run before the handler registry has loaded', async () => {
     // Regression: an empty option list made every file fail detection and get
-    // reported as "can't squish this".
+    // reported as "can't compress this".
     const store = await import('../store/store.ts');
     const saved = store.allOptionsRef.value;
     store.allOptionsRef.value = [];
@@ -478,7 +487,7 @@ describe('CompressWorkspace — batch edge cases', () => {
 
   it('turns SVG away at the door rather than after a batch', () => {
     // The one image type we know up front we can never compress. Letting it in
-    // only to report "can't squish this" later wastes the user's time.
+    // only to report "can't compress this" later wastes the user's time.
     ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('logo.svg', 'image/svg+xml')]);
     expect(ws.getFiles().map(f => f.file.name)).toEqual(['a.png']);
     expect(showToastMock).toHaveBeenCalled();
@@ -616,5 +625,43 @@ describe('CompressWorkspace — download', () => {
     expect(ws.getResults()).toHaveLength(2);
     expect(downloadAsZipMock).not.toHaveBeenCalled();
     expect(downloadFileMock).toHaveBeenCalledWith(expect.anything(), 'ok.png');
+  });
+});
+
+describe('CompressWorkspace — category pills', () => {
+  const tabs = () => [...document.querySelectorAll<HTMLElement>('#compress-category-tabs .cat-tab')];
+
+  it('names every family this surface accepts', () => {
+    // The pills exist to answer "what can I drop here?" without a trial run.
+    expect(tabs().map(t => t.textContent!.trim()))
+      .toEqual(['Any', 'Image', 'Audio', 'Video', 'PDF']);
+  });
+
+  it('narrows the picker to the family you tapped', () => {
+    // A pill that looks like a control and does nothing is worse than no pill.
+    const input = document.querySelector<HTMLInputElement>('#compress-file-input')!;
+    input.click = vi.fn();
+
+    tabs().find(t => t.textContent!.trim() === 'PDF')!.click();
+    expect(input.accept).toBe('application/pdf,.pdf');
+    expect(input.click).toHaveBeenCalled();
+  });
+
+  it('falls back to everything for "Any" rather than an empty filter', () => {
+    // accept="" would mean "no restriction" to the browser, which is right,
+    // but being explicit keeps the picker's own type list meaningful.
+    const input = document.querySelector<HTMLInputElement>('#compress-file-input')!;
+    input.click = vi.fn();
+
+    tabs().find(t => t.textContent!.trim() === 'Any')!.click();
+    expect(input.accept).toMatch(/image\/\*/);
+    expect(input.accept).toMatch(/application\/pdf/);
+  });
+
+  it('moves the active state to the tapped pill', () => {
+    tabs().find(t => t.textContent!.trim() === 'Video')!.click();
+    const active = tabs().filter(t => t.classList.contains('active'));
+    expect(active.map(t => t.textContent!.trim())).toEqual(['Video']);
+    expect(active[0].getAttribute('aria-pressed')).toBe('true');
   });
 });

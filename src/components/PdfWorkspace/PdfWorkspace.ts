@@ -483,8 +483,8 @@ async function setPdfResult(
     const note = document.querySelector<HTMLElement>('.ws-processing p');
     if (note) {
       note.textContent = results.length > 1
-        ? `Shrinking ${results.length} PDFs. The first one takes a little longer.`
-        : 'Shrinking your PDF. The first one takes a little longer.';
+        ? `Compressing ${results.length} PDFs. The first one takes a little longer.`
+        : 'Compressing your PDF. The first one takes a little longer.';
     }
   }
   lastPdfResult = await compressPdfOutputs(results, level);
