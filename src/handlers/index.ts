@@ -40,6 +40,7 @@ export async function loadBackgroundHandlers() {
   const loaders: Array<() => Promise<void>> = [
     lazy('pdftoimg', () => import("./pdftoimg.ts")),
     lazy('ghostscript', () => import("./ghostscript.ts")),
+    lazy('pdfCanvasCompress', () => import("./pdfCanvasCompress.ts")),
     lazy('pdftotxt', () => import("./pdftotxt.ts")),
     lazy('font', () => import("./font.ts")),
     lazy('FFmpeg', () => import("./FFmpeg.ts")),

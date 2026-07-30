@@ -363,11 +363,21 @@ function resultsMarkup(): string {
     ? `<p class="cw-results-note">PDFs that are mostly text can't shrink much — their pages are fonts and vector shapes, not images. Scans and image-heavy PDFs squish far more.</p>`
     : "";
 
+  // A degraded route ran because the real engine was unreachable. This is a
+  // saving the user did not ask for the cost of, so it is stated plainly
+  // rather than folded into the cheerful savings headline. De-duplicated: one
+  // warning per distinct cause, not one per file.
+  const warnings = [...new Set(results.map(r => r.warning).filter(Boolean) as string[])];
+  const warningNotes = warnings
+    .map(w => `<p class="cw-results-warning">${escapeHTML(w)}</p>`)
+    .join("");
+
   return `
     <div class="card-base cw-results-card">
       <div class="cw-results-head" role="status" aria-live="polite" aria-atomic="true">
         <p class="cw-results-headline">${headline}</p>
         <p class="cw-results-sub">${escapeHTML(sub)}</p>
+        ${warningNotes}
         ${pdfNote}
       </div>
       <ul class="cw-results-list">${rows}</ul>

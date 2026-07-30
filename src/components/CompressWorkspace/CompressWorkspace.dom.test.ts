@@ -387,3 +387,41 @@ describe('CompressWorkspace — honest PDF messaging', () => {
     expect(document.querySelector('.cw-results-note')).toBeNull();
   });
 });
+
+describe('CompressWorkspace — degraded-route warning', () => {
+  it('states what the fallback cost instead of only celebrating the saving', async () => {
+    compressBatchMock.mockResolvedValue([
+      {
+        name: 'scan.pdf', bytes: new Uint8Array(300), originalSize: 1000, shrunk: true,
+        warning: 'Pages were turned into images. Text is no longer selectable.',
+      },
+    ] as any);
+    ws.handleFiles([fakeFile('scan.pdf', 'application/pdf')]);
+    await ws.runCompression();
+
+    const warn = document.querySelector('.cw-results-warning');
+    expect(warn).not.toBeNull();
+    expect(warn!.textContent).toMatch(/no longer selectable/i);
+  });
+
+  it('shows one warning per cause, not one per file', async () => {
+    const w = 'Pages were turned into images.';
+    compressBatchMock.mockResolvedValue([
+      { name: 'a.pdf', bytes: new Uint8Array(300), originalSize: 1000, shrunk: true, warning: w },
+      { name: 'b.pdf', bytes: new Uint8Array(300), originalSize: 1000, shrunk: true, warning: w },
+    ] as any);
+    ws.handleFiles([fakeFile('a.pdf', 'application/pdf'), fakeFile('b.pdf', 'application/pdf')]);
+    await ws.runCompression();
+
+    expect(document.querySelectorAll('.cw-results-warning')).toHaveLength(1);
+  });
+
+  it('stays silent on a normal run', async () => {
+    compressBatchMock.mockResolvedValue([
+      { name: 'a.pdf', bytes: new Uint8Array(300), originalSize: 1000, shrunk: true },
+    ] as any);
+    ws.handleFiles([fakeFile('a.pdf', 'application/pdf')]);
+    await ws.runCompression();
+    expect(document.querySelector('.cw-results-warning')).toBeNull();
+  });
+});

@@ -264,3 +264,108 @@ describe("compressBatch — automatic level", () => {
         expect(run.mock.calls[1][4]).toEqual(["--quality", "high"]);
     });
 });
+
+describe("compressBatch — degraded fallback", () => {
+    const png = fmt("image/png", "png");
+
+    it("uses the fallback when the primary engine cannot run, and says what it cost", async () => {
+        const primary = handler("Ghostscript");
+        const alt = handler("PdfCanvasCompress", { mainThread: true });
+        vi.mocked(alt.doConvert).mockResolvedValue(
+            [{ name: "a.pdf", bytes: new Uint8Array(300) }] as any);
+        resolveMock.mockReturnValue({
+            handler: primary,
+            args: [],
+            fallback: { handler: alt, args: [], warning: "pages became images" },
+        } as any);
+        // Primary is worker-routed and blows up (e.g. the payload 404s).
+        const run = vi.fn(async () => { throw new Error("offline"); });
+
+        const out = await compressBatch(
+            [input("a.pdf", 1000, png)],
+            { options: [], level: "medium", run },
+        );
+
+        expect(out[0].shrunk).toBe(true);
+        expect(out[0].warning).toBe("pages became images");
+        expect(alt.doConvert).toHaveBeenCalled();
+    });
+
+    it("initialises the fallback, which the group-level init never touched", async () => {
+        const alt = handler("PdfCanvasCompress", { mainThread: true });
+        (alt as any).ready = false;
+        vi.mocked(alt.doConvert).mockResolvedValue(
+            [{ name: "a.pdf", bytes: new Uint8Array(300) }] as any);
+        resolveMock.mockReturnValue({
+            handler: handler("Ghostscript"),
+            args: [],
+            fallback: { handler: alt, args: [], warning: "w" },
+        } as any);
+
+        await compressBatch([input("a.pdf", 1000, png)], {
+            options: [], level: "medium",
+            run: vi.fn(async () => { throw new Error("offline"); }),
+        });
+
+        expect(alt.init).toHaveBeenCalled();
+    });
+
+    it("never reaches for the fallback when the primary succeeds", async () => {
+        const alt = handler("PdfCanvasCompress", { mainThread: true });
+        resolveMock.mockReturnValue({
+            handler: handler("Ghostscript"),
+            args: [],
+            fallback: { handler: alt, args: [], warning: "w" },
+        } as any);
+
+        const out = await compressBatch(
+            [input("a.pdf", 1000, png)],
+            { options: [], level: "medium", run: shrinkingRun(0.4) },
+        );
+
+        expect(out[0].shrunk).toBe(true);
+        expect(out[0].warning).toBeUndefined();
+        expect(alt.doConvert).not.toHaveBeenCalled();
+    });
+
+    it("does not warn about a fallback whose output was not worth keeping", async () => {
+        // Rasterising a text PDF usually makes it bigger. The keep-threshold
+        // discards that, and a discarded result must not carry a warning about
+        // damage the user never received.
+        const alt = handler("PdfCanvasCompress", { mainThread: true });
+        vi.mocked(alt.doConvert).mockResolvedValue(
+            [{ name: "a.pdf", bytes: new Uint8Array(4000) }] as any);
+        resolveMock.mockReturnValue({
+            handler: handler("Ghostscript"),
+            args: [],
+            fallback: { handler: alt, args: [], warning: "pages became images" },
+        } as any);
+
+        const out = await compressBatch([input("a.pdf", 1000, png)], {
+            options: [], level: "medium",
+            run: vi.fn(async () => { throw new Error("offline"); }),
+        });
+
+        expect(out[0].shrunk).toBe(false);
+        expect(out[0].reason).toBe("no-gain");
+        expect(out[0].warning).toBeUndefined();
+    });
+
+    it("reports failure when both routes are gone", async () => {
+        const alt = handler("PdfCanvasCompress", { mainThread: true });
+        vi.mocked(alt.doConvert).mockRejectedValue(new Error("no canvas"));
+        resolveMock.mockReturnValue({
+            handler: handler("Ghostscript"),
+            args: [],
+            fallback: { handler: alt, args: [], warning: "w" },
+        } as any);
+
+        const out = await compressBatch([input("a.pdf", 1000, png)], {
+            options: [], level: "medium",
+            run: vi.fn(async () => { throw new Error("offline"); }),
+        });
+
+        expect(out[0].reason).toBe("failed");
+        expect(out[0].warning).toBeUndefined();
+    });
+});

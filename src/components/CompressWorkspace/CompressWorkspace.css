@@ -445,3 +445,16 @@
   color: var(--muted-foreground);
   line-height: 1.45;
 }
+
+/* A degraded route ran. Reads as a caution, not as part of the good news. */
+.cw-results-warning {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--destructive, #d9534f);
+  border-radius: calc(var(--radius) - 2px);
+  font-size: var(--text-xs);
+  color: var(--foreground);
+  text-align: left;
+  line-height: 1.45;
+}

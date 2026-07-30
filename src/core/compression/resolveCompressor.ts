@@ -12,7 +12,16 @@ import { DEFAULT_PRESET } from "../FormatHandler/qualityPresets.ts";
  * UI store on purpose: `src/core/` must not depend on `src/components/`.
  */
 
-export type SameFormatDispatch = { handler: FormatHandler; args: string[] };
+export type SameFormatDispatch = {
+    handler: FormatHandler;
+    args: string[];
+    /**
+     * Only used when `handler` cannot run at all (e.g. its payload could not be
+     * fetched). Deliberately not a quality choice — a fallback is always worse
+     * than the primary, or it would be the primary.
+     */
+    fallback?: { handler: FormatHandler; args: string[]; warning: string };
+};
 
 /** One entry of the app's loaded handler/format list (`allOptionsRef.value`). */
 export type HandlerOption = { format: FileFormat; handler: FormatHandler };
@@ -82,11 +91,26 @@ export function resolveSameFormatHandler(
     }
 
     if (fmt === "pdf" || mime === "application/pdf") {
-        // Ghostscript only. The canvas/pdf-lib route would rasterise the page,
-        // which is not compression — it is throwing the document away.
+        // Ghostscript is the only route that compresses a PDF *as a PDF*.
         const h = findHandlerByName("Ghostscript", options);
         if (!h || !handlerSupportsFormat(h, format)) return null;
-        return { handler: h, args: baseArgs };
+
+        // The canvas route rasterises pages, which is not really compression —
+        // it throws the document away and keeps a picture of it. It is offered
+        // strictly as a fallback for when the 16 MB Ghostscript payload cannot
+        // be fetched (offline, blocked), never as an alternative the user is
+        // silently given instead.
+        const alt = findHandlerByName("PdfCanvasCompress", options);
+        const fallback = alt && handlerSupportsFormat(alt, format)
+            ? {
+                handler: alt,
+                args: baseArgs,
+                warning: "Couldn't reach the PDF compressor, so pages were turned into images. "
+                    + "The text is no longer selectable or searchable. Reconnect and re-run for a proper compress.",
+            }
+            : undefined;
+
+        return { handler: h, args: baseArgs, fallback };
     }
 
     return null;

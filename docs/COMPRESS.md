@@ -22,7 +22,7 @@ The top bar's mode control (the icon showing the current mode) opens a menu with
 | Animated (GIF, APNG) | FFmpeg | Varies with frame count |
 | Video | FFmpeg (re-encode forced) | Large, driven by source bitrate |
 | Audio | FFmpeg | Driven by source bitrate |
-| PDF | Ghostscript | 0% on text, 30–80% on image-heavy |
+| PDF | Ghostscript (canvas fallback if unreachable) | 0% on text, 30–80% on image-heavy |
 
 Anything else is refused at the drop zone rather than accepted and silently passed through.
 
@@ -75,6 +75,16 @@ PDFs use Ghostscript's `pdfwrite` device, mapped from the level:
 This is also why Compress does not use the rasterising route that the Converter's PDF→image path uses. Rendering pages to bitmaps would "shrink" a text PDF only by destroying the text layer, selectable text, and searchability. Measured on a vector-only PDF: the rasterising approach saves 0%, Ghostscript saves 36%.
 
 The Ghostscript engine is ~16 MB of WebAssembly. It is fetched **on first PDF compression only**, never at page load, with download progress shown. After that the browser caches it.
+
+### If the engine can't be fetched
+
+The 16 MB payload needs one online moment. If it can't be reached — offline, a blocked network, a bad deploy — Compress falls back to rasterising pages and rebuilding the PDF from JPEGs, and **tells you what that cost**:
+
+> Couldn't reach the PDF compressor, so pages were turned into images. The text is no longer selectable or searchable. Reconnect and re-run for a proper compress.
+
+This route is strictly worse and is never chosen while Ghostscript is available. It destroys the text layer, so selection, search, copy/paste, accessibility and links all go with it. On a text or vector PDF it usually produces a *larger* file, which the 98% keep-threshold then discards — so you get your original back rather than a damaged copy. It earns its place only on scans, where the pages were already images.
+
+It runs on the main thread (it needs a 2D canvas) while Ghostscript runs in a worker, which is why the two are separate handlers rather than one class with a branch.
 
 ## Compression when converting
 

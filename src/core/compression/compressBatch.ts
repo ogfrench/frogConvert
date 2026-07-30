@@ -39,6 +39,12 @@ export type CompressOutcome = {
     /** True only when the output actually replaced the input. */
     shrunk: boolean;
     reason?: SkipReason;
+    /**
+     * Set when the primary engine was unreachable and a degraded route
+     * produced this output. Carries the copy explaining what was lost, so the
+     * surface never presents a lossy fallback as a normal success.
+     */
+    warning?: string;
 };
 
 export type RunHandler = (
@@ -166,15 +172,35 @@ export async function compressBatch(
 
             const perFileArgs = withQualityArg(args, effective);
             const originalSize = input.bytes.byteLength;
+            const fileData: FileData = { name: input.name, bytes: input.bytes };
+
+            const attempt = async (h: typeof handler, a: string[]) => {
+                const produced = h.requiresMainThread
+                    ? await h.doConvert([fileData], inFmt, outFmt, a)
+                    : await run(h.name, [fileData], inFmt, outFmt, a);
+                return produced?.length && produced[0].bytes.byteLength > 0 ? produced[0] : null;
+            };
+
             let output: FileData | null = null;
+            let warning: string | undefined;
             try {
-                const fileData: FileData = { name: input.name, bytes: input.bytes };
-                const produced = handler.requiresMainThread
-                    ? await handler.doConvert([fileData], inFmt, outFmt, perFileArgs)
-                    : await run(handler.name, [fileData], inFmt, outFmt, perFileArgs);
-                if (produced?.length && produced[0].bytes.byteLength > 0) output = produced[0];
+                output = await attempt(handler, perFileArgs);
             } catch (e) {
                 if (!isCancelled?.()) console.error(handler.name, "compression threw", e);
+                // The primary engine could not run. A declared fallback is
+                // worse but better than handing the file back untouched, so
+                // try it — and remember to say what it cost.
+                const fb = group.dispatch.fallback;
+                if (fb && !isCancelled?.()) {
+                    try {
+                        // The group-level init only ran for the primary.
+                        if (!fb.handler.ready) await fb.handler.init();
+                        output = await attempt(fb.handler, withQualityArg(fb.args, effective));
+                        if (output) warning = fb.warning;
+                    } catch (e2) {
+                        console.error(fb.handler.name, "fallback compression threw", e2);
+                    }
+                }
             }
 
             if (output && output.bytes.byteLength < originalSize * KEEP_THRESHOLD) {
@@ -183,8 +209,11 @@ export async function compressBatch(
                     bytes: output.bytes,
                     originalSize,
                     shrunk: true,
+                    warning,
                 });
             } else {
+                // A fallback that produced nothing useful is not worth
+                // explaining — the file is unchanged either way.
                 passthrough(index, input, output ? "no-gain" : "failed");
             }
             done++;
