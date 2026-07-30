@@ -34,7 +34,16 @@ const LOSSLESS_IMG_BPP = { uncompressed: 2_000_000, hq: 500_000 };
 //   - Mixed text + 150-DPI figures:                  ~700 kB/page → medium
 //   - Optimised eBook / technical spec:              ~200 kB/page → low
 //   - Pure-text whitepaper with embedded fonts:       ~30 kB/page → minimal
-const PDF_BPP = { uncompressed: 5_000_000, hq: 1_500_000, medium: 500_000, low: 150_000 };
+//
+// The `low` floor sits at 50 kB/page, not the 150 kB it was first given. That
+// figure contradicted the reference points right above it — it declared
+// everything below 150 kB/page "minimal", a band meant to describe the 30 kB
+// pure-text case — and it misfiled ordinary designed documents as
+// incompressible. Two measured examples: a 59-page consulting report at
+// 102 kB/page and a 71-page research brief at 102 kB/page, both of which
+// Ghostscript shrinks by 37% and 18% respectively. Neither is remotely
+// "minimal"; both were being refused before the engine ever saw them.
+const PDF_BPP = { uncompressed: 5_000_000, hq: 1_500_000, medium: 500_000, low: 50_000 };
 
 // Total container kbps for video.
 //   - Blu-ray / ProRes / broadcast source:    > 25 Mbps → uncompressed
@@ -181,7 +190,18 @@ function readPdfPageCountFromTrailer(u8: Uint8Array): number | null {
 async function readPdfPageCountViaPdfjs(u8: Uint8Array): Promise<number | null> {
   try {
     const pdfjs = await loadPdfjs();
-    const doc = await pdfjs.getDocument({ data: u8, disableFontFace: true, isEvalSupported: false }).promise;
+    // `data` is *taken over* by pdf.js: it transfers the buffer to its worker
+    // and the array we passed comes back detached, with byteLength 0. Handing
+    // it the caller's own bytes therefore destroys the file for everyone
+    // downstream — the probe's own size arithmetic first, and then the actual
+    // compression, which would go on to hand Ghostscript an empty document.
+    // The copy costs one memcpy on a path that only runs when the cheap
+    // trailer scan has already failed.
+    const doc = await pdfjs.getDocument({
+      data: u8.slice(),
+      disableFontFace: true,
+      isEvalSupported: false,
+    }).promise;
     const pages = doc.numPages;
     await doc.destroy?.();
     return pages > 0 ? pages : null;
@@ -192,9 +212,14 @@ async function readPdfPageCountViaPdfjs(u8: Uint8Array): Promise<number | null> 
 
 export async function probePdf(bytes: ArrayBuffer | Uint8Array): Promise<InputQualityProbe> {
   const u8 = asUint8(bytes);
+  // Read the length up front. Anything that might detach the buffer has to run
+  // below this line, and if one ever does, the arithmetic still uses the real
+  // size rather than silently becoming a divide-into-zero that reports every
+  // document as "minimal".
+  const size = u8.byteLength;
   const pages = readPdfPageCountFromTrailer(u8) ?? await readPdfPageCountViaPdfjs(u8);
   if (!pages) return UNKNOWN;
-  const bpp = u8.byteLength / pages;
+  const bpp = size / pages;
   if (bpp > PDF_BPP.uncompressed) return { inputTier: "uncompressed", detail: { pages, bpp } };
   if (bpp > PDF_BPP.hq) return { inputTier: "hq", detail: { pages, bpp } };
   if (bpp > PDF_BPP.medium) return { inputTier: "medium", detail: { pages, bpp } };

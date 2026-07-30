@@ -268,10 +268,47 @@ describe("pick() on the compress page", () => {
         expect(compressish.length).toBeGreaterThan(0);
     });
 
+    // The rule is about *assumed context*, not vocabulary. A quip from the
+    // watermark tool pool ("every page now bears the brand") reads as nonsense
+    // on the compress page, because it assumes you are already in the editor
+    // with a document open. A capability tip that mentions watermarking in
+    // order to point you *at* the editor is the opposite: it is only useful
+    // somewhere else. So this matches the tool quips themselves, not the word.
     it("never leaks PDF tool quips onto the compress page", () => {
         for (let i = 0; i < 200; i++) {
             const t = pick(null, null, null, "compress").text;
-            expect(t).not.toMatch(/watermark|merge two pdfs|rearrange pages/i);
+            expect(t).not.toMatch(/every page now bears the brand|rearrange pages now|two pdfs enter|marking your territory/i);
+        }
+    });
+
+    it("still tells the compress page about the other modes", () => {
+        const seen = new Set<string>();
+        for (let i = 0; i < 400; i++) seen.add(pick(null, null, null, "compress").text);
+        expect([...seen].some(t => /pdf editor|i also edit pdfs/i.test(t))).toBe(true);
+    });
+});
+
+describe("capability quips", () => {
+    // The whole point of the pool: someone who has never left the Converter is
+    // exactly the person who does not know Compress and the PDF editor exist.
+    for (const page of ["convert", "compress", "pdf-editor"] as const) {
+        it(`surface features on the ${page} page`, () => {
+            const seen = new Set<string>();
+            for (let i = 0; i < 600; i++) seen.add(pick(null, null, null, page).text);
+            const texts = [...seen];
+            expect(texts.some(t => /compress mode|smaller, not different/i.test(t))).toBe(true);
+            expect(texts.some(t => /dark mode|light, dark/i.test(t))).toBe(true);
+            expect(texts.some(t => /settings menu/i.test(t))).toBe(true);
+        });
+    }
+
+    it("never claims a feature the app does not have", () => {
+        // Guards against the tempting-but-false tip. Everything the pool
+        // mentions has to be reachable in the shipped UI.
+        const seen = new Set<string>();
+        for (let i = 0; i < 800; i++) seen.add(pick(null, null, null, "convert").text);
+        for (const t of seen) {
+            expect(t).not.toMatch(/sign up|account|cloud|upload to|premium|pro plan/i);
         }
     });
 });

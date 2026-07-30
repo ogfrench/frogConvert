@@ -49,8 +49,6 @@ import {
 } from "../components/utils/index.ts";
 import { runInWorker, WORKER_TIMEOUT_MS } from "./workerClient.ts";
 import { hopQualityArgs, resolveAutoQuality } from "../core/compression/hopQuality.ts";
-import { probeInputQuality } from "../core/compression/inputQuality.ts";
-import { tierDown } from "../core/compression/tierDown.ts";
 
 // --- Helpers ---
 
@@ -191,8 +189,6 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
     const requestedQuality: QualityPreset = convertQuality.value === "auto"
         ? await resolveAutoQuality(
             files.map(f => ({ bytes: f.bytes, mime: path[0]?.format.mime ?? "" })),
-            probeInputQuality,
-            tierDown,
         )
         : convertQuality.value;
 

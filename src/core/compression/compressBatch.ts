@@ -6,8 +6,7 @@ import type {
 } from "../FormatHandler/FormatHandler.ts";
 import { withQualityArg } from "../FormatHandler/FormatHandler.ts";
 import { resolveSameFormatHandler, handlerSupportsFormat, type HandlerOption } from "./resolveCompressor.ts";
-import { probeInputQuality } from "./inputQuality.ts";
-import { tierDown } from "./tierDown.ts";
+import { decideAutoQuality } from "./automatic.ts";
 
 /**
  * Batch compression orchestrator.
@@ -180,16 +179,30 @@ export async function compressBatch(
                 continue;
             }
 
+            // The probe *chooses* a tier when the user hasn't. It must never
+            // overrule one they did choose: it reads container metadata, not
+            // pixels, so "already as small as it gets" is a guess — and a guess
+            // is no basis for refusing to run. Someone who picked "Smallest
+            // file" has asked us to try, and we can only report back honestly
+            // once we have. KEEP_THRESHOLD below is the real guard against
+            // handing back a re-encode that gained nothing; it measures the
+            // output instead of predicting it.
+            //
+            // This veto used to fire for every level, and it is why image-heavy
+            // PDFs came back untouched at every setting.
             let effective: QualityPreset = level === "auto" ? "medium" : level;
-            if (level !== "lossless") {
-                const probe = await probeInputQuality(input.bytes, input.format.mime ?? "");
-                const next = tierDown(probe.inputTier);
-                if (next.kind === "skip") {
+            if (level === "auto") {
+                // See `automatic.ts` for what Automatic means. Compress is the
+                // one surface that can honour "already minimal" literally: it
+                // hands the file back untouched, because the user asked for a
+                // smaller file and there isn't one to give.
+                const decision = await decideAutoQuality(input.bytes, input.format.mime ?? "");
+                if (decision.kind === "already-minimal") {
                     passthrough(index, input, "already-minimal");
                     done++;
                     continue;
                 }
-                if (level === "auto") effective = next.tier;
+                effective = decision.tier;
             }
 
             const perFileArgs = withQualityArg(args, effective);

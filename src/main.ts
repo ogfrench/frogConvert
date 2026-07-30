@@ -97,6 +97,7 @@ import {
 } from "./components/persistence/convertPersist.ts";
 import CommonFormats from "./core/CommonFormats/CommonFormats.ts";
 import { EXTERNAL_FILES_EVENT, type ExternalFilesDetail } from "./pwa/shareTargetConstants.ts";
+import { COMPRESS_THESE_EVENT } from "./constants/ui.ts";
 
 getPdfWorkspace().catch((e) => console.warn("[main] PDF workspace module load failed:", e));
 
@@ -977,6 +978,19 @@ function deliverSharedToCompress(files: File[]) {
   void getCompressWorkspace().then(ws => ws.ingestExternalFiles(files))
     .catch(err => console.warn("[main] could not deliver shared files to Compress:", err));
 }
+
+// "Open Compress" on the Converter's same-format signpost. Same delivery as a
+// shared file, because it is the same job: switch surface, bring the files.
+window.addEventListener(COMPRESS_THESE_EVENT, (e) => {
+  const files = (e as CustomEvent<{ files?: File[] }>).detail?.files ?? [];
+  if (!files.length) {
+    // No files picked yet — the signpost can be reached from a bare format
+    // choice. Still take them to the surface they asked for.
+    if (currentAppMode !== "compress") { setAppMode("compress"); navigateTo("compress"); }
+    return;
+  }
+  deliverSharedToCompress(files);
+});
 
 window.addEventListener(EXTERNAL_FILES_EVENT, (e) => {
   const files = (e as CustomEvent<ExternalFilesDetail>).detail?.files ?? [];

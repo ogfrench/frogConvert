@@ -4,9 +4,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { CATEGORY_LABELS, ui, isLoadingHandlers, allOptionsRef } from "../store/store.ts";
+import { CATEGORY_LABELS, ui, isLoadingHandlers, allOptionsRef, currentFiles } from "../store/store.ts";
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 import { updateConvertButtonState } from "./FormatModal.ts";
+import { COMPRESS_THESE_EVENT } from "../../constants/ui.ts";
 
 
 // ---------------------------------------------------------------------------
@@ -245,11 +246,33 @@ describe("updateConvertButtonState (same-format signpost)", () => {
         const action = hint.querySelector<HTMLButtonElement>(".convert-hint-action");
         expect(action).not.toBeNull();
 
-        const dispatched: string[] = [];
-        window.addEventListener("frog:set-mode", (e) =>
-            dispatched.push((e as CustomEvent).detail), { once: true });
+        // The files go with them. Landing on an empty Compress card means
+        // picking the same files a second time, which reads as the button
+        // having done nothing at all.
+        currentFiles.value = [new File(["x"], "photo.png", { type: "image/png" })];
+        const dispatched: File[][] = [];
+        window.addEventListener(COMPRESS_THESE_EVENT, (e) =>
+            dispatched.push((e as CustomEvent).detail.files), { once: true });
         action!.click();
-        expect(dispatched).toEqual(["compress"]);
+        expect(dispatched).toHaveLength(1);
+        expect(dispatched[0].map(f => f.name)).toEqual(["photo.png"]);
+    });
+
+    it("hands over a copy, so later edits to the converter's batch don't follow", () => {
+        const png = makeFormat("image/png", "png", true);
+        allOptionsRef.value = [{ format: png, handler: stubHandler("ImageMagick", [png]) }];
+        (window as any).supportedFormatCache = new Map([["ImageMagick", [png]]]);
+        updateConvertButtonState(0, 0);
+
+        currentFiles.value = [new File(["x"], "a.png", { type: "image/png" })];
+        let handed: File[] = [];
+        window.addEventListener(COMPRESS_THESE_EVENT, (e) => {
+            handed = (e as CustomEvent).detail.files;
+        }, { once: true });
+        document.querySelector<HTMLButtonElement>(".convert-hint-action")!.click();
+
+        currentFiles.value.push(new File(["y"], "b.png", { type: "image/png" }));
+        expect(handed).toHaveLength(1);
     });
 
     it("stays quiet when input and output formats differ", () => {

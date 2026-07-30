@@ -234,55 +234,22 @@
 
 .cw-compress { width: 100%; }
 
-/* --- Progress --- */
-
-.cw-progress-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.cw-progress-label {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--foreground);
-  text-align: center;
-  overflow-wrap: anywhere;
-}
-
-.cw-progress-bar {
-  width: 100%;
-  height: 6px;
-  border-radius: 999px;
-  background-color: var(--secondary);
-  overflow: hidden;
-}
-
-.cw-progress-bar-fill {
-  height: 100%;
-  background-color: var(--primary);
-  transition: width var(--transition-fast);
-}
-
-.cw-cancel {
-  min-height: 36px;
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: var(--text-sm);
-  cursor: pointer;
-}
-
-.cw-cancel:hover { color: var(--foreground); border-color: var(--muted-foreground); }
+/* Progress has no styles here: it runs in the shared conversion modal
+   (see conversion.css), the same one the Converter and PDF editor use. */
 
 /* --- Results --- */
 
 .cw-results-head {
   text-align: center;
   margin-bottom: var(--space-4);
+}
+
+/* The success celebration, same frog the Converter's popup dances. Sized here
+   rather than in DancingFrog.css so the popup's own sizing is untouched. */
+.cw-results-frog {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-3xl, 1.875rem);
+  line-height: 1;
 }
 
 .cw-results-headline {

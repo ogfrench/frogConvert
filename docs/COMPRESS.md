@@ -43,9 +43,17 @@ There is deliberately **no "lossless" level here**. As a compression level it ca
 
 ### How Automatic works
 
-Automatic doesn't apply a fixed tier. For each file it probes cheap metadata — bytes per megapixel for images, bytes per page for PDFs, container bitrate for audio/video — classifies the input into a quality band, then steps down one band. A file already at the bottom band is skipped and reported as *already compressed* rather than re-encoded.
+Automatic doesn't apply a fixed tier. It runs three steps per file:
+
+1. **Probe.** Read cheap container metadata — bytes per megapixel for images, bytes per page for PDFs, container bitrate for audio and video — and place the file in a quality band from *uncompressed* down to *minimal*. This measures how densely the file is **already** compressed. It never decodes the whole file, so it costs milliseconds.
+2. **Step down one band.** A file that is already lean is asked to give up less than a raw one. A file in the bottom band is left alone and reported as *already compressed* rather than re-encoded.
+3. **Apply the format's rule.** "One band down" is not safe everywhere. PDFs are the standing exception and resolve to a conservative target instead; see [PDF compression, honestly](#pdf-compression-honestly).
 
 This is why two files dropped together can come out at different levels, and why Automatic is the default: it's the right answer when the user has no opinion.
+
+**Automatic aims for a reliable win, not the biggest one.** If you want to push harder, say so with an explicit level — and note that an explicit level is never second-guessed. The probe only ever *chooses* on your behalf; it will not refuse a level you picked yourself, because whether a file can still shrink is a guess until the engine has actually tried.
+
+One definition backs all of this: `src/core/compression/automatic.ts`. The Converter, Compress and the MCP/REST entry point all call it, so the three surfaces cannot drift apart or miss a new per-format rule.
 
 ## Reading the results
 
@@ -80,6 +88,21 @@ PDFs use Ghostscript's `pdfwrite` device, mapped from the level:
 
 - A **scanned** PDF (mostly embedded raster) can drop 70–85%.
 - A **text** PDF is fonts and vector glyphs. There is almost nothing to resample, so it will report *no gain*. That is the feature working correctly, not failing.
+
+### Why Automatic picks High quality for PDFs
+
+For every other format, a lower preset means a smaller file. **PDFs do not behave that way**, so Automatic does not step them down the ladder — it targets `/printer` regardless of the probed band.
+
+The reason is that Ghostscript decodes and re-encodes embedded images, and for a modern well-produced PDF that trade can go the wrong way. Two real documents, measured:
+
+| Document | `/screen` | `/ebook` | `/printer` |
+|---|---|---|---|
+| 59-page consulting report | **−56%** | −32% | −37% |
+| 71-page research brief (JPEG2000 images) | **+42%** | **+65%** | −18% |
+
+The second file gets *bigger* at both aggressive presets, because its JPEG2000 images are re-encoded into a less efficient form. `/printer` was the only preset that helped both, and 300 dpi still downsamples any real scan — which is where the large savings actually live. So Automatic takes the reliable win.
+
+If you want the 56%, pick **Smallest file** explicitly. That is exactly the split the two settings are for: Automatic is cautious on your behalf, an explicit level is you overriding that. The 98% keep-threshold means a preset that would inflate a file never ships it — you get *no gain* and your original back, never something larger.
 
 This is also why Compress does not use the rasterising route that the Converter's PDF→image path uses. Rendering pages to bitmaps would "shrink" a text PDF only by destroying the text layer, selectable text, and searchability. Measured on a vector-only PDF: the rasterising approach saves 0%, Ghostscript saves 36%.
 

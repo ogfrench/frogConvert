@@ -120,16 +120,40 @@ describe("compressBatch — per-file outcomes", () => {
         expect(run).not.toHaveBeenCalled();
     });
 
-    it("skips files already at minimum useful quality", async () => {
+    it("skips files already at minimum useful quality under auto", async () => {
         resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
         tierDownMock.mockReturnValue({ kind: "skip" } as any);
         const run = shrinkingRun(0.5);
         const out = await compressBatch(
             [input("tiny.jpg", 900, fmt("image/jpeg", "jpeg"))],
-            { options: [], level: "medium", run },
+            { options: [], level: "auto", run },
         );
         expect(out[0].reason).toBe("already-minimal");
         expect(run).not.toHaveBeenCalled();
+    });
+
+    // The probe reads container metadata, not pixels. Letting it refuse a level
+    // the user picked by hand is how image-heavy PDFs came back untouched at
+    // every setting: they measured ~100 kB/page and were called "minimal".
+    it("never lets the probe veto an explicitly chosen level", async () => {
+        resolveMock.mockReturnValue({ handler: handler("Ghostscript"), args: [] });
+        tierDownMock.mockReturnValue({ kind: "skip" } as any);
+        const run = shrinkingRun(0.5);
+        const out = await compressBatch(
+            [input("report.pdf", 6_000_000, fmt("application/pdf", "pdf"))],
+            { options: [], level: "low", run },
+        );
+        expect(run).toHaveBeenCalled();
+        expect(out[0].shrunk).toBe(true);
+    });
+
+    it("does not even probe when the level is explicit", async () => {
+        resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
+        await compressBatch(
+            [input("a.png", 1000, fmt("image/png", "png"))],
+            { options: [], level: "high", run: shrinkingRun(0.5) },
+        );
+        expect(probeMock).not.toHaveBeenCalled();
     });
 
     it("keeps the original when the handler throws", async () => {

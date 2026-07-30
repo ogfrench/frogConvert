@@ -52,25 +52,11 @@ export function hopQualityArgs(opts: Parameters<typeof qualityForHop>[0]): strin
 /**
  * Resolve an "automatic" request into a concrete preset for a conversion.
  *
- * The Compress surface can probe per file, but a conversion runs a whole batch
- * down one route, so the choice is made once from the inputs. Takes the
- * gentlest tier any file warrants, so a mixed batch never over-compresses its
- * best input.
- *
- * A source already at minimum useful quality resolves to "high": it has
- * nothing left to give, so the right move is to stop taking.
+ * Kept as a named export because callers read better for it, but the decision
+ * itself lives in `automatic.ts` alongside every other surface's. It used to
+ * take `probe` and `tierDown` as parameters so this module could stay free of
+ * them; the cost was that each caller wired the pieces together itself, and
+ * when PDFs needed their own rule only the callers that happened to pass the
+ * mime through got it.
  */
-export async function resolveAutoQuality<T extends string>(
-    inputs: readonly { bytes: Uint8Array; mime: string }[],
-    probe: (bytes: Uint8Array, mime: string) => Promise<{ inputTier: T }>,
-    tierDown: (tier: T) => { kind: string; tier?: QualityPreset },
-): Promise<QualityPreset> {
-    const rank: Record<string, number> = { lossless: 0, high: 1, medium: 2, low: 3 };
-    let gentlest: QualityPreset = "low";
-    for (const input of inputs) {
-        const next = tierDown((await probe(input.bytes, input.mime)).inputTier);
-        const tier: QualityPreset = next.kind === "skip" ? "high" : (next.tier ?? "medium");
-        if (rank[tier] < rank[gentlest]) gentlest = tier;
-    }
-    return inputs.length ? gentlest : "medium";
-}
+export { decideAutoQualityForBatch as resolveAutoQuality } from "./automatic.ts";

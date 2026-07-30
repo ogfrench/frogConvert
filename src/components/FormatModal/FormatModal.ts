@@ -1,8 +1,9 @@
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 import "./FormatModal.css";
-import { ui, CATEGORY_LABELS, formatDisplayName, formatMode, getFormatCategory, activeCategory, allOptionsRef, isLoadingPhase2, isLoadingHandlers, updateScrollLock, isFormatVisible, isCategoryVisible, reachableIdentifiers, selectedFromIndex } from "../store/store.ts";
+import { ui, CATEGORY_LABELS, formatDisplayName, formatMode, getFormatCategory, activeCategory, allOptionsRef, isLoadingPhase2, isLoadingHandlers, updateScrollLock, isFormatVisible, isCategoryVisible, reachableIdentifiers, selectedFromIndex, currentFiles } from "../store/store.ts";
 import { formatToIdentifier } from "../../core/TraversionGraph/TraversionGraph.ts";
 import { isSameFormatCompressible } from "../../core/compression/resolveCompressor.ts";
+import { COMPRESS_THESE_EVENT } from "../../constants/ui.ts";
 
 // --- Format modal ---
 
@@ -232,8 +233,16 @@ export function updateConvertButtonState(selectedFromIndex: number | null, selec
       go.type = "button";
       go.className = "convert-hint-action";
       go.textContent = "Open Compress";
-      go.addEventListener("click", () =>
-        window.dispatchEvent(new CustomEvent("frog:set-mode", { detail: "compress" })));
+      // Carry the batch across. Sending the user to an empty Compress card
+      // makes them pick the same files a second time, which reads as the
+      // button having done nothing — the files are the whole reason they are
+      // being offered the trip.
+      go.addEventListener("click", () => {
+        closeFormatModal();
+        window.dispatchEvent(new CustomEvent(COMPRESS_THESE_EVENT, {
+          detail: { files: currentFiles.value.slice() },
+        }));
+      });
       hint.append(go);
     } else {
       hint.append("Same format in and out, so there's nothing to convert. You'll get your file back unchanged.");

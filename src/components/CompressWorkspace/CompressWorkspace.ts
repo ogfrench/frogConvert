@@ -13,9 +13,21 @@ import {
   type SkipReason,
 } from "../../core/compression/compressBatch.ts";
 import { runInWorker } from "../../conversion/workerClient.ts";
+import {
+  showConversionInProgress,
+  ensureCancelButton,
+  setActiveConversionMode,
+  setCanHardCancel,
+  setCurrentFileProgress,
+  resetCancellation,
+  completeCancellation,
+  isCancelled,
+} from "../../conversion/cancellation.ts";
+import { hidePopup } from "../Popup/Popup.ts";
 import { preloadGhostscript } from "../../tools/ghostscriptPreload.ts";
 import { downloadFile, downloadAsZip, timestampForFilename } from "../../conversion/download.ts";
 import { triggerConfetti } from "../../effects/Confetti/Confetti.ts";
+import { createDancingFrog } from "../Frogsworth/DancingFrog.ts";
 import {
   markCompressDirty,
   flushCompressOnHide,
@@ -59,7 +71,6 @@ let phase: Phase = "idle";
 let listOpen = false;
 let results: CompressOutcome[] = [];
 let progress = { done: 0, total: 0, current: "" };
-let cancelRequested = false;
 
 let rootEl: HTMLElement | null = null;
 let fileInput: HTMLInputElement | null = null;
@@ -175,10 +186,31 @@ export async function runCompression() {
     return;
   }
 
-  cancelRequested = false;
+  // Progress belongs in the same modal the Converter and the PDF editor use.
+  // Compress used to paint its own bar inside the card, which meant the one
+  // surface whose work takes longest was the one that looked like nothing was
+  // happening. The shared modal already knows how to say all of this in
+  // compress vocabulary — see `modeCopy()` — and it brings the cancel button,
+  // the escape-key binding and the "finishing this file" copy with it.
+  resetCancellation();
+  setActiveConversionMode("compress");
+  // Compress stops between files, never mid-file: an engine pass is a single
+  // uninterruptible call here. `false` picks the shared soft-cancel path,
+  // whose copy promises exactly that instead of implying an instant stop.
+  setCanHardCancel(false);
+  setCurrentFileProgress(0, files.length);
+
   phase = "running";
   progress = { done: 0, total: files.length, current: "" };
   render();
+
+  showConversionInProgress(
+    `Reading your ${files.length > 1 ? "files" : "file"}...`
+    + `<br><span class="conversion-path">getting ready to compress</span>`,
+    progressTitle(),
+    "idle",
+  );
+  ensureCancelButton();
 
   const options = allOptionsRef.value;
   const outcomes: (CompressOutcome | null)[] = files.map(() => null);
@@ -227,7 +259,7 @@ export async function runCompression() {
         progress = { done: alreadyDone + done, total: files.length, current };
         paintProgress();
       },
-      isCancelled: () => cancelRequested,
+      isCancelled: () => isCancelled,
     });
 
     batch.forEach((outcome, k) => { outcomes[recognizedAt[k]] = outcome; });
@@ -244,6 +276,17 @@ export async function runCompression() {
     return;
   } finally {
     if (phase === "running") phase = "done";
+    // Whatever happened, the modal comes down. Split from the state reset the
+    // same way the conversion flow splits it: `completeCancellation` awaits a
+    // minimum on-screen time for the cancel copy and can therefore throw or
+    // stall, and the popup must close regardless.
+    try {
+      await completeCancellation(true);
+    } catch (err) {
+      console.error("[compress] cancel cleanup failed:", err);
+    }
+    hidePopup();
+    resetCancellation();
   }
 
   render();
@@ -252,25 +295,29 @@ export async function runCompression() {
   if (celebrate) triggerConfetti();
 }
 
-/** Light in-place update so per-file progress doesn't re-render the whole view. */
+/** Mirrors the Converter's "Converting your files" heading. */
+function progressTitle(): string {
+  return `Compressing your ${progress.total > 1 ? "files" : "file"}`;
+}
+
+/**
+ * Push per-file progress into the shared modal. `showConversionInProgress`
+ * diffs its own content, so calling it per file is cheap, and it declines to
+ * overwrite the cancel copy once Stop has been pressed.
+ */
 function paintProgress() {
-  if (!rootEl) return;
-  const label = rootEl.querySelector<HTMLElement>(".cw-progress-label");
-  const bar = rootEl.querySelector<HTMLElement>(".cw-progress-bar-fill");
-  const track = rootEl.querySelector<HTMLElement>(".cw-progress-bar");
-  if (label) {
-    label.textContent = progress.current
-      ? `Compressing ${shortenFileName(progress.current, 28)} (${progress.done} of ${progress.total})`
-      : `Compressing ${progress.done} of ${progress.total}`;
-  }
-  if (bar) bar.style.width = `${Math.round((progress.done / Math.max(progress.total, 1)) * 100)}%`;
-  // Keep the assistive-tech view in step with the visual bar; the label above
-  // is a polite live region, so screen readers coalesce rapid file-to-file
-  // updates instead of reading every one of a long batch.
-  if (track) {
-    track.setAttribute("aria-valuemax", String(progress.total));
-    track.setAttribute("aria-valuenow", String(progress.done));
-  }
+  // `done` counts finished files; the one being worked on is the next one up.
+  const current = Math.min(progress.done + 1, progress.total);
+  // Keeps the shared cancel copy able to say "Finishing file 2 of 3".
+  setCurrentFileProgress(current, progress.total);
+
+  const main = progress.total > 1
+    ? `Compressing file ${current} of ${progress.total}...`
+    : "Compressing your file...";
+  const detail = progress.current
+    ? `<br><span class="conversion-path">${escapeHTML(shortenFileName(progress.current, 32))}</span>`
+    : "";
+  showConversionInProgress(`${main}${detail}`, progressTitle());
 }
 
 /**
@@ -395,17 +442,6 @@ function fileListMarkup(): string {
   return `<ul class="cw-list" ${listOpen ? "" : "hidden"}>${rows}</ul>`;
 }
 
-function progressMarkup(): string {
-  return `
-    <div class="cw-progress-card">
-      <p class="cw-progress-label" role="status" aria-live="polite" aria-atomic="true">Compressing ${progress.done} of ${progress.total}</p>
-      <div class="cw-progress-bar" role="progressbar" aria-label="Compression progress"
-        aria-valuemin="0" aria-valuemax="${progress.total}" aria-valuenow="${progress.done}"><div class="cw-progress-bar-fill" style="width:0%"></div></div>
-      <button class="cw-cancel" type="button">Stop</button>
-    </div>
-  `;
-}
-
 function resultsMarkup(): string {
   const saved = totalSaved(results);
   const originalTotal = results.reduce((sum, r) => sum + r.originalSize, 0);
@@ -456,13 +492,17 @@ function resultsMarkup(): string {
     `;
   }).join("");
 
-  // A text-heavy PDF genuinely cannot shrink: Ghostscript's presets only
-  // resample images, and there are none. Without saying so, a correct result
-  // reads as a broken feature.
+  // A PDF that came back no smaller has two quite different explanations and
+  // we cannot tell them apart from here, so the note names both rather than
+  // asserting the one that happens to be wrong. Measured: a 71-page,
+  // image-heavy research brief *grew* 42% at "Smallest file" because its
+  // JPEG2000 images get decoded and re-encoded, then shrank 18% at
+  // "High quality" - the opposite of what the old copy would have told that
+  // user, which was that their document must be mostly text.
   const stubbornPdf = results.some(r =>
     !r.shrunk && r.reason === "no-gain" && /\.pdf$/i.test(r.name));
   const pdfNote = stubbornPdf
-    ? `<p class="cw-results-note">PDFs that are mostly text can't shrink much. Their pages are fonts and vector shapes, not images. Scans and image-heavy PDFs compress far more.</p>`
+    ? `<p class="cw-results-note">That PDF didn't get smaller. Either it's mostly text, which is fonts and vector shapes rather than images, or its images are already stored in a format this level would have had to make bigger. Trying a different level is worth a go: on some documents <b>High quality</b> saves more than <b>Smallest file</b>.</p>`
     : "";
 
   // A degraded route ran because the real engine was unreachable. This is a
@@ -477,6 +517,7 @@ function resultsMarkup(): string {
   return `
     <div class="cw-results-card">
       <div class="cw-results-head" role="status" aria-live="polite" aria-atomic="true">
+        ${saved > 0 ? `<div class="cw-results-frog" aria-hidden="true"></div>` : ""}
         <p class="cw-results-headline">${headline}</p>
         <p class="cw-results-sub">${escapeHTML(sub)}</p>
         ${warningNotes}
@@ -509,9 +550,10 @@ function actionMarkup(): string {
 
 function render() {
   if (!rootEl) return;
-  if (phase === "running") {
-    rootEl.innerHTML = progressMarkup();
-  } else if (phase === "done") {
+  // "running" deliberately has no view of its own. The progress modal is up
+  // and blocking, and the card behind it stays on the file list, so pressing
+  // Stop reveals the batch exactly where it was rather than a dead panel.
+  if (phase === "done") {
     rootEl.innerHTML = resultsMarkup();
   } else {
     rootEl.innerHTML = files.length
@@ -612,14 +654,17 @@ function wireRendered() {
   }
 
   rootEl.querySelector<HTMLElement>(".cw-compress")?.addEventListener("click", () => { void runCompression(); });
+  // The same celebration the Converter puts on its success popup. Compress
+  // keeps its numbers in the card rather than a modal - the per-file table and
+  // "try another level" are the point, and a popup would cover them - so the
+  // frog comes to the card instead of the card moving into a popup.
+  const frogSlot = rootEl.querySelector<HTMLElement>(".cw-results-frog");
+  if (frogSlot && !frogSlot.firstChild) frogSlot.appendChild(createDancingFrog());
+
   rootEl.querySelector<HTMLElement>(".cw-download")?.addEventListener("click", () => { void downloadResults(); });
   rootEl.querySelector<HTMLElement>(".cw-back")?.addEventListener("click", backToFiles);
-  rootEl.querySelector<HTMLElement>(".cw-cancel")?.addEventListener("click", () => {
-    // Between-files cancellation: the in-flight file finishes, then the batch
-    // stops. Hard mid-file cancel would need the shared cancellation singleton.
-    cancelRequested = true;
-    showToast("Stopping after this file…", "info", 4000);
-  });
+  // Stop lives on the progress modal now (ensureCancelButton), which also
+  // binds Escape to it, so there is no cancel control to wire here.
 }
 
 // --- Lifecycle (mirrors PdfWorkspace) ---
@@ -732,7 +777,6 @@ export function resetAll() {
   setCompressLevel(DEFAULT_LEVEL);
   phase = "idle";
   results = [];
-  cancelRequested = false;
   void clearCompressSession();
   if (rootEl) render();
 }

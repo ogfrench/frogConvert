@@ -148,6 +148,46 @@ describe("handlerSupportsFormat", () => {
     it("tolerates a handler with no declared formats", () => {
         expect(handlerSupportsFormat(handler("Empty", []), PNG)).toBeNull();
     });
+
+    // How FFmpeg really declares things: one entry per demuxer and one per
+    // muxer. Neither claims a round trip on its own, and requiring one entry
+    // to carry both flags made every video and audio file "unsupported".
+    describe("handlers that split read and write into separate entries", () => {
+        const MP4_IN = fmt("video/mp4", "mp4", { to: false });
+        const MP4_OUT = fmt("video/mp4", "mp4", { from: false });
+
+        it("pairs a demuxer entry with a muxer entry", () => {
+            const ffmpeg = handler("FFmpeg", [MP4_IN, MP4_OUT]);
+            window.supportedFormatCache = new Map([["FFmpeg", [MP4_IN, MP4_OUT]]]);
+            const resolved = handlerSupportsFormat(ffmpeg, MP4_OUT);
+            expect(resolved).not.toBeNull();
+            expect(resolved!.from).toBe(true);
+            expect(resolved!.to).toBe(true);
+            expect(resolved!.mime).toBe("video/mp4");
+        });
+
+        it("still refuses a format it can only read", () => {
+            const ffmpeg = handler("FFmpeg", [MP4_IN]);
+            window.supportedFormatCache = new Map([["FFmpeg", [MP4_IN]]]);
+            expect(handlerSupportsFormat(ffmpeg, MP4_IN)).toBeNull();
+        });
+
+        it("still refuses a format it can only write", () => {
+            const ffmpeg = handler("FFmpeg", [MP4_OUT]);
+            window.supportedFormatCache = new Map([["FFmpeg", [MP4_OUT]]]);
+            expect(handlerSupportsFormat(ffmpeg, MP4_OUT)).toBeNull();
+        });
+
+        it("routes a video to FFmpeg once the pair resolves", () => {
+            const ffmpeg = handler("FFmpeg", [MP4_IN, MP4_OUT]);
+            window.supportedFormatCache = new Map([["FFmpeg", [MP4_IN, MP4_OUT]]]);
+            const dispatch = resolveSameFormatHandler(MP4_OUT, [{ format: MP4_OUT, handler: ffmpeg }]);
+            expect(dispatch).not.toBeNull();
+            expect(dispatch!.handler.name).toBe("FFmpeg");
+            // Without this the fast path would remux and shrink nothing.
+            expect(dispatch!.args).toContain("--no-stream-copy");
+        });
+    });
 });
 
 describe("resolveSameFormatHandler — PDF", () => {

@@ -28,11 +28,24 @@ Each of these is invisible in a demo and real in use. Compress missed several on
 
 - [ ] **Background emojis** (`bgEmojis` in `main.ts`): a set themed to the mode.
 - [ ] **Frogsworth**: a quip pool for the mode, and clear the Converter's from/to context so the frog doesn't talk about PNG on the wrong surface (`initFrogsworth` callback).
+- [ ] **Announce the mode in `CAPABILITY_QUIPS`** (`FrogsworthWidget.ts`), which is blended into *every* surface's idle chatter. ⚠ A tip scoped to the new mode's own page only reaches people who already found it; the person who needs to hear the mode exists is by definition somewhere else. One line there, and the whole app advertises it.
+- [ ] **Progress and completion go through the shared modal** (`showConversionInProgress` + `ensureCancelButton` in `conversion/cancellation.ts`), with the mode added to `ConversionMode`/`modeCopy()` so the copy is in its own vocabulary. ⚠ Compress first painted its own progress bar inside the card, which made the slowest surface in the app look like the one where nothing was happening. Confetti and the dancing frog on success are part of this, not decoration: every other surface celebrates.
 - [ ] **Session persistence** (`src/components/persistence/`): a payload type in `sessionStore.ts`, a persistor module, restore-on-init with a resume popup. ⚠ Validate the restored settings against the *current* option set — Compress's restore silently dropped `"auto"`, the one value most sessions were saved with.
 - [ ] **Settings binding**: if the mode has a stance on compression/quality, add a row to `QUALITY_BINDINGS` in `main.ts` with its own store value, default, and per-mode title. One table row, not a new conditional. ⚠ Name the control for the mode ("PDF compression"), never bare "Compression" — a shared control in three places must say *of what*.
 - [ ] **Share target** (`EXTERNAL_FILES_EVENT` in `main.ts`): decide where shared files can land and add the mode to the chooser if it's a plausible destination. ⚠ Compress shipped an `ingestExternalFiles()` that nothing called.
 - [ ] **File intake**: ceiling (`ABSOLUTE_MAX_FILES`), total-size budget (`MAX_TOTAL_FILE_SIZE`), a cheap MIME filter with honest toasts, and the file input's `accept` list. ⚠ Compress's `accept` omitted PDFs — the headline format was unreachable from the browse button and only drag-and-drop masked it.
 - [ ] **SEO/meta**: `index.html` descriptions, schema.org `featureList`, README, `package.json` description.
+
+### Shared decisions belong in one module
+
+Every one of these was a real bug, and every one of them had the same shape: a
+decision that *looked* local, copied into a second place, and then diverging.
+
+- [ ] **If the mode offers "Automatic", call `core/compression/automatic.ts`.** Do not re-derive it. That module is the single definition of probe → step down → per-format rule; it exists because three surfaces had each written their own and only some of them learned that PDFs need a different rule.
+- [ ] **A heuristic advises, it never vetoes.** ⚠ The quality probe was allowed to refuse an *explicitly chosen* level on the grounds that a file "looked" already-minimal. It reads container metadata, not pixels, so this was a guess overruling an instruction — and it made image-heavy PDFs report "already compressed" at every setting. Guess on the user's behalf only when they have expressed no preference; verify by measuring the output, never by predicting it.
+- [ ] **Ask what the level actually changes for each format.** ⚠ Video presets only moved size thresholds, all of which sat above 75 MB, so every ordinary clip got the same CRF and the three levels produced byte-identical files. A control that does nothing is worse than no control. Write the test that asserts two different levels produce two different plans.
+- [ ] **Check how handlers declare a format before trusting a capability check.** ⚠ `handlerSupportsFormat` required one entry flagged both readable and writable. FFmpeg publishes a demuxer entry and a muxer entry separately, so no video or audio file ever resolved — Compress advertised them, accepted them, and reported "can't compress this".
+- [ ] **Know which libraries take your buffers.** ⚠ pdf.js *transfers* the `data` array you hand it; the caller's view comes back detached at length 0. Three call sites in this repo already passed `.slice()`; the two that didn't corrupted the file for everything downstream. If a library might take ownership, pass a copy and capture any length you need **before** the call.
 
 ### Failure states, before polish
 
@@ -56,6 +69,8 @@ What "done" meant for Compress, and should mean for the next mode:
 - [ ] DOM tests for the workspace (intake, level/settings, failure paths, copy claims — including *negative* claims like "the privacy promise appears exactly once").
 - [ ] Engine/orchestrator tests decoupled from the UI (`src/core/` stays free of `src/components/` imports; pass the handler list in, don't read the store).
 - [ ] **Screenshot verification, mobile and desktop, before calling UI work done.** Two of the ugliest defects (a duplicated privacy promise, a summary row floating in a 10rem box) were invisible in code review and obvious in a screenshot.
+- [ ] **Drive the real feature on a real file, end to end, against a production build.** ⚠ This is the step that catches what unit tests structurally cannot. Four separate bugs here — the probe veto, the detached pdf.js buffer, the demuxer/muxer pairing, the inert video levels — all sat behind green suites, because every one of them lived in the seam *between* mocked units. Note the dev server is not good enough for this: HMR's `?t=` cache-busting can hand a module a second copy of a store singleton, which produces failures that do not exist in the shipped app.
+- [ ] **Write down the numbers you measured.** A saving of "37%" in a doc is checkable later; "compresses well" is not. Where a format behaves counter-intuitively, the measurement is the argument — see the preset table in `COMPRESS.md`.
 - [ ] Layering by **hit-test** (`document.elementFromPoint` down an open dropdown), not by reading z-indexes.
 - [ ] A copy sweep that includes `\uXXXX` escapes — a literal-character grep misses them.
 - [ ] `tsc` clean, full unit suite, production build (`vite build`), CI green.

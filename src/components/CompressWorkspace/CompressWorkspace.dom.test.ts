@@ -16,7 +16,22 @@ vi.mock('../../core/compression/compressBatch.ts', async (orig) => ({
 vi.mock('../store/store.ts', () => {
   // Stateful stub: the surface reads and writes its own persisted level.
   const compressLevel = { value: 'medium' as 'high' | 'medium' | 'low' };
+  // Progress runs in the shared conversion modal, which reaches for these two
+  // elements. Resolved per access rather than cached, because mountDom()
+  // rebuilds the document before every test. Deliberately the real elements
+  // and the real cancellation module: the point of these tests is that the
+  // modal genuinely says the right things, not that a spy was called.
+  const POPUP_SELECTORS: Record<string, string> = {
+    popupBox: '#popup',
+    popupBackground: '#popup-bg',
+  };
   return {
+    ui: new Proxy({} as Record<string, HTMLElement | null>, {
+      get: (_, prop: string) =>
+        POPUP_SELECTORS[prop] ? document.querySelector(POPUP_SELECTORS[prop]) : undefined,
+    }),
+    // Pulled in by ModalManager when the progress modal opens.
+    updateScrollLock: () => { /* no layout to lock in jsdom */ },
     allOptionsRef: { value: [{ format: { mime: 'image/png', format: 'png' }, handler: { name: 'ImageMagick' } }] },
     compressLevel,
     setCompressLevel: (q: 'high' | 'medium' | 'low') => { compressLevel.value = q; },
@@ -58,6 +73,9 @@ function mountDom() {
     </main>
     <p id="compress-description">Make files smaller without sending them anywhere.
       Images, audio, video and PDFs, right here in your browser.</p>
+    <div id="popup-bg" class="modal-overlay" aria-hidden="true"></div>
+    <div id="popup" class="card-base modal-container popup-size"
+      role="status" aria-live="polite" aria-atomic="true"></div>
   `;
 }
 
@@ -339,27 +357,57 @@ describe('CompressWorkspace — assistive technology', () => {
     return { emit: (done: number, total: number, current: string) => emit!(done, total, current) };
   }
 
-  it('exposes the progress bar with real progressbar semantics', async () => {
+  it('runs its progress in the shared conversion modal, not inside the card', async () => {
     await startStalledRun();
-    const track = document.querySelector('.cw-progress-bar')!;
-    expect(track.getAttribute('role')).toBe('progressbar');
-    expect(track.getAttribute('aria-valuemin')).toBe('0');
-    expect(track.getAttribute('aria-valuemax')).toBe('3');
-    expect(track.getAttribute('aria-valuenow')).toBe('0');
-    expect(track.getAttribute('aria-label')).toBeTruthy();
+    const popup = document.getElementById('popup')!;
+    expect(popup.classList.contains('open')).toBe(true);
+    // The modal is itself the polite live region (see #popup in index.html),
+    // which is how the Converter announces progress too. Without it a
+    // screen-reader user gets silence for the whole run.
+    expect(popup.getAttribute('aria-live')).toBe('polite');
+    expect(popup.getAttribute('aria-atomic')).toBe('true');
+    expect(popup.querySelector('.loader-spinner, .loader-gooey')).not.toBeNull();
+    // The card behind it keeps the file list, so Stop reveals the batch
+    // exactly where it was rather than an empty panel.
+    expect(document.querySelector('.upload-zone')).not.toBeNull();
+  });
+
+  it('offers Stop from the modal, with copy that does not promise a mid-file abort', async () => {
+    await startStalledRun();
+    const cancel = document.getElementById('cancel-conversion-btn');
+    expect(cancel).not.toBeNull();
+    expect(cancel!.textContent).toBe('Cancel compression');
   });
 
   it('announces which file is being compressed as the batch advances', async () => {
     const { emit } = await startStalledRun();
-    const label = document.querySelector('.cw-progress-label')!;
-    // Without a live region a screen-reader user gets silence for the whole run.
-    expect(label.getAttribute('aria-live')).toBe('polite');
-    expect(label.getAttribute('aria-atomic')).toBe('true');
+    const popup = document.getElementById('popup')!;
+    expect(popup.querySelector('h2')!.textContent).toBe('Compressing your files');
 
     emit(1, 3, 'b.png');
-    expect(label.textContent).toContain('b.png');
-    expect(label.textContent).toContain('1 of 3');
-    expect(document.querySelector('.cw-progress-bar')!.getAttribute('aria-valuenow')).toBe('1');
+    const message = popup.querySelector('p')!;
+    // `done` counts finished files, so file 2 is the one being worked on.
+    expect(message.textContent).toContain('file 2 of 3');
+    expect(message.textContent).toContain('b.png');
+  });
+
+  it('takes the modal down when the batch settles', async () => {
+    compressBatchMock.mockResolvedValue([
+      { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+    ] as any);
+    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    await ws.runCompression();
+    expect(document.getElementById('popup')!.classList.contains('open')).toBe(false);
+  });
+
+  it('takes the modal down even when the batch throws', async () => {
+    compressBatchMock.mockRejectedValue(new Error('engine exploded'));
+    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    await ws.runCompression();
+    // Stranding the user behind a spinner is the worst outcome here: the
+    // files are fine and re-running is the obvious next move.
+    expect(document.getElementById('popup')!.classList.contains('open')).toBe(false);
+    expect(document.querySelector('.upload-zone')).not.toBeNull();
   });
 
   it('announces the outcome when the batch finishes', async () => {

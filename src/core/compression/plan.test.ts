@@ -32,6 +32,30 @@ describe("planVideo", () => {
         expect(planVideo(600 * MB, "medium").videoScaleFilter).toContain("1440");
         expect(planVideo(600 * MB, "low").videoScaleFilter).toContain("1080");
     });
+
+    // The size tiers only fire above 75 MB, so for an ordinary clip they are
+    // never reached and CRF is the *only* thing the level can change. When it
+    // didn't, all three levels produced the same bytes and the control was
+    // decoration.
+    it("varies quality by preset for a small video, where no tier fires", () => {
+        const low = planVideo(17 * MB, "low");
+        const medium = planVideo(17 * MB, "medium");
+        const high = planVideo(17 * MB, "high");
+
+        expect(low.videoScaleFilter).toBeUndefined();
+        expect(medium.videoScaleFilter).toBeUndefined();
+        expect(high.videoScaleFilter).toBeUndefined();
+
+        expect(low.videoCrf).toBeGreaterThan(medium.videoCrf!);
+        expect(high.videoCrf).toBeLessThan(medium.videoCrf!);
+        expect(new Set([low.videoCrf, medium.videoCrf, high.videoCrf]).size).toBe(3);
+    });
+
+    it("keeps medium's output exactly where it was", () => {
+        expect(planVideo(17 * MB, "medium").videoCrf).toBe(23);
+        expect(planVideo(200 * MB, "medium").videoCrf).toBe(23);
+        expect(planVideo(1200 * MB, "medium").videoCrf).toBe(25);
+    });
 });
 
 describe("planGif", () => {

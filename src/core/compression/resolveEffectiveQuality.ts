@@ -1,7 +1,6 @@
 import { DEFAULT_PRESET } from "../FormatHandler/qualityPresets.ts";
 import type { QualityPreset } from "../FormatHandler/FormatHandler.ts";
-import { probeInputQuality } from "./inputQuality.ts";
-import { tierDown } from "./tierDown.ts";
+import { decideAutoQuality } from "./automatic.ts";
 import normalizeMimeType from "../utils/normalizeMimeType.ts";
 
 /**
@@ -25,8 +24,9 @@ export async function resolveEffectiveQuality(
     const inMime = normalizeMimeType(inputMime.toLowerCase());
     const outMime = normalizeMimeType(outputMime.toLowerCase());
     if (inMime !== outMime) return DEFAULT_PRESET;
-    const probe = await probeInputQuality(bytes, inMime);
-    const next = tierDown(probe.inputTier);
-    if (next.kind === "skip") return null;
-    return next.tier;
+    // See `automatic.ts`. This surface reports "already minimal" as null, so
+    // the caller can hand back the original bytes rather than spend an engine
+    // run producing a copy of them.
+    const decision = await decideAutoQuality(bytes, inMime);
+    return decision.kind === "already-minimal" ? null : decision.tier;
 }

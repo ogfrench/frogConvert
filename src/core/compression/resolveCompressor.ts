@@ -38,15 +38,39 @@ function findHandlerByName(name: string, options: readonly HandlerOption[]): For
     return null;
 }
 
+/**
+ * Find a format entry this handler can both read and write, which is what
+ * same-format compression needs: the file goes in and comes back out as the
+ * same thing.
+ *
+ * Handlers declare that two different ways. Some publish one entry carrying
+ * both flags (Ghostscript's PDF). Others publish the read and the write
+ * separately, because internally they *are* separate: FFmpeg enumerates a
+ * demuxer and a muxer per container, so `video/mp4` arrives as
+ * `{from: true, to: false}` **and** `{from: false, to: true}`, and neither
+ * entry alone claims a round trip.
+ *
+ * Insisting on a single entry with both flags therefore excluded every format
+ * FFmpeg handles - which is to say all video and all audio. The Compress
+ * surface advertised them, accepted them, ran a batch, and reported "can't
+ * compress this" on a file it was perfectly capable of shrinking.
+ */
 export function handlerSupportsFormat(handler: FormatHandler, format: FileFormat): FileFormat | null {
     const cached = window.supportedFormatCache?.get(handler.name);
     const formats = cached ?? handler.supportedFormats ?? [];
-    return formats.find(f =>
-        f.mime === format.mime
-        && f.format === format.format
-        && f.from
-        && f.to,
-    ) ?? null;
+    const matches = formats.filter(f => f.mime === format.mime && f.format === format.format);
+    if (!matches.length) return null;
+
+    const both = matches.find(f => f.from && f.to);
+    if (both) return both;
+
+    const readable = matches.find(f => f.from);
+    const writable = matches.find(f => f.to);
+    if (!readable || !writable) return null;
+    // Built on the writable entry on purpose: downstream this object is passed
+    // as the *output* format, and that is what picks the encoder and the
+    // quality arguments. `lossless` is likewise the muxer's property.
+    return { ...writable, from: true, to: true };
 }
 
 /**

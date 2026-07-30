@@ -28,16 +28,37 @@ function tierScale(preset: QualityPreset): number {
 
 const MB = 1_000_000;
 
+/**
+ * Base x264 CRF per preset. Roughly ±3 CRF halves or doubles the bitrate, so
+ * this is the knob that makes the levels mean something.
+ *
+ * Video used to have no such knob: the preset only moved the size thresholds
+ * below, and every video under 75 MB fell past all of them to a hardcoded
+ * CRF 23. That made "Smallest file", "Balanced" and "High quality" produce
+ * byte-identical output for the overwhelming majority of real clips — a
+ * 17 MB screen recording hit the same branch at all three. Images and audio
+ * always scaled their quality by preset (see `planImage`/`planAudio`); this
+ * brings video in line.
+ *
+ * `medium` keeps 23 so the default output is unchanged.
+ */
+function videoCrf(preset: QualityPreset): number {
+  return preset === "low" ? 28 : preset === "high" ? 20 : 23;
+}
+
 export function planVideo(inputBytes: number, preset: QualityPreset): CompressionPlan {
   if (preset === "lossless") return { videoCrf: 0, imgQuality: 100 };
   const s = tierScale(preset);
+  const crf = videoCrf(preset);
+  // The huge-file tier leans two steps harder still: at this size the file is
+  // unusable as-is and a little more loss is the lesser cost.
   if (inputBytes > 1000 * MB / s) {
-    return { videoCrf: 25, videoScaleFilter: "scale=-2:'min(1080,ih)'", videoMaxrate: "6M", imgQuality: 82 };
+    return { videoCrf: crf + 2, videoScaleFilter: "scale=-2:'min(1080,ih)'", videoMaxrate: "6M", imgQuality: 82 };
   }
   if (inputBytes > 150 * MB / s) {
-    return { videoCrf: 23, videoScaleFilter: "scale=-2:'min(1440,ih)'", videoMaxrate: "10M", imgQuality: 82 };
+    return { videoCrf: crf, videoScaleFilter: "scale=-2:'min(1440,ih)'", videoMaxrate: "10M", imgQuality: 82 };
   }
-  return { videoCrf: 23, imgQuality: 82 };
+  return { videoCrf: crf, imgQuality: 82 };
 }
 
 export function planGif(inputBytes: number, preset: QualityPreset): CompressionPlan {

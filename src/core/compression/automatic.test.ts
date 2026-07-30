@@ -1,0 +1,77 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+vi.mock("./inputQuality.ts", () => ({ probeInputQuality: vi.fn() }));
+
+const { decideAutoQuality, decideAutoQualityForBatch } = await import("./automatic.ts");
+import { probeInputQuality } from "./inputQuality.ts";
+
+const probe = vi.mocked(probeInputQuality);
+const bytes = new Uint8Array(2_000_000);
+const asTier = (inputTier: string) => probe.mockResolvedValue({ inputTier, detail: {} } as never);
+
+beforeEach(() => vi.clearAllMocks());
+
+/**
+ * `tierDown` is deliberately NOT mocked here. This module exists to be the one
+ * place that knows what Automatic means, so the tests assert the real end-to-end
+ * decision - including the per-format rules - rather than that two mocks were
+ * wired together.
+ */
+describe("decideAutoQuality", () => {
+    it("steps an ordinary file down one tier", async () => {
+        asTier("hq");
+        expect(await decideAutoQuality(bytes, "image/jpeg")).toEqual({ kind: "compress", tier: "medium" });
+    });
+
+    it("leaves a file at the bottom tier alone", async () => {
+        asTier("minimal");
+        expect(await decideAutoQuality(bytes, "image/jpeg")).toEqual({ kind: "already-minimal" });
+    });
+
+    it("applies the format's own rule, not just the ladder", async () => {
+        // A PDF at "medium" would step to "low" on the plain ladder, which for
+        // PDFs can produce a *bigger* file. The format rule overrides it.
+        asTier("medium");
+        expect(await decideAutoQuality(bytes, "image/jpeg")).toEqual({ kind: "compress", tier: "low" });
+        expect(await decideAutoQuality(bytes, "application/pdf")).toEqual({ kind: "compress", tier: "high" });
+    });
+
+    it("still leaves a genuinely minimal PDF alone", async () => {
+        asTier("minimal");
+        expect(await decideAutoQuality(bytes, "application/pdf")).toEqual({ kind: "already-minimal" });
+    });
+});
+
+describe("decideAutoQualityForBatch", () => {
+    it("takes the gentlest answer so one raw file can't drag the others down", async () => {
+        // First file wants "low" (most aggressive), second wants "medium".
+        probe.mockResolvedValueOnce({ inputTier: "medium", detail: {} } as never)
+             .mockResolvedValueOnce({ inputTier: "hq", detail: {} } as never);
+        const tier = await decideAutoQualityForBatch([
+            { bytes, mime: "image/jpeg" },
+            { bytes, mime: "image/jpeg" },
+        ]);
+        expect(tier).toBe("medium");
+    });
+
+    it("counts an already-minimal file as a reason to be gentle, not to drop out", async () => {
+        // A conversion still has to produce output, so "nothing left to give"
+        // becomes "stop taking" rather than "skip the file".
+        probe.mockResolvedValueOnce({ inputTier: "minimal", detail: {} } as never)
+             .mockResolvedValueOnce({ inputTier: "medium", detail: {} } as never);
+        expect(await decideAutoQualityForBatch([
+            { bytes, mime: "image/jpeg" },
+            { bytes, mime: "image/jpeg" },
+        ])).toBe("high");
+    });
+
+    it("falls back to medium with nothing to look at", async () => {
+        expect(await decideAutoQualityForBatch([])).toBe("medium");
+        expect(probe).not.toHaveBeenCalled();
+    });
+
+    it("carries the format rule into the batch answer too", async () => {
+        asTier("medium");
+        expect(await decideAutoQualityForBatch([{ bytes, mime: "application/pdf" }])).toBe("high");
+    });
+});

@@ -110,9 +110,16 @@ describe("probeImage header parsing", () => {
 
 describe("probePdf trailer scan", () => {
     it("reads /Count from the trailer region and tiers by bytes-per-page", async () => {
-        // 2MB file, 20 pages → 100KB/page → below low band → minimal
-        const minimal = makePdfBytes(20, 2_000_000);
-        expect((await probePdf(minimal)).inputTier).toBe("minimal");
+        // 2MB file, 20 pages → 100KB/page. This is where the two real-world
+        // reports that exposed the miscalibration sit; a designed document at
+        // this density compresses by a third, so "low" (compressible) is the
+        // right read and the old "minimal" was refusing to try.
+        const designed = makePdfBytes(20, 2_000_000);
+        expect((await probePdf(designed)).inputTier).toBe("low");
+
+        // 2MB file, 100 pages → 20KB/page → genuinely pure text → minimal
+        const textOnly = makePdfBytes(100, 2_000_000);
+        expect((await probePdf(textOnly)).inputTier).toBe("minimal");
 
         // 2MB file, 2 pages → 1MB/page → between medium (500K) and hq (1.5M) → medium
         const medium = makePdfBytes(2, 2_000_000);

@@ -65,6 +65,40 @@ const IDLE_QUIPS: Quip[] = [
   q("ribbit (this is a file converter)", "happy"),
 ];
 
+/**
+ * Things the app can do that a visitor has no way of discovering by looking.
+ *
+ * Deliberately one pool blended into *every* surface's idle chatter rather
+ * than per-page lists: someone on the Converter is exactly the person who does
+ * not know Compress exists, so page-scoped tips would only ever reach people
+ * who had already found the thing. It also keeps the maintenance honest - a
+ * new feature adds one line here and starts advertising itself everywhere,
+ * instead of needing a line per surface that nobody remembers to add.
+ *
+ * Every line must describe something that actually ships. A frog that lies
+ * about features is worse than a frog that only says "ribbit".
+ */
+const CAPABILITY_QUIPS: Quip[] = [
+  q("psst. there's a compress mode. top right, mode menu.", "smug"),
+  q("i also edit pdfs. merge, reorder, watermark. same menu.", "excited"),
+  q("need it smaller, not different? that's compress mode.", "happy"),
+  q("pdf editor's in the mode menu. no adobe required.", "smug"),
+  q("dark mode lives in the settings menu. your eyes will thank you.", "happy"),
+  q("light, dark, or whatever your system says. settings menu.", "idle"),
+  q("you can pick how hard i squeeze. settings menu, compression.", "smug"),
+  q("automatic compression reads your file first, then decides. clever, right?", "excited"),
+  q("smallest file isn't always smallest. sometimes high quality wins. try both.", "smug"),
+  q("core formats hiding what you need? flip it to all formats in settings.", "idle"),
+  q("every mode has its own url. bookmark the one you live in.", "smug"),
+  q("nothing uploads. anywhere. ever. it all runs in your browser.", "happy"),
+  q("drag files straight onto the page. no need to click browse.", "happy"),
+  q("drop several files at once. i'll do the lot.", "excited"),
+  q("works offline once you've visited. install it, even.", "smug"),
+  q("escape closes things. arrow keys move around menus. i thought of everything.", "smug"),
+  q("same format in and out? you probably wanted compress. i'll point the way.", "idle"),
+  q("the pdf editor can shrink what it saves too. check the settings menu.", "happy"),
+];
+
 const PDF_GENERIC_QUIPS: Quip[] = [
   "drop a pdf. let's get to work.",
   q("merge, organize, watermark. the pdf trinity.", "happy"),
@@ -705,9 +739,12 @@ export function pick(
   const t = to?.toLowerCase();
 
   if (!f && !t) {
+    // CAPABILITY_QUIPS rides along with all three idle pools. See its comment:
+    // the person who needs to hear that Compress exists is by definition not
+    // on the Compress page.
     if (page === "compress") {
       // Blended with the idle pool so the frog still has general chatter here.
-      return resolve(pickFrom([...COMPRESS_QUIPS, ...IDLE_QUIPS], exclude));
+      return resolve(pickFrom([...COMPRESS_QUIPS, ...CAPABILITY_QUIPS, ...IDLE_QUIPS], exclude));
     }
     if (page === "pdf-editor") {
       const toolPool =
@@ -715,9 +752,9 @@ export function pick(
         pdfTool === "organize" ? PDF_ORGANIZE_QUIPS :
         pdfTool === "merge" ? PDF_MERGE_QUIPS :
         [];
-      return resolve(pickFrom([...toolPool, ...PDF_GENERIC_QUIPS], exclude));
+      return resolve(pickFrom([...toolPool, ...PDF_GENERIC_QUIPS, ...CAPABILITY_QUIPS], exclude));
     }
-    return resolve(pickFrom(IDLE_QUIPS, exclude));
+    return resolve(pickFrom([...IDLE_QUIPS, ...CAPABILITY_QUIPS], exclude));
   }
 
   if (f && t) {
