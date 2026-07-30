@@ -286,6 +286,23 @@ describe("pick() on the compress page", () => {
         for (let i = 0; i < 400; i++) seen.add(pick(null, null, null, "compress").text);
         expect([...seen].some(t => /pdf editor|i also edit pdfs/i.test(t))).toBe(true);
     });
+
+    // "core formats" only means anything on the Converter, where the mode
+    // toggle actually lives - Compress and the PDF editor have no such control,
+    // so the tip would be nonsense there.
+    it("never mentions the core/all formats toggle off the converter page", () => {
+        for (const page of ["compress", "pdf-editor"] as const) {
+            for (let i = 0; i < 200; i++) {
+                expect(pick(null, null, null, page).text).not.toMatch(/core formats/i);
+            }
+        }
+    });
+
+    it("still mentions the core/all formats toggle on the converter page", () => {
+        const seen = new Set<string>();
+        for (let i = 0; i < 400; i++) seen.add(pick(null, null, null, "convert").text);
+        expect([...seen].some(t => /core formats/i.test(t))).toBe(true);
+    });
 });
 
 describe("capability quips", () => {

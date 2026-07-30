@@ -65,6 +65,13 @@ const IDLE_QUIPS: Quip[] = [
   q("ribbit (this is a file converter)", "happy"),
 ];
 
+// Tips that only make sense on the Converter itself (e.g. reference UI that
+// only exists there, like the core/plus/all formats toggle). Unlike
+// CAPABILITY_QUIPS these aren't safe to blend into every page's idle chatter.
+const CONVERT_QUIPS: Quip[] = [
+  q("core formats hiding what you need? flip it to all formats in settings.", "idle"),
+];
+
 /**
  * Things the app can do that a visitor has no way of discovering by looking.
  *
@@ -88,7 +95,6 @@ const CAPABILITY_QUIPS: Quip[] = [
   q("you can pick how hard i squeeze. settings menu, compression.", "smug"),
   q("automatic compression reads your file first, then decides. clever, right?", "excited"),
   q("smallest file isn't always smallest. sometimes high quality wins. try both.", "smug"),
-  q("core formats hiding what you need? flip it to all formats in settings.", "idle"),
   q("every mode has its own url. bookmark the one you live in.", "smug"),
   q("nothing uploads. anywhere. ever. it all runs in your browser.", "happy"),
   q("drag files straight onto the page. no need to click browse.", "happy"),
@@ -754,7 +760,7 @@ export function pick(
         [];
       return resolve(pickFrom([...toolPool, ...PDF_GENERIC_QUIPS, ...CAPABILITY_QUIPS], exclude));
     }
-    return resolve(pickFrom([...IDLE_QUIPS, ...CAPABILITY_QUIPS], exclude));
+    return resolve(pickFrom([...IDLE_QUIPS, ...CAPABILITY_QUIPS, ...CONVERT_QUIPS], exclude));
   }
 
   if (f && t) {
