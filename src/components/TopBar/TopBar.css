@@ -222,10 +222,10 @@
   background-color: var(--accent);
 }
 
-/* The format filter is Converter-only; the compression setting follows the
-   mode and only disappears where nothing compresses (the PDF editor). */
-#top-controls-menu.not-converter #mode-toggle,
-#top-controls-menu.no-compression-setting #quality-picker {
+/* The format filter is Converter-only — there is no target format to filter
+   anywhere else. The compression control, by contrast, is present in every
+   mode; it rebinds rather than disappearing. */
+#top-controls-menu.not-converter #mode-toggle {
   opacity: 0;
   transform: scale(0.95);
   pointer-events: none;
@@ -407,13 +407,10 @@
   #top-controls.menu-open #top-controls-menu>*:nth-child(15) { transition-delay: 0.45s; }
   #top-controls.menu-open #top-controls-menu>*:nth-child(n+16) { transition-delay: 0.48s; }
 
-  /* Hide formats section in PDF mode */
+  /* Formats is Converter-only; Compression stays in every mode. */
   #top-controls-menu.not-converter #formats-divider,
   #top-controls-menu.not-converter #formats-label,
-  #top-controls-menu.not-converter #formats-section,
-  #top-controls-menu.no-compression-setting #quality-label,
-  #top-controls-menu.no-compression-setting #quality-divider,
-  #top-controls-menu.no-compression-setting #quality-segmented {
+  #top-controls-menu.not-converter #formats-section {
     display: none;
   }
 

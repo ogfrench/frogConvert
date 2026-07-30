@@ -27,7 +27,8 @@ import { showPopup, hidePopup, replacePopup, createPopupButton, showConfirmPopup
 import { formatBytes, escapeHTML, shortenFileName, ensureMinDuration, toUserErrorInfo, appendSupportContact, FEEDBACK_CONTACT_TEXT } from '../utils/index.ts';
 import { createDancingFrog } from '../Frogsworth/DancingFrog.ts';
 import { triggerConfetti } from '../../effects/Confetti/Confetti.ts';
-import { ui, updateScrollLock } from '../store/store.ts';
+import { ui, updateScrollLock, pdfQuality } from '../store/store.ts';
+import { compressPdfOutputs } from '../../conversion/compressPdfOutput.ts';
 import { MAX_TOTAL_FILE_SIZE, ABSOLUTE_MAX_FILES } from '../../constants/ui.ts';
 
 // ---------------------------------------------------------------------------
@@ -458,6 +459,27 @@ function shouldEnter(sig: string): boolean {
 let lastPdfResult: { bytes: Uint8Array; name: string }[] = [];
 let lastPdfZipName: string | null = null;
 
+/**
+ * The one place a finished job hands its output over.
+ *
+ * Every tool used to assign `lastPdfResult` and `lastPdfZipName` itself, which
+ * meant nine copies of the same two lines and nine places to remember when
+ * something has to happen to every result. The optional output compression is
+ * exactly that something: routing it through here means merge, organize,
+ * watermark and extract all honour the Compression setting without any of them
+ * knowing it exists.
+ *
+ * At Original quality (the default) this is the same two assignments as before.
+ */
+async function setPdfResult(
+  results: { bytes: Uint8Array; name: string }[],
+  zipName: string | null,
+): Promise<{ bytes: Uint8Array; name: string }[]> {
+  lastPdfResult = await compressPdfOutputs(results, pdfQuality.value);
+  lastPdfZipName = zipName;
+  return lastPdfResult;
+}
+
 let toolContent: HTMLElement;
 let fileInput: HTMLInputElement;
 let errorEl: HTMLElement;
@@ -859,8 +881,7 @@ async function handleMerge() {
   if (files.length < 2) return;
   await runWithPopup('Merging', 'Stitching your pages into one PDF. This only takes a moment.', 'Merge failed. Try removing a file and re-adding it.', async () => {
     const r = await merge(files);
-    lastPdfResult = [{ bytes: r.bytes, name: r.name }];
-    lastPdfZipName = null;
+    await setPdfResult([{ bytes: r.bytes, name: r.name }], null);
     return r;
   }, (r) => {
     showPdfSuccessModal(
@@ -2026,8 +2047,7 @@ async function doWatermarkExportPerSource() {
         const r = await watermark(t.file.bytes, t.file.name, t.opts);
         results.push({ bytes: r.bytes, name: r.name });
       }
-      lastPdfResult = results;
-      lastPdfZipName = isBatch ? `watermarked-pdfs-${timestampForFilename()}.zip` : null;
+      await setPdfResult(results, isBatch ? `watermarked-pdfs-${timestampForFilename()}.zip` : null);
       return results;
     },
     (results) => {
@@ -2057,8 +2077,7 @@ async function doWatermarkPassthroughPerSource() {
     'Save failed.',
     async () => {
       const results = files.map(f => ({ bytes: f.bytes, name: f.name }));
-      lastPdfResult = results;
-      lastPdfZipName = isBatch ? `pdfs-${timestampForFilename()}.zip` : null;
+      await setPdfResult(results, isBatch ? `pdfs-${timestampForFilename()}.zip` : null);
       return results;
     },
     (results) => {
@@ -2086,9 +2105,7 @@ async function doWatermarkPassthroughCombined() {
     'Save failed.',
     async () => {
       const merged = await merge(files);
-      lastPdfResult = [{ bytes: merged.bytes, name: merged.name }];
-      lastPdfZipName = null;
-      return lastPdfResult;
+      return await setPdfResult([{ bytes: merged.bytes, name: merged.name }], null);
     },
     (results) => {
       showPdfSuccessModal(
@@ -2136,9 +2153,7 @@ async function doWatermarkExportCombined() {
         repeat: wmSettings.repeat,
         pageNums,
       });
-      lastPdfResult = [{ bytes: r.bytes, name: r.name }];
-      lastPdfZipName = null;
-      return lastPdfResult;
+      return await setPdfResult([{ bytes: r.bytes, name: r.name }], null);
     },
     (results) => {
       showPdfSuccessModal(
@@ -2841,8 +2856,7 @@ async function handleSave() {
 async function doOrganizeSaveCombined() {
   await runWithPopup('Saving', 'Packing up your PDF with the latest page order. Hold tight.', 'Save failed. Try with fewer pages or a smaller file.', async () => {
     const r = await organize(files, pages);
-    lastPdfResult = [{ bytes: r.bytes, name: r.name }];
-    lastPdfZipName = null;
+    await setPdfResult([{ bytes: r.bytes, name: r.name }], null);
     return r;
   }, (r) => {
     showPdfSuccessModal(
@@ -2861,8 +2875,7 @@ async function doOrganizeSavePerSource() {
       const r = await organize([sf], filtered);
       out.push({ bytes: r.bytes, name: r.name });
     }
-    lastPdfResult = out;
-    lastPdfZipName = out.length > 1 ? `organized-pdfs-${timestampForFilename()}.zip` : null;
+    await setPdfResult(out, out.length > 1 ? `organized-pdfs-${timestampForFilename()}.zip` : null);
     return out;
   }, (results) => {
     if (results.length > 1) {
@@ -3005,9 +3018,7 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
         const outputBytes = new Uint8Array(await output.save());
         const suffix = extractCount === pages.length ? '' : '_extracted';
         const name = `${firstName}${suffix}.pdf`;
-        lastPdfResult = [{ bytes: outputBytes, name }];
-        lastPdfZipName = null;
-        return lastPdfResult;
+        return await setPdfResult([{ bytes: outputBytes, name }], null);
       } else {
         const allResults: { name: string; bytes: Uint8Array }[] = [];
         for (const [fid, pageNums] of byFile) {
@@ -3016,8 +3027,7 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
           const results = await extract(sf.bytes, pageNums, baseName, false);
           allResults.push(...results);
         }
-        lastPdfResult = allResults;
-        lastPdfZipName = allResults.length > 1 ? `extracted-pages-${timestampForFilename()}.zip` : null;
+        await setPdfResult(allResults, allResults.length > 1 ? `extracted-pages-${timestampForFilename()}.zip` : null);
         return allResults;
       }
     },

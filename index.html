@@ -334,15 +334,6 @@
           </button>
         </div>
         <div class="menu-divider"></div>
-        <span class="menu-list-label" id="quality-label">Compression</span>
-        <div class="menu-pill-group menu-pill-vertical" id="quality-segmented" role="group" aria-label="Compression">
-          <button class="pill-option active" data-value="auto">Automatic</button>
-          <button class="pill-option" data-value="lossless">Original quality</button>
-          <button class="pill-option" data-value="high">High quality</button>
-          <button class="pill-option" data-value="medium">Balanced</button>
-          <button class="pill-option" data-value="low">Smallest file</button>
-        </div>
-        <div class="menu-divider" id="quality-divider"></div>
         <span class="menu-list-label">Mode</span>
         <div class="menu-pill-group menu-pill-vertical" id="app-mode-segmented" role="group" aria-label="App mode">
           <button class="pill-option active" data-value="converter">
@@ -364,6 +355,19 @@
           <button class="pill-option active" data-value="core">Core</button>
           <button class="pill-option" data-value="plus">Core+</button>
           <button class="pill-option" data-value="all">All</button>
+        </div>
+        <!-- Compression sits last: it is the longest list and the one you set
+             once, where Theme and Mode are what you reach for repeatedly. Its
+             rows are rebuilt per mode by renderQualityOptions(); the markup
+             below is only the pre-hydration state for the Converter. -->
+        <div class="menu-divider" id="quality-divider"></div>
+        <span class="menu-list-label" id="quality-label">Compression</span>
+        <div class="menu-pill-group menu-pill-vertical" id="quality-segmented" role="group" aria-label="Compression">
+          <button class="pill-option active" data-value="auto">Automatic</button>
+          <button class="pill-option" data-value="lossless">Original quality</button>
+          <button class="pill-option" data-value="high">High quality</button>
+          <button class="pill-option" data-value="medium">Balanced</button>
+          <button class="pill-option" data-value="low">Smallest file</button>
         </div>
 
 

@@ -2,6 +2,7 @@ import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
 import type { FileData, FileFormat, FormatHandler, ProgressEvent } from "../core/FormatHandler/FormatHandler.ts";
 import { extractQualityPreset } from "../core/FormatHandler/FormatHandler.ts";
 import { ghostscriptArgs } from "../core/compression/pdfSettings.ts";
+import { GS_BASE } from "../core/compression/ghostscriptAssets.ts";
 
 /**
  * Ghostscript-WASM — PDF→PDF recompression.
@@ -34,8 +35,6 @@ import { ghostscriptArgs } from "../core/compression/pdfSettings.ts";
  * conveyed under the GPL while this component keeps its own §13 obligation.
  * The upstream LICENSE is shipped alongside the binary.
  */
-
-const GS_BASE = "/wasm/gs";
 
 /** Emscripten module surface we actually use. */
 type GsModule = {

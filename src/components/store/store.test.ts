@@ -3,8 +3,9 @@ import {
     isCategoryVisible, isFormatVisible, type FormatMode,
     checkFileSizeLimits, sortFilesByName, formatDisplayName, getFormatCategory,
     isLoadingHandlers, getMaxFiles,
-    convertQuality, setConvertQuality, CONVERT_QUALITY_CHOICES,
-    compressLevel, setCompressLevel, COMPRESS_LEVEL_CHOICES,
+    convertQuality, setConvertQuality, CONVERT_QUALITY_CHOICES, CONVERT_QUALITY_DEFAULT,
+    compressLevel, setCompressLevel, COMPRESS_LEVEL_CHOICES, COMPRESS_LEVEL_DEFAULT,
+    pdfQuality, setPdfQuality, PDF_QUALITY_CHOICES, PDF_QUALITY_DEFAULT,
 } from "./store.ts";
 import { ABSOLUTE_MAX_FILES } from "../../constants/ui.ts";
 import type { FileFormat } from "../../core/FormatHandler/FormatHandler.ts";
@@ -381,5 +382,64 @@ describe("compressLevel (Compress surface)", () => {
         expect(convertQuality.value).toBe("high");
         setConvertQuality("low");
         expect(compressLevel.value).toBe("low");
+    });
+});
+
+describe("pdfQuality (PDF editor)", () => {
+    beforeEach(() => setPdfQuality(PDF_QUALITY_DEFAULT));
+
+    it("defaults to Original quality", () => {
+        // Merging and watermarking are edits, not exports: you expect the same
+        // document back. Silently recompressing it would be a surprise.
+        expect(PDF_QUALITY_DEFAULT).toBe("lossless");
+        expect(pdfQuality.value).toBe("lossless");
+    });
+
+    it("offers no Automatic level", () => {
+        // "Read the file and decide" is a sensible answer for a file handed
+        // over to be shrunk, and a surprising one for a file handed over to be
+        // edited.
+        expect(PDF_QUALITY_CHOICES.map(c => c.value)).not.toContain("auto");
+        expect(PDF_QUALITY_CHOICES.map(c => c.value)).toEqual(["lossless", "high", "medium", "low"]);
+    });
+
+    it("persists a chosen level", () => {
+        setPdfQuality("medium");
+        expect(pdfQuality.value).toBe("medium");
+    });
+});
+
+describe("compression vocabulary", () => {
+    it("uses one label per level across all three surfaces", () => {
+        // A level called "Balanced" in one menu and "Recommended" in another is
+        // the kind of drift three hand-written arrays invite.
+        const seen = new Map<string, string>();
+        for (const list of [CONVERT_QUALITY_CHOICES, COMPRESS_LEVEL_CHOICES, PDF_QUALITY_CHOICES]) {
+            for (const c of list) {
+                const prev = seen.get(c.value);
+                if (prev !== undefined) expect(c.label).toBe(prev);
+                seen.set(c.value, c.label);
+            }
+        }
+        expect(seen.get("medium")).toBe("Balanced");
+        expect(seen.get("low")).toBe("Smallest file");
+        expect(seen.get("lossless")).toBe("Original quality");
+    });
+
+    it("gives every surface a default it actually offers", () => {
+        const pairs = [
+            [CONVERT_QUALITY_CHOICES, CONVERT_QUALITY_DEFAULT],
+            [COMPRESS_LEVEL_CHOICES, COMPRESS_LEVEL_DEFAULT],
+            [PDF_QUALITY_CHOICES, PDF_QUALITY_DEFAULT],
+        ] as const;
+        for (const [list, dflt] of pairs) {
+            expect((list as ReadonlyArray<{ value: string }>).map(c => c.value)).toContain(dflt);
+        }
+    });
+
+    it("gives every level a blurb, so no option is an unexplained adjective", () => {
+        for (const list of [CONVERT_QUALITY_CHOICES, COMPRESS_LEVEL_CHOICES, PDF_QUALITY_CHOICES]) {
+            for (const c of list) expect(c.blurb.length).toBeGreaterThan(0);
+        }
     });
 });

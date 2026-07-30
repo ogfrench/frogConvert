@@ -13,6 +13,7 @@ import {
   type SkipReason,
 } from "../../core/compression/compressBatch.ts";
 import { runInWorker } from "../../conversion/workerClient.ts";
+import { preloadGhostscript } from "../../tools/ghostscriptPreload.ts";
 import { downloadFile, downloadAsZip, timestampForFilename } from "../../conversion/download.ts";
 import { triggerConfetti } from "../../effects/Confetti/Confetti.ts";
 import {
@@ -74,11 +75,16 @@ export function getResults(): readonly CompressOutcome[] { return results; }
  * check needs the loaded handler list and happens at compress time; here we
  * only keep obviously-wrong drops out of the batch.
  */
+/** Some browsers hand over an empty type for a PDF picked from disk, so the
+ *  name is the fallback. Shared by the intake filter and the engine preload. */
+function isPdf(file: File): boolean {
+  const mime = (file.type || "").toLowerCase();
+  return mime === "application/pdf" || (!mime && /\.pdf$/i.test(file.name));
+}
+
 export function isLikelyCompressible(file: File): boolean {
   const mime = (file.type || "").toLowerCase();
-  if (mime === "application/pdf") return true;
-  // Some browsers hand over an empty type for a PDF picked from disk.
-  if (!mime && /\.pdf$/i.test(file.name)) return true;
+  if (isPdf(file)) return true;
   // SVG is the one image type we know up front we will never compress — it's
   // vector text, and the only thing a raster compressor could do to it is
   // rasterise it. Better to say so on the drop than after a batch. Anything
@@ -134,6 +140,9 @@ export function handleFiles(incoming: File[]) {
   }
 
   for (const file of withinBudget) files.push({ id: nextId++, file });
+  // A PDF in the batch means the 16 MB engine is on the critical path of the
+  // Compress button. Start fetching it while the user is still adding files.
+  if (withinBudget.some(isPdf)) preloadGhostscript();
   markCompressDirty("files");
   render();
 }

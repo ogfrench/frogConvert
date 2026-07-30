@@ -97,13 +97,22 @@ Its libraries (pdf.js and pdf-lib) are imported on demand rather than at module 
 
 Compress is not the only place compression happens. Every conversion has always applied some — a 400 MB output nobody asked for is its own bug — but it used to be invisible. It is now an explicit setting.
 
-The **Compression** setting in the settings menu follows the active mode:
+The **Compression** control lives at the bottom of the settings menu and is present in **every** mode — it rebinds to whichever setting the active mode owns rather than disappearing, because hiding it made the setting look like it only existed where you last saw it.
 
-- In **Converter** it controls the quality of converted output, and includes **Original quality** (no compression).
-- In **Compress** it is the same setting as the card's own **Compress by** picker — two views of one value, kept in sync.
-- In the **PDF Editor** it is hidden. Merging, organizing and watermarking have no compression step, so there is no knob to offer.
+| Mode | What it controls | Default | Levels offered |
+|---|---|---|---|
+| **Converter** | Quality of converted output | Automatic | Automatic, Original quality, High quality, Balanced, Smallest file |
+| **Compress** | How hard to squeeze — the same value as the card's own **Compress by** picker, two views kept in sync | Automatic | Automatic, High quality, Balanced, Smallest file |
+| **PDF Editor** | Whether a saved PDF is also shrunk on the way out | **Original quality** | Original quality, High quality, Balanced, Smallest file |
 
-The two settings are **independent and separately persisted**. "How much quality to give up while changing format" and "how hard to squeeze" are different questions, and sharing one value meant changing it in one place silently moved the other.
+The three settings are **independent and separately persisted**. "How much quality to give up while changing format", "how hard to squeeze" and "should editing this also shrink it" are different questions, and an earlier build that shared one value meant changing it in one place silently moved the others.
+
+Two defaults are worth explaining:
+
+- **The PDF Editor defaults to Original quality** because merging, organizing and watermarking are *edits, not exports*: you expect the same document back. Pick any other level and the finished PDF is run through the same Ghostscript engine, with the same 98% keep-threshold, on its way to the download. If that step fails for any reason it is skipped and you get your uncompressed result — losing a completed merge to an optional squeeze would be a much worse outcome than a large file.
+- **The PDF Editor offers no Automatic.** Automatic means "read the file and decide", which is a good answer for a file handed over to be shrunk and a surprising one for a file handed over to be edited.
+
+The engine is fetched ahead of time whenever a PDF becomes likely — a PDF dropped on Compress, PDF chosen as a conversion target, or a PDF-editor level set to anything but Original quality. It's a `<link rel="prefetch">`, so the browser downloads it at idle priority into the HTTP cache and can abandon it under memory pressure; nothing is wasted if you don't follow through.
 
 For multi-hop conversions (e.g. HEIC → PNG → WebP), the chosen level applies to the **final** hop only; intermediates run at high quality so quality loss isn't compounded once per step. That rule lives in one place (`qualityForHop`) and is shared by the browser, MCP, REST and CLI surfaces.
 

@@ -77,7 +77,12 @@ import {
   setCompressLevel,
   COMPRESS_LEVEL_CHOICES,
   type CompressLevel,
+  pdfQuality,
+  setPdfQuality,
+  PDF_QUALITY_CHOICES,
+  type PdfQuality,
 } from "./components/store/store.ts";
+import { preloadGhostscript } from "./tools/ghostscriptPreload.ts";
 import {
   findMatchingFormat,
   initConvertButton,
@@ -274,12 +279,13 @@ function setAppMode(mode: AppMode) {
 
   // The format filter only makes sense while picking a target format.
   topControlsMenu.classList.toggle("not-converter", mode !== "converter");
-  // The compression setting follows the mode instead of vanishing: Converter
-  // and Compress each bind it to their own value, the PDF editor has no
-  // compression step so it hides there.
-  topControlsMenu.classList.toggle("no-compression-setting", mode === "pdf-editor");
+  // The compression control is present in every mode — it just rebinds to that
+  // mode's own value and offers the levels that mode can honour.
   renderQualityOptions();
   syncQualityUI();
+  // Entering the PDF editor with compression already enabled means the next
+  // save needs Ghostscript; start fetching it now rather than then.
+  if (mode === "pdf-editor" && pdfQuality.value !== "lossless") preloadGhostscript();
 
   // Show the active mode's elements, hide every other mode's.
   for (const m of APP_MODES) {
@@ -381,24 +387,65 @@ window.addEventListener("frog:set-mode", (e) => {
 });
 
 // --- Compression setting ---
-// One control, two backing values. Converter and Compress each keep their own
-// setting — they mean different things ("how much quality to give up while
-// changing format" vs "how hard to squeeze"), and sharing one value meant
-// changing it in one place silently moved the other. What is shared is the
-// control: hiding it outside the Converter made the setting look like it only
-// existed there. The PDF editor merges, organizes and watermarks — it has no
-// compression step — so there it stays hidden rather than showing a knob that
-// controls nothing.
+// One control, three backing values. Every mode compresses something, so the
+// control is present in all three — hiding it anywhere made the setting look
+// like it only existed where you last saw it. But the three mean different
+// things, and each carries its own default:
+//
+//   Converter    "how much quality to give up while changing format" → Automatic
+//   Compress     "how hard to squeeze"                               → Automatic
+//   PDF Editor   "should editing this also shrink it"                → Original
+//
+// The PDF editor defaults to Original quality because merging and watermarking
+// are edits, not exports: you expect the same document back. The other two are
+// asked to produce a new file, where reading the input and picking a level is
+// the better default than a fixed tier.
+//
+// Sharing one value across surfaces was tried and reverted — changing it in
+// one place silently moved the others.
 
 const qualityToggle = document.getElementById("quality-toggle")!;
 const qualityMenu = document.getElementById("quality-menu")!;
 const qualitySegmented = document.getElementById("quality-segmented");
 
-/** Which setting the control is bound to, decided by the active mode. */
+/**
+ * The control is a view over whichever setting the active mode owns. One table
+ * rather than a chain of conditionals: adding a fourth surface means adding a
+ * row, and it is impossible for the read and the write to disagree about which
+ * value they are touching.
+ */
+type QualityBinding = {
+  choices: ReadonlyArray<{ value: string; label: string; blurb: string }>;
+  get: () => string;
+  set: (v: string) => void;
+  /** Completes "Compression …: Balanced" in the control's accessible name. */
+  scope: string;
+};
+
+const QUALITY_BINDINGS: Record<AppMode, QualityBinding> = {
+  converter: {
+    choices: CONVERT_QUALITY_CHOICES,
+    get: () => convertQuality.value,
+    set: (v) => setConvertQuality(v as ConvertQuality),
+    scope: "when converting",
+  },
+  compress: {
+    choices: COMPRESS_LEVEL_CHOICES,
+    get: () => compressLevel.value,
+    set: (v) => setCompressLevel(v as CompressLevel),
+    scope: "when compressing",
+  },
+  "pdf-editor": {
+    choices: PDF_QUALITY_CHOICES,
+    get: () => pdfQuality.value,
+    set: (v) => setPdfQuality(v as PdfQuality),
+    scope: "when saving a PDF",
+  },
+};
+
 function qualityContext() {
-  return currentAppMode === "compress"
-    ? { choices: COMPRESS_LEVEL_CHOICES, current: compressLevel.value as string, scope: "when compressing" }
-    : { choices: CONVERT_QUALITY_CHOICES, current: convertQuality.value as string, scope: "when converting" };
+  const binding = QUALITY_BINDINGS[currentAppMode];
+  return { ...binding, current: binding.get() };
 }
 
 /** Rebuild the option rows so each mode only offers levels it can honour. */
@@ -460,14 +507,18 @@ function setQualityMenuOpen(open: boolean) {
 }
 
 function chooseQuality(next: string) {
+  QUALITY_BINDINGS[currentAppMode].set(next);
+
   if (currentAppMode === "compress") {
-    setCompressLevel(next as CompressLevel);
     // The Compress card renders its own copy of this setting, so tell it to
     // repaint rather than leaving the two views disagreeing.
     window.dispatchEvent(new CustomEvent("frog:compress-level"));
-  } else {
-    setConvertQuality(next as ConvertQuality);
   }
+  // Asking the PDF editor to compress means Ghostscript is now on the critical
+  // path of the next save. Start the 16 MB fetch while the user is still
+  // picking pages instead of at the moment they hit Save.
+  if (currentAppMode === "pdf-editor" && next !== "lossless") preloadGhostscript();
+
   syncQualityUI();
 }
 
@@ -564,6 +615,9 @@ function selectToFormat(index: number) {
   setSelectedFormat(index, allOptionsRef.value);
   updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
   markConvertDirty('manifest');
+  // A conversion that ends in a PDF routes through Ghostscript, so start the
+  // 16 MB fetch at format-pick time rather than when Convert is pressed.
+  if (allOptionsRef.value[index]?.format.format?.toLowerCase() === "pdf") preloadGhostscript();
   closeFormatModal();
 }
 
