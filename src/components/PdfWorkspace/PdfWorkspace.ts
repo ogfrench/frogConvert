@@ -475,7 +475,19 @@ async function setPdfResult(
   results: { bytes: Uint8Array; name: string }[],
   zipName: string | null,
 ): Promise<{ bytes: Uint8Array; name: string }[]> {
-  lastPdfResult = await compressPdfOutputs(results, pdfQuality.value);
+  const level = pdfQuality.value;
+  if (level !== 'lossless' && results.length > 0) {
+    // The popup still reads "Stitching your pages..." from whichever job called
+    // us. Compressing a big scan takes seconds, and a message describing work
+    // that already finished reads as a hang. Best-effort: no popup, no update.
+    const note = document.querySelector<HTMLElement>('.ws-processing p');
+    if (note) {
+      note.textContent = results.length > 1
+        ? `Shrinking ${results.length} PDFs. The first one takes a little longer.`
+        : 'Shrinking your PDF. The first one takes a little longer.';
+    }
+  }
+  lastPdfResult = await compressPdfOutputs(results, level);
   lastPdfZipName = zipName;
   return lastPdfResult;
 }
