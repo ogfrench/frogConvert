@@ -14,10 +14,21 @@ export type TierDownResult =
 export function tierDown(inputTier: InputTier, mime = ""): TierDownResult {
   const stepped: TierDownResult = ((): TierDownResult => {
     switch (inputTier) {
-      case "uncompressed": return { kind: "compress", tier: "high" };
+      // Raw or barely-compressed: `medium` already means q80 with a 2560 px
+      // cap, which takes an enormous bite out of these without needing the
+      // aggressive preset.
+      case "uncompressed": return { kind: "compress", tier: "medium" };
       case "hq":           return { kind: "compress", tier: "medium" };
-      case "medium":       return { kind: "compress", tier: "low" };
-      case "low":          return { kind: "compress", tier: "low" };
+      // An ordinary phone photo lands here. It used to map to `low`, which was
+      // harmless while `low` meant q82-and-no-resize — and would now hand
+      // someone who asked for nothing in particular a 1920 px q65 image.
+      // Automatic has to stay the safe answer; `low` is the escape hatch for
+      // people who went looking for it.
+      case "medium":       return { kind: "compress", tier: "medium" };
+      // Already web-optimised. Squeezing it again trades visible quality for
+      // almost no bytes, so take the gentlest setting and let the
+      // keep-threshold discard the result if it saves nothing.
+      case "low":          return { kind: "compress", tier: "high" };
       case "minimal":      return { kind: "skip", reason: "already-minimal" };
     }
   })();

@@ -2,20 +2,27 @@ import { describe, it, expect } from "vitest";
 import { tierDown } from "./tierDown.ts";
 
 describe("tierDown", () => {
-    it("uncompressed → high", () => {
-        expect(tierDown("uncompressed")).toEqual({ kind: "compress", tier: "high" });
+    // The ladder shifted one step gentler when the presets themselves got
+    // stronger: `medium` now means q80 with a 2560px cap, so it does the work
+    // that `low` used to be needed for.
+    it("uncompressed → medium", () => {
+        expect(tierDown("uncompressed")).toEqual({ kind: "compress", tier: "medium" });
     });
 
     it("hq → medium", () => {
         expect(tierDown("hq")).toEqual({ kind: "compress", tier: "medium" });
     });
 
-    it("medium → low", () => {
-        expect(tierDown("medium")).toEqual({ kind: "compress", tier: "low" });
+    it("medium → medium, so Automatic never hands out the aggressive preset", () => {
+        // An ordinary phone photo probes as "medium". Mapping it to `low` would
+        // give someone who expressed no preference a 1920px q65 image.
+        expect(tierDown("medium")).toEqual({ kind: "compress", tier: "medium" });
     });
 
-    it("low stays at low (cannot step down further without going minimal)", () => {
-        expect(tierDown("low")).toEqual({ kind: "compress", tier: "low" });
+    it("an already-lean input gets the gentlest preset, not another squeeze", () => {
+        // Web-optimised already. Re-compressing trades visible quality for
+        // almost no bytes; the keep-threshold then discards it.
+        expect(tierDown("low")).toEqual({ kind: "compress", tier: "high" });
     });
 
     it("minimal skips (return original)", () => {
@@ -38,7 +45,7 @@ describe("tierDown", () => {
         });
 
         it("leaves every other mime on the normal ladder", () => {
-            expect(tierDown("medium", "image/jpeg")).toEqual({ kind: "compress", tier: "low" });
+            expect(tierDown("medium", "image/jpeg")).toEqual({ kind: "compress", tier: "medium" });
             expect(tierDown("hq", "video/mp4")).toEqual({ kind: "compress", tier: "medium" });
         });
     });

@@ -96,35 +96,80 @@ export type ImageContext = {
   archetype: ImageArchetype;
 };
 
+/**
+ * Long-edge cap per preset, in pixels.
+ *
+ * This is where image compression actually lives, and it used to be missing:
+ * a resize only happened above 30 megapixels, which no phone or camera photo
+ * reaches, so every ordinary picture kept its full dimensions at every level.
+ * Quality alone then had to carry the whole ladder, and it could not — a 12 MP
+ * photo re-encoded at the same size is a modest saving however far the quality
+ * number drops, because the pixel count is the file.
+ *
+ * Halving the long edge quarters the pixels. That is the lever.
+ */
+const PRESET_MAX_EDGE: Record<Exclude<QualityPreset, "lossless">, number | null> = {
+  // 1920 is still a full-screen image on almost any display, and 4032x3024
+  // (a stock phone photo) drops to 1920x1440 — 77% fewer pixels before
+  // quality is even considered.
+  low: 1920,
+  // Comfortably past 1440p, so a retina display still has pixels to spare.
+  medium: 2560,
+  // "High quality" means keep what you have; only the quality knob moves.
+  high: null,
+};
+
 export function planImage(ctx: ImageContext): CompressionPlan {
   const { pixelCount, preset, outputLossless, archetype } = ctx;
   if (preset === "lossless") return { imgQuality: 100, imgMaxEdge: null };
 
-  const qBase =
-    archetype === "singleton"      ? 90 :
-    archetype === "document-page"  ? 87 :
-    archetype === "animated-frame" ? 82 :
-    /* video-frame */                78;
+  // Archetype is now an offset rather than the base, so the preset is what
+  // decides the ballpark and the archetype nudges it. A single hand-picked
+  // photo is worth more than one of six hundred video frames, but not so much
+  // more that "Smallest file" on a photo lands where other tools put "high".
+  const archetypeOffset =
+    archetype === "singleton"      ? 0 :
+    archetype === "document-page"  ? -3 :
+    archetype === "animated-frame" ? -8 :
+    /* video-frame */                -12;
+
+  // The band used to be 82 / 90 / 93 — all three inside what every other tool
+  // calls high quality, and only 11 points wide. Squoosh ships at 75 by
+  // default; iLoveIMG and TinyPNG's aggressive presets sit near 65 and resize
+  // as well. A setting labelled "Visible quality loss" has to be able to
+  // deliver some.
+  const byPreset =
+    preset === "low"  ? 65 :
+    preset === "high" ? 93 :
+    /* medium */        80;
 
   const q = outputLossless ? 100
-    : Math.min(95, Math.max(60,
-        preset === "low"  ? qBase - 8 :
-        preset === "high" ? qBase + 3 :
-        qBase));
+    : Math.min(95, Math.max(45, byPreset + archetypeOffset));
 
-  // Video frames respect preset so a 4K source under `high` keeps its detail,
-  // while the web default (`medium`) still clamps to 1080p for ZIP sanity.
+  // Frame dumps carry their own ceiling on top of the preset's: a 4K source
+  // under `high` keeps its detail, everything else clamps for ZIP sanity.
   const hardEdge =
     archetype === "video-frame"
       ? (preset === "high" ? 3840 : 1920)
       : archetype === "animated-frame" ? 1920
       : null;
 
+  // Whichever cap is tighter wins.
+  const presetEdge = PRESET_MAX_EDGE[preset];
+  const edge = hardEdge != null && presetEdge != null
+    ? Math.min(hardEdge, presetEdge)
+    : hardEdge ?? presetEdge;
+
+  // A genuinely enormous source gets clamped harder still, and gives up a
+  // couple more quality points on top.
   const s = tierScale(preset);
   if (pixelCount > 60 * MB / s) {
-    return { imgMaxEdge: Math.min(hardEdge ?? 2800, 2800), imgQuality: Math.max(q - 2, 70) };
+    return {
+      imgMaxEdge: Math.min(edge ?? 2800, 2800),
+      imgQuality: Math.max(q - 2, 45),
+    };
   }
-  return { imgMaxEdge: hardEdge, imgQuality: q };
+  return { imgMaxEdge: edge, imgQuality: q };
 }
 
 /**

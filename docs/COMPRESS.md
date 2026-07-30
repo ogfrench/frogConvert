@@ -35,9 +35,21 @@ One control, four choices. The vocabulary is quality-forward — it names what t
 | Level | Meaning |
 |---|---|
 | **Automatic** (default) | Reads each file and picks a level. Won't recompress what's already small. |
-| **High quality** | Modest savings. |
+| **High quality** | Modest savings, original dimensions kept. |
 | **Balanced** | Big savings, quality you won't miss. |
-| **Smallest file** | Visible quality loss. |
+| **Smallest file** | Visible quality loss, and images are resized. |
+
+### What each level does to an image
+
+| | Quality | Long edge |
+|---|---|---|
+| High quality | 93 | unchanged |
+| Balanced | 80 | 2560 px |
+| Smallest file | 65 | 1920 px |
+
+**The resize is where the saving is.** Halving an image's long edge quarters its pixels, and the pixel count *is* the file. An earlier version of this only resized above 30 megapixels — which no phone or camera photo reaches — so quality alone had to carry the whole ladder, and it could not: a 4 MB photo re-encoded at the same dimensions came back around 3.4 MB whatever level you chose.
+
+For calibration: Squoosh ships at quality 75 by default, and the aggressive presets in tools like iLoveIMG and TinyPNG sit near 65 and resize as well. **Smallest file** is deliberately in that company. **High quality** never resizes, so it stays a true "just re-encode it" option.
 
 There is deliberately **no "lossless" level here**. As a compression level it can only mean "do nothing": it targets quality 100 with no resize, so re-encoding an already-compressed file comes back *larger* and the keep-threshold discards it. The level would reliably accomplish nothing, so it isn't offered. (The Converter's own setting does include **Original quality**, because "convert this without shrinking it" is a real request.)
 
@@ -46,7 +58,7 @@ There is deliberately **no "lossless" level here**. As a compression level it ca
 Automatic doesn't apply a fixed tier. It runs three steps per file:
 
 1. **Probe.** Read cheap container metadata — bytes per megapixel for images, bytes per page for PDFs, container bitrate for audio and video — and place the file in a quality band from *uncompressed* down to *minimal*. This measures how densely the file is **already** compressed. It never decodes the whole file, so it costs milliseconds.
-2. **Step down one band.** A file that is already lean is asked to give up less than a raw one. A file in the bottom band is left alone and reported as *already compressed* rather than re-encoded.
+2. **Pick a level from the band.** Raw and high-quality inputs get **Balanced**; a file that is already web-optimised gets **High quality**, since squeezing it again trades visible quality for almost nothing; a file in the bottom band is left alone entirely and reported as *already compressed*. Automatic never selects **Smallest file** — that one resizes, and resizing is not something to do to someone who expressed no preference.
 3. **Apply the format's rule.** "One band down" is not safe everywhere. PDFs are the standing exception and resolve to a conservative target instead; see [PDF compression, honestly](#pdf-compression-honestly).
 
 This is why two files dropped together can come out at different levels, and why Automatic is the default: it's the right answer when the user has no opinion.

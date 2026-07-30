@@ -93,14 +93,30 @@ describe("planImage", () => {
         expect(ctx({ outputLossless: true }).imgQuality).toBe(100);
     });
 
-    it("uses a higher base quality for a hand-picked singleton than a video frame", () => {
-        expect(ctx({ archetype: "singleton" }).imgQuality).toBe(90);
-        expect(ctx({ archetype: "video-frame" }).imgQuality).toBe(78);
+    it("keeps a hand-picked singleton above a video frame", () => {
+        // Archetype is an offset now, not the base: the preset decides the
+        // ballpark and the archetype nudges it.
+        expect(ctx({ archetype: "singleton" }).imgQuality).toBe(80);
+        expect(ctx({ archetype: "video-frame" }).imgQuality).toBe(68);
     });
 
-    it("nudges quality down for low and up for high", () => {
-        expect(ctx({ preset: "low" }).imgQuality).toBe(82);  // 90 - 8
-        expect(ctx({ preset: "high" }).imgQuality).toBe(93); // 90 + 3
+    it("spans a band wide enough for the level names to mean something", () => {
+        // Was 82 / 90 / 93 — eleven points, all of it inside what other tools
+        // call high quality, so "Smallest file" saved almost nothing. Squoosh
+        // ships at 75 by default; aggressive presets elsewhere sit near 65.
+        expect(ctx({ preset: "low" }).imgQuality).toBe(65);
+        expect(ctx({ preset: "medium" }).imgQuality).toBe(80);
+        expect(ctx({ preset: "high" }).imgQuality).toBe(93);
+    });
+
+    it("resizes an ordinary photo, which is where the saving actually is", () => {
+        // The old plan only resized above 30 megapixels, which no phone photo
+        // reaches, so quality alone had to carry the whole ladder and could not.
+        // Halving the long edge quarters the pixels.
+        expect(ctx({ preset: "low" }).imgMaxEdge).toBe(1920);
+        expect(ctx({ preset: "medium" }).imgMaxEdge).toBe(2560);
+        // "High quality" means keep what you have.
+        expect(ctx({ preset: "high" }).imgMaxEdge).toBeNull();
     });
 
     it("caps a video frame's longest edge at 1080p on the web default", () => {
@@ -111,14 +127,21 @@ describe("planImage", () => {
         expect(ctx({ archetype: "video-frame", preset: "high" }).imgMaxEdge).toBe(3840);
     });
 
-    it("hard-clamps very large images to 2800px", () => {
-        const p = ctx({ pixelCount: 200 * MB, archetype: "singleton" });
+    it("clamps a colossal source harder than the preset alone would", () => {
+        const p = ctx({ pixelCount: 200 * MB, archetype: "singleton", preset: "high" });
         expect(p.imgMaxEdge).toBe(2800);
-        expect(p.imgQuality).toBe(88); // 90 - 2
+        expect(p.imgQuality).toBe(91); // 93 - 2
     });
 
-    it("leaves a normal singleton unresized", () => {
-        expect(ctx({ archetype: "singleton" as ImageArchetype }).imgMaxEdge).toBeNull();
+    it("takes the tighter of the preset cap and the archetype cap", () => {
+        // A video frame carries its own 1920 ceiling; `medium` would allow 2560.
+        expect(ctx({ archetype: "video-frame", preset: "medium" }).imgMaxEdge).toBe(1920);
+        // Under `high` the frame's own 3840 applies, since the preset has no cap.
+        expect(ctx({ archetype: "video-frame", preset: "high" }).imgMaxEdge).toBe(3840);
+    });
+
+    it("never drops below a floor, however the offsets stack", () => {
+        expect(ctx({ preset: "low", archetype: "video-frame" }).imgQuality).toBeGreaterThanOrEqual(45);
     });
 });
 

@@ -18,7 +18,7 @@ beforeEach(() => vi.clearAllMocks());
  * wired together.
  */
 describe("decideAutoQuality", () => {
-    it("steps an ordinary file down one tier", async () => {
+    it("aims an ordinary file at the balanced preset", async () => {
         asTier("hq");
         expect(await decideAutoQuality(bytes, "image/jpeg")).toEqual({ kind: "compress", tier: "medium" });
     });
@@ -29,10 +29,11 @@ describe("decideAutoQuality", () => {
     });
 
     it("applies the format's own rule, not just the ladder", async () => {
-        // A PDF at "medium" would step to "low" on the plain ladder, which for
-        // PDFs can produce a *bigger* file. The format rule overrides it.
+        // Same input tier, two different answers: the plain ladder says
+        // "medium", but for PDFs a lower preset can produce a *bigger* file, so
+        // the format rule lifts them to the conservative target instead.
         asTier("medium");
-        expect(await decideAutoQuality(bytes, "image/jpeg")).toEqual({ kind: "compress", tier: "low" });
+        expect(await decideAutoQuality(bytes, "image/jpeg")).toEqual({ kind: "compress", tier: "medium" });
         expect(await decideAutoQuality(bytes, "application/pdf")).toEqual({ kind: "compress", tier: "high" });
     });
 
@@ -44,14 +45,15 @@ describe("decideAutoQuality", () => {
 
 describe("decideAutoQualityForBatch", () => {
     it("takes the gentlest answer so one raw file can't drag the others down", async () => {
-        // First file wants "low" (most aggressive), second wants "medium".
+        // One file warrants "medium", the other only "high". Gentlest wins.
         probe.mockResolvedValueOnce({ inputTier: "medium", detail: {} } as never)
-             .mockResolvedValueOnce({ inputTier: "hq", detail: {} } as never);
+             .mockResolvedValueOnce({ inputTier: "low", detail: {} } as never);
         const tier = await decideAutoQualityForBatch([
             { bytes, mime: "image/jpeg" },
             { bytes, mime: "image/jpeg" },
         ]);
-        expect(tier).toBe("medium");
+        // "low" input tier resolves to the gentlest preset, and gentlest wins.
+        expect(tier).toBe("high");
     });
 
     it("counts an already-minimal file as a reason to be gentle, not to drop out", async () => {
