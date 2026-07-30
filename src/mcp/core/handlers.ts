@@ -17,6 +17,7 @@ import type { FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 
 import FFmpegHandler from "../../handlers/FFmpeg.ts";
 import ImageMagickHandler from "../../handlers/ImageMagick.ts";
+import GhostscriptNodeHandler from "../../handlers/ghostscript.node.ts";
 import libreofficeHandler from "../../handlers/libreoffice.ts";
 import pandocHandler from "../../handlers/pandoc.ts";
 import jszipHandler from "../../handlers/jszip.ts";
@@ -60,6 +61,7 @@ export const loadMcpHandlers = async (): Promise<{ ready: FormatHandler[]; all: 
 
     try { handlers.push(new FFmpegHandler()); } catch (e: any) { console.error("[MCP] Failed to load FFmpeg:", e?.message || e); }
     try { handlers.push(new ImageMagickHandler()); } catch (e) { console.error("[MCP] Failed to load ImageMagick:", e); }
+    try { handlers.push(new GhostscriptNodeHandler()); } catch (e) { console.error("[MCP] Failed to load Ghostscript:", e); }
     try { handlers.push(new libreofficeHandler()); } catch (e: any) { console.error("[MCP] Failed to load libreoffice:", e?.message || e); }
     try { handlers.push(new pandocHandler()); } catch (e) { console.error("[MCP] Failed to load pandoc:", e); }
     try { handlers.push(new jszipHandler()); } catch (e) { console.error("[MCP] Failed to load jszip:", e); }

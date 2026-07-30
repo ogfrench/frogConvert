@@ -369,3 +369,32 @@ describe("compressBatch — degraded fallback", () => {
         expect(out[0].warning).toBeUndefined();
     });
 });
+
+describe("compressBatch — degenerate inputs", () => {
+    it("calls a file too small to compress already-minimal, not failed", async () => {
+        // A 78-byte PNG is signature + IHDR + IEND. ImageMagick errors on it,
+        // which used to surface as "failed" — technically what happened, but a
+        // lie about the file: nothing was wrong with it and nothing could be won.
+        const run = vi.fn(async () => { throw new Error("no pixels"); });
+        resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
+
+        const out = await compressBatch(
+            [input("dot.png", 78, fmt("image/png", "png"))],
+            { options: [], level: "medium", run },
+        );
+
+        expect(out[0].reason).toBe("already-minimal");
+        expect(out[0].shrunk).toBe(false);
+        // And we never spent an engine round-trip discovering it.
+        expect(run).not.toHaveBeenCalled();
+    });
+
+    it("still compresses a file just above the floor", async () => {
+        resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
+        const out = await compressBatch(
+            [input("small.png", 600, fmt("image/png", "png"))],
+            { options: [], level: "medium", run: shrinkingRun(0.5) },
+        );
+        expect(out[0].shrunk).toBe(true);
+    });
+});

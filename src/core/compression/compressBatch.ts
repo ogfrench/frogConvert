@@ -77,6 +77,15 @@ export type CompressBatchOptions = {
  */
 const KEEP_THRESHOLD = 0.98;
 
+/**
+ * Below this, a file is essentially all container overhead — a PNG's signature,
+ * IHDR and IEND alone are ~70 bytes. Re-encoding cannot claw back the 2% the
+ * keep-threshold wants, and some engines simply error on such degenerate input.
+ * Reporting "already as small as it gets" is both true and more useful than the
+ * "failed" the thrown error would otherwise produce.
+ */
+const MIN_COMPRESSIBLE_BYTES = 512;
+
 function groupKey(format: FileFormat): string {
     return `${(format.mime || "").toLowerCase()}|${(format.format || "").toLowerCase()}`;
 }
@@ -158,6 +167,12 @@ export async function compressBatch(
             // already at minimum useful quality (re-encoding it would trade
             // visible quality for ~no bytes), and - under "auto" - which tier
             // this particular file deserves.
+            if (input.bytes.byteLength < MIN_COMPRESSIBLE_BYTES) {
+                passthrough(index, input, "already-minimal");
+                done++;
+                continue;
+            }
+
             let effective: QualityPreset = level === "auto" ? "medium" : level;
             if (level !== "lossless") {
                 const probe = await probeInputQuality(input.bytes, input.format.mime ?? "");

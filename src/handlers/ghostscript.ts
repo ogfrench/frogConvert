@@ -23,12 +23,11 @@ import { ghostscriptArgs } from "../core/compression/pdfSettings.ts";
  *   - This build **ignores `Module.wasmBinary`** and always locates the binary
  *     itself. Its `_scriptDir` comes from `document.currentScript`, which is
  *     null for an ESM import, so it resolves gs.wasm against the *page* URL and
- *     404s on any route. `locateFile` is the option that actually steers it.
- *     (The smoke test appeared to work via `wasmBinary` only because there the
- *     wasm happened to sit next to the loader and Emscripten fetched it itself.)
- * So: fetch the bytes here to own the progress reporting, hand them to
- * Emscripten as a blob URL through `locateFile`, and the 16 MB crosses the wire
- * exactly once.
+ *     404s on any route.
+ * So: fetch the bytes here to own the progress reporting, compile them once,
+ * and hand Emscripten a ready-made instance through `instantiateWasm`. That
+ * sidesteps its own resolution entirely and means the 16 MB is downloaded once
+ * *and compiled once*, however many PDFs the batch holds.
  *
  * Licensing: Ghostscript is AGPL-3.0. frogConvert is GPL-3.0-or-later, and
  * GPLv3 §13 explicitly permits linking with AGPLv3 code — the combined work is
@@ -51,14 +50,18 @@ type GsModule = {
 type GsFactory = (opts: Record<string, unknown>) => Promise<GsModule>;
 
 let factory: GsFactory | null = null;
-/** Blob URL for the fetched wasm. Held for the page's lifetime on purpose: a
- *  fresh Module is built per file and each one re-reads this URL, so revoking
- *  it after the first init would break every file after the first. */
-let wasmUrl: string | null = null;
+/**
+ * The compiled module, kept for the page's lifetime. Compiling 16 MB of wasm
+ * costs far more than instantiating it, and a fresh Emscripten instance is
+ * needed per file (callMain is not reliably re-entrant). Caching the
+ * *compilation* and paying only for instantiation is what keeps a batch of
+ * PDFs from re-doing the expensive half every time.
+ */
+let compiled: WebAssembly.Module | null = null;
 
 /** ~16 MB, so it is fetched once and only when a PDF is actually compressed. */
 async function loadOnce(onProgress?: (p: ProgressEvent) => void): Promise<GsFactory> {
-    if (factory && wasmUrl) return factory;
+    if (factory && compiled) return factory;
 
     onProgress?.({ ratio: 0, detail: "Fetching the PDF compressor (one-time, ~16 MB)" });
 
@@ -97,16 +100,26 @@ async function loadOnce(onProgress?: (p: ProgressEvent) => void): Promise<GsFact
         bytes = new Uint8Array(await resp.arrayBuffer());
     }
 
-    // The blob needs the wasm MIME type or instantiateStreaming rejects it and
-    // Emscripten falls back to a slower ArrayBuffer path.
-    wasmUrl = URL.createObjectURL(new Blob([bytes], { type: "application/wasm" }));
+    onProgress?.({ ratio: 0.5, detail: "Starting the PDF compressor" });
+    compiled = await WebAssembly.compile(bytes);
     factory = mod.default as GsFactory;
     return factory;
 }
 
-/** Steers Emscripten to the already-downloaded binary instead of guessing a URL. */
-function locateFile(path: string): string {
-    return path.endsWith(".wasm") && wasmUrl ? wasmUrl : `${GS_BASE}/${path}`;
+/**
+ * Hands Emscripten an instance of the already-compiled module instead of
+ * letting it locate and compile the binary itself. This is also the only way
+ * the loader works at all outside a browser page: left to itself it resolves
+ * gs.wasm against `document.currentScript`, which does not exist for an ESM
+ * import or in Node.
+ */
+function instantiateWasm(
+    imports: WebAssembly.Imports,
+    success: (inst: WebAssembly.Instance, mod: WebAssembly.Module) => void,
+): Record<string, never> {
+    WebAssembly.instantiate(compiled!, imports).then(inst => success(inst, compiled!));
+    // Emscripten accepts an empty exports object and waits for `success`.
+    return {};
 }
 
 class GhostscriptHandler implements FormatHandler {
@@ -156,7 +169,7 @@ class GhostscriptHandler implements FormatHandler {
             // Emscripten builds, and Ghostscript keeps global state across a run.
             const Module = await create({
                 noInitialRun: true,
-                locateFile,
+                instantiateWasm,
                 print: () => { /* -dQUIET still emits the odd line */ },
                 printErr: () => { /* surfaced via the non-zero return code */ },
             });
