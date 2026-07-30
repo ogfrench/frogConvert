@@ -8,6 +8,19 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **PostScript, EPS and Illustrator conversion** ([#19](https://github.com/ogfrench/frogConvert/issues/19)). `PS → PDF`, `EPS → PDF` and `AI → PDF`, plus `PDF → PS` and `PDF → EPS`, through the Ghostscript engine v3 already shipped for PDF compression. Vector content stays vector: verified that a `PS → PDF` round trip keeps its pages, keeps its fonts, and emits no image XObject. Once a PostScript file is a PDF, everything else the app does with PDFs — PNG/JPEG, text extraction, the PDF Editor, Compress — reaches it for free through the existing route finder, with no new graph wiring.
+- **PDF/A-2b and multi-page TIFF export**, from the same engine. [src/core/ghostscript/args.ts](src/core/ghostscript/args.ts).
+- **`.ai` files state what they cost before you convert.** A modern `.ai` is a PDF carrying a private Illustrator payload, so the artwork converts perfectly and the layers, editable text and effects do not survive. The Converter says so under the button rather than letting it be discovered afterwards.
+
+### Fixed
+- **`PDF → EPS` no longer silently discards pages.** An EPS cannot hold more than one page, and Ghostscript's `eps2write` responds to a multi-page PDF by exiting 0, warning on a stream nobody reads, and writing a file containing one page — a 3-page source round-tripped back to 1 page with no error anywhere the user could see. The route now always uses Ghostscript's `%d` template and returns one file per page.
+- **TIFF export is LZW-compressed.** The `tiff24nc` device defaults to uncompressed: the same 3-page source measured 19,583,480 B raw against 54,929 B with LZW, a factor of 356.
+- **A `.ai` file reported as `application/pdf` is no longer routed to the plain PDF handler**, which converted it fine while discarding the Illustrator payload. An exact extension match now beats a MIME-only fallback in [detectFormat.ts](src/core/FormatHandler/detectFormat.ts) — the browser's MIME is a guess from an OS table, an extension a format claims is a deliberate statement.
+- **Extracting pages as a single PDF no longer inflates the output.** The [#21](https://github.com/ogfrench/frogConvert/issues/21) cancellation work split `extract()`'s copy loop to add checkpoints; pdf-lib builds a fresh object copier per `copyPages` call, so a font or letterhead image shared by every page was copied once per page instead of once. Measured at +132% on 30 pages sharing one image.
+
 ## [3.0.0] - 2026-07-30
 
 Compression becomes a first-class feature. It was previously invisible — every conversion quietly applied a `medium` preset, and the only user-facing compression was a same-format easter egg in the Convert card. There is now a dedicated **Compress** mode, PDFs can actually be compressed, and the setting that was always being applied is now something you can see and change.

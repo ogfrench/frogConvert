@@ -90,6 +90,32 @@ describe("findMatchingFormat", () => {
         const files = [makeFile("a.png", "image/png"), makeFile("b.png", "image/png")];
         expect(findMatchingFormat(files, allOptions)).toBe(0);
     });
+
+    // An explicit extension claim beats a MIME-only guess. The browser's MIME
+    // comes from an OS table and is regularly absent or wrong; an extension a
+    // format declares is a deliberate statement about what it handles.
+    describe("extension vs MIME precedence", () => {
+        const withAi = [
+            { format: makeFormat({ mime: "application/pdf", format: "pdf", extension: "pdf" }), handler: dummyHandler },
+            { format: makeFormat({ mime: "application/illustrator", format: "ai", extension: "ai" }), handler: dummyHandler },
+        ];
+
+        it("routes a .ai reported as application/pdf to the AI entry", () => {
+            // A modern .ai *is* a PDF internally, so this MIME is not a browser
+            // bug - it is accurate and still the wrong destination. Sending it
+            // to the plain PDF handler converts it fine and silently discards
+            // the Illustrator payload, which is the exact trap #19 called out.
+            expect(findMatchingFormat([makeFile("art.ai", "application/pdf")], withAi)).toBe(1);
+        });
+
+        it("still routes a real .pdf to the PDF entry", () => {
+            expect(findMatchingFormat([makeFile("doc.pdf", "application/pdf")], withAi)).toBe(0);
+        });
+
+        it("falls through to MIME when the extension matches nothing", () => {
+            expect(findMatchingFormat([makeFile("art.indd", "application/pdf")], withAi)).toBe(0);
+        });
+    });
 });
 
 // ---------------------------------------------------------------------------

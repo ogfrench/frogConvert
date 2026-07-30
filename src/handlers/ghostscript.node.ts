@@ -2,6 +2,11 @@ import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 import { extractQualityPreset } from "../core/FormatHandler/FormatHandler.ts";
 import { ghostscriptArgs } from "../core/compression/pdfSettings.ts";
+import {
+    GS_INPUT_FORMATS,
+    GS_OUTPUT_ROUTES,
+    runGhostscriptConversion,
+} from "../core/ghostscript/convert.ts";
 
 /**
  * Ghostscript-WASM for Node/Bun — the MCP, REST and CLI surfaces.
@@ -111,8 +116,15 @@ class GhostscriptNodeHandler implements FormatHandler {
     // ever present in a given registry.
     public name = "Ghostscript";
 
+    // Kept in step with the browser handler's list on purpose — the agent
+    // surfaces should not offer a different menu from the web UI.
     public supportedFormats: FileFormat[] = [
         CommonFormats.PDF.supported("pdf", true, true),
+        CommonFormats.PS.supported("ps", true, true),
+        CommonFormats.EPS.supported("eps", true, true),
+        CommonFormats.AI.supported("ai", true, false),
+        CommonFormats.PDFA.supported("pdfa", false, true),
+        CommonFormats.TIFF.supported("tiff", false, true),
     ];
 
     public ready = false;
@@ -126,19 +138,38 @@ class GhostscriptNodeHandler implements FormatHandler {
 
     async doConvert(
         inputFiles: FileData[],
-        _inputFormat: FileFormat,
+        inputFormat: FileFormat,
         outputFormat: FileFormat,
         args?: string[],
     ): Promise<FileData[]> {
-        if (outputFormat.format !== "pdf") {
-            throw new Error("Ghostscript only writes PDF.");
+        const route = GS_OUTPUT_ROUTES[outputFormat.format];
+        if (!route) {
+            throw new Error(`Ghostscript can't write ${outputFormat.format.toUpperCase()}.`);
+        }
+        if (!GS_INPUT_FORMATS.has(inputFormat.format)) {
+            throw new Error(`Ghostscript can't read ${inputFormat.format.toUpperCase()}.`);
         }
 
+        // PDF in, PDF out is the compression pass; anything else is a format
+        // change. Same split as the browser handler.
+        const isCompression = inputFormat.format === "pdf" && outputFormat.format === "pdf";
         const quality = extractQualityPreset(args) ?? "medium";
         const create = await loadOnce();
         const outputs: FileData[] = [];
 
         for (const file of inputFiles) {
+            if (!isCompression) {
+                outputs.push(...await runGhostscriptConversion({
+                    createInstance: () => createModule(create),
+                    file,
+                    inputExtension: inputFormat.extension.toLowerCase(),
+                    route,
+                    outputExtension: outputFormat.extension.toLowerCase(),
+                    quality,
+                }));
+                continue;
+            }
+
             const Module = await createModule(create);
 
             Module.FS.writeFile("/in.pdf", file.bytes);

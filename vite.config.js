@@ -395,7 +395,7 @@ export default defineConfig({
       manifest: {
         name: 'frogConvert - convert files privately in your browser',
         short_name: 'frogConvert',
-        description: 'Convert 70+ file formats and edit PDFs right in your browser. No uploads, no servers, everything stays on your device.',
+        description: 'Convert 70+ file formats, compress images, audio and video, and edit or shrink PDFs — all in your browser. Nothing is uploaded.',
         start_url: '/',
         scope: '/',
         id: '/',

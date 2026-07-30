@@ -33,9 +33,17 @@ export function findMatchingFormat(
         if (fileExtension && format.extension.toLowerCase() === fileExtension) return i;
         if (mimeMatch === -1) mimeMatch = i; // First MIME-only match as fallback
     }
-    if (mimeMatch !== -1) return mimeMatch;
 
-    // Fallback: extension-only match
+    // An exact extension match beats a MIME-only one. The browser's MIME is a
+    // guess derived from an OS table and is routinely wrong or absent, whereas
+    // an extension a format explicitly claims is a deliberate statement.
+    //
+    // `.ai` is what forced the ordering: a modern Illustrator file is a PDF
+    // internally, so it can arrive as `application/pdf`. With the MIME fallback
+    // first that landed on the plain PDF entry — the file converted, looked
+    // fine, and silently lost its Illustrator payload. Nothing is lost the
+    // other way round: a MIME with no matching extension still falls through
+    // to `mimeMatch` below.
     if (fileExtension) {
         for (let i = 0; i < allOptions.length; i++) {
             const { format } = allOptions[i];
@@ -44,6 +52,8 @@ export function findMatchingFormat(
             }
         }
     }
+
+    if (mimeMatch !== -1) return mimeMatch;
 
     return -1;
 }

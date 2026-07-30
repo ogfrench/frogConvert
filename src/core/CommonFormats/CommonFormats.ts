@@ -207,6 +207,48 @@ const CommonFormats = {
         "application/pdf",
         Category.DOCUMENT
     ),
+    /**
+     * PDF/A-2b, the archival profile. Output-only on purpose: its extension and
+     * MIME are identical to plain PDF, so declaring it `from` would make an
+     * uploaded .pdf ambiguous between two entries. Nothing needs to read it as
+     * a distinct format — a PDF/A file *is* a PDF.
+     */
+    PDFA: new FormatDefinition(
+        "PDF/A (archival)",
+        "pdfa",
+        "pdf",
+        "application/pdf",
+        Category.DOCUMENT
+    ),
+    // documents - PostScript family. Vector page descriptions: text stays text
+    // and curves stay curves, which is the whole reason anyone still uses them.
+    PS: new FormatDefinition(
+        "PostScript",
+        "ps",
+        "ps",
+        "application/postscript",
+        [Category.VECTOR, Category.DOCUMENT]
+    ),
+    EPS: new FormatDefinition(
+        "Encapsulated PostScript",
+        "eps",
+        "eps",
+        "application/postscript",
+        [Category.VECTOR, Category.DOCUMENT]
+    ),
+    /**
+     * Modern .ai files are PDFs carrying a private Illustrator payload, so this
+     * gets its own MIME rather than `application/pdf` — sharing one would let a
+     * dropped .ai be routed to the plain PDF handler, quietly discarding the
+     * Illustrator half. See core/ghostscript/postscriptInput.ts.
+     */
+    AI: new FormatDefinition(
+        "Adobe Illustrator Artwork",
+        "ai",
+        "ai",
+        "application/illustrator",
+        [Category.VECTOR, Category.DOCUMENT]
+    ),
     // documents - Microsoft Office
     DOCX: new FormatDefinition(
         "Microsoft Word (DOCX)",

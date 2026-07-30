@@ -45,6 +45,23 @@ Once installed:
 - **Smart auto-adaptation.** When a conversion would hit a browser-memory or sanity ceiling (very large PDFs, long videos to GIF, thousands of frames extracted from a long video), the pipeline adjusts the output instead of erroring. Adjustments are explained in a post-conversion notice card. See [HANDLERS.md § Post-conversion notices](HANDLERS.md#post-conversion-notices) for how handlers emit these.
 - **Performance.** frogConvert detects available RAM and adjusts limits to prevent crashes on lower-end devices.
 
+## PostScript, EPS and Illustrator
+
+Ghostscript — the same engine that powers PDF compression — reads the PostScript family natively, so these routes keep vector content as vector: text stays selectable and curves stay curves.
+
+| Route | Notes |
+|---|---|
+| `PS → PDF`, `EPS → PDF`, `AI → PDF` | The main direction. Once it is a PDF, everything else the app does with PDFs works on it: PNG/JPEG, text extraction, the PDF Editor, Compress. |
+| `PDF → PS` | One PostScript file, all pages. |
+| `PDF → EPS` | **One file per page.** An EPS cannot hold more than one page by definition, so a 10-page PDF gives you 10 files. |
+| `PDF → PDF/A` | PDF/A-2b, for archival deposit. Anything that cannot be represented in the profile is dropped rather than failing the conversion. |
+| `PDF → TIFF` | Multi-page, LZW-compressed. Resolution follows the compression level: 96 dpi at *Smallest file*, 150 at *Balanced*, 300 at *High quality*. |
+
+Two things worth knowing:
+
+- **`.ai` files convert through their PDF layer.** Illustrator has written PDF-compatible `.ai` since version 9 (2000), so the artwork comes across intact — but layers, editable text and effects are flattened. Keep the `.ai` as your master. The Converter says so before you press the button.
+- **The engine is a ~16 MB download**, fetched the first time you use a PostScript route (or compress a PDF) and cached afterwards. It is never fetched at page load.
+
 ## Known limitations
 
 - **PDF input on Safari.** Safari's JavaScript engine cannot handle PDF input for conversions (PDF to PNG, PDF to TXT, etc.). Use Chrome or Firefox for PDF input. Other formats work normally on Safari.

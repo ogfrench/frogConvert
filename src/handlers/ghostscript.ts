@@ -3,9 +3,20 @@ import type { FileData, FileFormat, FormatHandler, ProgressEvent } from "../core
 import { extractQualityPreset } from "../core/FormatHandler/FormatHandler.ts";
 import { ghostscriptArgs } from "../core/compression/pdfSettings.ts";
 import { GS_BASE } from "../core/compression/ghostscriptAssets.ts";
+import {
+    GS_INPUT_FORMATS,
+    GS_OUTPUT_ROUTES,
+    runGhostscriptConversion,
+} from "../core/ghostscript/convert.ts";
 
 /**
- * Ghostscript-WASM — PDF→PDF recompression.
+ * Ghostscript-WASM — PDF→PDF recompression, plus the PostScript family,
+ * PDF/A and multi-page TIFF.
+ *
+ * The compression pass came first and is still the common case; the conversion
+ * routes ride along on the same 16 MB binary rather than adding a second engine
+ * for formats it already speaks natively. Their argv and output handling live
+ * in core/ghostscript/ so the Node sibling shares them verbatim.
  *
  * Why this exists rather than reusing the canvas + pdf-lib route: that route
  * rasterises pages, so it can only shrink a PDF by throwing away the very thing
@@ -63,22 +74,34 @@ let compiled: WebAssembly.Module | null = null;
  */
 let loading: Promise<GsFactory> | null = null;
 
-/** ~16 MB, so it is fetched once and only when a PDF is actually compressed. */
-function loadOnce(onProgress?: (p: ProgressEvent) => void): Promise<GsFactory> {
+/**
+ * What to call the 16 MB download while it is happening. The same binary backs
+ * Compress and the PostScript conversions, and "Fetching the PDF compressor"
+ * makes no sense to someone who just dropped an EPS on the Converter.
+ */
+type EngineLabel = "compressor" | "converter";
+const ENGINE_NAME: Record<EngineLabel, string> = {
+    compressor: "PDF compressor",
+    converter: "PostScript engine",
+};
+
+/** ~16 MB, so it is fetched once and only when the engine is actually used. */
+function loadOnce(onProgress?: (p: ProgressEvent) => void, label: EngineLabel = "compressor"): Promise<GsFactory> {
     if (factory && compiled) return Promise.resolve(factory);
-    loading ??= fetchAndCompile(onProgress).catch((e) => { loading = null; throw e; });
+    loading ??= fetchAndCompile(onProgress, label).catch((e) => { loading = null; throw e; });
     return loading;
 }
 
-async function fetchAndCompile(onProgress?: (p: ProgressEvent) => void): Promise<GsFactory> {
-    onProgress?.({ ratio: 0, detail: "Fetching the PDF compressor (one-time, ~16 MB)" });
+async function fetchAndCompile(onProgress?: (p: ProgressEvent) => void, label: EngineLabel = "compressor"): Promise<GsFactory> {
+    const engine = ENGINE_NAME[label];
+    onProgress?.({ ratio: 0, detail: `Fetching the ${engine} (one-time, ~16 MB)` });
 
     // @vite-ignore: this must stay a runtime URL import of the copied asset.
     // Letting Vite resolve it pulls gs.js through the bundler, which breaks the
     // globalThis.exports handshake gs.mjs depends on.
     const mod = await import(/* @vite-ignore */ `${GS_BASE}/gs.mjs`);
     const resp = await fetch(`${GS_BASE}/gs.wasm`);
-    if (!resp.ok) throw new Error(`Couldn't fetch the PDF compressor (${resp.status})`);
+    if (!resp.ok) throw new Error(`Couldn't fetch the ${engine} (${resp.status})`);
 
     // Streamed so the one-time download reports progress instead of looking
     // frozen. Content-Length is present for a static asset but not guaranteed,
@@ -98,7 +121,7 @@ async function fetchAndCompile(onProgress?: (p: ProgressEvent) => void): Promise
             got += value.byteLength;
             onProgress?.({
                 ratio: (got / total) * 0.5,
-                detail: `Fetching the PDF compressor (${Math.round((got / total) * 100)}%)`,
+                detail: `Fetching the ${engine} (${Math.round((got / total) * 100)}%)`,
             });
         }
         bytes = new Uint8Array(new ArrayBuffer(got));
@@ -108,7 +131,7 @@ async function fetchAndCompile(onProgress?: (p: ProgressEvent) => void): Promise
         bytes = new Uint8Array(await resp.arrayBuffer());
     }
 
-    onProgress?.({ ratio: 0.5, detail: "Starting the PDF compressor" });
+    onProgress?.({ ratio: 0.5, detail: `Starting the ${engine}` });
     compiled = await WebAssembly.compile(bytes);
     factory = mod.default as GsFactory;
     return factory;
@@ -153,10 +176,22 @@ function createModule(create: GsFactory): Promise<GsModule> {
 class GhostscriptHandler implements FormatHandler {
     public name = "Ghostscript";
 
+    // Declared statically so every format is selectable before the WASM has
+    // ever been fetched — nobody should pay 16 MB to find out what is on offer.
     public supportedFormats: FileFormat[] = [
-        // PDF in, PDF out. Declared statically so the format is selectable
-        // before the WASM has ever been fetched.
         CommonFormats.PDF.supported("pdf", true, true),
+        // The PostScript family. Ghostscript reads all three natively — this is
+        // the interpreter those formats are defined by — and writes PS and EPS
+        // back out through ps2write/eps2write.
+        CommonFormats.PS.supported("ps", true, true),
+        CommonFormats.EPS.supported("eps", true, true),
+        // Read-only: .ai is a container we can open honestly but should never
+        // claim to author. See AI_FLATTENING_NOTICE.
+        CommonFormats.AI.supported("ai", true, false),
+        // Output-only by design; see the CommonFormats entry.
+        CommonFormats.PDFA.supported("pdfa", false, true),
+        // Multi-page TIFF, which nothing else in the app produces.
+        CommonFormats.TIFF.supported("tiff", false, true),
     ];
 
     public ready = false;
@@ -173,28 +208,48 @@ class GhostscriptHandler implements FormatHandler {
 
     async doConvert(
         inputFiles: FileData[],
-        _inputFormat: FileFormat,
+        inputFormat: FileFormat,
         outputFormat: FileFormat,
         args?: string[],
         onProgress?: (p: ProgressEvent) => void,
     ): Promise<FileData[]> {
-        if (outputFormat.format !== "pdf") {
-            throw new Error("Ghostscript only writes PDF. Use the PDF converter for other formats.");
+        const route = GS_OUTPUT_ROUTES[outputFormat.format];
+        if (!route) {
+            throw new Error(`Ghostscript can't write ${outputFormat.format.toUpperCase()}.`);
+        }
+        if (!GS_INPUT_FORMATS.has(inputFormat.format)) {
+            throw new Error(`Ghostscript can't read ${inputFormat.format.toUpperCase()}.`);
         }
 
+        // PDF in and PDF out is the compression pass, not a conversion: it keeps
+        // the distiller presets and the original filename. Everything else is a
+        // format change and goes through the shared conversion path.
+        const isCompression = inputFormat.format === "pdf" && outputFormat.format === "pdf";
         const quality = extractQualityPreset(args) ?? "medium";
-        const create = await loadOnce(onProgress);
+        const create = await loadOnce(onProgress, isCompression ? "compressor" : "converter");
 
         const outputs: FileData[] = [];
         for (let i = 0; i < inputFiles.length; i++) {
             const file = inputFiles[i];
             onProgress?.({
                 ratio: 0.5 + (i / inputFiles.length) * 0.5,
-                detail: `Compressing ${file.name}`,
+                detail: `${isCompression ? "Compressing" : "Converting"} ${file.name}`,
             });
 
-            // A fresh module per file: callMain() is not reliably re-entrant in
-            // Emscripten builds, and Ghostscript keeps global state across a run.
+            if (!isCompression) {
+                outputs.push(...await runGhostscriptConversion({
+                    // A fresh module per file: callMain() is not reliably
+                    // re-entrant and Ghostscript keeps global state across a run.
+                    createInstance: () => createModule(create),
+                    file,
+                    inputExtension: inputFormat.extension.toLowerCase(),
+                    route,
+                    outputExtension: outputFormat.extension.toLowerCase(),
+                    quality,
+                }));
+                continue;
+            }
+
             const Module = await createModule(create);
 
             const inPath = "/in.pdf";

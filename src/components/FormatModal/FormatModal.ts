@@ -4,6 +4,7 @@ import { ui, CATEGORY_LABELS, formatDisplayName, formatMode, getFormatCategory, 
 import { formatToIdentifier } from "../../core/TraversionGraph/TraversionGraph.ts";
 import { isSameFormatCompressible } from "../../core/compression/resolveCompressor.ts";
 import { COMPRESS_THESE_EVENT } from "../../constants/ui.ts";
+import { AI_FLATTENING_NOTICE } from "../../core/ghostscript/postscriptInput.ts";
 
 // --- Format modal ---
 
@@ -248,12 +249,26 @@ export function updateConvertButtonState(selectedFromIndex: number | null, selec
       hint.append("Same format in and out, so there's nothing to convert. You'll get your file back unchanged.");
     }
     hint.hidden = false;
+  } else if (bothPicked && isIllustratorInput(selectedFromIndex)) {
+    // #19 requires AI's lossiness to be stated "wherever it is offered", and
+    // this is the last moment before the user commits. The conversion is a
+    // good one - the artwork comes across whole - so this is a note, not a
+    // warning, and it reuses the hint slot rather than a dismissable banner
+    // that a returning user would never see again.
+    hint.textContent = AI_FLATTENING_NOTICE;
+    hint.hidden = false;
   } else {
     hint.hidden = true;
     hint.textContent = "";
   }
 
   updateLibreofficeNoticeVisibility(selectedFromIndex, selectedToIndex);
+}
+
+/** True when the chosen input is an Illustrator file, whatever it converts to. */
+function isIllustratorInput(fromIdx: number | null): boolean {
+  if (fromIdx === null) return false;
+  return allOptionsRef.value[fromIdx]?.format.format === "ai";
 }
 
 /**

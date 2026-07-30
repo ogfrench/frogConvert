@@ -213,6 +213,37 @@ describe("updateConvertButtonState (same-format signpost)", () => {
         expect(hint.getAttribute("aria-live")).toBe("polite");
     });
 
+    it("says what an Illustrator conversion costs before the user commits", () => {
+        // A modern .ai is a PDF with an Illustrator payload beside it. The
+        // conversion is genuinely good - all the artwork survives - but the
+        // editability does not, and #19 asks for that to be said out loud
+        // rather than discovered when the file won't reopen properly.
+        const ai = makeFormat("application/illustrator", "ai");
+        const pdf = makeFormat("application/pdf", "pdf");
+        const handler = stubHandler("Ghostscript", [ai, pdf]);
+        allOptionsRef.value = [{ format: ai, handler }, { format: pdf, handler }];
+
+        updateConvertButtonState(0, 1);
+
+        const hint = document.querySelector(".convert-hint") as HTMLElement;
+        expect(hint.hidden).toBe(false);
+        expect(hint.textContent).toMatch(/layers/i);
+        expect(hint.textContent).toMatch(/flattened/i);
+        // Still a normal conversion, so the button must not be relabelled.
+        expect(ui.convertButton.textContent).toBe("Convert");
+    });
+
+    it("keeps the hint out of the way for conversions that lose nothing", () => {
+        const png = makeFormat("image/png", "png", true);
+        const pdf = makeFormat("application/pdf", "pdf");
+        const handler = stubHandler("Ghostscript", [png, pdf]);
+        allOptionsRef.value = [{ format: pdf, handler }, { format: png, handler }];
+
+        updateConvertButtonState(0, 1);
+
+        expect((document.querySelector(".convert-hint") as HTMLElement).hidden).toBe(true);
+    });
+
     it("labels the pass-through regardless of whether that format has a compressor", () => {
         // This registry has no Ghostscript loaded, so pdf->pdf has no
         // compressor to offer. Picking it still converts nothing, so the
