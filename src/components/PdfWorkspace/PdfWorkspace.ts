@@ -8,6 +8,7 @@ import { clearSession, type StoredSession, type PdfWorkspacePayload } from '../p
 import { merge } from '../../tools/pdfMerge.ts';
 import { extract } from '../../tools/pdfExtract.ts';
 import { organize } from '../../tools/pdfOrganize.ts';
+import { PdfEditCancelled, checkpoint } from '../../tools/cancellation.ts';
 import {
   watermark,
   hexToRgb,
@@ -934,8 +935,8 @@ function handleRemoveSelectedFiles(): void {
 
 async function handleMerge() {
   if (files.length < 2) return;
-  await runWithPopup('Merging', 'Stitching your pages into one PDF. This only takes a moment.', 'Merge failed. Try removing a file and re-adding it.', async () => {
-    const r = await merge(files);
+  await runWithPopup('Merging', 'Stitching your pages into one PDF. This only takes a moment.', 'Merge failed. Try removing a file and re-adding it.', async (signal) => {
+    const r = await merge(files, signal);
     await setPdfResult([{ bytes: r.bytes, name: r.name }], null);
     return r;
   }, (r) => {
@@ -2096,10 +2097,10 @@ async function doWatermarkExportPerSource() {
     verb,
     'Stamping your pages. This only takes a moment.',
     'Watermark failed. Try simpler text or fewer pages.',
-    async () => {
+    async (signal) => {
       const results: { bytes: Uint8Array; name: string }[] = [];
       for (const t of tasks) {
-        const r = await watermark(t.file.bytes, t.file.name, t.opts);
+        const r = await watermark(t.file.bytes, t.file.name, t.opts, signal);
         results.push({ bytes: r.bytes, name: r.name });
       }
       await setPdfResult(results, isBatch ? `watermarked-pdfs-${timestampForFilename()}.zip` : null);
@@ -2158,8 +2159,8 @@ async function doWatermarkPassthroughCombined() {
     'Saving',
     'Empty watermark - merging your files unchanged.',
     'Save failed.',
-    async () => {
-      const merged = await merge(files);
+    async (signal) => {
+      const merged = await merge(files, signal);
       return await setPdfResult([{ bytes: merged.bytes, name: merged.name }], null);
     },
     (results) => {
@@ -2187,8 +2188,8 @@ async function doWatermarkExportCombined() {
     'Watermarking',
     'Merging your files and stamping the selected pages.',
     'Watermark failed. Try simpler text or fewer pages.',
-    async () => {
-      const merged = await merge(files);
+    async (signal) => {
+      const merged = await merge(files, signal);
 
       // Derive 1-indexed page numbers in merge order: walk files, accumulate
       // per-file offsets, emit (offset + pageNum) for every selected key.
@@ -2207,7 +2208,7 @@ async function doWatermarkExportCombined() {
         rotationDegrees: wmSettings.rotation,
         repeat: wmSettings.repeat,
         pageNums,
-      });
+      }, signal);
       return await setPdfResult([{ bytes: r.bytes, name: r.name }], null);
     },
     (results) => {
@@ -2909,8 +2910,8 @@ async function handleSave() {
 }
 
 async function doOrganizeSaveCombined() {
-  await runWithPopup('Saving', 'Packing up your PDF with the latest page order. Hold tight.', 'Save failed. Try with fewer pages or a smaller file.', async () => {
-    const r = await organize(files, pages);
+  await runWithPopup('Saving', 'Packing up your PDF with the latest page order. Hold tight.', 'Save failed. Try with fewer pages or a smaller file.', async (signal) => {
+    const r = await organize(files, pages, signal);
     await setPdfResult([{ bytes: r.bytes, name: r.name }], null);
     return r;
   }, (r) => {
@@ -2922,12 +2923,12 @@ async function doOrganizeSaveCombined() {
 }
 
 async function doOrganizeSavePerSource() {
-  await runWithPopup('Saving', 'Packing each source file separately. Hold tight.', 'Save failed. Try with fewer pages or a smaller file.', async () => {
+  await runWithPopup('Saving', 'Packing each source file separately. Hold tight.', 'Save failed. Try with fewer pages or a smaller file.', async (signal) => {
     const out: { bytes: Uint8Array; name: string }[] = [];
     for (const sf of files) {
       const filtered = pages.filter(p => p.type === 'source' && p.sourceFileId === sf.id);
       if (filtered.length === 0) continue;
-      const r = await organize([sf], filtered);
+      const r = await organize([sf], filtered, signal);
       out.push({ bytes: r.bytes, name: r.name });
     }
     await setPdfResult(out, out.length > 1 ? `organized-pdfs-${timestampForFilename()}.zip` : null);
@@ -3041,12 +3042,17 @@ function showExtractModal(indices: number[]) {
   showPopup(wrap, false, () => hidePopup());
 }
 
+// See src/tools/cancellation.ts - the groupAsOne branch below builds its
+// output PDF inline rather than delegating to extract(), so it checkpoints
+// directly at the same cadence extract()'s own loop uses.
+const EXTRACT_CHECKPOINT_INTERVAL = 10;
+
 async function doExtract(indices: number[], groupAsOne: boolean) {
   if (files.length === 0 || indices.length === 0) return;
   const extractCount = indices.length;
   const sorted = [...indices].sort((a, b) => a - b);
   await runWithPopup('Extracting', 'Pulling the selected pages into a new file. Almost there.', 'Extract failed. The PDF might be damaged. Try re-exporting it from the source app.',
-    async () => {
+    async (signal) => {
       const byFile = new Map<number, number[]>();
       for (const idx of sorted) {
         const page = pages[idx];
@@ -3060,8 +3066,9 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
       if (groupAsOne) {
         const output = await PDFDocument.create();
         const loadedSources = new Map<number, Awaited<ReturnType<typeof PDFDocument.load>>>();
-        for (const idx of sorted) {
-          const page = pages[idx];
+        for (let i = 0; i < sorted.length; i++) {
+          if (i % EXTRACT_CHECKPOINT_INTERVAL === 0) await checkpoint(signal);
+          const page = pages[sorted[i]];
           if (!loadedSources.has(page.sourceFileId)) {
             const sf = files.find(f => f.id === page.sourceFileId)!;
             loadedSources.set(page.sourceFileId, await PDFDocument.load(sf.bytes, { ignoreEncryption: true }));
@@ -3079,7 +3086,7 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
         for (const [fid, pageNums] of byFile) {
           const sf = files.find(f => f.id === fid)!;
           const baseName = sf.name.replace(/\.pdf$/i, '');
-          const results = await extract(sf.bytes, pageNums, baseName, false);
+          const results = await extract(sf.bytes, pageNums, baseName, false, signal);
           allResults.push(...results);
         }
         await setPdfResult(allResults, allResults.length > 1 ? `extracted-pages-${timestampForFilename()}.zip` : null);
@@ -3585,26 +3592,41 @@ function parseSelectionRange(text: string): Set<number> | null {
 // Utility
 // ---------------------------------------------------------------------------
 
+/**
+ * Run a PDF edit (merge/organize/watermark/extract) behind a progress popup.
+ * The popup carries a Cancel control and Escape wired to the same
+ * AbortController `fn` receives, so a long edit can always be backed out of.
+ * A cancellation (`PdfEditCancelled`) is a neutral outcome, not an error - it
+ * never reaches `showError`/`appendSupportContact`.
+ */
 async function runWithPopup<T>(
   verb: string,
   subtext: string,
   fallback: string,
-  fn: () => Promise<T>,
+  fn: (signal: AbortSignal) => Promise<T>,
   onSuccess?: (result: T) => void,
   minMs: number = 1200,
 ): Promise<void> {
+  const controller = new AbortController();
   const wrap = el('div', { className: 'ws-processing' });
   wrap.appendChild(el('h2', { textContent: `${verb}...` }));
   wrap.appendChild(el('div', { className: 'ws-spinner' }));
   wrap.appendChild(el('p', { textContent: subtext }));
-  showPopup(wrap, true);
+  const actions = el('div', { className: 'popup-actions-footer' });
+  actions.appendChild(createPopupButton('Cancel', 'btn-secondary', () => controller.abort()));
+  wrap.appendChild(actions);
+  showPopup(wrap, true, () => controller.abort());
   const startTime = performance.now();
   try {
-    const result = await fn();
+    const result = await fn(controller.signal);
     await ensureMinDuration(startTime, minMs);
     if (onSuccess) onSuccess(result);
     else hidePopup();
   } catch (e: any) {
+    if (e instanceof PdfEditCancelled) {
+      hidePopup();
+      return;
+    }
     console.error(`[pdfWorkspace] ${verb.toLowerCase()} failed:`, e);
     hidePopup();
     const info = toUserErrorInfo(e);

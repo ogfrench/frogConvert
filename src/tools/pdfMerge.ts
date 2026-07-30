@@ -1,14 +1,16 @@
 import { PDFDocument } from 'pdf-lib';
 import type { FileData } from '../core/FormatHandler/FormatHandler.ts';
 import type { CoreSourceFile } from './types.ts';
+import { checkpoint } from './cancellation.ts';
 
 /**
  * Merge multiple PDFs into a single PDF, concatenating pages in array order.
  */
-export async function merge(files: CoreSourceFile[]): Promise<FileData> {
+export async function merge(files: CoreSourceFile[], signal?: AbortSignal): Promise<FileData> {
   const output = await PDFDocument.create();
 
   for (const file of files) {
+    await checkpoint(signal);
     const source = await PDFDocument.load(file.bytes, { ignoreEncryption: true });
     const indices = source.getPageIndices();
     const copied = await output.copyPages(source, indices);

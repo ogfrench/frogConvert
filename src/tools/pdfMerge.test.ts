@@ -1,7 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import { merge } from './pdfMerge.ts';
+import { PdfEditCancelled } from './cancellation.ts';
 import type { SourceFile } from './types.ts';
+
+/** AbortSignal-like that reports aborted only after its `aborted` getter has
+ *  been read more than `n` times - lets a test cancel mid-loop deterministically. */
+function abortAfter(n: number): AbortSignal {
+  let reads = 0;
+  return { get aborted() { return ++reads > n; } } as AbortSignal;
+}
 
 /** Create a minimal PDF with N blank pages and return its bytes. */
 async function makePdf(pageCount: number): Promise<Uint8Array> {
@@ -58,5 +66,33 @@ describe('pdfMerge', () => {
     const result = await merge([sf(0, 'noext', a, 1), sf(1, 'b.pdf', b, 1)]);
     // stripExt returns the whole name when no '.' found
     expect(result.name).toBe('noext_merged_pdfs.pdf');
+  });
+
+  it('produces byte-identical output whether or not a (non-aborted) signal is passed', async () => {
+    const a = await makePdf(2);
+    const b = await makePdf(3);
+    const files = [sf(0, 'a.pdf', a, 2), sf(1, 'b.pdf', b, 3)];
+    // pdf-lib stamps CreationDate/ModDate with the real clock at save() time;
+    // pin it so two calls a few ms apart can't disagree on that alone. Only
+    // Date is faked - checkpoint()'s internal setTimeout must still fire on
+    // its own for the awaited promise to resolve.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    try {
+      const withoutSignal = await merge(files);
+      const withSignal = await merge(files, new AbortController().signal);
+      expect(withSignal.bytes).toEqual(withoutSignal.bytes);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops mid-loop and produces no output when the signal is aborted', async () => {
+    const a = await makePdf(1);
+    const b = await makePdf(1);
+    const c = await makePdf(1);
+    const files = [sf(0, 'a.pdf', a, 1), sf(1, 'b.pdf', b, 1), sf(2, 'c.pdf', c, 1)];
+    // Allow the checkpoint before the first file through, abort before the second.
+    await expect(merge(files, abortAfter(1))).rejects.toThrow(PdfEditCancelled);
   });
 });
