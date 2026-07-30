@@ -521,13 +521,23 @@ function resultsMarkup(): string {
   // A real saving that rounds to 0% ("saved 60 KB of 400 MB") reads as a bug.
   const pctText = pct > 0 ? `${pct}% smaller` : "under 1% smaller";
 
+  // Singular and plural are different sentences here, and a batch of one is
+  // the common case. "These were already as small as they usefully get" over a
+  // single row reads as though the app cannot count.
+  const many = results.length !== 1;
+
   const headline = saved > 0
     ? `Saved ${formatBytes(saved)} <span class="cw-pct">(${pctText})</span>`
     : stoppedCount > 0
       ? `Stopped`
       : noneSupported
         ? `Nothing i can compress here`
-        : `Nothing left to shave off`;
+        // Deliberately not "nothing left to shave off": at an explicit level
+        // that is a claim about the file we cannot support, and the note right
+        // below it goes on to suggest trying another level — the headline was
+        // contradicting its own advice. Saying no more than what happened
+        // leaves the two consistent, and works for one file or many.
+        : `No smaller at this level`;
   const sub = saved > 0
     ? stoppedCount > 0
       ? `${shrunkCount} file${shrunkCount === 1 ? "" : "s"} got smaller before you stopped. The rest are untouched.`
@@ -535,8 +545,12 @@ function resultsMarkup(): string {
     : stoppedCount > 0
       ? `Stopped before anything got smaller. Your files are untouched.`
       : noneSupported
-        ? `These formats aren't ones i can compress. Images, audio, video and PDFs are.`
-        : `These were already as small as they usefully get.`;
+        ? many
+          ? `These formats aren't ones i can compress. Images, audio, video and PDFs are.`
+          : `That format isn't one i can compress. Images, audio, video and PDFs are.`
+        : many
+          ? `Your originals are untouched, and still yours to keep.`
+          : `Your original is untouched, and still yours to keep.`;
 
   const rows = results.map(r => {
     const detail = r.shrunk

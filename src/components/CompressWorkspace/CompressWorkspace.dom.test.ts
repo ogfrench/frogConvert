@@ -284,7 +284,7 @@ describe('CompressWorkspace — running a batch', () => {
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
     await ws.runCompression();
     expect(document.querySelector('.cw-res-note')?.textContent).toContain('already compressed');
-    expect(document.querySelector('.cw-results-headline')?.textContent).toMatch(/Nothing left to shave/);
+    expect(document.querySelector('.cw-results-headline')?.textContent).toMatch(/No smaller at this level/);
   });
 
   it('downloads a single result directly and a batch as a zip', async () => {
@@ -540,13 +540,20 @@ describe('CompressWorkspace — batch edge cases', () => {
     expect(head).toMatch(/aren't ones i can compress/i);
   });
 
-  it('still says "already small" when we genuinely tried and could not win', async () => {
+  it('reports a genuine no-gain without overclaiming, and in the singular', async () => {
+    // The headline used to read "Nothing left to shave off", which asserts a
+    // property of the file — while the note directly below it suggested trying
+    // another level. It was contradicting its own advice. And the sub-copy was
+    // plural ("These were... they") over a single row.
     compressBatchMock.mockResolvedValue([
       { name: 'a.png', bytes: new Uint8Array(1000), originalSize: 1000, shrunk: false, reason: 'no-gain' },
     ] as any);
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
     await ws.runCompression();
-    expect(document.querySelector('.cw-results-head')!.textContent).toMatch(/already as small/i);
+    const head = document.querySelector('.cw-results-head')!.textContent!;
+    expect(head).toMatch(/No smaller at this level/);
+    expect(head).toMatch(/Your original is untouched/);
+    expect(head).not.toMatch(/These were|they usefully/i);
   });
 
   it('reports a partial win honestly when only some files were supported', async () => {
@@ -814,5 +821,28 @@ describe('CompressWorkspace — level dropdown dismissal', () => {
     expect(menu.hidden).toBe(false);
     document.body.click();
     expect(document.querySelector<HTMLElement>('.cw-level-menu')!.hidden).toBe(true);
+  });
+});
+
+describe('CompressWorkspace — singular and plural', () => {
+  it('speaks in the plural for a batch', async () => {
+    compressBatchMock.mockResolvedValue([
+      { name: 'a.png', bytes: new Uint8Array(1000), originalSize: 1000, shrunk: false, reason: 'no-gain' },
+      { name: 'b.png', bytes: new Uint8Array(1000), originalSize: 1000, shrunk: false, reason: 'no-gain' },
+    ] as any);
+    ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('b.png', 'image/png')]);
+    await ws.runCompression();
+    const head = document.querySelector('.cw-results-head')!.textContent!;
+    expect(head).toMatch(/Your originals are untouched/);
+  });
+
+  it('speaks in the singular when only one format was unsupported', async () => {
+    compressBatchMock.mockResolvedValue([
+      { name: 'a.heic', bytes: new Uint8Array(0), originalSize: 1000, shrunk: false, reason: 'unsupported' },
+    ] as any);
+    ws.handleFiles([fakeFile('a.heic', 'image/heic')]);
+    await ws.runCompression();
+    const head = document.querySelector('.cw-results-head')!.textContent!;
+    expect(head).toMatch(/That format isn't one i can compress/);
   });
 });
