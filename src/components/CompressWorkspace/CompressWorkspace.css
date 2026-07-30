@@ -40,9 +40,18 @@
 /* Compress is a drop-first surface — the zone is the whole point of the page,
    not one field among several as on the Convert card — so it gets the taller
    PDF-workspace footprint. Scoped to #compress-content so the Convert card
-   keeps its own 5.5rem height. */
+   keeps its own 5.5rem height.
+
+   The tall footprint is for the *empty* state, where the target being large
+   and obvious is the point. Once files are in, the zone is a summary row, and
+   holding it at 10rem left one line of text floating in a void with the level
+   picker and the button pushed down the page for nothing. With files it sizes
+   to its content, the same way the Convert card's does. */
 #compress-content .upload-zone {
   height: auto;
+}
+
+#compress-content .upload-zone:not(.has-file) {
   min-height: calc(var(--space-16) * 2.5);
 }
 
