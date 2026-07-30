@@ -61,8 +61,8 @@ Each row shows the outcome for one file. The wording is deliberate:
 
 - **−36%** — it shrank, and the smaller file is what you download.
 - **no gain** — the re-encode came back within 2% of the original, so the **original** is kept. Nothing was degraded for a rounding error.
-- **already compressed** — the probe found it at minimum useful quality; it was never re-encoded.
-- **can't compress this** — no compressor for that format; the file passes through untouched.
+- **already compressed** — it was at minimum useful quality already, so it was never re-encoded.
+- **can't compress this** — no compressor for that format. The file is never opened, so it is not in the download either; your copy on disk is the only one there has ever been.
 - **stopped** — you pressed Stop. Either this file was never reached, or it was the one in flight and was abandoned. Your original is untouched either way.
 - **failed** — the engine errored. The original is kept.
 
