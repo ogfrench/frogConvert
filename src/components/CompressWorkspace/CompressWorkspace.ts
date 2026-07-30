@@ -473,9 +473,11 @@ function resultsMarkup(): string {
   `;
 }
 
-function privacyMarkup(): string {
-  return `<p class="cw-privacy">Nothing leaves your device. The squishing happens right here.</p>`;
-}
+// The privacy promise deliberately lives in #compress-description, the page
+// line below the card, and not here as well. This surface used to state it
+// twice in a row — "Nothing leaves your device" immediately above "without
+// sending them anywhere" — which reads as padding rather than reassurance.
+// One line, in the same place the Converter and PDF Editor put theirs.
 
 function actionMarkup(): string {
   return `
@@ -494,7 +496,7 @@ function render() {
   } else {
     rootEl.innerHTML = files.length
       ? `${uploadFieldMarkup()}${fileListMarkup()}${levelFieldMarkup()}${actionMarkup()}`
-      : `${uploadFieldMarkup()}${privacyMarkup()}`;
+      : uploadFieldMarkup();
   }
   wireRendered();
 }

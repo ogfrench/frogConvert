@@ -46,13 +46,6 @@
   min-height: calc(var(--space-16) * 2.5);
 }
 
-.cw-privacy {
-  font-size: var(--text-sm);
-  color: var(--muted-foreground);
-  text-align: center;
-  margin: 0;
-}
-
 /* --- Level dropdown (mirrors the format selector it sits in place of) --- */
 
 .cw-level-field { position: relative; }

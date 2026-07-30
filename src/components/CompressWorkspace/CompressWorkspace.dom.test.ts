@@ -40,11 +40,15 @@ const downloadFileMock = vi.mocked(downloadFile);
 const downloadAsZipMock = vi.mocked(downloadAsZip);
 
 function mountDom() {
+  // Mirrors index.html, including the page description that sits *outside* the
+  // card — the copy tests below only mean something if both are present.
   document.body.innerHTML = `
     <main id="compress-workspace">
       <div id="compress-content"></div>
       <input id="compress-file-input" type="file" multiple>
     </main>
+    <p id="compress-description">Make files smaller without sending them anywhere.
+      Images, audio, video and PDFs, right here in your browser.</p>
   `;
 }
 
@@ -68,9 +72,14 @@ describe('CompressWorkspace — empty state', () => {
     expect(document.querySelector('.upload-file-info.visible')).toBeNull();
   });
 
-  it('states the privacy promise up front', () => {
-    expect(document.querySelector('.cw-privacy')?.textContent)
-      .toMatch(/never leaves|nothing leaves/i);
+  it('states the privacy promise exactly once', () => {
+    // The card used to repeat it directly above the page description —
+    // "Nothing leaves your device" stacked on "without sending them anywhere".
+    // Said twice in a row it reads as padding, not reassurance.
+    const page = document.body.textContent ?? '';
+    const promises = page.match(/leaves? your device|without sending them anywhere/gi) ?? [];
+    expect(promises).toHaveLength(1);
+    expect(page).toMatch(/without sending them anywhere/i);
   });
 });
 
