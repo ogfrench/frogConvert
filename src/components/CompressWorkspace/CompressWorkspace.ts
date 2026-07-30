@@ -200,9 +200,14 @@ export async function runCompression() {
   // the batch loop, and "finishing this file" can be many minutes on a large
   // video — the one case where someone is most likely to want out.
   //
-  // The one exception is the canvas PDF fallback, which is main-thread and
-  // cannot be interrupted; it only runs when Ghostscript is unreachable, and
-  // the shared hard-cancel watchdog force-closes the UI if it does not yield.
+  // One narrow exception, stated honestly rather than papered over: the canvas
+  // PDF fallback is a main-thread handler, so terminate() has nothing to kill.
+  // Cancelling during one shows "Stopping now..." while that single file
+  // actually finishes, then the batch stops. The shared hard-cancel watchdog
+  // does *not* rescue this - it fires `forceCleanupCallback`, which only
+  // `runInWorker` ever registers - so the copy briefly overpromises in a case
+  // that needs Ghostscript to have been unreachable in the first place.
+  //
   // Files never reached are reported *stopped*, never *failed*.
   setCanHardCancel(true);
   setCurrentFileProgress(0, files.length);
