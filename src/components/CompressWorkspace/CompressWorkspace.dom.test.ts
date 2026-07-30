@@ -748,3 +748,46 @@ describe('CompressWorkspace — download naming', () => {
     expect(ws.compressedName('.hidden')).toBe('.hidden-compressed');
   });
 });
+
+describe('CompressWorkspace — level dropdown dismissal', () => {
+  function openMenu() {
+    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    document.querySelector<HTMLElement>('.cw-level-selector')!.click();
+    return document.querySelector<HTMLElement>('.cw-level-menu')!;
+  }
+
+  it('closes on Escape even though focus is still on the trigger', () => {
+    // Opening the dropdown leaves focus on the button, so a keydown listener
+    // bound to the *menu* never fired. On a narrow screen the open menu covers
+    // the Compress button and swallows the click aimed at it, so "Escape does
+    // nothing" left the surface effectively stuck.
+    const menu = openMenu();
+    expect(menu.hidden).toBe(false);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(document.querySelector<HTMLElement>('.cw-level-menu')!.hidden).toBe(true);
+    expect(document.querySelector('.cw-level-selector')!.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('puts focus back on the trigger rather than dropping it', () => {
+    openMenu();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(document.activeElement).toBe(document.querySelector('.cw-level-selector'));
+  });
+
+  it('ignores Escape when the menu is already closed', () => {
+    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    const before = document.activeElement;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    // No focus grab, so Escape elsewhere on the page still belongs to whoever
+    // else wants it (the progress modal, for one).
+    expect(document.activeElement).toBe(before);
+  });
+
+  it('still closes on a click outside the field', () => {
+    const menu = openMenu();
+    expect(menu.hidden).toBe(false);
+    document.body.click();
+    expect(document.querySelector<HTMLElement>('.cw-level-menu')!.hidden).toBe(true);
+  });
+});

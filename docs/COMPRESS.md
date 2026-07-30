@@ -63,12 +63,12 @@ Each row shows the outcome for one file. The wording is deliberate:
 - **no gain** — the re-encode came back within 2% of the original, so the **original** is kept. Nothing was degraded for a rounding error.
 - **already compressed** — the probe found it at minimum useful quality; it was never re-encoded.
 - **can't compress this** — no compressor for that format; the file passes through untouched.
-- **stopped** — you pressed Stop before this file's turn. It was never opened.
+- **stopped** — you pressed Stop. Either this file was never reached, or it was the one in flight and was abandoned. Your original is untouched either way.
 - **failed** — the engine errored. The original is kept.
 
 A batch reports the total saved across only the files that actually shrank. When that saving is real but rounds to zero against the batch total — a win on one small file next to a large untouched one — it reads *under 1% smaller* rather than the nonsensical *0% smaller*.
 
-Stop finishes the file currently being compressed and then halts; it does not abandon work mid-file. Everything already compressed is kept and downloadable.
+Stop abandons the file being compressed rather than waiting for it to finish — the moment you most want out is usually a large video, which is exactly the case that used to make you wait. Everything already compressed is kept and downloadable, and the interrupted file is reported *stopped*, not *failed*: it is your decision, not our error.
 
 ### Download names
 
@@ -159,7 +159,8 @@ Images, audio, video and PDFs all work. The same 2% size-guard applies, so a fil
 
 - Batch ceiling and total-size budget are shared with the rest of the app.
 - The whole batch is held in memory; very large video batches are the practical limit.
-- Cancellation takes effect **between files**, not mid-file — a single long video keeps going until that file finishes.
+- **Cancel** abandons the file being worked on, not just the ones after it. Anything already compressed stays downloadable, and the interrupted file is reported *stopped* rather than *failed*. The one exception is the degraded canvas route for PDFs (used only when the Ghostscript payload is unreachable), which runs on the main thread and cannot be interrupted.
+- The PDF editor's optional compression step can be skipped mid-run. The edit itself is already complete by then, so skipping simply hands back the uncompressed document.
 - **The first PDF is slower.** The 16 MB engine is fetched and compiled on first use, then reused for the rest of the session. Every PDF after the first skips both steps.
 
 ## Architecture

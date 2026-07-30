@@ -453,3 +453,73 @@ describe("compressBatch — degenerate inputs", () => {
         expect(out[0].shrunk).toBe(true);
     });
 });
+
+describe("compressBatch — hard cancel mid-file", () => {
+    /**
+     * Compress used to stop only *between* files, so pressing Stop on a batch
+     * whose current item was a large video meant waiting minutes for it. Stop
+     * now terminates the worker, which surfaces here as a rejected attempt
+     * while `isCancelled()` is true.
+     */
+    it("reports a file abandoned mid-run as stopped, not failed", async () => {
+        resolveMock.mockReturnValue({ handler: handler("FFmpeg"), args: [] });
+        let cancelled = false;
+        const run = vi.fn(async () => { cancelled = true; throw new Error("Cancelled"); });
+
+        const out = await compressBatch(
+            [input("big.mp4", 900_000_000, fmt("video/mp4", "mp4"))],
+            { options: [], level: "low", run, isCancelled: () => cancelled },
+        );
+
+        expect(out[0].reason).toBe("cancelled");
+        expect(out[0].shrunk).toBe(false);
+        // The user still has their file.
+        expect(out[0].bytes.byteLength).toBe(900_000_000);
+    });
+
+    it("keeps what already finished and marks only the rest stopped", async () => {
+        resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
+        let seen = 0;
+        let cancelled = false;
+        const run = vi.fn(async (_n: string, files: any[]) => {
+            if (++seen > 1) { cancelled = true; throw new Error("Cancelled"); }
+            return [{ name: files[0].name, bytes: new Uint8Array(100) }];
+        });
+
+        const out = await compressBatch(
+            [
+                input("a.png", 1000, fmt("image/png", "png")),
+                input("b.png", 1000, fmt("image/png", "png")),
+                input("c.png", 1000, fmt("image/png", "png")),
+            ],
+            { options: [], level: "low", run, isCancelled: () => cancelled },
+        );
+
+        expect(out[0].shrunk).toBe(true);
+        expect(out[1].reason).toBe("cancelled");
+        expect(out[2].reason).toBe("cancelled");
+        // Never reached is still the user's decision, not our failure.
+        expect(out.some(o => o.reason === "failed")).toBe(false);
+    });
+
+    it("does not try the degraded fallback for a file the user cancelled", async () => {
+        // The fallback exists for "the engine is unreachable", not "the user
+        // asked us to stop" — running it would ignore the Stop and cost time.
+        const fallbackRun = vi.fn();
+        resolveMock.mockReturnValue({
+            handler: handler("Ghostscript"), args: [],
+            fallback: { handler: handler("PdfCanvasCompress"), args: [], warning: "degraded" },
+        });
+        let cancelled = false;
+        const run = vi.fn(async () => { cancelled = true; throw new Error("Cancelled"); });
+
+        const out = await compressBatch(
+            [input("scan.pdf", 5_000_000, fmt("application/pdf", "pdf"))],
+            { options: [], level: "low", run, isCancelled: () => cancelled },
+        );
+
+        expect(fallbackRun).not.toHaveBeenCalled();
+        expect(out[0].reason).toBe("cancelled");
+        expect(out[0].warning).toBeUndefined();
+    });
+});

@@ -7,9 +7,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  * never run at all when the user asked for their document untouched.
  */
 
-vi.mock("./workerClient.ts", () => ({ runInWorker: vi.fn() }));
+vi.mock("./workerClient.ts", () => ({ runInWorker: vi.fn(), cancelActiveWorkerJob: vi.fn(() => true) }));
 
-const { compressPdfOutput, compressPdfOutputs } = await import("./compressPdfOutput.ts");
+const {
+    compressPdfOutput,
+    compressPdfOutputs,
+    cancelPdfOutputCompression,
+    resetPdfOutputCompression,
+    wasPdfOutputCompressionCancelled,
+} = await import("./compressPdfOutput.ts");
 import { runInWorker } from "./workerClient.ts";
 
 const runMock = vi.mocked(runInWorker);
@@ -91,5 +97,64 @@ describe("compressPdfOutputs", () => {
             [{ name: "a.pdf", bytes: bytes(1000) }, { name: "b.pdf", bytes: bytes(1000) }], "low");
         expect(out[0].bytes.byteLength).toBe(1000);  // untouched original
         expect(out[1].bytes.byteLength).toBe(100);
+    });
+});
+
+describe("skipping the compression step", () => {
+    /**
+     * The edit is already finished when this step starts, so a cancel here can
+     * never lose work: it hands back the completed document uncompressed, which
+     * is exactly what Original quality produces. Before this, the step had no
+     * exit but the 10-minute worker timeout.
+     */
+    beforeEach(() => resetPdfOutputCompression());
+
+    it("returns the finished document untouched when skipped", async () => {
+        resetPdfOutputCompression();
+        cancelPdfOutputCompression();
+        const original = bytes(5_000_000);
+        const out = await compressPdfOutput(original, "medium", "merged.pdf");
+        expect(out).toBe(original);
+        expect(runMock).not.toHaveBeenCalled();
+    });
+
+    it("terminates the engine run that is already in flight", async () => {
+        resetPdfOutputCompression();
+        cancelPdfOutputCompression();
+        const { cancelActiveWorkerJob } = await import("./workerClient.ts");
+        expect(vi.mocked(cancelActiveWorkerJob)).toHaveBeenCalled();
+    });
+
+    it("skips the remaining documents in a multi-file save, not just the current one", async () => {
+        resetPdfOutputCompression();
+        // First file compresses, then the user skips; the rest come back as-is
+        // rather than making them press cancel once per document.
+        runMock.mockImplementationOnce(async () => {
+            cancelPdfOutputCompression();
+            return [{ name: "a.pdf", bytes: bytes(100) }] as never;
+        });
+
+        const out = await compressPdfOutputs([
+            { name: "a.pdf", bytes: bytes(1000) },
+            { name: "b.pdf", bytes: bytes(1000) },
+            { name: "c.pdf", bytes: bytes(1000) },
+        ], "medium");
+
+        expect(runMock).toHaveBeenCalledTimes(1);
+        expect(out[1].bytes.byteLength).toBe(1000);
+        expect(out[2].bytes.byteLength).toBe(1000);
+        expect(out.map(o => o.name)).toEqual(["a.pdf", "b.pdf", "c.pdf"]);
+    });
+
+    it("a skip does not leak into the next save", async () => {
+        resetPdfOutputCompression();
+        cancelPdfOutputCompression();
+        expect(wasPdfOutputCompressionCancelled()).toBe(true);
+
+        resetPdfOutputCompression();
+        expect(wasPdfOutputCompressionCancelled()).toBe(false);
+        runMock.mockResolvedValueOnce([{ name: "x.pdf", bytes: bytes(100) }] as never);
+        const out = await compressPdfOutput(bytes(1000), "medium", "x.pdf");
+        expect(out.byteLength).toBe(100);
     });
 });

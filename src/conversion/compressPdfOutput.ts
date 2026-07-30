@@ -1,6 +1,6 @@
 import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
 import { KEEP_THRESHOLD } from "../core/compression/compressBatch.ts";
-import { runInWorker } from "./workerClient.ts";
+import { runInWorker, cancelActiveWorkerJob } from "./workerClient.ts";
 import type { PdfQuality } from "../components/store/store.ts";
 
 /**
@@ -25,12 +25,39 @@ import type { PdfQuality } from "../components/store/store.ts";
 
 const PDF_FORMAT = CommonFormats.PDF.supported("pdf", true, true);
 
+/**
+ * Set while the user has asked to skip the squeeze for the current save.
+ *
+ * The edit itself finished before this step began, so cancelling is safe by
+ * construction: abandoning the engine run leaves a completed, uncompressed
+ * document, which is exactly what "Original quality" would have produced. The
+ * flag exists so a multi-file save skips the *remaining* files too rather than
+ * making the user press cancel once per document.
+ */
+let cancelled = false;
+
+/** Called by the surface when the user cancels the compression step. */
+export function cancelPdfOutputCompression(): void {
+    cancelled = true;
+    cancelActiveWorkerJob();
+}
+
+/** Reset before each save. */
+export function resetPdfOutputCompression(): void {
+    cancelled = false;
+}
+
+/** Whether the last batch was cut short, so the surface can say so. */
+export function wasPdfOutputCompressionCancelled(): boolean {
+    return cancelled;
+}
+
 export async function compressPdfOutput(
     bytes: Uint8Array,
     level: PdfQuality,
     name = "document.pdf",
 ): Promise<Uint8Array> {
-    if (level === "lossless") return bytes;
+    if (level === "lossless" || cancelled) return bytes;
 
     try {
         const out = await runInWorker(

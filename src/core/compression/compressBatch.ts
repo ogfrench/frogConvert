@@ -251,6 +251,13 @@ export async function compressBatch(
                     shrunk: true,
                     warning,
                 });
+            } else if (!output && isCancelled?.()) {
+                // Stop terminated the worker mid-file, so this attempt rejected
+                // because the user asked it to. Reporting it "failed" would
+                // blame us for their decision, and it is the *likeliest* file
+                // to be interrupted - the big one they pressed Stop over.
+                passthrough(index, input, "cancelled");
+                break;
             } else {
                 // A fallback that produced nothing useful is not worth
                 // explaining — the file is unchanged either way.
@@ -258,6 +265,7 @@ export async function compressBatch(
             }
             done++;
         }
+        if (isCancelled?.()) break;
     }
 
     // Anything that never got a result is reported untouched. Stopping early is

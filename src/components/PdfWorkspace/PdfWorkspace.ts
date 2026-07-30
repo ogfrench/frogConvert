@@ -28,7 +28,11 @@ import { formatBytes, escapeHTML, shortenFileName, ensureMinDuration, toUserErro
 import { createDancingFrog } from '../Frogsworth/DancingFrog.ts';
 import { triggerConfetti } from '../../effects/Confetti/Confetti.ts';
 import { ui, updateScrollLock, pdfQuality } from '../store/store.ts';
-import { compressPdfOutputs } from '../../conversion/compressPdfOutput.ts';
+import {
+  compressPdfOutputs,
+  cancelPdfOutputCompression,
+  resetPdfOutputCompression,
+} from '../../conversion/compressPdfOutput.ts';
 import { MAX_TOTAL_FILE_SIZE, ABSOLUTE_MAX_FILES } from '../../constants/ui.ts';
 
 // ---------------------------------------------------------------------------
@@ -476,6 +480,8 @@ async function setPdfResult(
   zipName: string | null,
 ): Promise<{ bytes: Uint8Array; name: string }[]> {
   const level = pdfQuality.value;
+  resetPdfOutputCompression();
+  let skipButton: HTMLElement | null = null;
   if (level !== 'lossless' && results.length > 0) {
     // The popup still reads "Stitching your pages..." from whichever job called
     // us. Compressing a big scan takes seconds, and a message describing work
@@ -486,10 +492,47 @@ async function setPdfResult(
         ? `Compressing ${results.length} PDFs. The first one takes a little longer.`
         : 'Compressing your PDF. The first one takes a little longer.';
     }
+    // The heading moves with it. Left saying "Merging..." over a body about
+    // compression, the two lines describe different jobs and the one that has
+    // already finished is the one shouted in bold.
+    const heading = document.querySelector<HTMLElement>('.ws-processing h2');
+    if (heading) heading.textContent = 'Compressing...';
+    // A way out. Worst case here is the first-ever use on a large scan over a
+    // slow line: a 16 MB engine fetch, a WASM compile and the pass itself,
+    // behind a spinner whose only other exit was the 10-minute worker timeout.
+    //
+    // Safe by construction: the edit finished before this step started, so
+    // skipping hands back the finished document uncompressed - precisely what
+    // Original quality would have produced. Nothing the user asked for is lost.
+    skipButton = addSkipCompressionButton();
   }
-  lastPdfResult = await compressPdfOutputs(results, level);
+  try {
+    lastPdfResult = await compressPdfOutputs(results, level);
+  } finally {
+    skipButton?.remove();
+  }
   lastPdfZipName = zipName;
   return lastPdfResult;
+}
+
+/** Cancel control for the optional compression step, added to the live popup. */
+function addSkipCompressionButton(): HTMLElement | null {
+  const wrap = document.querySelector<HTMLElement>('.ws-processing');
+  if (!wrap) return null;
+  const actions = el('div', { className: 'popup-actions-footer' });
+  const btn = el('button', {
+    className: 'btn-secondary',
+    textContent: 'Skip compression',
+    type: 'button',
+  }) as HTMLButtonElement;
+  btn.addEventListener('click', () => {
+    btn.disabled = true;
+    btn.textContent = 'Finishing up...';
+    cancelPdfOutputCompression();
+  });
+  actions.appendChild(btn);
+  wrap.appendChild(actions);
+  return actions;
 }
 
 let toolContent: HTMLElement;

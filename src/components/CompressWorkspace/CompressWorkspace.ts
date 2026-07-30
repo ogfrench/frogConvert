@@ -194,10 +194,17 @@ export async function runCompression() {
   // the escape-key binding and the "finishing this file" copy with it.
   resetCancellation();
   setActiveConversionMode("compress");
-  // Compress stops between files, never mid-file: an engine pass is a single
-  // uninterruptible call here. `false` picks the shared soft-cancel path,
-  // whose copy promises exactly that instead of implying an instant stop.
-  setCanHardCancel(false);
+  // Stop means stop. Every engine Compress dispatches to runs in the shared
+  // worker, so cancelling terminates it and the in-flight file is abandoned
+  // rather than finished. Waiting was only ever an implementation detail of
+  // the batch loop, and "finishing this file" can be many minutes on a large
+  // video — the one case where someone is most likely to want out.
+  //
+  // The one exception is the canvas PDF fallback, which is main-thread and
+  // cannot be interrupted; it only runs when Ghostscript is unreachable, and
+  // the shared hard-cancel watchdog force-closes the UI if it does not yield.
+  // Files never reached are reported *stopped*, never *failed*.
+  setCanHardCancel(true);
   setCurrentFileProgress(0, files.length);
 
   phase = "running";
@@ -574,6 +581,27 @@ function openPicker(accept = "") {
   fileInput.click();
 }
 
+/**
+ * Escape closes the level dropdown, wherever focus happens to be.
+ *
+ * Module-scoped on purpose: `wireRendered()` runs on every render, and
+ * `addEventListener` with an identical function reference is a no-op, so this
+ * cannot stack up on `document` the way an inline closure would. It looks the
+ * menu up per press rather than closing over it, so a re-render replacing the
+ * element does not leave it pointing at a detached node.
+ */
+function onLevelMenuEscape(e: KeyboardEvent) {
+  if (e.key !== "Escape") return;
+  const menu = rootEl?.querySelector<HTMLElement>(".cw-level-menu");
+  if (!menu || menu.hidden) return;
+  menu.hidden = true;
+  const selector = rootEl?.querySelector<HTMLElement>(".cw-level-selector");
+  selector?.setAttribute("aria-expanded", "false");
+  // Focus goes back where it came from, so keyboard users are not dropped at
+  // the top of the document.
+  selector?.focus();
+}
+
 function wireRendered() {
   if (!rootEl) return;
 
@@ -646,9 +674,17 @@ function wireRendered() {
       // Mirror into the settings menu, which shows this same setting.
       window.dispatchEvent(new CustomEvent("frog:compress-level", { detail: { from: "card" } }));
     });
-    levelMenu.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") { setOpen(false); levelSelector.focus(); }
-    });
+    // Escape is bound at document level, not on the menu. Opening the dropdown
+    // leaves focus on the *trigger*, so a keydown listener on the menu only
+    // fired once the user had already arrowed into it — meaning Escape did
+    // nothing in the ordinary case of "I opened this by mistake".
+    //
+    // That is worse than it sounds on a narrow screen: the menu overlays the
+    // Compress button, and a click aimed at the button lands on the menu (which
+    // is inside `.cw-level-field`, so the click-away handler ignores it too).
+    // With no working Escape, the surface was effectively stuck until the user
+    // guessed to tap elsewhere.
+    document.addEventListener("keydown", onLevelMenuEscape);
     // Click-away is handled once at init, not here: wireRendered() runs on
     // every render and a listener added per render piles up on `document`.
   }
