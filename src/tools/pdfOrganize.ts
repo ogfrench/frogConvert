@@ -1,6 +1,11 @@
 import { PDFDocument, degrees } from 'pdf-lib';
 import type { FileData } from '../core/FormatHandler/FormatHandler.ts';
 import type { CorePageEntry, CoreSourceFile } from './types.ts';
+import { checkpoint } from './cancellation.ts';
+
+// Yield cadence for the page loop below - checked every Nth page so the yield
+// cost stays negligible on a small document (see src/tools/cancellation.ts).
+const CHECKPOINT_INTERVAL = 10;
 
 /**
  * Create a new PDF with pages arranged according to the given PageEntry order.
@@ -8,7 +13,8 @@ import type { CorePageEntry, CoreSourceFile } from './types.ts';
  */
 export async function organize(
   sourceFiles: CoreSourceFile[],
-  pages: CorePageEntry[]
+  pages: CorePageEntry[],
+  signal?: AbortSignal
 ): Promise<FileData> {
   // Load each source PDF once
   const loaded = new Map<number, PDFDocument>();
@@ -20,7 +26,9 @@ export async function organize(
 
   const output = await PDFDocument.create();
 
-  for (const page of pages) {
+  for (let i = 0; i < pages.length; i++) {
+    if (i % CHECKPOINT_INTERVAL === 0) await checkpoint(signal);
+    const page = pages[i];
     if (page.type === 'blank') {
       const w = page.blankPageSize?.width ?? 595.28;
       const h = page.blankPageSize?.height ?? 841.89;

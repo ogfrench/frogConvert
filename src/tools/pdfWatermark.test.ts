@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import {
   watermark,
@@ -9,6 +9,14 @@ import {
   WatermarkValidationError,
   type PdfWatermarkOptions,
 } from './pdfWatermark.ts';
+import { PdfEditCancelled } from './cancellation.ts';
+
+/** AbortSignal-like that reports aborted only after its `aborted` getter has
+ *  been read more than `n` times - lets a test cancel mid-loop deterministically. */
+function abortAfter(n: number): AbortSignal {
+  let reads = 0;
+  return { get aborted() { return ++reads > n; } } as AbortSignal;
+}
 
 // Tiny 1x1 transparent PNG (67 bytes).
 const TINY_PNG_B64 =
@@ -279,5 +287,29 @@ describe('watermark()', () => {
       source: { type: 'image', imageBytes: png, scale: 1.5 },
       opacity: 0.2, rotationDegrees: 0, pageNums: [1],
     })).rejects.toThrow(/scale/);
+  });
+
+  it('produces byte-identical output whether or not a (non-aborted) signal is passed', async () => {
+    const bytes = await makePdf(1);
+    // pdf-lib stamps CreationDate/ModDate with the real clock at save() time;
+    // pin it so two calls a few ms apart can't disagree on that alone. Only
+    // Date is faked - checkpoint()'s internal setTimeout must still fire on
+    // its own for the awaited promise to resolve.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    try {
+      const withoutSignal = await watermark(bytes, 'd.pdf', baseTextOpts);
+      const withSignal = await watermark(bytes, 'd.pdf', baseTextOpts, new AbortController().signal);
+      expect(withSignal.bytes).toEqual(withoutSignal.bytes);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops mid-loop and produces no output when the signal is aborted', async () => {
+    const bytes = await makePdf(11);
+    const opts = { ...baseTextOpts, pageNums: Array.from({ length: 11 }, (_, i) => i + 1) };
+    // First checkpoint (before page 1) passes, second (before page 11) aborts.
+    await expect(watermark(bytes, 'd.pdf', opts, abortAfter(1))).rejects.toThrow(PdfEditCancelled);
   });
 });

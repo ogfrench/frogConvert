@@ -1,7 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { PDFDocument, degrees } from 'pdf-lib';
 import { organize } from './pdfOrganize.ts';
+import { PdfEditCancelled } from './cancellation.ts';
 import type { PageEntry, SourceFile } from './types.ts';
+
+/** AbortSignal-like that reports aborted only after its `aborted` getter has
+ *  been read more than `n` times - lets a test cancel mid-loop deterministically. */
+function abortAfter(n: number): AbortSignal {
+  let reads = 0;
+  return { get aborted() { return ++reads > n; } } as AbortSignal;
+}
 
 /** Create a minimal PDF with N blank pages. */
 async function makePdf(pageCount: number): Promise<Uint8Array> {
@@ -126,5 +134,32 @@ describe('pdfOrganize', () => {
     const out = await PDFDocument.load(result.bytes);
     // Only the valid page should be in the output
     expect(out.getPageCount()).toBe(1);
+  });
+
+  it('produces byte-identical output whether or not a (non-aborted) signal is passed', async () => {
+    const bytes = await makePdf(3);
+    const file = sf(1, 'doc.pdf', bytes, 3);
+    const pages = [page(1, 3), page(1, 2), page(1, 1)];
+    // pdf-lib stamps CreationDate/ModDate with the real clock at save() time;
+    // pin it so two calls a few ms apart can't disagree on that alone. Only
+    // Date is faked - checkpoint()'s internal setTimeout must still fire on
+    // its own for the awaited promise to resolve.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    try {
+      const withoutSignal = await organize([file], pages);
+      const withSignal = await organize([file], pages, new AbortController().signal);
+      expect(withSignal.bytes).toEqual(withoutSignal.bytes);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops mid-loop and produces no output when the signal is aborted', async () => {
+    const bytes = await makePdf(11);
+    const file = sf(1, 'doc.pdf', bytes, 11);
+    const pages = Array.from({ length: 11 }, (_, i) => page(1, i + 1));
+    // First checkpoint (before page 0) passes, second (before page 10) aborts.
+    await expect(organize([file], pages, abortAfter(1))).rejects.toThrow(PdfEditCancelled);
   });
 });
