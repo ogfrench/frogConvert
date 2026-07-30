@@ -62,6 +62,10 @@ A batch reports the total saved across only the files that actually shrank. When
 
 Stop finishes the file currently being compressed and then halts; it does not abandon work mid-file. Everything already compressed is kept and downloadable.
 
+### Download names
+
+A shrunk file downloads as `name-compressed.ext`, so it stays distinguishable from its source once both sit in the same folder ("photo (1).png" says nothing; "photo-compressed.png" does). Files that passed through untouched keep their original names — they *are* the originals. Multi-file results arrive as `compressed-<timestamp>.zip`, timestamped so repeated runs never collide.
+
 ## PDF compression, honestly
 
 PDFs use Ghostscript's `pdfwrite` device, mapped from the level:

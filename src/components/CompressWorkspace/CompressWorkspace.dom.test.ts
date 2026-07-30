@@ -624,7 +624,7 @@ describe('CompressWorkspace — download', () => {
     // out as a single file rather than a zip containing an empty entry.
     expect(ws.getResults()).toHaveLength(2);
     expect(downloadAsZipMock).not.toHaveBeenCalled();
-    expect(downloadFileMock).toHaveBeenCalledWith(expect.anything(), 'ok.png');
+    expect(downloadFileMock).toHaveBeenCalledWith(expect.anything(), 'ok-compressed.png');
   });
 });
 
@@ -663,5 +663,40 @@ describe('CompressWorkspace — category pills', () => {
     const active = tabs().filter(t => t.classList.contains('active'));
     expect(active.map(t => t.textContent!.trim())).toEqual(['Video']);
     expect(active[0].getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+describe('CompressWorkspace — download naming', () => {
+  it('suffixes shrunk files so the download is distinguishable from its source', async () => {
+    // "photo.png" saved next to the original becomes "photo (1).png", and
+    // nothing says which of the two is the small one.
+    compressBatchMock.mockResolvedValue([
+      { name: 'photo.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+    ] as any);
+    ws.handleFiles([fakeFile('photo.png', 'image/png')]);
+    await ws.runCompression();
+    await ws.downloadResults();
+    expect(downloadFileMock).toHaveBeenCalledWith(expect.anything(), 'photo-compressed.png');
+  });
+
+  it('keeps the original name for files handed back untouched', async () => {
+    // A no-gain file is the original; calling original bytes "-compressed"
+    // would be a lie.
+    compressBatchMock.mockResolvedValue([
+      { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+      { name: 'tiny.png', bytes: new Uint8Array(90), originalSize: 90, shrunk: false, reason: 'no-gain' },
+    ] as any);
+    ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('tiny.png', 'image/png')]);
+    await ws.runCompression();
+    await ws.downloadResults();
+    const [files] = downloadAsZipMock.mock.calls[0];
+    expect(files.map((f: { name: string }) => f.name)).toEqual(['a-compressed.png', 'tiny.png']);
+  });
+
+  it('never stacks suffixes on a re-compressed download', () => {
+    expect(ws.compressedName('photo-compressed.png')).toBe('photo-compressed.png');
+    expect(ws.compressedName('archive.tar.gz')).toBe('archive.tar-compressed.gz');
+    expect(ws.compressedName('noext')).toBe('noext-compressed');
+    expect(ws.compressedName('.hidden')).toBe('.hidden-compressed');
   });
 });

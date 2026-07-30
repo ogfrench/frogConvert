@@ -273,6 +273,26 @@ function paintProgress() {
   }
 }
 
+/**
+ * "photo.png" -> "photo-compressed.png".
+ *
+ * Downloading a compressed copy under its original name lands next to the
+ * original as "photo (1).png", and now nothing says which of the two is the
+ * small one. The suffix makes the download self-describing, the same answer
+ * iLoveIMG and friends settled on. Only *shrunk* files get it: a file that
+ * passed through untouched is the original, and labelling original bytes
+ * "-compressed" would be a lie. Applied at download time, not in the results
+ * list, so the on-screen rows still match the names the user dropped.
+ */
+export function compressedName(name: string): string {
+  const dot = name.lastIndexOf(".");
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const ext = dot > 0 ? name.slice(dot) : "";
+  // Re-compressing an already-suffixed download must not stack suffixes.
+  if (stem.endsWith("-compressed")) return name;
+  return `${stem}-compressed${ext}`;
+}
+
 export async function downloadResults() {
   if (!results.length) return;
   // A file we could not even read has no bytes to give back. Shipping a 0-byte
@@ -280,7 +300,7 @@ export async function downloadResults() {
   // is worse than it simply not being in the archive.
   const out = results
     .filter(r => !(r.bytes.byteLength === 0 && r.originalSize > 0))
-    .map(r => ({ name: r.name, bytes: r.bytes }));
+    .map(r => ({ name: r.shrunk ? compressedName(r.name) : r.name, bytes: r.bytes }));
   if (!out.length) {
     showToast("Nothing to download. None of those files could be read.", "warn", 6000);
     return;

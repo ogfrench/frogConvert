@@ -95,7 +95,6 @@ import {
   flushConvertOnHide,
   tryRestoreConvertSession,
 } from "./components/persistence/convertPersist.ts";
-import { showConfirmPopup } from "./components/Popup/Popup.ts";
 import CommonFormats from "./core/CommonFormats/CommonFormats.ts";
 import { EXTERNAL_FILES_EVENT, type ExternalFilesDetail } from "./pwa/shareTargetConstants.ts";
 
@@ -970,6 +969,15 @@ function deliverSharedToPdfEditor(files: File[]) {
     .catch(err => console.warn("[main] could not deliver shared files to PDF Editor:", err));
 }
 
+function deliverSharedToCompress(files: File[]) {
+  if (currentAppMode !== "compress") {
+    setAppMode("compress");
+    navigateTo("compress");
+  }
+  void getCompressWorkspace().then(ws => ws.ingestExternalFiles(files))
+    .catch(err => console.warn("[main] could not deliver shared files to Compress:", err));
+}
+
 window.addEventListener(EXTERNAL_FILES_EVENT, (e) => {
   const files = (e as CustomEvent<ExternalFilesDetail>).detail?.files ?? [];
   if (files.length === 0) return;
@@ -979,12 +987,25 @@ window.addEventListener(EXTERNAL_FILES_EVENT, (e) => {
     return;
   }
 
-  // All PDFs: ambiguous between convert and edit.
-  showConfirmPopup(
-    files.length === 1 ? "Open shared PDF" : `Open ${files.length} shared PDFs`,
-    "Convert to another format, or edit (merge, organize, watermark)?",
-    { label: "Edit", onClick: () => deliverSharedToPdfEditor(files) },
-    { label: "Convert", onClick: () => deliverSharedToConverter(files) },
-  );
+  // All PDFs: three destinations want them. A shared scan is at least as
+  // likely headed for Compress as for either of the others, so it gets a
+  // seat rather than being reachable only by sharing, cancelling, and
+  // switching modes by hand.
+  const h2 = document.createElement("h2");
+  h2.textContent = files.length === 1 ? "Open shared PDF" : `Open ${files.length} shared PDFs`;
+  const p = document.createElement("p");
+  p.textContent = "Edit (merge, organize, watermark), convert to another format, or compress?";
+  const actions = document.createElement("div");
+  actions.className = "popup-actions-footer";
+  actions.appendChild(createPopupButton("Edit", "btn-primary", () => {
+    hidePopup(); deliverSharedToPdfEditor(files);
+  }));
+  actions.appendChild(createPopupButton("Convert", "btn-secondary", () => {
+    hidePopup(); deliverSharedToConverter(files);
+  }));
+  actions.appendChild(createPopupButton("Compress", "btn-secondary", () => {
+    hidePopup(); deliverSharedToCompress(files);
+  }));
+  showPopup([h2, p, actions]);
 });
 
