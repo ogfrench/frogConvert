@@ -362,6 +362,24 @@
     transition: opacity var(--transition-normal), visibility var(--transition-normal), transform var(--transition-normal);
     min-width: 240px;
     gap: 12px;
+    /* The menu stacks three pill groups (mode, theme, compression — the last
+       two vertical), which on a short viewport runs past the bottom of the
+       screen. Without a bound it is simply fixed in place and the items below
+       the fold cannot be reached at all. Both dropdown popups inside are
+       display:none at this width, so nothing here is position:absolute and
+       clipping is not a concern. */
+    max-height: calc(100dvh - (var(--space-4) * 2 + var(--control-size) + var(--space-3)) - var(--space-4));
+    overflow-y: auto;
+    /* Don't hand the scroll to the page when the menu hits its end. */
+    overscroll-behavior: contain;
+  }
+
+  /* Older engines without dvh: fall back to vh, which is only wrong by the
+     browser-chrome height and still beats being unreachable. */
+  @supports not (height: 100dvh) {
+    #top-controls-menu {
+      max-height: calc(100vh - (var(--space-4) * 2 + var(--control-size) + var(--space-3)) - var(--space-4));
+    }
   }
 
   #top-controls.menu-open #top-controls-menu {

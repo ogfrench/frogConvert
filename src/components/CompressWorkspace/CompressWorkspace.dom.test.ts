@@ -425,3 +425,61 @@ describe('CompressWorkspace — degraded-route warning', () => {
     expect(document.querySelector('.cw-results-warning')).toBeNull();
   });
 });
+
+describe('CompressWorkspace — batch edge cases', () => {
+  const unsupported = (name: string) => ({
+    name, bytes: new Uint8Array(1000), originalSize: 1000, shrunk: false, reason: 'unsupported',
+  });
+
+  it('does not claim unsupported files were already small', async () => {
+    // "Already as small as they usefully get" would be a lie: we never tried.
+    compressBatchMock.mockResolvedValue([unsupported('a.svg'), unsupported('b.heic')] as any);
+    ws.handleFiles([fakeFile('a.svg', 'image/svg+xml'), fakeFile('b.heic', 'image/heic')]);
+    await ws.runCompression();
+
+    const head = document.querySelector('.cw-results-head')!.textContent!;
+    expect(head).not.toMatch(/already as small/i);
+    expect(head).toMatch(/aren't ones i can compress|can squish/i);
+  });
+
+  it('still says "already small" when we genuinely tried and could not win', async () => {
+    compressBatchMock.mockResolvedValue([
+      { name: 'a.png', bytes: new Uint8Array(1000), originalSize: 1000, shrunk: false, reason: 'no-gain' },
+    ] as any);
+    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    await ws.runCompression();
+    expect(document.querySelector('.cw-results-head')!.textContent).toMatch(/already as small/i);
+  });
+
+  it('reports a partial win honestly when only some files were supported', async () => {
+    compressBatchMock.mockResolvedValue([
+      { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+      unsupported('b.svg'),
+    ] as any);
+    ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('b.svg', 'image/svg+xml')]);
+    await ws.runCompression();
+    expect(document.querySelector('.cw-results-head')!.textContent).toMatch(/1 of 2 files got smaller/i);
+  });
+
+  it('survives a zero-byte file without crashing or celebrating', async () => {
+    compressBatchMock.mockResolvedValue([
+      { name: 'empty.png', bytes: new Uint8Array(0), originalSize: 0, shrunk: false, reason: 'already-minimal' },
+    ] as any);
+    ws.handleFiles([fakeFile('empty.png', 'image/png', 0)]);
+    await ws.runCompression();
+    expect(ws.getPhase()).toBe('done');
+    // 0/0 must not render NaN%.
+    expect(document.querySelector('.cw-results-head')!.textContent).not.toMatch(/NaN/);
+  });
+
+  it('takes a wide mixed drop and keeps only what it can work with', () => {
+    ws.handleFiles([
+      fakeFile('a.png', 'image/png'), fakeFile('b.mp3', 'audio/mpeg'),
+      fakeFile('c.mp4', 'video/mp4'), fakeFile('d.pdf', 'application/pdf'),
+      fakeFile('e.txt', 'text/plain'), fakeFile('f.zip', 'application/zip'),
+      fakeFile('g.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+    ]);
+    expect(ws.getFiles().map(f => f.file.name)).toEqual(['a.png', 'b.mp3', 'c.mp4', 'd.pdf']);
+    expect(showToastMock).toHaveBeenCalled();
+  });
+});

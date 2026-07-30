@@ -331,12 +331,21 @@ function resultsMarkup(): string {
   const pct = originalTotal ? Math.round((saved / originalTotal) * 100) : 0;
   const shrunkCount = results.filter(r => r.shrunk).length;
 
+  // "Already as small as they get" is only true when we actually tried. If
+  // every file was a format we cannot compress, saying that is a lie about
+  // the files — the honest answer is that we could not help.
+  const noneSupported = results.length > 0 && results.every(r => r.reason === "unsupported");
+
   const headline = saved > 0
     ? `Saved ${formatBytes(saved)} <span class="cw-pct">(${pct}% smaller)</span>`
-    : `Nothing left to shave off`;
+    : noneSupported
+      ? `Nothing i can squish here`
+      : `Nothing left to shave off`;
   const sub = saved > 0
     ? `${shrunkCount} of ${results.length} file${results.length === 1 ? "" : "s"} got smaller.`
-    : `These were already as small as they usefully get.`;
+    : noneSupported
+      ? `These formats aren't ones i can compress. Images, audio, video and PDFs are.`
+      : `These were already as small as they usefully get.`;
 
   const rows = results.map(r => {
     const detail = r.shrunk
