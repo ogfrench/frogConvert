@@ -18,12 +18,22 @@ flowchart LR
     C -->|runs tools in sequence| O[Output File]
     O -->|auto-download| U
 
+    B -->|just make it smaller| K[Compression Engine\ncore/compression]
+    K -->|same format in, same format out| C
+
     style U fill:#6ee7b7,stroke:#059669,color:#000
     style O fill:#6ee7b7,stroke:#059669,color:#000
     style B fill:#93c5fd,stroke:#3b82f6,color:#000
     style G fill:#fcd34d,stroke:#d97706,color:#000
     style C fill:#f9a8d4,stroke:#db2777,color:#000
+    style K fill:#c4b5fd,stroke:#7c3aed,color:#000
 ```
+
+Three subsystems share this page: the **conversion pipeline** (route finder +
+handlers), the **PDF Workspace** (structural PDF editing, no handlers), and the
+**compression engine**, which borrows handlers as engines but skips the route
+finder entirely — there is no path to find when the input and output formats are
+the same.
 
 Everything stays inside your browser tab. Nothing leaves your computer.
 
@@ -263,6 +273,8 @@ frogConvert/
 │   │   ├── FormatHandler/  ← The FormatHandler interface + base classes
 │   │   ├── TraversionGraph/← Route-finding algorithm (Dijkstra)
 │   │   ├── CommonFormats/  ← Registry of all MIME types and extensions
+│   │   ├── compression/    ← Compression engine: dispatch, batching, tiering
+│   │   │                     (UI-free — takes a `run` callback, never imports components)
 │   │   ├── utils/          ← Shared core helpers
 │   │   └── index.ts        ← Barrel re-export
 │   ├── tools/              ← PDF editor ops (merge, organize, extract, watermark, thumbnails)
@@ -272,6 +284,7 @@ frogConvert/
 │   │   ├── conversion.worker.ts   ← Runs handlers off the main thread
 │   │   └── route-search.worker.ts ← Runs pathfinding off the main thread
 │   ├── components/         ← UI only: FormatModal, FilesModal, PdfWorkspace,
+│   │                         CompressWorkspace,
 │   │                         Toast, TopBar, UploadZone, Frogsworth, store, utils, …
 │   ├── conversion/         ← Conversion-flow orchestration (actions, cancellation, downloads)
 │   ├── constants/          ← UI constants (breakpoints, limits, defaults)

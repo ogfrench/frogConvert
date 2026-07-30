@@ -114,6 +114,13 @@ Don't hand-roll your own quality mapping. Route through the shared planner in `s
 
 **Same-format compression.** Conversion routes can include same-format requests (e.g. `JPG → JPG`). In these cases, the handler is called to re-encode the file using the specified `quality` preset (defaults to `"medium"`). Output files from these runs are subject to a **smart size-guard** in the conversion runner: if the result is larger than the original, it is discarded.
 
+The same handlers back the dedicated **Compress** surface, which dispatches through `src/core/compression/resolveCompressor.ts` rather than the conversion graph. Two consequences for handler authors:
+
+- **A handler becomes a compressor for free** once its format is whitelisted in `resolveCompressor.ts` — no separate code path. Compression calls `doConvert` with matching input and output formats.
+- **Note the inverted preset semantics.** `low` is the lowest quality *target*, so it compresses the hardest; `high` compresses least. Getting this backwards silently turns "Smallest file" into "barely touched". It is worth a test.
+
+Compression also applies a 98% keep-threshold (a result must save at least 2% to be used) and skips inputs under 512 bytes, which are all container overhead. Both live in `compressBatch.ts`, not in handlers — do not reimplement them. See [COMPRESS.md](COMPRESS.md).
+
 PDF render knobs (DPI and megapixel caps) live in `src/core/FormatHandler/qualityPresets.ts` as `PRESETS[preset].pdfDpi` / `pdfMp` / `pngCnum`, consumed by `pdftoimg`.
 
 ### Progress reporting

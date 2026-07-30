@@ -32,16 +32,17 @@ Same address for security reports. See [../SECURITY.md](../SECURITY.md).
 The codebase is a vanilla TypeScript Vite project. Full responsibilities are in [ARCHITECTURE.md § Code Structure at a Glance](ARCHITECTURE.md#code-structure-at-a-glance). Day-to-day, these are the directories you will touch most:
 
 - [src/handlers/](../src/handlers/) - one file per conversion tool (FFmpeg, ImageMagick, Pandoc, etc.). New format support lives here.
-- [src/core/](../src/core/) - `FormatHandler` interface, base classes, `CommonFormats` registry, `TraversionGraph`, quality planners.
-- [src/components/](../src/components/) - UI (vanilla TS + DOM), including `store/store.ts` for state and `PdfWorkspace/` for the PDF editor.
+- [src/core/](../src/core/) - `FormatHandler` interface, base classes, `CommonFormats` registry, `TraversionGraph`, quality planners, and [src/core/compression/](../src/core/compression/) (the UI-free compression engine).
+- [src/components/](../src/components/) - UI (vanilla TS + DOM), including `store/store.ts` for state, `PdfWorkspace/` for the PDF editor and `CompressWorkspace/` for the Compress surface.
 - [src/tools/](../src/tools/) - PDF editor primitives (`pdfMerge.ts`, `pdfOrganize.ts`, `pdfExtract.ts`, `pdfWatermark.ts`, `pdfThumbnails.ts`).
 - [src/mcp/](../src/mcp/) and [src/api/](../src/api/) - MCP server and REST API. Must stay in sync per [../AGENTS.md](../AGENTS.md).
 - [src/workers/](../src/workers/) - `conversion.worker.ts` and `route-search.worker.ts`. Most heavy work runs here, not on the main thread.
 
-**Two parallel subsystems.** Before adding code, know which one you are touching:
+**Three parallel subsystems.** Before adding code, know which one you are touching:
 
 - **Conversion pipeline** routes through TraversionGraph and FormatHandlers. Any format-to-format transformation lives here. This is the piece that originates from the [Convert to it!](https://github.com/p2r3/convert) fork; see the Credits section of [../README.md](../README.md).
 - **PDF Workspace** (editor mode) is a separate, **frogConvert-original** subsystem in [../src/components/PdfWorkspace/](../src/components/PdfWorkspace/) plus tool files in [../src/tools/](../src/tools/). **Not part of the fork.** The handler authoring guide in [HANDLERS.md](HANDLERS.md) does not apply here. See [ARCHITECTURE.md § PDF Workspace](ARCHITECTURE.md#pdf-workspace-editor-mode).
+- **Compression engine** ([../src/core/compression/](../src/core/compression/) + [../src/components/CompressWorkspace/](../src/components/CompressWorkspace/)) makes a file smaller *without changing its format*. **frogConvert-original.** It borrows FormatHandlers as engines but does not use the conversion graph — dispatch happens in `resolveCompressor.ts`. The engine half is deliberately UI-free: it takes a `run` callback instead of importing the worker client, so `src/core/` never imports `src/components/`. Keep it that way. See [COMPRESS.md](COMPRESS.md).
 
 ---
 

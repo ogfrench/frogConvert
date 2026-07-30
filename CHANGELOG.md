@@ -8,7 +8,7 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [3.0.0] - 2026-07-30
 
 Compression becomes a first-class feature. It was previously invisible — every conversion quietly applied a `medium` preset, and the only user-facing compression was a same-format easter egg in the Convert card. There is now a dedicated **Compress** mode, PDFs can actually be compressed, and the setting that was always being applied is now something you can see and change.
 
@@ -17,6 +17,8 @@ Compression becomes a first-class feature. It was previously invisible — every
 - **PDF compression via Ghostscript-WASM.** [src/handlers/ghostscript.ts](src/handlers/ghostscript.ts). The existing canvas + pdf-lib route cannot do this job: it rasterises pages, so on a vector or text PDF it saves nothing (measured 0%) and on a scan it only "wins" by destroying the text layer. Ghostscript's `pdfwrite` device resamples embedded images and rebuilds object streams while leaving text as text. Measured on a vector-only PDF: 51.8 KB → 33.1 KB (−36%). The ~16 MB binary is fetched on first PDF compression only, never at page load, with download progress; it is deliberately excluded from the service-worker precache.
 - **Mixed-batch orchestrator.** [src/core/compression/compressBatch.ts](src/core/compression/compressBatch.ts) groups a batch by format so each engine initialises once, preserves input order, and applies a 98% keep-threshold — a re-encode that saves less than 2% is discarded and the original kept, so nothing is degraded for a rounding error.
 - **`docs/COMPRESS.md`**, including an explicit section on why a text-heavy PDF reports "no gain" and why that is correct rather than broken.
+- **PDF compression on MCP, REST and CLI.** [src/handlers/ghostscript.node.ts](src/handlers/ghostscript.node.ts). `convert_file` / `POST /convert` with matching `pdf` in and out now compresses through the same engine and the same level mapping as the browser.
+- **Canvas fallback for PDFs**, used only when the Ghostscript payload cannot be fetched at all (offline, blocked). It rasterises pages, which destroys the text layer, so it always says so rather than reporting a silent saving. A fallback result that fails the keep-threshold is discarded without a warning, since no damage reached the user.
 
 ### Changed
 - **Compression is now a visible setting.** The **Compression** control in the settings menu follows the active mode: in the Converter it sets converted-output quality and includes **Original quality**; in Compress it is the same value as the card's own picker, kept in sync; in the PDF Editor it is hidden, because merging and watermarking have no compression step. The two settings are independent and separately persisted — "how much quality to give up while changing format" and "how hard to squeeze" are different questions, and sharing one value meant changing it in one place silently moved the other.

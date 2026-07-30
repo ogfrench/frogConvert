@@ -100,12 +100,22 @@ The two settings are **independent and separately persisted**. "How much quality
 
 For multi-hop conversions (e.g. HEIC → PNG → WebP), the chosen level applies to the **final** hop only; intermediates run at high quality so quality loss isn't compounded once per step. That rule lives in one place (`qualityForHop`) and is shared by the browser, MCP, REST and CLI surfaces.
 
+## Using it from MCP / REST / CLI
+
+Everything the Compress surface does is reachable from the agent surfaces, through `convert_file` (MCP) or `POST /convert` (REST) with **matching input and output formats** plus a `quality` preset:
+
+```jsonc
+{ "filePath": "/tmp/scan.pdf", "inputExt": "pdf", "outputExt": "pdf", "quality": "low" }
+```
+
+Images, audio, video and PDFs all work. The same 2% size-guard applies, so a file that cannot usefully shrink comes back unchanged rather than larger. See [INTEGRATIONS.md § Quality preset](INTEGRATIONS.md#quality-preset).
+
 ## Limits
 
 - Batch ceiling and total-size budget are shared with the rest of the app.
 - The whole batch is held in memory; very large video batches are the practical limit.
 - Cancellation takes effect **between files**, not mid-file — a single long video keeps going until that file finishes.
-- PDF compression is **browser-only**. The Ghostscript package ships as WebAssembly with a browser loader, so the MCP/REST/CLI surfaces do not yet compress PDFs; they would need a native `gs` binary.
+- **The first PDF is slower.** The 16 MB engine is fetched and compiled on first use, then reused for the rest of the session. Every PDF after the first skips both steps.
 
 ## Architecture
 

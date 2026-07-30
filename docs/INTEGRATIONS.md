@@ -236,6 +236,22 @@ Adaptive-cap behavior (frame sampling, GIF trim, PDF auto-shrink) applies at all
 
 Handlers ignore the preset when it doesn't apply to them (lossless codecs, structural conversions like DOCX→PDF, etc.).
 
+#### PDF compression
+
+`inputExt: pdf` with `outputExt: pdf` compresses the PDF through Ghostscript, the same engine the web UI's Compress surface uses. The `quality` preset maps onto Ghostscript's distiller presets:
+
+| `quality` | `-dPDFSETTINGS` | Image target |
+|---|---|---|
+| `low` | `/screen` | 72 dpi |
+| `medium` | `/ebook` | 150 dpi |
+| `high` | `/printer` | 300 dpi |
+| `lossless` | `/prepress` | 300 dpi, colour-preserving |
+
+Two things to expect, so a correct result isn't mistaken for a broken one:
+
+- **A text or vector PDF barely shrinks, and that is right.** Ghostscript's presets bound *image* resampling; text and vector art are left alone because there is nothing to throw away. Scans and image-heavy decks are where the 30–80% savings live. If the result saves less than 2%, the size-guard returns the original.
+- **The first PDF in a process is slower.** The 16 MB WASM engine is compiled on first use and then reused, so subsequent files in the same process are markedly faster (measured: 718 ms then 248 ms). It is never loaded at startup — a session that touches no PDFs never pays for it.
+
 ### PDF editor endpoints
 
 Four REST routes mirror the MCP PDF tools. Input schemas are identical. Output shapes differ in one field name: MCP returns `{ fileName, base64Bytes }` (matching `convert_file`), REST returns `{ files: [{ name, base64Bytes }] }` (matching `POST /convert` JSON responses). Both include `{ savedTo: [...] }` when an output path is supplied.
