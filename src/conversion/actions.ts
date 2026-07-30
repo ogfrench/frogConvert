@@ -434,10 +434,15 @@ export function initConvertButton() {
             await waitForPaint();
 
             const inputFileData: FileData[] = [];
-            // Files picked with input format === output format. Compressed inline
-            // by the same-format dispatcher when a compressor is available,
-            // otherwise pushed through unchanged (today's "No conversion needed"
-            // behaviour).
+            // Files picked with input format === output format. These are
+            // passed through untouched — see the loop below that pushes them
+            // straight into the outputs. Recompressing in place is the Compress
+            // surface's job, and the format modal signposts it.
+            //
+            // (This comment used to claim they were "compressed inline by the
+            // same-format dispatcher", which stopped being true when the
+            // easter egg was stripped and directly contradicted the comment 25
+            // lines down.)
             const sameFormatRaw: { name: string; bytes: Uint8Array }[] = [];
 
             for (const inputFile of inputFiles) {
