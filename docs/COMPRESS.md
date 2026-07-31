@@ -160,9 +160,16 @@ It is titled for the mode you are in, because "Compression" on its own never say
 
 | Mode | Reads as | What it controls | Default | Levels offered |
 |---|---|---|---|---|
-| **Converter** | Conversion compression | Quality of converted output | Automatic | Automatic, Original quality, High quality, Balanced, Smallest file |
+| **Converter** | Conversion compression | Quality of converted output | **Original quality** | Original quality, Automatic, High quality, Balanced, Smallest file |
 | **Compress** | Compression level | How hard to compress. The same value as the card's own **Compression level** picker, two views kept in sync | Automatic | Automatic, High quality, Balanced, Smallest file |
-| **PDF Editor** | PDF compression | Whether a saved PDF is also shrunk on the way out | **Original quality** | Original quality, High quality, Balanced, Smallest file |
+| **PDF Editor** | PDF compression | Whether a saved PDF is also shrunk on the way out | **Original quality** | Original quality, Automatic, High quality, Balanced, Smallest file |
+
+Only **Compress** defaults to Automatic, because shrinking the file is the whole
+request there. The Converter and the PDF Editor both default to Original quality:
+one is asked for a format change and the other for an edit, and neither was asked
+to make the file smaller. Below `high` the plan applies a long-edge cap, so an
+Automatic default on the Converter could return a 4032x3024 photo at 2560 px -
+unrecoverable, on the only copy the user keeps.
 
 The three settings are **independent and separately persisted**. "How much quality to give up while changing format", "how hard to squeeze" and "should editing this also shrink it" are different questions, and an earlier build that shared one value meant changing it in one place silently moved the others.
 

@@ -308,12 +308,12 @@
         </div>
         <button id="theme-toggle" title="Toggle theme" aria-label="Toggle colour theme"><svg class="top-control-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
         <div id="quality-picker">
-          <button id="quality-toggle" title="Compression: Automatic" aria-haspopup="menu" aria-expanded="false"
-            aria-controls="quality-menu" aria-label="Compression when converting: Automatic. Change"><svg class="top-control-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></button>
+          <button id="quality-toggle" title="Compression: Original quality" aria-haspopup="menu" aria-expanded="false"
+            aria-controls="quality-menu" aria-label="Compression when converting: Original quality. Change"><svg class="top-control-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></button>
           <div id="quality-menu" role="menu" aria-label="Compression" hidden>
             <p class="quality-menu-title" id="quality-menu-title">Conversion compression</p>
+            <button class="quality-item" role="menuitem" data-value="lossless" tabindex="-1"><span class="quality-item-label">Original quality</span><span class="quality-item-blurb">No compression, just the format change</span></button>
             <button class="quality-item" role="menuitem" data-value="auto" tabindex="-1"><span class="quality-item-label">Automatic</span><span class="quality-item-blurb">Reads each file and picks a level</span></button>
-            <button class="quality-item" role="menuitem" data-value="lossless" tabindex="-1"><span class="quality-item-label">Original quality</span><span class="quality-item-blurb">No compression, largest files</span></button>
             <button class="quality-item" role="menuitem" data-value="high" tabindex="-1"><span class="quality-item-label">High quality</span><span class="quality-item-blurb">Slightly smaller files</span></button>
             <button class="quality-item" role="menuitem" data-value="medium" tabindex="-1"><span class="quality-item-label">Balanced</span><span class="quality-item-blurb">Recommended for most files</span></button>
             <button class="quality-item" role="menuitem" data-value="low" tabindex="-1"><span class="quality-item-label">Smallest file</span><span class="quality-item-blurb">Visible quality loss</span></button>
@@ -374,8 +374,8 @@
         <div class="menu-divider" id="quality-divider"></div>
         <span class="menu-list-label" id="quality-label">Conversion compression</span>
         <div class="menu-pill-group menu-pill-vertical" id="quality-segmented" role="group" aria-label="Compression">
-          <button class="pill-option active" data-value="auto">Automatic</button>
-          <button class="pill-option" data-value="lossless">Original quality</button>
+          <button class="pill-option active" data-value="lossless">Original quality</button>
+          <button class="pill-option" data-value="auto">Automatic</button>
           <button class="pill-option" data-value="high">High quality</button>
           <button class="pill-option" data-value="medium">Balanced</button>
           <button class="pill-option" data-value="low">Smallest file</button>

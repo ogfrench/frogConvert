@@ -317,15 +317,23 @@ describe("getMaxFiles", () => {
 // ---------------------------------------------------------------------------
 
 describe("convertQuality (Converter)", () => {
-    beforeEach(() => setConvertQuality("auto"));
+    beforeEach(() => setConvertQuality(CONVERT_QUALITY_DEFAULT));
 
-    it("defaults to Automatic, matching the Compress surface", () => {
-        expect(convertQuality.value).toBe("auto");
-        expect(CONVERT_QUALITY_CHOICES[0].value).toBe("auto");
+    it("defaults to Original quality: a conversion changes format, not quality", () => {
+        // Automatic steps each file down a tier, and below "high" that applies
+        // a long-edge cap - so the old default silently resized photos on a
+        // request that only asked for a different format.
+        expect(convertQuality.value).toBe("lossless");
+        expect(CONVERT_QUALITY_DEFAULT).toBe("lossless");
+        expect(CONVERT_QUALITY_CHOICES[0].value).toBe("lossless");
     });
 
-    it("offers a no-compression option, since converting without shrinking is a real request", () => {
-        expect(CONVERT_QUALITY_CHOICES.map(c => c.value)).toEqual(["auto", "lossless", "high", "medium", "low"]);
+    it("lists its levels in the same order as the PDF editor, which shares its default", () => {
+        expect(CONVERT_QUALITY_CHOICES.map(c => c.value)).toEqual(["lossless", "auto", "high", "medium", "low"]);
+    });
+
+    it("still offers Automatic, one item from the top", () => {
+        expect(CONVERT_QUALITY_CHOICES.map(c => c.value)).toContain("auto");
     });
 
     it("maps labels to the inverted engine presets", () => {

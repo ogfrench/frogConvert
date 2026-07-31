@@ -75,6 +75,37 @@ let phase: Phase = "idle";
 /** Whether the file list under the drop zone is expanded (the "manage" toggle). */
 let listOpen = false;
 let results: CompressOutcome[] = [];
+/**
+ * Whether the finished batch has already been sent to the browser's downloads.
+ *
+ * The Converter and the PDF Editor both hand the file over on their own and
+ * offer "Download again"; this surface used to sit there holding the result
+ * until the user pressed a button, which is a third behaviour for the same
+ * moment and reads as the compression not having finished.
+ *
+ * It is gated on something having actually shrunk, rather than fired
+ * unconditionally, because this card is a decision and not just a completion:
+ * "Try another level" is right next to it, and a level that changed nothing
+ * has produced no new file worth putting in someone's Downloads folder. A
+ * stopped batch is left to the button too, matching the Converter, which asks
+ * before handing over a partial result.
+ */
+let autoDownloaded = false;
+/**
+ * The pending hand-over, so it can be called off.
+ *
+ * The delay exists to let the results paint first, which leaves a window in
+ * which the user can press "Try another level" or drop a new batch. Left
+ * running, the timer would fire against whatever `results` holds by then and
+ * deliver a download for a run that is no longer on screen.
+ */
+let autoDownloadTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cancelPendingAutoDownload() {
+  if (autoDownloadTimer === null) return;
+  clearTimeout(autoDownloadTimer);
+  autoDownloadTimer = null;
+}
 let progress = { done: 0, total: 0, current: "" };
 
 let rootEl: HTMLElement | null = null;
@@ -254,6 +285,8 @@ export async function runCompression() {
   setCurrentFileProgress(0, files.length);
 
   phase = "running";
+  autoDownloaded = false;
+  cancelPendingAutoDownload();
   progress = { done: 0, total: files.length, current: "" };
   render();
 
@@ -338,10 +371,29 @@ export async function runCompression() {
     resetCancellation();
   }
 
+  // Hand the files over, the way the Converter and the PDF Editor do, rather
+  // than leaving them behind a button nobody was told to press.
+  //
+  // Gated on something having shrunk, and on the batch having finished: a
+  // level that changed nothing has produced no new file, and a stopped batch
+  // is a partial result the Converter asks about before delivering. Both cases
+  // still offer the button.
+  const stopped = results.some(r => r.reason === "cancelled");
+  autoDownloaded = celebrate && !stopped;
+
   render();
   // After the paint, not before: firing it while the progress card is still
   // on screen celebrates a result the user cannot see yet.
   if (celebrate) triggerConfetti();
+
+  // Same beat as the Converter's success modal, so the download lands after
+  // the results have had a moment on screen rather than on top of them.
+  if (autoDownloaded) {
+    autoDownloadTimer = setTimeout(() => {
+      autoDownloadTimer = null;
+      void downloadResults();
+    }, 400);
+  }
 }
 
 /** Mirrors the Converter's "Converting your files" heading. */
@@ -422,6 +474,8 @@ export async function downloadResults() {
 export function backToFiles() {
   phase = "idle";
   results = [];
+  autoDownloaded = false;
+  cancelPendingAutoDownload();
   render();
 }
 
@@ -565,6 +619,9 @@ function fileListMarkup(): string {
 function downloadButtonMarkup(): string {
   const n = downloadableCount();
   if (n === 0) return "";
+  // Once the files have been handed over, the button is a second copy, not the
+  // first - the same word the Converter and the PDF Editor use at this point.
+  if (autoDownloaded) return `<button class="cw-download" type="button">Download again</button>`;
   return `<button class="cw-download" type="button">${
     n === 1 ? "Download" : `Download ${n} files (.zip)`
   }</button>`;

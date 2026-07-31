@@ -317,19 +317,39 @@ function persist(key: string, value: string) {
 export type ConvertQuality = QualityLevel;
 
 export const CONVERT_QUALITY_CHOICES = choices(
-  ["auto", "lossless", "high", "medium", "low"] as const,
+  ["lossless", "auto", "high", "medium", "low"] as const,
   {
+    lossless: "No compression, just the format change",
     auto: "Reads each file and picks a level",
-    lossless: "No compression, largest files",
     high: "Slightly smaller files",
     medium: "Recommended for most files",
     low: "Visible quality loss",
   },
 );
 
-/** Automatic: it reads the source rather than applying a fixed tier, which is
- *  the right answer when the user hasn't expressed a preference. */
-export const CONVERT_QUALITY_DEFAULT: ConvertQuality = "auto";
+/**
+ * Original quality: a conversion changes the *format*, and nothing else.
+ *
+ * This used to default to Automatic, which reads each file and steps it down a
+ * tier. That is the right instinct on the Compress surface, where making the
+ * file smaller is the entire request. It is the wrong one here. Somebody who
+ * asks for JPG has asked for JPG - not for a smaller JPG - and Automatic
+ * answers a question they did not put. The cost is not theoretical: below
+ * "high" the plan applies a long-edge cap, so a 4032x3024 photo comes back at
+ * 2560 or 1920 px. Resolution does not come back, the conversion is the only
+ * copy the user keeps, and nothing on screen said it happened.
+ *
+ * So the default matches what each surface is *for*: Convert hands back your
+ * file in a new format, the PDF editor hands back the document you edited, and
+ * Compress - where shrinking is the point - still defaults to Automatic.
+ * Anyone who wants the conversion to shrink says so, and Automatic is one item
+ * away.
+ *
+ * It also keeps the promise cheap. At Original quality no probe reads the
+ * file and no compression engine is fetched, so the common path costs nothing
+ * it does not use.
+ */
+export const CONVERT_QUALITY_DEFAULT: ConvertQuality = "lossless";
 
 export const convertQuality = persisted(
   "convertQuality", CONVERT_QUALITY_CHOICES.map(c => c.value), CONVERT_QUALITY_DEFAULT);

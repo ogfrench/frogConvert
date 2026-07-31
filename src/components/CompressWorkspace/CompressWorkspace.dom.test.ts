@@ -861,10 +861,11 @@ describe('CompressWorkspace - singular and plural', () => {
 describe('CompressWorkspace - the download control', () => {
   it('names the number of files it will actually produce', async () => {
     // Not the number of rows: a file that was never opened is listed with its
-    // reason but is not in the archive.
+    // reason but is not in the archive. Nothing shrank here, so the files have
+    // not been handed over and the button is still the first offer.
     compressBatchMock.mockResolvedValue([
-      { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
-      { name: 'b.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+      { name: 'a.png', bytes: new Uint8Array(900), originalSize: 1000, shrunk: false, reason: 'no-gain' },
+      { name: 'b.png', bytes: new Uint8Array(900), originalSize: 1000, shrunk: false, reason: 'no-gain' },
       { name: 'c.heic', bytes: new Uint8Array(0), originalSize: 1000, shrunk: false, reason: 'unsupported' },
     ] as any);
     ws.handleFiles([
@@ -875,13 +876,77 @@ describe('CompressWorkspace - the download control', () => {
     expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download 2 files (.zip)');
   });
 
-  it('says just "Download" for a single file', async () => {
+  it('says just "Download" for a single file it has not handed over', async () => {
+    compressBatchMock.mockResolvedValue([
+      { name: 'a.png', bytes: new Uint8Array(900), originalSize: 1000, shrunk: false, reason: 'no-gain' },
+    ] as any);
+    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    await ws.runCompression();
+    expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download');
+  });
+
+  it('reads "Download again" once the result has been handed over', async () => {
+    // The Converter and the PDF Editor both deliver the file and then offer a
+    // second copy. This surface used to sit on the result behind a button.
     compressBatchMock.mockResolvedValue([
       { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
     ] as any);
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
     await ws.runCompression();
-    expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download');
+    expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download again');
+  });
+
+  it('hands the files over on its own when something shrank', async () => {
+    vi.useFakeTimers();
+    try {
+      compressBatchMock.mockResolvedValue([
+        { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+      ] as any);
+      ws.handleFiles([fakeFile('a.png', 'image/png')]);
+      await ws.runCompression();
+      expect(downloadFileMock).not.toHaveBeenCalled(); // not before the results paint
+      await vi.advanceTimersByTimeAsync(500);
+      expect(downloadFileMock).toHaveBeenCalledWith(expect.anything(), 'a-compressed.png');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not hand anything over when the level changed nothing', async () => {
+    // No new file exists, and "Try another level" is the likely next move.
+    // Dropping an unchanged copy into Downloads for each level tried is noise.
+    vi.useFakeTimers();
+    try {
+      compressBatchMock.mockResolvedValue([
+        { name: 'a.png', bytes: new Uint8Array(900), originalSize: 1000, shrunk: false, reason: 'no-gain' },
+      ] as any);
+      ws.handleFiles([fakeFile('a.png', 'image/png')]);
+      await ws.runCompression();
+      await vi.advanceTimersByTimeAsync(500);
+      expect(downloadFileMock).not.toHaveBeenCalled();
+      expect(downloadAsZipMock).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('leaves a stopped batch to the button, as the Converter does', async () => {
+    // A partial result is offered, not delivered.
+    vi.useFakeTimers();
+    try {
+      compressBatchMock.mockResolvedValue([
+        { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+        { name: 'b.png', bytes: new Uint8Array(0), originalSize: 1000, shrunk: false, reason: 'cancelled' },
+      ] as any);
+      ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('b.png', 'image/png')]);
+      await ws.runCompression();
+      await vi.advanceTimersByTimeAsync(500);
+      expect(downloadFileMock).not.toHaveBeenCalled();
+      expect(downloadAsZipMock).not.toHaveBeenCalled();
+      expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('offers no download at all when nothing is downloadable', async () => {

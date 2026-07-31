@@ -33,6 +33,7 @@ import {
   compressPdfOutputs,
   cancelPdfOutputCompression,
   resetPdfOutputCompression,
+  wasPdfOutputCompressionCancelled,
 } from '../../conversion/compressPdfOutput.ts';
 import { MAX_TOTAL_FILE_SIZE, ABSOLUTE_MAX_FILES } from '../../constants/ui.ts';
 
@@ -465,6 +466,20 @@ let lastPdfResult: { bytes: Uint8Array; name: string }[] = [];
 let lastPdfZipName: string | null = null;
 
 /**
+ * What the optional compression pass did to the save that just finished, or
+ * null when it had nothing to report.
+ *
+ * The setting is sticky (`pdfQuality` persists), the default is Original
+ * quality, and the success modal used to read identically either way. So
+ * someone who picked Smallest file once, for one scan, kept re-compressing
+ * every document they edited afterwards with nothing on screen to say so.
+ * Three quite different outcomes - shrank by half, came back no smaller and
+ * was discarded by the keep-threshold, failed and was swallowed by the
+ * never-throws rule - all produced the same sentence.
+ */
+let lastPdfCompression: { before: number; after: number; skipped: boolean } | null = null;
+
+/**
  * The one place a finished job hands its output over.
  *
  * Every tool used to assign `lastPdfResult` and `lastPdfZipName` itself, which
@@ -507,13 +522,46 @@ async function setPdfResult(
     // Original quality would have produced. Nothing the user asked for is lost.
     skipButton = addSkipCompressionButton();
   }
+  // Both totals are to hand right here - the documents going in, and the ones
+  // coming out - so nothing has to be threaded through the engine to report
+  // them. Measured across the batch, because that is what the user saved.
+  const before = results.reduce((n, r) => n + r.bytes.byteLength, 0);
   try {
     lastPdfResult = await compressPdfOutputs(results, level);
   } finally {
     skipButton?.remove();
   }
+  const after = lastPdfResult.reduce((n, r) => n + r.bytes.byteLength, 0);
+  const skipped = level !== 'lossless' && wasPdfOutputCompressionCancelled();
+  // Nothing to say at Original quality, and nothing to say when the pass ran
+  // and kept the original: "compressed, 0% smaller" is worse than silence.
+  lastPdfCompression =
+    level === 'lossless' || (after >= before && !skipped)
+      ? null
+      : { before, after, skipped };
   lastPdfZipName = zipName;
   return lastPdfResult;
+}
+
+/**
+ * The one clause the success modal adds about compression, or "".
+ *
+ * Deliberately a clause on the existing sentence rather than a card or a
+ * second modal: this is a footnote to a save that already succeeded, and the
+ * Compress surface is where a full report belongs.
+ */
+function compressionNote(c = lastPdfCompression): string {
+  if (!c) return '';
+  const saved = c.before - c.after;
+  if (c.skipped) {
+    // Skipping is safe by construction - the edit finished first - so this
+    // says what the user has rather than dressing it up as a failure. A batch
+    // stopped part-way still saved something, and that is worth stating.
+    return saved > 0
+      ? ` Compression stopped early, after ${escapeHTML(formatBytes(saved))}.`
+      : ' Compression skipped, your pages are untouched.';
+  }
+  return ` Compressed ${escapeHTML(formatBytes(c.before))} → ${escapeHTML(formatBytes(c.after))}.`;
 }
 
 /** Cancel control for the optional compression step, added to the live popup. */
@@ -3645,7 +3693,10 @@ function showPdfSuccessModal(title: string, resultHTML: string) {
   const h2 = el('h2', { textContent: title });
   const frogDiv = createDancingFrog();
   const p = el('p', {});
-  p.innerHTML = resultHTML;
+  // Added here rather than at the eleven call sites: every tool routes its
+  // result through `setPdfResult` and its modal through here, which is the
+  // whole reason both funnels exist.
+  p.innerHTML = resultHTML + compressionNote();
 
   const actions = el('div', { className: 'popup-actions-footer' });
   actions.appendChild(createPopupButton('Download again', 'btn-primary', redownloadLastPdfResult));
@@ -3683,6 +3734,7 @@ export const __testing = {
     knownFileIds = new Set();
     wmDisposeBitmaps();
     wmTextEncodeFont = null;
+    lastPdfCompression = null;
     if (wmRafId !== null) { cancelAnimationFrame(wmRafId); wmRafId = null; }
   },
   seed(seedPages: PageEntry[], seedFiles: SourceFile[] = [], seedSelected: number[] = []) {
@@ -3701,6 +3753,7 @@ export const __testing = {
     history.length = 0;
     redoStack.length = 0;
   },
+  compressionNote,
   getPages: () => pages,
   getFiles: () => files,
   getSelected: () => selected,
