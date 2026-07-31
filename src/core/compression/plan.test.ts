@@ -101,7 +101,7 @@ describe("planImage", () => {
     });
 
     it("spans a band wide enough for the level names to mean something", () => {
-        // Was 82 / 90 / 93 — eleven points, all of it inside what other tools
+        // Was 82 / 90 / 93 - eleven points, all of it inside what other tools
         // call high quality, so "Smallest file" saved almost nothing. Squoosh
         // ships at 75 by default; aggressive presets elsewhere sit near 65.
         expect(ctx({ preset: "low" }).imgQuality).toBe(65);

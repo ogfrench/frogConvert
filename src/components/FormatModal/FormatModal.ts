@@ -236,7 +236,7 @@ export function updateConvertButtonState(selectedFromIndex: number | null, selec
       go.textContent = "Open Compress";
       // Carry the batch across. Sending the user to an empty Compress card
       // makes them pick the same files a second time, which reads as the
-      // button having done nothing — the files are the whole reason they are
+      // button having done nothing - the files are the whole reason they are
       // being offered the trip.
       go.addEventListener("click", () => {
         closeFormatModal();

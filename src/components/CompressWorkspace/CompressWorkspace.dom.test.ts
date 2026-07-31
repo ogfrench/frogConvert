@@ -56,7 +56,7 @@ const downloadAsZipMock = vi.mocked(downloadAsZip);
 
 function mountDom() {
   // Mirrors index.html, including the page description that sits *outside* the
-  // card — the copy tests below only mean something if both are present.
+  // card - the copy tests below only mean something if both are present.
   document.body.innerHTML = `
     <main id="compress-workspace">
       <nav id="compress-category-tabs" class="tab-bar">
@@ -93,14 +93,14 @@ beforeEach(() => {
   ws.initCompressWorkspace();
 });
 
-describe('CompressWorkspace — empty state', () => {
+describe('CompressWorkspace - empty state', () => {
   it('renders a dropzone when no files are loaded', () => {
     expect(document.querySelector('.upload-zone')).not.toBeNull();
     expect(document.querySelector('.upload-file-info.visible')).toBeNull();
   });
 
   it('states the privacy promise exactly once', () => {
-    // The card used to repeat it directly above the page description —
+    // The card used to repeat it directly above the page description -
     // "Nothing leaves your device" stacked on "without sending them anywhere".
     // Said twice in a row it reads as padding, not reassurance.
     const page = document.body.textContent ?? '';
@@ -110,7 +110,7 @@ describe('CompressWorkspace — empty state', () => {
   });
 });
 
-describe('CompressWorkspace — intake', () => {
+describe('CompressWorkspace - intake', () => {
   it('accepts image, audio and video files', () => {
     ws.handleFiles([
       fakeFile('a.png', 'image/png'),
@@ -212,7 +212,7 @@ describe('CompressWorkspace — intake', () => {
   });
 });
 
-describe('CompressWorkspace — level picker', () => {
+describe('CompressWorkspace - level picker', () => {
   beforeEach(() => ws.handleFiles([fakeFile('a.png', 'image/png')]));
 
   it('defaults to Automatic, the same default a fresh install gets', () => {
@@ -247,7 +247,7 @@ describe('CompressWorkspace — level picker', () => {
   });
 });
 
-describe('CompressWorkspace — running a batch', () => {
+describe('CompressWorkspace - running a batch', () => {
   const outcome = (over: Partial<any> = {}) => ({
     name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true, ...over,
   });
@@ -346,7 +346,7 @@ describe('CompressWorkspace — running a batch', () => {
   });
 });
 
-describe('CompressWorkspace — lifecycle', () => {
+describe('CompressWorkspace - lifecycle', () => {
   it('keeps the batch across a cleanup/init cycle (mode switch)', () => {
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
     ws.cleanup();
@@ -367,7 +367,7 @@ describe('CompressWorkspace — lifecycle', () => {
   });
 });
 
-describe('CompressWorkspace — assistive technology', () => {
+describe('CompressWorkspace - assistive technology', () => {
   /** Start a run that never settles, so the surface stays in the running phase. */
   async function startStalledRun(files = ['a.png', 'b.png', 'c.png']) {
     let emit: ((done: number, total: number, current: string) => void) | undefined;
@@ -450,7 +450,7 @@ describe('CompressWorkspace — assistive technology', () => {
   });
 });
 
-describe('CompressWorkspace — honest PDF messaging', () => {
+describe('CompressWorkspace - honest PDF messaging', () => {
   it('explains why a text-heavy PDF did not shrink', async () => {
     // Ghostscript's presets only resample images, so a text PDF genuinely
     // cannot shrink. Left unexplained, a correct result reads as a bug.
@@ -484,7 +484,7 @@ describe('CompressWorkspace — honest PDF messaging', () => {
   });
 });
 
-describe('CompressWorkspace — degraded-route warning', () => {
+describe('CompressWorkspace - degraded-route warning', () => {
   it('states what the fallback cost instead of only celebrating the saving', async () => {
     compressBatchMock.mockResolvedValue([
       {
@@ -522,7 +522,7 @@ describe('CompressWorkspace — degraded-route warning', () => {
   });
 });
 
-describe('CompressWorkspace — batch edge cases', () => {
+describe('CompressWorkspace - batch edge cases', () => {
   const unsupported = (name: string) => ({
     name, bytes: new Uint8Array(1000), originalSize: 1000, shrunk: false, reason: 'unsupported',
   });
@@ -542,7 +542,7 @@ describe('CompressWorkspace — batch edge cases', () => {
 
   it('reports a genuine no-gain without overclaiming, and in the singular', async () => {
     // The headline used to read "Nothing left to shave off", which asserts a
-    // property of the file — while the note directly below it suggested trying
+    // property of the file - while the note directly below it suggested trying
     // another level. It was contradicting its own advice. And the sub-copy was
     // plural ("These were... they") over a single row.
     compressBatchMock.mockResolvedValue([
@@ -604,7 +604,7 @@ describe('CompressWorkspace — batch edge cases', () => {
   });
 });
 
-describe('CompressWorkspace — nothing strands the surface', () => {
+describe('CompressWorkspace - nothing strands the surface', () => {
   it('recovers to the file list when the batch throws', async () => {
     // The failure mode this guards is not a wrong message, it is a dead end:
     // leaving phase at "running" pins the UI on "Squishing…" until a reload.
@@ -621,7 +621,7 @@ describe('CompressWorkspace — nothing strands the surface', () => {
 
   it('hands unreadable files to the engine layer rather than pre-reading them', async () => {
     // Reading a picked file that has since been moved or deleted is ordinary
-    // behaviour, and it is now handled inside `compressBatch` — which is where
+    // behaviour, and it is now handled inside `compressBatch` - which is where
     // the read happens, one file at a time. The workspace no longer loads the
     // batch up front, so it has nothing to catch here. Covered by
     // "reports a file that vanished between picking and compressing as failed"
@@ -641,7 +641,7 @@ describe('CompressWorkspace — nothing strands the surface', () => {
   });
 });
 
-describe('CompressWorkspace — stopping early', () => {
+describe('CompressWorkspace - stopping early', () => {
   it('says stopped, not failed, for files it never reached', async () => {
     compressBatchMock.mockResolvedValue([
       { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
@@ -668,7 +668,7 @@ describe('CompressWorkspace — stopping early', () => {
   });
 });
 
-describe('CompressWorkspace — savings copy', () => {
+describe('CompressWorkspace - savings copy', () => {
   it('does not report a real saving as 0% smaller', async () => {
     // The percentage is of the whole batch, so a genuine win on one small file
     // next to a large untouched one rounds to zero. "Saved 600 B (0% smaller)"
@@ -686,7 +686,7 @@ describe('CompressWorkspace — savings copy', () => {
   });
 });
 
-describe('CompressWorkspace — download', () => {
+describe('CompressWorkspace - download', () => {
   it('leaves an unreadable file out of the archive instead of shipping 0 bytes', async () => {
     // A 0-byte file under the original name reads as "the compressor ate it".
     // The engine layer reports a file it could not read with no bytes; the
@@ -700,7 +700,7 @@ describe('CompressWorkspace — download', () => {
     await ws.runCompression();
     await ws.downloadResults();
 
-    // Two results, but only the readable one is worth downloading — so it goes
+    // Two results, but only the readable one is worth downloading - so it goes
     // out as a single file rather than a zip containing an empty entry.
     expect(ws.getResults()).toHaveLength(2);
     expect(downloadAsZipMock).not.toHaveBeenCalled();
@@ -708,7 +708,7 @@ describe('CompressWorkspace — download', () => {
   });
 });
 
-describe('CompressWorkspace — category pills', () => {
+describe('CompressWorkspace - category pills', () => {
   const tabs = () => [...document.querySelectorAll<HTMLElement>('#compress-category-tabs .cat-tab')];
 
   it('names every family this surface accepts', () => {
@@ -746,7 +746,7 @@ describe('CompressWorkspace — category pills', () => {
   });
 });
 
-describe('CompressWorkspace — download naming', () => {
+describe('CompressWorkspace - download naming', () => {
   it('suffixes shrunk files so the download is distinguishable from its source', async () => {
     // "photo.png" saved next to the original becomes "photo (1).png", and
     // nothing says which of the two is the small one.
@@ -781,7 +781,7 @@ describe('CompressWorkspace — download naming', () => {
   });
 });
 
-describe('CompressWorkspace — level dropdown dismissal', () => {
+describe('CompressWorkspace - level dropdown dismissal', () => {
   function openMenu() {
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
     document.querySelector<HTMLElement>('.cw-level-selector')!.click();
@@ -824,7 +824,7 @@ describe('CompressWorkspace — level dropdown dismissal', () => {
   });
 });
 
-describe('CompressWorkspace — singular and plural', () => {
+describe('CompressWorkspace - singular and plural', () => {
   it('speaks in the plural for a batch', async () => {
     compressBatchMock.mockResolvedValue([
       { name: 'a.png', bytes: new Uint8Array(1000), originalSize: 1000, shrunk: false, reason: 'no-gain' },
@@ -847,7 +847,7 @@ describe('CompressWorkspace — singular and plural', () => {
   });
 });
 
-describe('CompressWorkspace — the download control', () => {
+describe('CompressWorkspace - the download control', () => {
   it('names the number of files it will actually produce', async () => {
     // Not the number of rows: a file that was never opened is listed with its
     // reason but is not in the archive.
@@ -874,7 +874,7 @@ describe('CompressWorkspace — the download control', () => {
   });
 
   it('offers no download at all when nothing is downloadable', async () => {
-    // Reached by stopping a batch before the first file finishes — ordinary,
+    // Reached by stopping a batch before the first file finishes - ordinary,
     // not rare. "Download 0 files (.zip)" is a button whose only outcome is a
     // toast explaining why it did nothing.
     compressBatchMock.mockResolvedValue([

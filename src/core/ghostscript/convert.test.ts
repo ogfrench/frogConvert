@@ -3,7 +3,7 @@ import { runGhostscriptConversion, type GsInstance } from "./convert.ts";
 
 /**
  * A stand-in for the Emscripten module. The real engine is exercised
- * end-to-end by scripts/gs-handler-e2e.mjs — 16 MB of WASM per case is too
+ * end-to-end by scripts/gs-handler-e2e.mjs - 16 MB of WASM per case is too
  * slow for the unit suite. What is worth testing here is everything *around*
  * the call: how many files get collected, what they are named, and what
  * happens when Ghostscript reports success while writing rubbish.

@@ -92,7 +92,7 @@ async function flushQueue() {
     await Promise.resolve();
 }
 
-describe("runInWorker — request", () => {
+describe("runInWorker - request", () => {
     it("posts the handler, formats and args, and resolves with the worker's output", async () => {
         const { promise, worker } = await start([file("a.png")], ["--quality", "low"]);
         const post = worker.lastPost;
@@ -111,7 +111,7 @@ describe("runInWorker — request", () => {
         const { promise, worker } = await start([original]);
         const sent = worker.lastPost.inputFiles[0];
 
-        // A copy, not the caller's array — transferring the caller's buffer
+        // A copy, not the caller's array - transferring the caller's buffer
         // would detach it and break any retry down a different route.
         expect(sent.bytes).not.toBe(original.bytes);
         expect(Array.from(sent.bytes)).toEqual(Array.from(original.bytes));
@@ -146,7 +146,7 @@ describe("runInWorker — request", () => {
     });
 });
 
-describe("runInWorker — message correlation", () => {
+describe("runInWorker - message correlation", () => {
     it("ignores messages belonging to another request", async () => {
         const { promise, worker } = await start();
         const id = worker.lastPost.id;
@@ -190,7 +190,7 @@ describe("runInWorker — message correlation", () => {
     });
 });
 
-describe("runInWorker — teardown paths", () => {
+describe("runInWorker - teardown paths", () => {
     it("cancelling terminates the worker and rejects", async () => {
         const { promise, worker } = await start();
         expect(workerCancelCb).toBeTypeOf("function");
@@ -249,7 +249,7 @@ describe("runInWorker — teardown paths", () => {
         // registered after the run settles, a later hard-cancel would terminate
         // a worker that is busy with something else entirely. Only the convert
         // flow's resetCancellation() used to clear the force one, so a Compress
-        // run — which never calls it — left a live grenade in the singleton.
+        // run - which never calls it - left a live grenade in the singleton.
         const { promise, worker } = await start();
         worker.emit({ id: worker.lastPost.id, type: "success", outputFiles: [] });
         await promise;
@@ -260,7 +260,7 @@ describe("runInWorker — teardown paths", () => {
     });
 });
 
-describe("runInWorker — serialisation", () => {
+describe("runInWorker - serialisation", () => {
     /**
      * The cancellation singletons (`workerCancelCallback`, `forceCleanupCallback`,
      * `workerErrorCallback`) are single slots. That is only sound while one job

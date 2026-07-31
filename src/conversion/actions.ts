@@ -435,7 +435,7 @@ export function initConvertButton() {
 
             const inputFileData: FileData[] = [];
             // Files picked with input format === output format. These are
-            // passed through untouched — see the loop below that pushes them
+            // passed through untouched - see the loop below that pushes them
             // straight into the outputs. Recompressing in place is the Compress
             // surface's job, and the format modal signposts it.
             //

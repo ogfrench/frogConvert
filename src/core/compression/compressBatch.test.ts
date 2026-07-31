@@ -37,7 +37,7 @@ function handler(name: string, opts: { mainThread?: boolean } = {}): FormatHandl
 /**
  * Inputs are lazy: `compressBatch` reads each file at the moment it compresses
  * it, so a batch is never all resident at once. `read` here is instrumented so
- * tests can assert *that a file was never opened* — which is the whole point of
+ * tests can assert *that a file was never opened* - which is the whole point of
  * deciding "unsupported" and "too small to bother" from metadata alone.
  */
 function input(name: string, size: number, format: FileFormat) {
@@ -58,7 +58,7 @@ beforeEach(() => {
     probeMock.mockResolvedValue({ inputTier: "hq" } as any);
 });
 
-describe("compressBatch — grouping", () => {
+describe("compressBatch - grouping", () => {
     it("runs one pass per format group and reuses each handler", async () => {
         const im = handler("ImageMagick");
         const ff = handler("FFmpeg");
@@ -77,7 +77,7 @@ describe("compressBatch — grouping", () => {
 
         expect(out).toHaveLength(3);
         expect(out.every(o => o.shrunk)).toBe(true);
-        // Three files, three runs — but grouped so each engine is touched once per group.
+        // Three files, three runs - but grouped so each engine is touched once per group.
         expect(run).toHaveBeenCalledTimes(3);
         const handlersUsed = run.mock.calls.map(c => c[0]);
         expect(handlersUsed).toEqual(["ImageMagick", "ImageMagick", "FFmpeg"]);
@@ -104,7 +104,7 @@ describe("compressBatch — grouping", () => {
     });
 });
 
-describe("compressBatch — per-file outcomes", () => {
+describe("compressBatch - per-file outcomes", () => {
     it("keeps the original when the result is not meaningfully smaller", async () => {
         resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
         const out = await compressBatch(
@@ -176,7 +176,7 @@ describe("compressBatch — per-file outcomes", () => {
     });
 });
 
-describe("compressBatch — level handling", () => {
+describe("compressBatch - level handling", () => {
     it("uses the user's level rather than the auto tier-down", async () => {
         resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: ["--quality", "medium"] });
         // tierDown would say "medium"; the user asked for the most aggressive.
@@ -198,7 +198,7 @@ describe("compressBatch — level handling", () => {
     });
 });
 
-describe("compressBatch — main-thread handlers", () => {
+describe("compressBatch - main-thread handlers", () => {
     it("bypasses the worker runner when the handler requires the main thread", async () => {
         const h = handler("MainThready", { mainThread: true });
         vi.mocked(h.doConvert).mockResolvedValue([{ name: "a.png", bytes: new Uint8Array(100) }] as any);
@@ -216,7 +216,7 @@ describe("compressBatch — main-thread handlers", () => {
     });
 });
 
-describe("compressBatch — cancellation", () => {
+describe("compressBatch - cancellation", () => {
     it("stops early and reports untouched files", async () => {
         resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
         let calls = 0;
@@ -278,7 +278,7 @@ describe("totalSaved", () => {
     });
 });
 
-describe("compressBatch — automatic level", () => {
+describe("compressBatch - automatic level", () => {
     it("lets each file's own detected quality pick its tier", async () => {
         resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: ["--quality", "medium"] });
         // The probe says this input warrants "low"; auto should honour that
@@ -328,7 +328,7 @@ describe("compressBatch — automatic level", () => {
     });
 });
 
-describe("compressBatch — degraded fallback", () => {
+describe("compressBatch - degraded fallback", () => {
     const png = fmt("image/png", "png");
 
     it("uses the fallback when the primary engine cannot run, and says what it cost", async () => {
@@ -433,10 +433,10 @@ describe("compressBatch — degraded fallback", () => {
     });
 });
 
-describe("compressBatch — degenerate inputs", () => {
+describe("compressBatch - degenerate inputs", () => {
     it("calls a file too small to compress already-minimal, not failed", async () => {
         // A 78-byte PNG is signature + IHDR + IEND. ImageMagick errors on it,
-        // which used to surface as "failed" — technically what happened, but a
+        // which used to surface as "failed" - technically what happened, but a
         // lie about the file: nothing was wrong with it and nothing could be won.
         const run = vi.fn(async () => { throw new Error("no pixels"); });
         resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
@@ -462,7 +462,7 @@ describe("compressBatch — degenerate inputs", () => {
     });
 });
 
-describe("compressBatch — hard cancel mid-file", () => {
+describe("compressBatch - hard cancel mid-file", () => {
     /**
      * Compress used to stop only *between* files, so pressing Stop on a batch
      * whose current item was a large video meant waiting minutes for it. Stop
@@ -512,7 +512,7 @@ describe("compressBatch — hard cancel mid-file", () => {
 
     it("does not try the degraded fallback for a file the user cancelled", async () => {
         // The fallback exists for "the engine is unreachable", not "the user
-        // asked us to stop" — running it would ignore the Stop and cost time.
+        // asked us to stop" - running it would ignore the Stop and cost time.
         const fallbackRun = vi.fn();
         resolveMock.mockReturnValue({
             handler: handler("Ghostscript"), args: [],
@@ -532,7 +532,7 @@ describe("compressBatch — hard cancel mid-file", () => {
     });
 });
 
-describe("compressBatch — lazy input reads", () => {
+describe("compressBatch - lazy input reads", () => {
     /**
      * The batch used to be loaded into memory in full before the first engine
      * ran, so peak usage was every input at once plus every output. That is

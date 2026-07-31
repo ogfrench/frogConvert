@@ -2,7 +2,7 @@
  * Print the output devices actually compiled into the shipped gs.wasm.
  *
  * The device list decides what conversions are possible at all, and it is not
- * the stock Ghostscript set — this is a size-trimmed WASM build. Guessing here
+ * the stock Ghostscript set - this is a size-trimmed WASM build. Guessing here
  * means shipping a format the engine cannot write.
  *
  * Usage: node scripts/gs-devices.mjs

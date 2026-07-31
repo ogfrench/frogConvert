@@ -138,7 +138,7 @@
 }
 
 /* Heavier 2px border than the 1px shared ghost-affordance contract in
-   PdfWorkspace.css — intentional weight, distinguishes "drop more" from
+   PdfWorkspace.css - intentional weight, distinguishes "drop more" from
    the smaller in-grid + affordances. */
 #files-drop-more {
   margin: var(--space-3) var(--space-6);

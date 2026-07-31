@@ -61,7 +61,7 @@ Before writing code, decide which subsystem you are in. Getting this wrong is th
 - Read [docs/ARCHITECTURE.md § PDF Workspace](docs/ARCHITECTURE.md#pdf-workspace-editor-mode) first.
 
 **New code that makes a file smaller without changing its format** (e.g. a new codec, a better PDF route):
-- The engine lives in [src/core/compression/](src/core/compression/) and is deliberately UI-free — it takes a `run` callback rather than importing the worker client, so `src/core/` never depends on `src/components/`.
+- The engine lives in [src/core/compression/](src/core/compression/) and is deliberately UI-free - it takes a `run` callback rather than importing the worker client, so `src/core/` never depends on `src/components/`.
 - Route the format to an engine in [src/core/compression/resolveCompressor.ts](src/core/compression/resolveCompressor.ts); the batch orchestrator in `compressBatch.ts` handles grouping, tiering and the keep-threshold.
 - **Do not** add a same-format entry to the conversion graph; compression is dispatched separately.
 - Read [docs/COMPRESS.md](docs/COMPRESS.md) first.
@@ -102,7 +102,7 @@ These are not suggestions. PRs that violate them will be rejected.
 
 11. **Keep docs MECE.** When editing docs, one topic lives in one file. If you find yourself duplicating content across `docs/`, move it to the single canonical file and link. See the audience/purpose table in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
 
-12. **Surface alignment (UI ↔ MCP ↔ REST).** Behavior-shaping fields stay in sync across the three public surfaces. Adding a control to the UI? Mirror it in [src/mcp/tools/](src/mcp/tools/) and [src/api/routes/](src/api/routes/) in the same PR. Removing one from the UI? Pull it from MCP and REST in the same PR. **Transport-affordance fields** (`filePath`, `base64Bytes`, `outputFilePath`, `outputDir`) are API-only by necessity — the browser UI has no filesystem equivalent. Engine code in [src/tools/](src/tools/) and [src/handlers/](src/handlers/) retains full capability regardless of what the surfaces expose; surface curation is a publication decision, not a deletion. See [docs/ARCHITECTURE.md § Surface vs engine seam](docs/ARCHITECTURE.md#surface-vs-engine-seam).
+12. **Surface alignment (UI ↔ MCP ↔ REST).** Behavior-shaping fields stay in sync across the three public surfaces. Adding a control to the UI? Mirror it in [src/mcp/tools/](src/mcp/tools/) and [src/api/routes/](src/api/routes/) in the same PR. Removing one from the UI? Pull it from MCP and REST in the same PR. **Transport-affordance fields** (`filePath`, `base64Bytes`, `outputFilePath`, `outputDir`) are API-only by necessity - the browser UI has no filesystem equivalent. Engine code in [src/tools/](src/tools/) and [src/handlers/](src/handlers/) retains full capability regardless of what the surfaces expose; surface curation is a publication decision, not a deletion. See [docs/ARCHITECTURE.md § Surface vs engine seam](docs/ARCHITECTURE.md#surface-vs-engine-seam).
 
 ---
 

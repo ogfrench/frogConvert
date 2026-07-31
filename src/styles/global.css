@@ -40,7 +40,7 @@
   --radius-xl: 1.5rem;
   --radius-full: 9999px;
 
-  /* Brand: rainbow conic-gradient — single source of truth, used by both
+  /* Brand: rainbow conic-gradient - single source of truth, used by both
      the selected-state ::before (flush border) and the focus-visible
      ::after (offset ring). Defined at :root so both themes share it. */
   --rainbow-gradient: conic-gradient(

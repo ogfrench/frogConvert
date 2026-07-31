@@ -36,9 +36,9 @@ const LOSSLESS_IMG_BPP = { uncompressed: 2_000_000, hq: 500_000 };
 //   - Pure-text whitepaper with embedded fonts:       ~30 kB/page → minimal
 //
 // The `low` floor sits at 50 kB/page, not the 150 kB it was first given. That
-// figure contradicted the reference points right above it — it declared
+// figure contradicted the reference points right above it - it declared
 // everything below 150 kB/page "minimal", a band meant to describe the 30 kB
-// pure-text case — and it misfiled ordinary designed documents as
+// pure-text case - and it misfiled ordinary designed documents as
 // incompressible. Two measured examples: a 59-page consulting report at
 // 102 kB/page and a 71-page research brief at 102 kB/page, both of which
 // Ghostscript shrinks by 37% and 18% respectively. Neither is remotely
@@ -193,7 +193,7 @@ async function readPdfPageCountViaPdfjs(u8: Uint8Array): Promise<number | null> 
     // `data` is *taken over* by pdf.js: it transfers the buffer to its worker
     // and the array we passed comes back detached, with byteLength 0. Handing
     // it the caller's own bytes therefore destroys the file for everyone
-    // downstream — the probe's own size arithmetic first, and then the actual
+    // downstream - the probe's own size arithmetic first, and then the actual
     // compression, which would go on to hand Ghostscript an empty document.
     // The copy costs one memcpy on a path that only runs when the cheap
     // trailer scan has already failed.

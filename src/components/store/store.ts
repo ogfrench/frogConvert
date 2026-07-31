@@ -252,7 +252,7 @@ export const formatMode: { value: FormatMode } = {
 /**
  * Compression: one control, three independent settings.
  *
- * Every mode compresses something, so the control appears in all three — but
+ * Every mode compresses something, so the control appears in all three - but
  * they mean different things ("how much quality to give up while changing
  * format" vs "how hard to squeeze" vs "should editing this PDF also shrink
  * it"), and an earlier build that shared one value was surprising in use:
@@ -377,7 +377,7 @@ export function setCompressLevel(next: CompressLevel) {
 //
 // No "Automatic" here on purpose. Automatic means "read the file and decide",
 // which is a sensible answer for a file the user handed us to shrink and a
-// surprising one for a file they handed us to edit — it would silently
+// surprising one for a file they handed us to edit - it would silently
 // recompress an edit nobody asked to shrink.
 
 export type PdfQuality = Exclude<QualityLevel, "auto">;

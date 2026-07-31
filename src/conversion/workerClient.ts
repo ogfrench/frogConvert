@@ -10,8 +10,8 @@ import {
  *
  * Extracted from actions.ts so surfaces other than the Convert card (the
  * Compress workspace) can run a handler off the main thread without importing
- * the whole convert pipeline. The worker itself is format-agnostic — it just
- * resolves a handler by name and calls doConvert — so a single shared instance
+ * the whole convert pipeline. The worker itself is format-agnostic - it just
+ * resolves a handler by name and calls doConvert - so a single shared instance
  * serves every surface. Jobs are serialised onto one queue (see `queueTail`),
  * which is what makes sharing the cancellation singletons safe.
  */

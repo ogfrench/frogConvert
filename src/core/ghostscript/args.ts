@@ -2,14 +2,14 @@ import type { QualityPreset } from "../FormatHandler/FormatHandler.ts";
 import { pdfSettingsFor } from "../compression/pdfSettings.ts";
 
 /**
- * Ghostscript argv for the *conversion* routes — the PostScript family, PDF/A
+ * Ghostscript argv for the *conversion* routes - the PostScript family, PDF/A
  * and multi-page TIFF. Compression keeps its own builder in
  * `core/compression/pdfSettings.ts`; the two share `GS_BASE_FLAGS` so the
  * invariants live in one place, but they answer different questions and are
  * deliberately not merged into one union-typed mega-builder.
  *
  * Every device named here was verified against the shipped binary rather than
- * assumed — `scripts/gs-devices.mjs` prints what is actually compiled in, and
+ * assumed - `scripts/gs-devices.mjs` prints what is actually compiled in, and
  * `scripts/gs-postscript-probe.mjs` runs each route end to end. The trimmed
  * WASM build does not carry stock Ghostscript's full device set.
  */
@@ -19,7 +19,7 @@ import { pdfSettingsFor } from "../compression/pdfSettings.ts";
  * off our progress channel.
  *
  * No `-dSAFER`: this is Ghostscript 9.56, where SAFER is already the default,
- * and it runs against an Emscripten MEMFS holding nothing but the input file —
+ * and it runs against an Emscripten MEMFS holding nothing but the input file -
  * there is no host filesystem to reach. Noted because "where is -dSAFER" is
  * the obvious thing to ask.
  */
@@ -35,7 +35,7 @@ export type GsRoute = "pdf" | "pdfa" | "ps" | "eps" | "tiff";
  * 3-page source: the result round-tripped back to a 1-page PDF, silently
  * losing two thirds of the document.
  *
- * The `%d` template is the documented fix — Ghostscript then writes one file
+ * The `%d` template is the documented fix - Ghostscript then writes one file
  * per page. So EPS always uses it, even for a 1-page input, and the handler
  * collects however many files came out.
  */
@@ -102,7 +102,7 @@ export function gsConvertArgs(opts: GsConvertOpts): string[] {
         case "tiff":
             // Colour, LZW, always. `tiff24nc`'s default is *uncompressed*, and
             // the difference is not marginal: a 3-page vector PDF at 150 dpi
-            // came out at 19,583,480 B raw against 54,929 B with LZW — 356x.
+            // came out at 19,583,480 B raw against 54,929 B with LZW - 356x.
             // Shipping the default would look like a bug to anyone who tried it.
             args.push("-sDEVICE=tiff24nc", "-sCompression=lzw", `-r${tiffDpi(quality)}`);
             break;

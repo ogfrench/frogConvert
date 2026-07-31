@@ -30,7 +30,7 @@ describe("preloadGhostscript", () => {
 
     it("sets no crossOrigin, so the cache entry is reusable", () => {
         // This is same-origin. Setting crossOrigin would make the prefetch a
-        // CORS request whose entry the handler's plain fetch() cannot reuse —
+        // CORS request whose entry the handler's plain fetch() cannot reuse -
         // the download would happen twice and the preload would be pure cost.
         preloadGhostscript();
         expect(document.head.querySelector("link")!.hasAttribute("crossorigin")).toBe(false);

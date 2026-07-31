@@ -4,7 +4,7 @@ import { GS_WASM_URL } from "../core/compression/ghostscriptAssets.ts";
  * Start fetching the Ghostscript payload before anyone asks for it.
  *
  * The engine is ~16 MB and is only fetched on first real use, which is the
- * right default — but by then the user is waiting on it. Every surface knows,
+ * right default - but by then the user is waiting on it. Every surface knows,
  * earlier than that, whether a PDF is in play: a PDF dropped on Compress, PDF
  * picked as a conversion target, a PDF-editor level set to anything but
  * Original quality. Calling this at those moments overlaps the download with
@@ -13,12 +13,12 @@ import { GS_WASM_URL } from "../core/compression/ghostscriptAssets.ts";
  *
  * `<link rel="prefetch">` rather than a `fetch()` we throw away: the browser
  * fetches at idle priority, can abandon it under memory pressure, and stores it
- * in the HTTP cache where the real load will find it — with no 16 MB buffer
+ * in the HTTP cache where the real load will find it - with no 16 MB buffer
  * sitting in JS heap in the meantime.
  *
  * Deliberately no `crossOrigin`: this is same-origin, and setting it would make
  * the prefetch a CORS request whose cache entry the plain `fetch()` in the
- * handler could not reuse — the prefetch would download 16 MB for nothing.
+ * handler could not reuse - the prefetch would download 16 MB for nothing.
  */
 let started = false;
 

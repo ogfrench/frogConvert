@@ -211,7 +211,7 @@ const CommonFormats = {
      * PDF/A-2b, the archival profile. Output-only on purpose: its extension and
      * MIME are identical to plain PDF, so declaring it `from` would make an
      * uploaded .pdf ambiguous between two entries. Nothing needs to read it as
-     * a distinct format — a PDF/A file *is* a PDF.
+     * a distinct format - a PDF/A file *is* a PDF.
      */
     PDFA: new FormatDefinition(
         "PDF/A (archival)",
@@ -238,7 +238,7 @@ const CommonFormats = {
     ),
     /**
      * Modern .ai files are PDFs carrying a private Illustrator payload, so this
-     * gets its own MIME rather than `application/pdf` — sharing one would let a
+     * gets its own MIME rather than `application/pdf` - sharing one would let a
      * dropped .ai be routed to the plain PDF handler, quietly discarding the
      * Illustrator half. See core/ghostscript/postscriptInput.ts.
      */

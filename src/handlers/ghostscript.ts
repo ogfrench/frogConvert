@@ -10,7 +10,7 @@ import {
 } from "../core/ghostscript/convert.ts";
 
 /**
- * Ghostscript-WASM — PDF→PDF recompression, plus the PostScript family,
+ * Ghostscript-WASM - PDF→PDF recompression, plus the PostScript family,
  * PDF/A and multi-page TIFF.
  *
  * The compression pass came first and is still the common case; the conversion
@@ -25,7 +25,7 @@ import {
  * pdfwrite device resamples embedded images and rebuilds the object streams
  * while leaving text and vectors as text and vectors.
  *
- * Loading is deliberately awkward — see scripts/ghostscript-smoke.mjs:
+ * Loading is deliberately awkward - see scripts/ghostscript-smoke.mjs:
  *   - gs.mjs branches on `globalThis.process`; the node branch resolves the wasm
  *     through a file:// URL that fetch() rejects.
  *   - The browser branch reads `globalThis.exports.Module`, a side-channel set
@@ -42,7 +42,7 @@ import {
  * *and compiled once*, however many PDFs the batch holds.
  *
  * Licensing: Ghostscript is AGPL-3.0. frogConvert is GPL-3.0-or-later, and
- * GPLv3 §13 explicitly permits linking with AGPLv3 code — the combined work is
+ * GPLv3 §13 explicitly permits linking with AGPLv3 code - the combined work is
  * conveyed under the GPL while this component keeps its own §13 obligation.
  * The upstream LICENSE is shipped alongside the binary.
  */
@@ -69,7 +69,7 @@ let factory: GsFactory | null = null;
 let compiled: WebAssembly.Module | null = null;
 /**
  * The in-flight load. Without it, two overlapping first calls each fetch and
- * compile their own 16 MB — the exact cost this module exists to avoid. Cleared
+ * compile their own 16 MB - the exact cost this module exists to avoid. Cleared
  * on failure so a load that failed offline can be retried once back online.
  */
 let loading: Promise<GsFactory> | null = null;
@@ -144,7 +144,7 @@ async function fetchAndCompile(onProgress?: (p: ProgressEvent) => void, label: E
  * gs.wasm against `document.currentScript`, which does not exist for an ESM
  * import or in Node.
  *
- * The hook has no error channel — Emscripten only offers `success`. If
+ * The hook has no error channel - Emscripten only offers `success`. If
  * instantiation rejects (out of memory on a small device is the realistic
  * case) and nobody is listening, the factory promise never settles and the
  * batch hangs on "Squishing…" forever. So the failure is routed back out to
@@ -161,7 +161,7 @@ function instantiateWith(onError: (e: unknown) => void) {
     };
 }
 
-/** A fresh Emscripten instance, or a rejection — never a promise that hangs. */
+/** A fresh Emscripten instance, or a rejection - never a promise that hangs. */
 function createModule(create: GsFactory): Promise<GsModule> {
     return new Promise<GsModule>((resolve, reject) => {
         create({
@@ -177,11 +177,11 @@ class GhostscriptHandler implements FormatHandler {
     public name = "Ghostscript";
 
     // Declared statically so every format is selectable before the WASM has
-    // ever been fetched — nobody should pay 16 MB to find out what is on offer.
+    // ever been fetched - nobody should pay 16 MB to find out what is on offer.
     public supportedFormats: FileFormat[] = [
         CommonFormats.PDF.supported("pdf", true, true),
-        // The PostScript family. Ghostscript reads all three natively — this is
-        // the interpreter those formats are defined by — and writes PS and EPS
+        // The PostScript family. Ghostscript reads all three natively - this is
+        // the interpreter those formats are defined by - and writes PS and EPS
         // back out through ps2write/eps2write.
         CommonFormats.PS.supported("ps", true, true),
         CommonFormats.EPS.supported("eps", true, true),

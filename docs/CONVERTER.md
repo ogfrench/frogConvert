@@ -40,14 +40,14 @@ Once installed:
   - **All** - every supported format.
 - **Multiple files.** Use the file manager to review, add, remove, or replace individual files.
 - **Partial downloads.** Cancelled a batch mid-way? You can still download the files that finished.
-- **Compression while converting.** Handlers like FFmpeg, ImageMagick and pdftoimg re-encode, so a conversion is also a chance to shrink the file. Pick the level under **Compression** in the hamburger menu: *Automatic* (default — reads each file and picks a tier), *Original quality*, *High quality*, *Balanced*, or *Smallest file*. The same choice is available to agents as the `quality` argument on the MCP `convert_file` tool and the REST `POST /convert` endpoint. See [INTEGRATIONS.md § Quality preset](INTEGRATIONS.md#quality-preset) and [COMPRESS.md](COMPRESS.md).
-- **Same-format compression.** Selecting identical input and output formats (e.g. JPG to JPG, MP4 to MP4) re-encodes the file to reduce its size. A **smart size-guard** ensures you never get a "compressed" file larger than the source; if the saving is less than 2%, the original file is returned instead. For a batch, or for PDFs, use the dedicated **Compress** mode instead — see [COMPRESS.md](COMPRESS.md).
+- **Compression while converting.** Handlers like FFmpeg, ImageMagick and pdftoimg re-encode, so a conversion is also a chance to shrink the file. Pick the level under **Compression** in the hamburger menu: *Automatic* (default - reads each file and picks a tier), *Original quality*, *High quality*, *Balanced*, or *Smallest file*. The same choice is available to agents as the `quality` argument on the MCP `convert_file` tool and the REST `POST /convert` endpoint. See [INTEGRATIONS.md § Quality preset](INTEGRATIONS.md#quality-preset) and [COMPRESS.md](COMPRESS.md).
+- **Same-format compression.** Selecting identical input and output formats (e.g. JPG to JPG, MP4 to MP4) re-encodes the file to reduce its size. A **smart size-guard** ensures you never get a "compressed" file larger than the source; if the saving is less than 2%, the original file is returned instead. For a batch, or for PDFs, use the dedicated **Compress** mode instead - see [COMPRESS.md](COMPRESS.md).
 - **Smart auto-adaptation.** When a conversion would hit a browser-memory or sanity ceiling (very large PDFs, long videos to GIF, thousands of frames extracted from a long video), the pipeline adjusts the output instead of erroring. Adjustments are explained in a post-conversion notice card. See [HANDLERS.md § Post-conversion notices](HANDLERS.md#post-conversion-notices) for how handlers emit these.
 - **Performance.** frogConvert detects available RAM and adjusts limits to prevent crashes on lower-end devices.
 
 ## PostScript, EPS and Illustrator
 
-Ghostscript — the same engine that powers PDF compression — reads the PostScript family natively, so these routes keep vector content as vector: text stays selectable and curves stay curves.
+Ghostscript - the same engine that powers PDF compression - reads the PostScript family natively, so these routes keep vector content as vector: text stays selectable and curves stay curves.
 
 | Route | Notes |
 |---|---|
@@ -67,7 +67,7 @@ Ghostscript — the same engine that powers PDF compression — reads the PostSc
 
 Two things worth knowing:
 
-- **`.ai` files convert through their PDF layer.** Illustrator has written PDF-compatible `.ai` since version 9 (2000), so the artwork comes across intact — but layers, editable text and effects are flattened. Keep the `.ai` as your master. The Converter says so before you press the button.
+- **`.ai` files convert through their PDF layer.** Illustrator has written PDF-compatible `.ai` since version 9 (2000), so the artwork comes across intact - but layers, editable text and effects are flattened. Keep the `.ai` as your master. The Converter says so before you press the button.
 - **The engine is a ~16 MB download**, fetched the first time you use a PostScript route (or compress a PDF) and cached afterwards. It is never fetched at page load.
 
 ## Known limitations

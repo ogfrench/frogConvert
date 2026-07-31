@@ -1160,7 +1160,7 @@ function wmParseRangeToSelection(text: string): Set<string> | null {
  * - keys for surviving files pass through untouched
  *
  * Idempotent: safe to call multiple times. Driven off `knownFileIds` so the
- * delta is exact — adding a file in any tab triggers the auto-include exactly
+ * delta is exact - adding a file in any tab triggers the auto-include exactly
  * once, on the first call after that file appeared.
  */
 function applyWmFileDelta(addedFiles: SourceFile[], removedFileIds: Set<number>): void {

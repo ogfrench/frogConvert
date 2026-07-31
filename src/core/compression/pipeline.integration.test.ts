@@ -6,7 +6,7 @@ import { imageHeavyPdf } from "../../../test/fixtures/imageHeavyPdf.ts";
  *
  * Every other test in this directory substitutes something: the probe, the tier
  * ladder, the dispatcher, the engine. That is what let four separate defects
- * ship green — the mocks encoded the same wrong assumptions as the code they
+ * ship green - the mocks encoded the same wrong assumptions as the code they
  * stood in for, so the suite agreed with the bug. Specifically:
  *
  *  - the probe was mocked, so a veto that overruled explicit levels looked fine
@@ -23,7 +23,7 @@ import { imageHeavyPdf } from "../../../test/fixtures/imageHeavyPdf.ts";
  *
  * The pdf.js half of the probe. Real `pdfjs-dist` cannot load under this
  * runtime: it needs `DOMMatrix` at import time, then `Promise.try`, then
- * `Uint8Array.prototype.toHex` — browser and ES2025 features this Node lacks.
+ * `Uint8Array.prototype.toHex` - browser and ES2025 features this Node lacks.
  * Stubbing all three would mean asserting against a hand-built imitation of
  * pdf.js rather than pdf.js, which is how the detach bug survived in the first
  * place.

@@ -35,7 +35,7 @@ const MB = 1_000_000;
  * Video used to have no such knob: the preset only moved the size thresholds
  * below, and every video under 75 MB fell past all of them to a hardcoded
  * CRF 23. That made "Smallest file", "Balanced" and "High quality" produce
- * byte-identical output for the overwhelming majority of real clips — a
+ * byte-identical output for the overwhelming majority of real clips - a
  * 17 MB screen recording hit the same branch at all three. Images and audio
  * always scaled their quality by preset (see `planImage`/`planAudio`); this
  * brings video in line.
@@ -102,7 +102,7 @@ export type ImageContext = {
  * This is where image compression actually lives, and it used to be missing:
  * a resize only happened above 30 megapixels, which no phone or camera photo
  * reaches, so every ordinary picture kept its full dimensions at every level.
- * Quality alone then had to carry the whole ladder, and it could not — a 12 MP
+ * Quality alone then had to carry the whole ladder, and it could not - a 12 MP
  * photo re-encoded at the same size is a modest saving however far the quality
  * number drops, because the pixel count is the file.
  *
@@ -110,7 +110,7 @@ export type ImageContext = {
  */
 const PRESET_MAX_EDGE: Record<Exclude<QualityPreset, "lossless">, number | null> = {
   // 1920 is still a full-screen image on almost any display, and 4032x3024
-  // (a stock phone photo) drops to 1920x1440 — 77% fewer pixels before
+  // (a stock phone photo) drops to 1920x1440 - 77% fewer pixels before
   // quality is even considered.
   low: 1920,
   // Comfortably past 1440p, so a retina display still has pixels to spare.
@@ -133,7 +133,7 @@ export function planImage(ctx: ImageContext): CompressionPlan {
     archetype === "animated-frame" ? -8 :
     /* video-frame */                -12;
 
-  // The band used to be 82 / 90 / 93 — all three inside what every other tool
+  // The band used to be 82 / 90 / 93 - all three inside what every other tool
   // calls high quality, and only 11 points wide. Squoosh ships at 75 by
   // default; iLoveIMG and TinyPNG's aggressive presets sit near 65 and resize
   // as well. A setting labelled "Visible quality loss" has to be able to

@@ -110,12 +110,12 @@
   align-items: center;
   /* 2px bars on a 6px pitch (2 + 4 gap). 6 x any quarter-step
      devicePixelRatio (1, 1.25, 1.5, ...) has a fractional part of 0 or
-     exactly .5 — its own mirror — so the outer bars always rasterize
+     exactly .5 - its own mirror - so the outer bars always rasterize
      identically and the menu-open X strokes snap symmetrically. The old
      7px pitch put bars on unrelated subpixel phases at 125%/150% OS
      scaling, rendering one bar visibly thinner and drifting the X
      crossing off its middle. Pitch 6 also keeps the glyph wide-format
-     (18x14) like a canonical hamburger — an 8px pitch made it taller
+     (18x14) like a canonical hamburger - an 8px pitch made it taller
      than wide and read as oversized, especially on the 44px mobile
      control. */
   gap: 4px;
@@ -132,7 +132,7 @@
 }
 
 #hamburger-btn span {
-  /* Fixed integer width — a % of the padded content box resolved to a
+  /* Fixed integer width - a % of the padded content box resolved to a
      fractional width at a fractional x, blurring the bar ends. */
   width: 18px;
   height: 2px;
@@ -148,7 +148,7 @@
 /* When the menu opens, converge lines to center and rotate.
    With gap: 4px and height: 2px, the center of the first bar is 6px away
    from the second. scaleX(1.4) stretches each arm from 18px to 25.2px so
-   the rotated X spans ~17.8px — optically matching the 18px-wide
+   the rotated X spans ~17.8px - optically matching the 18px-wide
    hamburger instead of shrinking to 70% of it. */
 #top-controls.menu-open #hamburger-btn span:nth-child(1) {
   transform: translateY(6px) rotate(45deg) scaleX(1.4);
@@ -222,7 +222,7 @@
   background-color: var(--accent);
 }
 
-/* The format filter is Converter-only — there is no target format to filter
+/* The format filter is Converter-only - there is no target format to filter
    anywhere else. The compression control, by contrast, is present in every
    mode; it rebinds rather than disappearing. */
 #top-controls-menu.not-converter #mode-toggle {
@@ -347,7 +347,7 @@
     transition: opacity var(--transition-normal), visibility var(--transition-normal), transform var(--transition-normal);
     min-width: 240px;
     gap: 12px;
-    /* The menu stacks three pill groups (mode, theme, compression — the last
+    /* The menu stacks three pill groups (mode, theme, compression - the last
        two vertical), which on a short viewport runs past the bottom of the
        screen. Without a bound it is simply fixed in place and the items below
        the fold cannot be reached at all. Both dropdown popups inside are
@@ -388,7 +388,7 @@
   /* Staggered reveal, one step per child. This ladder has to reach the end of
      the menu: a child past its last rung gets no delay at all and so animates
      in *first*, ahead of everything above it. The trailing `n+16` rung is the
-     safety net — anything added later lands last rather than jumping the
+     safety net - anything added later lands last rather than jumping the
      queue. Keep the explicit rungs in step with the child count in index.html. */
   #top-controls.menu-open #top-controls-menu>*:nth-child(1) { transition-delay: 0.03s; }
   #top-controls.menu-open #top-controls-menu>*:nth-child(2) { transition-delay: 0.06s; }

@@ -14,7 +14,7 @@ import { imageHeavyPdf } from "../fixtures/imageHeavyPdf.ts";
  * green: the probe vetoing explicit levels, pdf.js detaching the file it was
  * handed, FFmpeg's demuxer/muxer pair never resolving, and the video levels
  * collapsing to one output. Every one of them lived in a seam *between* mocked
- * units, so no unit test could see them — and pdf.js in particular cannot even
+ * units, so no unit test could see them - and pdf.js in particular cannot even
  * be loaded by the node suite (it needs `DOMMatrix`, `Promise.try` and
  * `Uint8Array.prototype.toHex`). A browser is not a nicety here; it is the only
  * environment where this code exists as the user meets it.

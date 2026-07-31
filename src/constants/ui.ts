@@ -23,7 +23,7 @@ const GiB = 1024 * 1024 * 1024;
  * WebAssembly builds with a 4 GiB address space, and they need working room
  * inside it for decode buffers on top of the file itself. Past roughly 2 GiB
  * the engine aborts rather than the browser, which surfaces as a failure with
- * no useful explanation — better to say so at the door.
+ * no useful explanation - better to say so at the door.
  *
  * Note this is deliberately *not* the kind of quota a hosted tool imposes.
  * TinyPNG stops at 5 MB and CloudConvert at 1 GB because they pay for the
@@ -43,13 +43,13 @@ const FALLBACK_DEVICE_MEMORY_GB = 4;
  * Total-bytes budget for a Compress batch, scaled to the device.
  *
  * Compress reads one file at a time (see `CompressInput.read`), so the batch
- * total no longer has to fit in memory all at once — what accumulates is the
+ * total no longer has to fit in memory all at once - what accumulates is the
  * *outputs*, and an output is smaller than its input or it is discarded. The
  * flat 500 MB cap predated that and was sized for the old load-everything-first
  * behaviour; it refused a single 800 MB video to guard against a batch of them.
  *
  * A quarter of device memory keeps headroom for the engine heap and the copy
- * `runInWorker` transfers, while landing at 2 GiB on an ordinary 8 GB machine —
+ * `runInWorker` transfers, while landing at 2 GiB on an ordinary 8 GB machine -
  * four times what the surface allowed before, and enough for the large-video
  * case people actually arrive with.
  */

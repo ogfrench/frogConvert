@@ -61,7 +61,7 @@ export interface CompressPagePayload {
   files: PersistedFileMeta[];
   /**
    * The Compress level the user picked: auto | high | medium | low. Note this
-   * is *not* the full QualityPreset set — Compress deliberately offers no
+   * is *not* the full QualityPreset set - Compress deliberately offers no
    * lossless level, because as a compression level it could only ever do
    * nothing (see docs/COMPRESS.md).
    */

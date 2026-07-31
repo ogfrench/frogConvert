@@ -202,7 +202,7 @@ Returns `400` on bad input, `413` if the file exceeds `MAX_UPLOAD_MB`, `415` if 
 
 Both `POST /convert` and the MCP `convert_file` tool accept an optional `quality` preset. When omitted, a cross-format request runs at `"medium"`; a same-format (compression) request probes the input and picks a tier itself, the same Automatic behaviour the web UI defaults to, and may return the original untouched when the file is already at minimum useful quality.
 
-The preset is a request-level parameter here. The web UI's equivalent settings — **Compression** in the Converter's settings menu and the level picker on the **Compress** surface — are per-surface browser preferences stored in `localStorage`; they do not reach the API or MCP server, which run in a separate process. Pass `quality` explicitly to get a specific tier.
+The preset is a request-level parameter here. The web UI's equivalent settings - **Compression** in the Converter's settings menu and the level picker on the **Compress** surface - are per-surface browser preferences stored in `localStorage`; they do not reach the API or MCP server, which run in a separate process. Pass `quality` explicitly to get a specific tier.
 
 | Preset | JPEG singleton | PDF page render cap | Video-frame cap | Video-to-GIF cap | Audio (stereo lossy) | Auto-adaptation |
 |---|---|---|---|---|---|---|
@@ -223,7 +223,7 @@ early hop cannot be recovered by a gentler later one.
 to end. A hop whose output format is inherently lossless (PNG, FLAC…) always
 runs lossless, since a quality knob can't shrink it.
 
-This rule is shared by every surface — web UI, REST, MCP and CLI — so the same
+This rule is shared by every surface - web UI, REST, MCP and CLI - so the same
 file and the same `quality` produce the same result whichever way you convert.
 
 ### Same-format compression
@@ -250,11 +250,11 @@ Handlers ignore the preset when it doesn't apply to them (lossless codecs, struc
 Two things to expect, so a correct result isn't mistaken for a broken one:
 
 - **A text or vector PDF barely shrinks, and that is right.** Ghostscript's presets bound *image* resampling; text and vector art are left alone because there is nothing to throw away. Scans and image-heavy decks are where the 30–80% savings live. If the result saves less than 2%, the size-guard returns the original.
-- **The first PDF in a process is slower.** The 16 MB WASM engine is compiled on first use and then reused, so subsequent files in the same process are markedly faster (measured: 718 ms then 248 ms). It is never loaded at startup — a session that touches no PDFs never pays for it.
+- **The first PDF in a process is slower.** The 16 MB WASM engine is compiled on first use and then reused, so subsequent files in the same process are markedly faster (measured: 718 ms then 248 ms). It is never loaded at startup - a session that touches no PDFs never pays for it.
 
 #### Compressing an edited PDF
 
-The browser's PDF editor has a **PDF compression** setting that shrinks whatever it saves. The PDF tools below deliberately do not take a `quality` parameter — on the agent surfaces the same result is composition, not a flag: chain the edit into a same-format conversion.
+The browser's PDF editor has a **PDF compression** setting that shrinks whatever it saves. The PDF tools below deliberately do not take a `quality` parameter - on the agent surfaces the same result is composition, not a flag: chain the edit into a same-format conversion.
 
 ```
 pdf_merge(inputs) -> convert_file(pdf -> pdf, quality: "medium")

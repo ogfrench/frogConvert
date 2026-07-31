@@ -12,13 +12,13 @@ import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
  * Last-resort PDF compressor: rasterise every page and rebuild the document
  * from JPEGs.
  *
- * This is strictly worse than Ghostscript and is not a second opinion — it is
+ * This is strictly worse than Ghostscript and is not a second opinion - it is
  * what you get when the 16 MB Ghostscript payload cannot be fetched at all
  * (offline, blocked, or a failed deploy). It destroys the document's structure:
  * text stops being text, so selection, search, copy/paste, accessibility and
  * any embedded links are gone, and vector art gains resampling artefacts.
  * On a vector/text PDF it usually produces a *larger* file, which the batch's
- * keep-threshold then discards — the honest outcome, since there was nothing
+ * keep-threshold then discards - the honest outcome, since there was nothing
  * to gain.
  *
  * It earns its place only on scans and image-heavy decks, where the pages were
@@ -38,7 +38,7 @@ const MAX_TOTAL_MEGAPIXELS = 600;
  * pdf.js and pdf-lib are loaded on demand, not at module scope.
  *
  * This handler is registered in the background for every session but only ever
- * *runs* when Ghostscript could not be fetched at all — so a static import
+ * *runs* when Ghostscript could not be fetched at all - so a static import
  * would put pdf-lib (which nothing else outside the PDF editor pulls) into
  * every visitor's download to serve a path almost none of them take.
  */

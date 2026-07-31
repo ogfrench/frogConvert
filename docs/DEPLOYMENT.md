@@ -113,7 +113,7 @@ A `netlify.toml` at the repo root configures Netlify deployment. Point Netlify a
 
 ## Service worker / PWA serving
 
-The web build emits a service worker (`sw.js`) and a Web App Manifest (`manifest.webmanifest`). Serving them with the right headers is non-optional — bad caching pins users to old SW code, and a missing `Service-Worker-Allowed` blocks root-scope registration.
+The web build emits a service worker (`sw.js`) and a Web App Manifest (`manifest.webmanifest`). Serving them with the right headers is non-optional - bad caching pins users to old SW code, and a missing `Service-Worker-Allowed` blocks root-scope registration.
 
 `docker/nginx/default.conf` and `netlify.toml` already set these:
 

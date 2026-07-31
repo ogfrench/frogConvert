@@ -215,7 +215,7 @@ describe.skipIf(!hasFullRegistry)(`E2E Conversion Flow [${MISSING_DEPS_REASON}]`
     it("hamburger menu is visible when opened on mobile viewport", async () => {
         await page.setViewport({ width: 375, height: 667 });
         // Use networkidle0 to wait for Vite dependency re-optimization to finish
-        // before interacting — otherwise a mid-test page reload loses the click state.
+        // before interacting - otherwise a mid-test page reload loses the click state.
         await safeGoto(page, url, { waitUntil: "networkidle0", timeout: 30000 });
         await page.waitForSelector("#hamburger-btn", { visible: true });
 

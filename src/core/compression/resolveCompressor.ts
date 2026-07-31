@@ -2,7 +2,7 @@ import type { FileFormat, FormatHandler, QualityPreset } from "../FormatHandler/
 import { DEFAULT_PRESET } from "../FormatHandler/qualityPresets.ts";
 
 /**
- * Compression engine — dispatch layer. Maps a format to the handler that can
+ * Compression engine - dispatch layer. Maps a format to the handler that can
  * recompress it in place (same format in, same format out) and the args to
  * drive it. Extracted from the convert flow so any surface (the Convert card,
  * a dedicated Compress view, MCP/REST) can route to the compressor without
@@ -17,7 +17,7 @@ export type SameFormatDispatch = {
     args: string[];
     /**
      * Only used when `handler` cannot run at all (e.g. its payload could not be
-     * fetched). Deliberately not a quality choice — a fallback is always worse
+     * fetched). Deliberately not a quality choice - a fallback is always worse
      * than the primary, or it would be the primary.
      */
     fallback?: { handler: FormatHandler; args: string[]; warning: string };
@@ -119,7 +119,7 @@ export function resolveSameFormatHandler(
         const h = findHandlerByName("Ghostscript", options);
         if (!h || !handlerSupportsFormat(h, format)) return null;
 
-        // The canvas route rasterises pages, which is not really compression —
+        // The canvas route rasterises pages, which is not really compression -
         // it throws the document away and keeps a picture of it. It is offered
         // strictly as a fallback for when the 16 MB Ghostscript payload cannot
         // be fetched (offline, blocked), never as an alternative the user is

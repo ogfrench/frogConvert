@@ -5,7 +5,7 @@
  * real files, and inspects what comes back. This is the Node sibling of the
  * browser handler and shares all of core/ghostscript/, so a pass here exercises
  * the same argv, the same output collection and the same validation the web UI
- * runs — only the loader differs.
+ * runs - only the loader differs.
  *
  * Lives in scripts/ rather than the unit suite because each case compiles 16 MB
  * of WASM; the suite would go from seconds to minutes.

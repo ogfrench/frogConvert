@@ -26,7 +26,7 @@ not, plus the handful of paths that need a real file and a real eye.
       it should be dramatically smaller, not −19%. Check it still looks fine.
 - [ ] Drop the same photo at *High quality*. Visibly better, larger file.
 - [ ] Drop the **text-heavy PDF**. It should honestly report little or no gain
-      rather than pretending. Read the wording — it should not contradict itself.
+      rather than pretending. Read the wording - it should not contradict itself.
 - [ ] Drop the **image-heavy PDF**. Real saving at *Automatic*.
 - [ ] **Cancel mid-batch** with the button. Finished files stay downloadable;
       the interrupted one says *stopped*, not *failed*.
@@ -34,10 +34,10 @@ not, plus the handful of paths that need a real file and a real eye.
 - [ ] Open the level dropdown and press **Escape**. It closes. (On a phone, a
       stuck-open menu covers the Compress button.)
 
-## 2. PostScript, EPS, Illustrator — new in this release
+## 2. PostScript, EPS, Illustrator - new in this release
 
 - [ ] Drop an `.eps` on the Converter. The card says *Ready to convert from EPS*.
-- [ ] Convert it to **PDF**. Opens, artwork intact, **text is selectable** —
+- [ ] Convert it to **PDF**. Opens, artwork intact, **text is selectable** -
       that is the whole point; if it came out as a picture, stop and report it.
 - [ ] Convert a **multi-page PDF → EPS**. You should get **one file per page**,
       not one file. (One file would mean pages were silently dropped.)
@@ -45,17 +45,17 @@ not, plus the handful of paths that need a real file and a real eye.
 - [ ] Drop an `.ai`. The notice under the Convert button states that layers and
       editable text are flattened. Convert it; the artwork should be right.
 - [ ] Convert a PDF → **PDF/A**. It opens normally.
-- [ ] Convert a PDF → **TIFF**. Multi-page, and a *sane size* — if it is tens of
+- [ ] Convert a PDF → **TIFF**. Multi-page, and a *sane size* - if it is tens of
       MB from a small source, the compression flag is not being applied.
 - [ ] Try `PS → PDF` at *Smallest file* and again at *High quality*. **The sizes
       must differ.** Identical sizes mean the level is inert again.
 - [ ] First PostScript conversion of the session shows a one-time ~16 MB
       download that names itself sensibly (not "PDF compressor").
 
-## 3. PDF Editor cancellation — new in this release
+## 3. PDF Editor cancellation - new in this release
 
 - [ ] Merge several large PDFs. A **Cancel** button is present during the wait.
-- [ ] Press it. You return to the editor with your files intact — not an error
+- [ ] Press it. You return to the editor with your files intact - not an error
       dialog, not a stuck spinner.
 - [ ] Same for **organize**, **watermark** and **extract**.
 - [ ] **Escape** cancels too.
@@ -98,7 +98,7 @@ not, plus the handful of paths that need a real file and a real eye.
 - A text-only PDF barely shrinks. Correct: the level governs *image*
   downsampling, and there are no images to downsample.
 - `PDF → EPS` returning one file per page is required by the format.
-- Ghostscript presets are not monotonic for PDFs — a *lower* setting can
+- Ghostscript presets are not monotonic for PDFs - a *lower* setting can
   produce a *larger* file on some documents. Automatic avoids the presets that
   did so on the two documents this was measured against.
 - HEIC/AVIF are accepted at intake and then honestly refused per file.

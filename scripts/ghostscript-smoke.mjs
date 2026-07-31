@@ -1,5 +1,5 @@
 /**
- * Ghostscript-WASM smoke test — run in a real browser, not Bun.
+ * Ghostscript-WASM smoke test - run in a real browser, not Bun.
  *
  *   node scripts/ghostscript-smoke.mjs
  *
@@ -14,7 +14,7 @@
  *     by browser.js at import time, so the files must be loaded as a set.
  *   - CAVEAT, learned while wiring the real handler: this build **ignores**
  *     `Module.wasmBinary`. It always locates the binary itself, via a
- *     `_scriptDir` taken from `document.currentScript` — which is null for an
+ *     `_scriptDir` taken from `document.currentScript` - which is null for an
  *     ESM import, so it resolves gs.wasm against the page URL. This script only
  *     works because it serves gs.wasm next to the loader; on any real route
  *     that 404s. Passing `wasmBinary` below is therefore a no-op, kept only so
@@ -25,11 +25,11 @@
  *     the 16 MB compile once rather than per file, and it is the only reason
  *     the Node/Bun sibling (src/handlers/ghostscript.node.ts) works at all,
  *     since there is no `document.currentScript` to resolve against there.
- *     Note the hook has no error channel — see the handlers for how a failed
+ *     Note the hook has no error channel - see the handlers for how a failed
  *     instantiation is routed out rather than left to hang.
  *
  * Verified result on a 53 KB vector-only PDF (no images at all): /screen
- * returns a valid PDF 36% smaller — the case an image-downsampling approach
+ * returns a valid PDF 36% smaller - the case an image-downsampling approach
  * cannot improve at all.
  */
 import { createServer } from "http";

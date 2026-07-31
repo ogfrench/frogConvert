@@ -2,7 +2,7 @@ import type { QualityPreset } from "../FormatHandler/FormatHandler.ts";
 import { GS_BASE_FLAGS } from "../ghostscript/args.ts";
 
 /**
- * Compression engine — PDF settings. Maps a quality preset onto the
+ * Compression engine - PDF settings. Maps a quality preset onto the
  * Ghostscript distiller preset that implements it.
  *
  * Kept separate from the handler so the mapping is testable without loading a
@@ -11,7 +11,7 @@ import { GS_BASE_FLAGS } from "../ghostscript/args.ts";
  *
  * Ghostscript's own preset names describe intent, not amount: `/screen` targets
  * 72 dpi images, `/ebook` 150 dpi, `/printer` and `/prepress` 300 dpi. Note the
- * presets only bound *image* resampling — text and vector content is untouched,
+ * presets only bound *image* resampling - text and vector content is untouched,
  * which is why a text-only PDF barely shrinks at any level. The Compress
  * results view says so out loud when it happens.
  */

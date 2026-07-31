@@ -17,7 +17,7 @@ import { decideAutoQuality } from "./automatic.ts";
  * recompress them and each group runs as its own pass (a mixed drop may spin
  * up both ImageMagick and FFmpeg).
  *
- * Deliberately UI-free — it takes a `run` callback instead of importing the
+ * Deliberately UI-free - it takes a `run` callback instead of importing the
  * worker client, so `src/core/` keeps no dependency on a surface.
  */
 
@@ -99,7 +99,7 @@ export type CompressBatchOptions = {
 export const KEEP_THRESHOLD = 0.98;
 
 /**
- * Below this, a file is essentially all container overhead — a PNG's signature,
+ * Below this, a file is essentially all container overhead - a PNG's signature,
  * IHDR and IEND alone are ~70 bytes. Re-encoding cannot claw back the 2% the
  * keep-threshold wants, and some engines simply error on such degenerate input.
  * Reporting "already as small as it gets" is both true and more useful than the
@@ -173,7 +173,7 @@ export async function compressBatch(
         if (isCancelled?.()) break;
         const { handler, args } = group.dispatch;
 
-        // One init per group rather than per file — the WASM load is the
+        // One init per group rather than per file - the WASM load is the
         // expensive part and a mixed batch may need more than one engine.
         let ready = handler.ready;
         if (!ready) {
@@ -188,7 +188,7 @@ export async function compressBatch(
             }
         }
 
-        // Same format in, same format out — that is what "compress" means
+        // Same format in, same format out - that is what "compress" means
         // here, so there is only ever one format to resolve.
         const inFmt = ready ? handlerSupportsFormat(handler, group.format) : null;
         if (!ready || !inFmt) {
@@ -212,7 +212,7 @@ export async function compressBatch(
             // The one read. Everything above this line is decided from metadata,
             // so the resident set is a single file at a time however large the
             // batch is. A file moved or deleted between picking and compressing
-            // rejects here — ordinary behaviour, not an edge case.
+            // rejects here - ordinary behaviour, not an edge case.
             let bytes: Uint8Array;
             try {
                 bytes = await input.read();
@@ -225,7 +225,7 @@ export async function compressBatch(
 
             // The probe *chooses* a tier when the user hasn't. It must never
             // overrule one they did choose: it reads container metadata, not
-            // pixels, so "already as small as it gets" is a guess — and a guess
+            // pixels, so "already as small as it gets" is a guess - and a guess
             // is no basis for refusing to run. Someone who picked "Smallest
             // file" has asked us to try, and we can only report back honestly
             // once we have. KEEP_THRESHOLD below is the real guard against
@@ -256,7 +256,7 @@ export async function compressBatch(
             const attempt = async (h: typeof handler, a: string[]) => {
                 // Resolve the format against the handler that will actually run
                 // it. The group's inFmt came from the primary, and a fallback is
-                // a different handler with its own declared list — reusing the
+                // a different handler with its own declared list - reusing the
                 // primary's entry only works while the two happen to agree.
                 const fmt = h === handler ? inFmt : (handlerSupportsFormat(h, group.format) ?? inFmt);
                 const produced = h.requiresMainThread
@@ -273,7 +273,7 @@ export async function compressBatch(
                 if (!isCancelled?.()) console.error(handler.name, "compression threw", e);
                 // The primary engine could not run. A declared fallback is
                 // worse but better than handing the file back untouched, so
-                // try it — and remember to say what it cost.
+                // try it - and remember to say what it cost.
                 const fb = group.dispatch.fallback;
                 if (fb && !isCancelled?.()) {
                     try {
@@ -304,7 +304,7 @@ export async function compressBatch(
                 break;
             } else {
                 // A fallback that produced nothing useful is not worth
-                // explaining — the file is unchanged either way.
+                // explaining - the file is unchanged either way.
                 passthrough(index, input, output ? "no-gain" : "failed", bytes);
             }
             done++;

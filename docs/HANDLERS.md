@@ -116,10 +116,10 @@ Don't hand-roll your own quality mapping. Route through the shared planner in `s
 
 The same handlers back the dedicated **Compress** surface, which dispatches through `src/core/compression/resolveCompressor.ts` rather than the conversion graph. Two consequences for handler authors:
 
-- **A handler becomes a compressor for free** once its format is whitelisted in `resolveCompressor.ts` — no separate code path. Compression calls `doConvert` with matching input and output formats.
+- **A handler becomes a compressor for free** once its format is whitelisted in `resolveCompressor.ts` - no separate code path. Compression calls `doConvert` with matching input and output formats.
 - **Note the inverted preset semantics.** `low` is the lowest quality *target*, so it compresses the hardest; `high` compresses least. Getting this backwards silently turns "Smallest file" into "barely touched". It is worth a test.
 
-Compression also applies a 98% keep-threshold (a result must save at least 2% to be used) and skips inputs under 512 bytes, which are all container overhead. Both live in `compressBatch.ts`, not in handlers — do not reimplement them. See [COMPRESS.md](COMPRESS.md).
+Compression also applies a 98% keep-threshold (a result must save at least 2% to be used) and skips inputs under 512 bytes, which are all container overhead. Both live in `compressBatch.ts`, not in handlers - do not reimplement them. See [COMPRESS.md](COMPRESS.md).
 
 PDF render knobs (DPI and megapixel caps) live in `src/core/FormatHandler/qualityPresets.ts` as `PRESETS[preset].pdfDpi` / `pdfMp` / `pngCnum`, consumed by `pdftoimg`.
 

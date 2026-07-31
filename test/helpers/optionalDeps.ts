@@ -29,8 +29,11 @@ async function canResolve(specifier: string): Promise<boolean> {
 /** SheetJS, needed by the TMX handler and anything that loads the full registry. */
 export const hasXlsx = await canResolve("xlsx");
 
-/** The image-to-txt submodule, imported by the canvasToBlob handler. */
-export const hasImageToTxt = await canResolve("../../src/handlers/image-to-txt/src/convert.ts");
+/**
+ * The image-to-txt submodule, imported by the canvasToBlob handler. Not
+ * exported: nothing needs it alone, only as part of `hasFullRegistry`.
+ */
+const hasImageToTxt = await canResolve("../../src/handlers/image-to-txt/src/convert.ts");
 
 /** True when the whole handler registry can load, which the app itself needs. */
 export const hasFullRegistry = hasXlsx && hasImageToTxt;

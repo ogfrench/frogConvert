@@ -32,7 +32,7 @@ flowchart LR
 Three subsystems share this page: the **conversion pipeline** (route finder +
 handlers), the **PDF Workspace** (structural PDF editing, no handlers), and the
 **compression engine**, which borrows handlers as engines but skips the route
-finder entirely — there is no path to find when the input and output formats are
+finder entirely - there is no path to find when the input and output formats are
 the same.
 
 Everything stays inside your browser tab. Nothing leaves your computer.
@@ -197,7 +197,7 @@ flowchart LR
 
 | Path | Strategy | Why |
 |------|----------|-----|
-| `/wasm/`, `*.sf2` | CacheFirst, 30 entries, 7-day TTL, status 200 only | WASM blobs are huge and content-stable. Status 200 only because opaque cross-origin responses can't be introspected — caching them would let a transient CDN error look like success. |
+| `/wasm/`, `*.sf2` | CacheFirst, 30 entries, 7-day TTL, status 200 only | WASM blobs are huge and content-stable. Status 200 only because opaque cross-origin responses can't be introspected - caching them would let a transient CDN error look like success. |
 | `/assets/` | StaleWhileRevalidate, 200 entries, 30-day TTL | Hashed filenames change per build, so the cache fills with versioned copies. |
 | `/js/`, `/docs/*.md` | StaleWhileRevalidate | Lazy chunks and docs serve hot from cache while revalidating. |
 | `/index.html` (NavigationRoute) | Precache | Single SPA entry. Denylisted: `/api`, `/.well-known`, `/docs`, `/headless`. |
@@ -206,8 +206,8 @@ flowchart LR
 
 The PWA registers two OS-level integrations:
 
-- **`share_target`** — POST handler in [src/pwa/sw.ts](../src/pwa/sw.ts) accepts multipart shares, writes the payload to a dedicated CacheStorage entry, and 303-redirects to `/?share-target=ready`.
-- **`file_handlers` / `launchQueue`** — "Open with frogConvert" registers for image / video / audio / PDF / text / ZIP / 7z extensions; files arrive via [`launchQueue.setConsumer`](https://web.dev/articles/launch-handler).
+- **`share_target`** - POST handler in [src/pwa/sw.ts](../src/pwa/sw.ts) accepts multipart shares, writes the payload to a dedicated CacheStorage entry, and 303-redirects to `/?share-target=ready`.
+- **`file_handlers` / `launchQueue`** - "Open with frogConvert" registers for image / video / audio / PDF / text / ZIP / 7z extensions; files arrive via [`launchQueue.setConsumer`](https://web.dev/articles/launch-handler).
 
 Both paths funnel into a single `EXTERNAL_FILES_EVENT` CustomEvent that [src/main.ts](../src/main.ts) listens for. main.ts owns the routing decision (Converter for non-PDF, PDF Editor for `.pdf`) so the SW and `launchQueue` consumer stay agnostic to active app mode.
 
@@ -217,7 +217,7 @@ The custom share-target fetch listener is installed **before** Workbox's `regist
 
 ### Update flow
 
-`registerType: 'prompt'` — the SW never silently `skipWaiting()`. When a new SW is detected, [src/pwa/registerSW.ts](../src/pwa/registerSW.ts) shows a dismissable "New version available — Reload now" banner. The user controls when reload happens.
+`registerType: 'prompt'` - the SW never silently `skipWaiting()`. When a new SW is detected, [src/pwa/registerSW.ts](../src/pwa/registerSW.ts) shows a dismissable "New version available - Reload now" banner. The user controls when reload happens.
 
 ### Desktop carve-out
 
@@ -241,7 +241,7 @@ The factory [src/components/persistence/createPersistor.ts](../src/components/pe
 
 ### Manifest-last write invariant
 
-A flush computes a byte-diff against `lastWrittenIds`, writes byte adds, deletes byte removes, and writes the manifest **last**. A tab kill between byte writes and manifest write leaves a stale manifest pointing only at fileIds whose bytes already landed. There is never a manifest that references unwritten bytes — that would be a broken-session class on next restore. Quota errors pause autosave with a single toast; non-quota errors (missing file, serialization) skip the id and continue.
+A flush computes a byte-diff against `lastWrittenIds`, writes byte adds, deletes byte removes, and writes the manifest **last**. A tab kill between byte writes and manifest write leaves a stale manifest pointing only at fileIds whose bytes already landed. There is never a manifest that references unwritten bytes - that would be a broken-session class on next restore. Quota errors pause autosave with a single toast; non-quota errors (missing file, serialization) skip the id and continue.
 
 ### Resume decision tree
 
@@ -274,7 +274,7 @@ frogConvert/
 │   │   ├── TraversionGraph/← Route-finding algorithm (Dijkstra)
 │   │   ├── CommonFormats/  ← Registry of all MIME types and extensions
 │   │   ├── compression/    ← Compression engine: dispatch, batching, tiering
-│   │   │                     (UI-free — takes a `run` callback, never imports components)
+│   │   │                     (UI-free - takes a `run` callback, never imports components)
 │   │   ├── utils/          ← Shared core helpers
 │   │   └── index.ts        ← Barrel re-export
 │   ├── tools/              ← PDF editor ops (merge, organize, extract, watermark, thumbnails)

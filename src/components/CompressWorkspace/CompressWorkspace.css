@@ -1,5 +1,5 @@
 /* ===================================================================
-   Compress workspace — dedicated "make my files smaller" surface.
+   Compress workspace - dedicated "make my files smaller" surface.
    Visual language deliberately mirrors the PDF workspace dropzone/cards
    so the third mode doesn't read as a bolted-on tool.
    =================================================================== */
@@ -7,7 +7,7 @@
 /* The same card as #convert-card, not a lookalike: identical width, margin,
    padding and radius, carrying .card-base for the surface and border. It used
    to be a bare flex column with a gap, so the fields floated on the page while
-   the Converter's sat in a card — the two surfaces read as different products.
+   the Converter's sat in a card - the two surfaces read as different products.
    Every value below is copied from ConvertCard.css on purpose; if that card's
    footprint changes, this one should be changed with it. */
 #compress-card {
@@ -17,7 +17,7 @@
   padding: var(--space-6);
   /* Same guard as .ws-empty-layout in the PDF workspace. The entrance
      animation leaves a transform here, which makes this an atomic stacking
-     context — so the level dropdown's own z-index only orders it *within* this
+     context - so the level dropdown's own z-index only orders it *within* this
      subtree. Without a positive z-index on the subtree itself, #compress-description
      (a later sibling) painted over the part of the dropdown that overflows
      this box. */
@@ -56,8 +56,8 @@
    stylesheets, so this surface tracks any change made there. Only what is
    genuinely specific to compressing lives below. */
 
-/* Compress is a drop-first surface — the zone is the whole point of the page,
-   not one field among several as on the Convert card — so it gets the taller
+/* Compress is a drop-first surface - the zone is the whole point of the page,
+   not one field among several as on the Convert card - so it gets the taller
    PDF-workspace footprint. Scoped to #compress-content so the Convert card
    keeps its own 5.5rem height.
 
@@ -67,7 +67,7 @@
    picker and the button pushed down the page for nothing. With files it sizes
    to its content, the same way the Convert card's does. */
 /* Once files are in, the zone is a summary row and keeps the Converter's exact
-   5.5rem — the two cards should be measurably the same object, not roughly
+   5.5rem - the two cards should be measurably the same object, not roughly
    similar. Only the *empty* state is taller, because on a drop-first surface
    the target being large is the whole point. */
 #compress-content .upload-zone:not(.has-file) {
@@ -159,7 +159,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  /* Long batches scroll inside the card — the page itself never scrolls sideways. */
+  /* Long batches scroll inside the card - the page itself never scrolls sideways. */
   max-height: 22rem;
   overflow-y: auto;
   overflow-x: hidden;

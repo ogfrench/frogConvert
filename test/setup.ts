@@ -13,7 +13,7 @@ if (typeof (globalThis as any).DOMMatrix === 'undefined') {
     };
 }
 
-// jsdom ships HTMLCanvasElement but not its 2D drawing context — getContext()
+// jsdom ships HTMLCanvasElement but not its 2D drawing context - getContext()
 // returns null unless the optional `canvas` npm package is installed. Stub a
 // no-op 2D context so tests that render decorative graphics (confetti,
 // thumbnails) don't crash on ctx.<method>(). We only need the shape to be
@@ -44,7 +44,7 @@ if (typeof HTMLCanvasElement !== 'undefined' &&
     };
     const wrapped = function (this: HTMLCanvasElement, type: string, _options?: unknown) {
         if (type === "2d") return stub2d as CanvasRenderingContext2D;
-        return null; // WebGL/bitmaprenderer not stubbed — tests that need it must opt in
+        return null; // WebGL/bitmaprenderer not stubbed - tests that need it must opt in
     };
     (wrapped as any).__frogStubbed = true;
     HTMLCanvasElement.prototype.getContext = wrapped as any;

@@ -279,7 +279,7 @@ function setAppMode(mode: AppMode) {
 
   // The format filter only makes sense while picking a target format.
   topControlsMenu.classList.toggle("not-converter", mode !== "converter");
-  // The compression control is present in every mode — it just rebinds to that
+  // The compression control is present in every mode - it just rebinds to that
   // mode's own value and offers the levels that mode can honour.
   renderQualityOptions();
   syncQualityUI();
@@ -388,7 +388,7 @@ window.addEventListener("frog:set-mode", (e) => {
 
 // --- Compression setting ---
 // One control, three backing values. Every mode compresses something, so the
-// control is present in all three — hiding it anywhere made the setting look
+// control is present in all three - hiding it anywhere made the setting look
 // like it only existed where you last saw it. But the three mean different
 // things, and each carries its own default:
 //
@@ -401,7 +401,7 @@ window.addEventListener("frog:set-mode", (e) => {
 // asked to produce a new file, where reading the input and picking a level is
 // the better default than a fixed tier.
 //
-// Sharing one value across surfaces was tried and reverted — changing it in
+// Sharing one value across surfaces was tried and reverted - changing it in
 // one place silently moved the others.
 
 const qualityToggle = document.getElementById("quality-toggle")!;
@@ -420,7 +420,7 @@ type QualityBinding = {
   set: (v: string) => void;
   /**
    * The heading over the options. "Compression" alone is ambiguous once the
-   * control appears in three places — it never says compression *of what*.
+   * control appears in three places - it never says compression *of what*.
    * Each mode names the thing the level will actually be applied to.
    */
   title: string;
@@ -984,7 +984,7 @@ function deliverSharedToCompress(files: File[]) {
 window.addEventListener(COMPRESS_THESE_EVENT, (e) => {
   const files = (e as CustomEvent<{ files?: File[] }>).detail?.files ?? [];
   if (!files.length) {
-    // No files picked yet — the signpost can be reached from a bare format
+    // No files picked yet - the signpost can be reached from a bare format
     // choice. Still take them to the surface they asked for.
     if (currentAppMode !== "compress") { setAppMode("compress"); navigateTo("compress"); }
     return;

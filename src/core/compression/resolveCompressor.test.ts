@@ -47,7 +47,7 @@ beforeEach(() => {
     window.supportedFormatCache = new Map();
 });
 
-describe("resolveSameFormatHandler — engine routing", () => {
+describe("resolveSameFormatHandler - engine routing", () => {
     it("sends whitelisted raster images to ImageMagick", () => {
         const got = resolveSameFormatHandler(PNG, ALL);
         expect(got?.handler.name).toBe("ImageMagick");
@@ -77,18 +77,18 @@ describe("resolveSameFormatHandler — engine routing", () => {
     it("only matches formats as spelled in the registry", () => {
         // The whitelist check lowercases, but the support lookup compares
         // mime/format exactly, so the function is only half case-insensitive.
-        // Harmless today — every FileFormat originates from the app's own
-        // (lowercase) registry — but worth pinning so the asymmetry is a
+        // Harmless today - every FileFormat originates from the app's own
+        // (lowercase) registry - but worth pinning so the asymmetry is a
         // deliberate limitation rather than a surprise.
         expect(resolveSameFormatHandler(fmt("IMAGE/PNG", "PNG"), ALL)).toBeNull();
         expect(resolveSameFormatHandler(PNG, ALL)?.handler.name).toBe("ImageMagick");
     });
 });
 
-describe("resolveSameFormatHandler — refusals", () => {
+describe("resolveSameFormatHandler - refusals", () => {
     it("refuses formats outside the whitelist even when a handler claims them", () => {
         // SVG is in ImageMagick's supported list, but recompressing it would
-        // rasterise vector art — pass-through is the correct answer.
+        // rasterise vector art - pass-through is the correct answer.
         expect(resolveSameFormatHandler(SVG, ALL)).toBeNull();
     });
 
@@ -118,7 +118,7 @@ describe("resolveSameFormatHandler — refusals", () => {
     });
 });
 
-describe("resolveSameFormatHandler — quality argument", () => {
+describe("resolveSameFormatHandler - quality argument", () => {
     it("asks for the default preset on lossy formats", () => {
         expect(resolveSameFormatHandler(JPEG, ALL)?.args).toEqual(["--quality", "medium"]);
     });
@@ -190,7 +190,7 @@ describe("handlerSupportsFormat", () => {
     });
 });
 
-describe("resolveSameFormatHandler — PDF", () => {
+describe("resolveSameFormatHandler - PDF", () => {
     it("routes PDFs to Ghostscript", () => {
         const got = resolveSameFormatHandler(PDF, ALL);
         expect(got?.handler.name).toBe("Ghostscript");
@@ -199,7 +199,7 @@ describe("resolveSameFormatHandler — PDF", () => {
 
     it("never routes a PDF to the rasterising handlers", () => {
         // pdftoimg / canvas would turn the page into pixels, which is not
-        // compression — it discards the text layer and the vectors.
+        // compression - it discards the text layer and the vectors.
         const withRasterisers = optionsFor([
             handler("pdftoimg", [PDF]),
             handler("canvasToBlob", [PDF]),

@@ -12,7 +12,7 @@ _(Backup domain: [frogconvert.netlify.app](https://frogconvert.netlify.app/)) ·
 
 > Turn your file into the prince it always was.
 
-frogConvert runs entirely in your browser. Convert between 70+ file formats, compress images, audio, video and PDFs, and edit PDFs (merge, reorder, extract, watermark) — without uploading anything to a server. Also available as an MCP server and a local REST API for AI agents and scripts.
+frogConvert runs entirely in your browser. Convert between 70+ file formats, compress images, audio, video and PDFs, and edit PDFs (merge, reorder, extract, watermark) - without uploading anything to a server. Also available as an MCP server and a local REST API for AI agents and scripts.
 
 ## Quick start
 
@@ -73,6 +73,6 @@ The election matters because GPLv3 section 13 permits combining a covered work
 with AGPLv3 code, which is what allows the Ghostscript-based PDF compressor to
 ship. That engine is now part of the Compress mode rather than an optional
 extra, so AGPLv3 section 13's network-interaction requirement applies to the
-combination — which is why the hosted app links to its own source. The upstream
+combination - which is why the hosted app links to its own source. The upstream
 Ghostscript LICENSE is shipped alongside the binary at `/wasm/gs/LICENSE`.
 </details>

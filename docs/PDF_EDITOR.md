@@ -84,9 +84,9 @@ The tab bar (`Merge` / `Organize` / `Watermark`) supports `Arrow Left` / `Arrow 
 
 ## Shrinking a saved PDF
 
-The **PDF compression** control at the bottom of the settings menu (the control is titled for whichever mode you are in) defaults to **Original quality** — merging and watermarking are edits, not exports, so by default you get back exactly the document the editor built.
+The **PDF compression** control at the bottom of the settings menu (the control is titled for whichever mode you are in) defaults to **Original quality** - merging and watermarking are edits, not exports, so by default you get back exactly the document the editor built.
 
-Set it to anything else and every save (merge, organize, watermark, extract) runs its finished PDF through Ghostscript on the way to the download, at the same levels and with the same 98% keep-threshold the [Compress](COMPRESS.md) surface uses. If the result wouldn't be meaningfully smaller, or the engine can't run at all, the step is skipped and you get the uncompressed PDF — a completed edit is never lost to an optional extra.
+Set it to anything else and every save (merge, organize, watermark, extract) runs its finished PDF through Ghostscript on the way to the download, at the same levels and with the same 98% keep-threshold the [Compress](COMPRESS.md) surface uses. If the result wouldn't be meaningfully smaller, or the engine can't run at all, the step is skipped and you get the uncompressed PDF - a completed edit is never lost to an optional extra.
 
 Note that this only resamples **images**. A PDF that is mostly text won't shrink much at any level; see [COMPRESS.md § PDF compression, honestly](COMPRESS.md#pdf-compression-honestly).
 

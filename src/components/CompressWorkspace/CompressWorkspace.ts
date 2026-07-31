@@ -41,7 +41,7 @@ import {
 } from "../persistence/compressPersist.ts";
 
 /**
- * Compress workspace — the dedicated "make my files smaller" surface, a peer
+ * Compress workspace - the dedicated "make my files smaller" surface, a peer
  * of the Converter and the PDF Editor.
  *
  * Module-singleton like PdfWorkspace: state lives at module scope so switching
@@ -101,7 +101,7 @@ function isPdf(file: File): boolean {
 export function isLikelyCompressible(file: File): boolean {
   const mime = (file.type || "").toLowerCase();
   if (isPdf(file)) return true;
-  // SVG is the one image type we know up front we will never compress — it's
+  // SVG is the one image type we know up front we will never compress - it's
   // vector text, and the only thing a raster compressor could do to it is
   // rasterise it. Better to say so on the drop than after a batch. Anything
   // else images-ish is let through and gets an honest per-file answer, because
@@ -231,7 +231,7 @@ export async function runCompression() {
   // Compress used to paint its own bar inside the card, which meant the one
   // surface whose work takes longest was the one that looked like nothing was
   // happening. The shared modal already knows how to say all of this in
-  // compress vocabulary — see `modeCopy()` — and it brings the cancel button,
+  // compress vocabulary - see `modeCopy()` - and it brings the cancel button,
   // the escape-key binding and the "finishing this file" copy with it.
   resetCancellation();
   setActiveConversionMode("compress");
@@ -239,7 +239,7 @@ export async function runCompression() {
   // worker, so cancelling terminates it and the in-flight file is abandoned
   // rather than finished. Waiting was only ever an implementation detail of
   // the batch loop, and "finishing this file" can be many minutes on a large
-  // video — the one case where someone is most likely to want out.
+  // video - the one case where someone is most likely to want out.
   //
   // One narrow exception, stated honestly rather than papered over: the canvas
   // PDF fallback is a main-thread handler, so terminate() has nothing to kill.
@@ -273,7 +273,7 @@ export async function runCompression() {
 
   // Anything from here on has to leave `phase` somewhere the user can act
   // from. Without this the surface can strand itself on "Compressing…" with no
-  // way back but a reload — and `file.arrayBuffer()` really does reject when
+  // way back but a reload - and `file.arrayBuffer()` really does reject when
   // a picked file is moved or deleted before the batch runs.
   try {
     for (let i = 0; i < files.length; i++) {
@@ -509,7 +509,7 @@ function fileListMarkup(): string {
  *
  * With no downloadable results there is nothing to offer: every file either
  * came back unchanged or was never opened, and both are already on disk exactly
- * as they are here. Offering "Download 0 files" is worse than offering nothing —
+ * as they are here. Offering "Download 0 files" is worse than offering nothing -
  * it is a button whose only outcome is a toast explaining why it did nothing.
  * Stopping a batch before the first file finishes is the ordinary way to reach
  * this, so it is not a rare state.
@@ -530,7 +530,7 @@ function resultsMarkup(): string {
 
   // "Already as small as they get" is only true when we actually tried. If
   // every file was a format we cannot compress, saying that is a lie about
-  // the files — the honest answer is that we could not help.
+  // the files - the honest answer is that we could not help.
   const noneSupported = results.length > 0 && results.every(r => r.reason === "unsupported");
   // Stopping early leaves files untouched by request, not by failure. Saying
   // "nothing left to shave off" about files we never opened is just untrue.
@@ -552,7 +552,7 @@ function resultsMarkup(): string {
         ? `Nothing i can compress here`
         // Deliberately not "nothing left to shave off": at an explicit level
         // that is a claim about the file we cannot support, and the note right
-        // below it goes on to suggest trying another level — the headline was
+        // below it goes on to suggest trying another level - the headline was
         // contradicting its own advice. Saying no more than what happened
         // leaves the two consistent, and works for one file or many.
         : `No smaller at this level`;
@@ -628,8 +628,8 @@ function resultsMarkup(): string {
 
 // The privacy promise deliberately lives in #compress-description, the page
 // line below the card, and not here as well. This surface used to state it
-// twice in a row — "Nothing leaves your device" immediately above "without
-// sending them anywhere" — which reads as padding rather than reassurance.
+// twice in a row - "Nothing leaves your device" immediately above "without
+// sending them anywhere" - which reads as padding rather than reassurance.
 // One line, in the same place the Converter and PDF Editor put theirs.
 
 function actionMarkup(): string {
@@ -761,7 +761,7 @@ function wireRendered() {
     });
     // Escape is bound at document level, not on the menu. Opening the dropdown
     // leaves focus on the *trigger*, so a keydown listener on the menu only
-    // fired once the user had already arrowed into it — meaning Escape did
+    // fired once the user had already arrowed into it - meaning Escape did
     // nothing in the ordinary case of "I opened this by mistake".
     //
     // That is worse than it sounds on a narrow screen: the menu overlays the
@@ -839,7 +839,7 @@ export function initCompressWorkspace() {
     window.addEventListener("pagehide", () => { void flushCompressOnHide(); });
     // The settings menu shows the same level as the card's own picker. Repaint
     // when it changes there, so the two views never disagree. Events the card
-    // raised itself are ignored — it has already rendered.
+    // raised itself are ignored - it has already rendered.
     window.addEventListener("frog:compress-level", (e) => {
       if ((e as CustomEvent).detail?.from === "card") return;
       if (rootEl) render();
@@ -864,7 +864,7 @@ function resolveRefs() {
 /**
  * The category pills above the card. On the Converter they filter a format
  * list; there is no such list here, so they do the job the user actually came
- * for — they state what this surface accepts, and tapping one opens the picker
+ * for - they state what this surface accepts, and tapping one opens the picker
  * already narrowed to that kind of file. Wired once at init: they live outside
  * `#compress-content` and so survive every re-render.
  */
@@ -892,7 +892,7 @@ export function cleanup() {
   rootEl = null;
 }
 
-/** Destructive reset — clears the batch and the chosen level. */
+/** Destructive reset - clears the batch and the chosen level. */
 export function resetAll() {
   files = [];
   setCompressLevel(DEFAULT_LEVEL);

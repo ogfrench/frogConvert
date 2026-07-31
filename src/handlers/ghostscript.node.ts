@@ -9,20 +9,20 @@ import {
 } from "../core/ghostscript/convert.ts";
 
 /**
- * Ghostscript-WASM for Node/Bun — the MCP, REST and CLI surfaces.
+ * Ghostscript-WASM for Node/Bun - the MCP, REST and CLI surfaces.
  *
  * A sibling of `ghostscript.ts` rather than a branch inside it. The browser
  * build reaches the engine over HTTP (`/wasm/gs`, copied there by
  * vite-plugin-static-copy) and reports download progress; here the files are
  * simply on disk in node_modules. Merging the two would mean either shipping
  * `node:fs`/`node:module` imports into the browser bundle or hiding them behind
- * specifier tricks to fool the bundler — both worse than one small sibling that
+ * specifier tricks to fool the bundler - both worse than one small sibling that
  * shares the part that actually matters, `ghostscriptArgs()`.
  *
  * Two details make this work at all, neither obvious:
  *
  *  - `gs.js` is a UMD. Under `require()` it assigns `module.exports`, so the
- *    require call yields the factory directly — unlike `gs.mjs`, whose Node
+ *    require call yields the factory directly - unlike `gs.mjs`, whose Node
  *    branch resolves the wasm through a `file://` URL that `fetch` rejects.
  *  - `instantiateWasm` bypasses Emscripten's own binary lookup. Without it the
  *    loader resolves gs.wasm against `document.currentScript` and fails
@@ -116,7 +116,7 @@ class GhostscriptNodeHandler implements FormatHandler {
     // ever present in a given registry.
     public name = "Ghostscript";
 
-    // Kept in step with the browser handler's list on purpose — the agent
+    // Kept in step with the browser handler's list on purpose - the agent
     // surfaces should not offer a different menu from the web UI.
     public supportedFormats: FileFormat[] = [
         CommonFormats.PDF.supported("pdf", true, true),

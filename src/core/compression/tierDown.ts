@@ -20,7 +20,7 @@ export function tierDown(inputTier: InputTier, mime = ""): TierDownResult {
       case "uncompressed": return { kind: "compress", tier: "medium" };
       case "hq":           return { kind: "compress", tier: "medium" };
       // An ordinary phone photo lands here. It used to map to `low`, which was
-      // harmless while `low` meant q82-and-no-resize — and would now hand
+      // harmless while `low` meant q82-and-no-resize - and would now hand
       // someone who asked for nothing in particular a 1920 px q65 image.
       // Automatic has to stay the safe answer; `low` is the escape hatch for
       // people who went looking for it.
@@ -38,7 +38,7 @@ export function tierDown(inputTier: InputTier, mime = ""): TierDownResult {
   // Ghostscript's lower presets decode embedded JPEG2000 and re-encode it, and
   // on a modern well-produced PDF that trade goes the wrong way. Measured on a
   // 71-page research brief: /screen grew it 42%, /ebook grew it 65%, /printer
-  // shrank it 18%. A 59-page report shrank at all three (56%/32%/37%) — so
+  // shrank it 18%. A 59-page report shrank at all three (56%/32%/37%) - so
   // /printer is the only preset that helped both.
   //
   // Automatic therefore aims for the reliable win rather than the largest one:

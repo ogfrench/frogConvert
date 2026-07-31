@@ -6,7 +6,7 @@ import { detectPostScriptFlavour, wantsEpsCrop } from "./postscriptInput.ts";
  * The conversion half of the Ghostscript handlers, shared by the browser and
  * Node siblings.
  *
- * Those two exist separately because they *load* the engine differently — over
+ * Those two exist separately because they *load* the engine differently - over
  * HTTP with progress against straight off disk. What they do once it is loaded
  * is identical, and duplicating that was how the compression path and the
  * conversion path would drift apart. Everything here is engine-agnostic: it
@@ -61,7 +61,7 @@ function stripExtension(name: string): string {
 }
 
 export type GsConversionRequest = {
-    /** A fresh Emscripten instance. Called once — `callMain` is not re-entrant. */
+    /** A fresh Emscripten instance. Called once - `callMain` is not re-entrant. */
     createInstance: () => Promise<GsInstance>;
     file: FileData;
     /** Lower-cased extension of the *input*, e.g. `eps`. Picks `-dEPSCrop`. */
@@ -133,7 +133,7 @@ export async function runGhostscriptConversion(req: GsConversionRequest): Promis
     }
 
     // Ghostscript exits 0 having written something unusable more often than is
-    // comfortable — an empty file for an unreadable input, or the wrong device's
+    // comfortable - an empty file for an unreadable input, or the wrong device's
     // output entirely. The compression path already learned this; check here too
     // rather than handing the user a file that will not open.
     for (const out of outputs) {

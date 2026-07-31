@@ -6,7 +6,7 @@ import type { PdfQuality } from "../components/store/store.ts";
 /**
  * Run a finished PDF through Ghostscript on its way out.
  *
- * The PDF editor's jobs — merge, organize, watermark, extract — are edits, not
+ * The PDF editor's jobs - merge, organize, watermark, extract - are edits, not
  * exports, so by default they hand back exactly the document they built. When
  * the user sets the Compression control to anything but Original quality, the
  * result goes through the same engine and the same rules the Compress surface
