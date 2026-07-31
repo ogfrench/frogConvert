@@ -89,6 +89,16 @@ Start the API with `bun run api` (port 3000).
 - [ ] `level=lossless` is **rejected with a 400**, not silently accepted.
 - [ ] A file with nothing to give (a small vector PDF) comes back with
       `shrunk: false` and a reason, and its **original bytes**.
+- [ ] **Send something with no compressor at all** (rename a text file to
+      `notes.xyz`). You must get your file back **at its original size**, with
+      `shrunk: false`, `reason: "unsupported"` and `savedPercent: 0`. This was
+      broken: it returned *zero bytes* and claimed a 100% saving.
+- [ ] Same check through MCP with `outputFilePath` set: the file on disk must
+      be a **real file**, not 0 bytes. This is the one that could destroy data.
+- [ ] Send an **MP4 or MP3**. Expect `shrunk: false`, `reason: "unsupported"`,
+      original bytes back. FFmpeg does not run under Node, and compression has
+      no browser-bridge fallback. Correct, documented, and *not* a regression -
+      but confirm it fails honestly rather than emitting an empty file.
 - [ ] In an MCP client, `compress_file` appears in the tool list and compresses
       a file given `filePath` + `outputFilePath`.
 - [ ] Sanity check the thing that was broken: `POST /convert` with `pdf` in and
@@ -148,3 +158,8 @@ Start the API with `bun run api` (port 3000).
   it runs on the main thread and there is nothing to terminate.
 - Same-format `POST /convert` returns the file unchanged. Not a regression -
   it never compressed, and `/compress` is now the supported route.
+- **Video and audio do not compress over REST/MCP**, only in the browser.
+  `ffmpeg.wasm` has never run under Node; `convert` hides this with a
+  headless-browser bridge, `compress` has no such fallback and says
+  `unsupported` instead. Documented in `docs/INTEGRATIONS.md`. Worth its own
+  issue after v3 - the bridge already exists, it is just not wired to compress.

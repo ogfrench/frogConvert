@@ -133,6 +133,53 @@ describe("POST /compress", () => {
         expect(files[1].shrunk).toBe(true);
     });
 
+    it("returns the original bytes for a file it could not compress", async () => {
+        // The defect this pins: `compressBatch` skips the read when it can
+        // decide from the format alone, so an unsupported file came back with
+        // *zero* bytes - reported as `savedPercent: 100`. Over the API that is
+        // a 0-byte download; through `compress_file` with an output path it is
+        // a 0-byte file written to disk. "Could not compress" has to mean the
+        // caller still gets their file.
+        const res = await handleCompress(json({
+            files: [{ fileName: "notes.xyz", base64Bytes: b64(4000) }],
+        }), handlers);
+
+        const [file] = (await res.json()).files;
+        expect(file.shrunk).toBe(false);
+        expect(file.compressedSize).toBe(4000);
+        expect(file.savedBytes).toBe(0);
+        expect(file.savedPercent).toBe(0);
+        expect(Buffer.from(file.base64Bytes, "base64").byteLength).toBe(4000);
+    });
+
+    it("sends back a real file, not an empty one, when multipart hits an unsupported format", async () => {
+        // The multipart branch is where an empty body is least recoverable:
+        // the bytes *are* the response, so a 0-byte download is all the caller
+        // gets and nothing in the payload says so.
+        const res = await handleCompress(multipart("notes.xyz", 4000), handlers);
+
+        expect(res.status).toBe(200);
+        expect((await res.arrayBuffer()).byteLength).toBe(4000);
+        expect(JSON.parse(res.headers.get("X-Compress-Report")!)).toMatchObject({
+            shrunk: false, compressedSize: 4000, savedPercent: 0,
+        });
+    });
+
+    it("returns the original bytes for a file too small to be worth compressing", async () => {
+        // Same empty-bytes path, reached a different way: under
+        // MIN_COMPRESSIBLE_BYTES the size alone decides and the read is
+        // skipped. A 100-byte icon is a far more ordinary thing to hand an
+        // agent than an unknown extension.
+        const res = await handleCompress(json({
+            files: [{ fileName: "icon.jpg", base64Bytes: b64(100) }],
+        }), handlers);
+
+        const [file] = (await res.json()).files;
+        expect(file.shrunk).toBe(false);
+        expect(file.compressedSize).toBe(100);
+        expect(Buffer.from(file.base64Bytes, "base64").byteLength).toBe(100);
+    });
+
     it("refuses a body it cannot read", async () => {
         expect((await handleCompress(json({ level: "low" }), handlers)).status).toBe(400);
         const wrongType = new Request("http://x/compress", {

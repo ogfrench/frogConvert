@@ -138,9 +138,24 @@ export async function compressForAgents(
         },
     });
 
-    return outcomes.map(o => ({
+    // A file that was not shrunk must come back as the bytes that were sent.
+    //
+    // `compressBatch` does not always supply them. When it can decide from the
+    // format or the declared size alone - unsupported format, engine missing,
+    // file under the minimum - it skips the read entirely and returns an empty
+    // array. That is right for the browser, which still holds the file and only
+    // needs to be told nothing happened. It is wrong here: an agent sent its
+    // bytes over a socket and has nothing to fall back on, so empty means the
+    // file is gone. Left unhandled, `compress_file` writes a **zero-byte file**
+    // over its output path and reports it as a 100% saving.
+    //
+    // The inputs are index-aligned with the outcomes (`compressBatch` returns
+    // `inputs.map((_, i) => results.get(i)!)`), so the original is always to
+    // hand. For the outcomes that *do* carry bytes when unshrunk, those bytes
+    // are the original anyway, which is why this can key off `shrunk` alone.
+    return outcomes.map((o, i) => ({
         name: o.name,
-        bytes: o.bytes,
+        bytes: o.shrunk ? o.bytes : inputs[i]!.bytes,
         originalSize: o.originalSize,
         shrunk: o.shrunk,
         reason: o.reason,
