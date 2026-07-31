@@ -11,6 +11,7 @@ import {
     allOptionsRef,
     CATEGORY_LABELS,
     convertQuality,
+    CONVERT_QUALITY_CHOICES,
 } from "../components/store/store.ts";
 import { escapeHTML } from "../components/utils/index.ts";
 import {
@@ -26,7 +27,6 @@ import {
     setCanHardCancel,
     setCurrentFileProgress,
     setActiveConversionMode,
-    getActiveConversionMode,
     completeCancellation,
     showPartialDownloadPopup,
     showEnginesLoadingPopup,
@@ -76,6 +76,17 @@ function formatConversionPath(path: ConvertPathNode[]): string {
 
 // Tracks the last runtime error from a handler (distinct from "no path exists")
 let _lastConversionError: UserErrorInfo | null = null;
+/**
+ * The quality the last route actually ran at, with "Automatic" already
+ * resolved to the tier it chose.
+ *
+ * The Converter defaults to Original quality, so any other value is a setting
+ * the user went and changed - and until now the only confirmation that it had
+ * been honoured was the file size, on a conversion where the format change
+ * moves that anyway. Naming the level is the honest version: it reports the
+ * setting, not a saving it cannot attribute.
+ */
+let _lastAppliedQuality: QualityPreset | null = null;
 
 /** Called once after a conversion completes, then cleared. Used to defer work that is unsafe to run mid-conversion. */
 let onConversionEnd: (() => void) | null = null;
@@ -191,6 +202,10 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
             files.map(f => ({ bytes: f.bytes, mime: path[0]?.format.mime ?? "" })),
         )
         : convertQuality.value;
+    // Kept for the success modal, which is the only place the user finds out
+    // this happened. Automatic resolves to a real tier here and nowhere else,
+    // so recording the resolved answer is the only way to name it afterwards.
+    _lastAppliedQuality = requestedQuality;
 
     for (let i = 0; i < path.length - 1; i++) {
         if (isCancelled) return null;
@@ -378,6 +393,78 @@ function showConversionFailedPopup(fromFormat: string, toFormat: string, error: 
     );
 }
 
+/**
+ * The one sentence the success modal says about what just happened.
+ *
+ * Pulled out of the click handler so it can be read and tested on its own -
+ * the handler around it needs a format graph, live handlers and a popup to
+ * reach this point, which is why the copy went unverified for so long.
+ *
+ * Returns HTML: the caller assigns it with innerHTML, so every interpolated
+ * value is escaped here.
+ */
+export function conversionResultText(opts: {
+    /** Files the user dropped. */
+    fileCount: number;
+    /** Files produced. Not always the same number. */
+    outCount: number;
+    firstInputName: string;
+    /** Target format, upper-cased. */
+    format: string;
+    /** "converted" / "compressed", from the active mode. */
+    verb: string;
+    /** Level the route ran at, Automatic already resolved. Null when none ran. */
+    applied: QualityPreset | null;
+    /** What the *setting* says, so Automatic can be named as Automatic. */
+    requested: string;
+}): string {
+    const { fileCount, outCount, firstInputName, verb, applied, requested } = opts;
+    const fmt = escapeHTML(opts.format);
+    const first = `<b>${escapeHTML(shortenFileName(firstInputName, 32))}</b>`;
+
+    // How many went in, and how many came out.
+    //
+    // These are not always the same number, and this used to report the output
+    // count as though it were the input one - so a single 3-page PDF converted
+    // to EPS, which the format requires to be one file per page, announced
+    // "3 files converted". The user converted one. Where they differ, say
+    // both: the second number is the surprising one, and is the whole reason
+    // this release had to document the behaviour.
+    let text: string;
+    if (outCount > fileCount) {
+        const subject = fileCount === 1 ? first : `${fileCount} files`;
+        text = `${subject} became <b>${outCount} ${fmt} files</b>, one per page, zipped up for you and downloading now.`;
+    } else if (outCount > 1) {
+        text = `${outCount} files ${verb} to <b>${fmt}</b> and zipped up for you, downloading now.`;
+    } else {
+        text = `${first} has been ${verb} to <b>${fmt}</b> and is downloading now.`;
+    }
+
+    // One clause when the conversion also compressed, and nothing at all when
+    // it did not.
+    //
+    // The Converter defaults to Original quality, so reaching this at any
+    // other level means the user went to the settings menu and asked for it.
+    // Confirming it was honoured is the least the modal can do; until now the
+    // only evidence was the file size, on the one operation where the format
+    // change moves that anyway.
+    //
+    // It names the level rather than a saving, deliberately. A PNG -> JPG is
+    // smaller because it is a JPEG, and crediting that to the compression dial
+    // would be a number the app cannot stand behind. The level is a fact about
+    // what was asked for and done. Automatic is named by the tier it resolved
+    // to *and* as Automatic, since "Balanced" alone would look like a setting
+    // the user never chose.
+    if (applied && applied !== "lossless") {
+        // Label from the shared menu, so the modal cannot call a level
+        // something the settings menu does not.
+        const label = CONVERT_QUALITY_CHOICES.find(c => c.value === applied)?.label ?? applied;
+        const suffix = requested === "auto" ? " (Automatic)" : "";
+        text += ` Compressed at <b>${escapeHTML(label)}</b>${escapeHTML(suffix)}.`;
+    }
+    return text;
+}
+
 // --- Main convert action ---
 
 export function initConvertButton() {
@@ -413,6 +500,7 @@ export function initConvertButton() {
 
             const conversionStartTime = performance.now();
             resetCancellation();
+            _lastAppliedQuality = null;
 
             const inputOption = allOptionsRef.value[selectedFromIndex.value];
             const outputOption = allOptionsRef.value[selectedToIndex.value];
@@ -609,36 +697,19 @@ export function initConvertButton() {
             if (isCancelled) return;
 
             const isBatch = allOutputFiles.length > 1;
-            // Compression summary: built when at least one file was successfully
-            // compressed by the same-format dispatcher (`originalBytes` set).
-            const compressedFiles = allOutputFiles.filter(f => f.originalBytes != null);
-            const didCompress = compressedFiles.length > 0;
             // Title follows user intent (_activeMode), not byte shrinkage. A
             // cross-format convert that happens to shrink shouldn't rename
             // itself "File compressed!" on the success popup.
             const successTitle = isBatch ? modeCopy().successTitleBatch : modeCopy().successTitleSingle;
-            let resultText: string;
-            if (didCompress) {
-                const totals = compressedFiles.reduce(
-                    (acc, f) => ({
-                        orig: acc.orig + (f.originalBytes ?? 0),
-                        comp: acc.comp + f.bytes.byteLength,
-                    }),
-                    { orig: 0, comp: 0 },
-                );
-                const saved = totals.orig - totals.comp;
-                const pct = totals.orig > 0 ? Math.round((saved / totals.orig) * 100) : 0;
-                if (isBatch) {
-                    resultText = `<b>${compressedFiles.length} file${compressedFiles.length === 1 ? "" : "s"}</b> compressed, saved <b>${escapeHTML(formatBytes(saved))}</b> (${pct}% smaller) and is downloading now.`;
-                } else {
-                    const first = compressedFiles[0];
-                    resultText = `<b>${escapeHTML(shortenFileName(first.name, 32))}</b> is smaller now: <b>${escapeHTML(formatBytes(first.originalBytes ?? 0))} to ${escapeHTML(formatBytes(first.bytes.byteLength))}</b> (${pct}% smaller) and is downloading now.`;
-                }
-            } else {
-                resultText = isBatch
-                    ? `${allOutputFiles.length} files ${modeCopy().verb} to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and zipped up for you, downloading now.`
-                    : `<b>${escapeHTML(shortenFileName(inputFiles[0].name, 32))}</b> has been ${modeCopy().verb} to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and is downloading now.`;
-            }
+            const resultText = conversionResultText({
+                fileCount,
+                outCount: allOutputFiles.length,
+                firstInputName: inputFiles[0].name,
+                format: outputFormat.format.toUpperCase(),
+                verb: modeCopy().verb,
+                applied: _lastAppliedQuality,
+                requested: convertQuality.value,
+            });
 
             const h2 = document.createElement("h2");
             h2.textContent = successTitle;
@@ -755,15 +826,17 @@ export function initConvertButton() {
             // can throw), but `isConverting = false` MUST run or the whole app
             // freezes in "Converting…" state with no path back.
             try {
-                // In compression mode, "successfully compressed" only describes
-                // files that actually shrunk (originalBytes set). Pass-through
-                // and already-minimal files are in allOutputFiles too but don't
-                // count, the user already has those bytes. In convert mode,
-                // every entry is a real conversion output so all of them count.
-                const isCompressionMode = getActiveConversionMode() === "compress";
-                const meaningfulFiles = isCompressionMode
-                    ? allOutputFiles.filter(f => f.originalBytes != null)
-                    : allOutputFiles;
+                // Every entry here is a real conversion output, so a cancelled
+                // run offers all of the ones that finished.
+                //
+                // This used to branch on compression mode and filter by
+                // `originalBytes`, a field nothing in the codebase has ever
+                // set - so the filter always emptied the list. It never fired
+                // because Compress does not run through this handler at all
+                // (it has its own loop and its own results card, and is the
+                // only caller of `setActiveConversionMode("compress")`). Two
+                // dead paths keyed on a dead field.
+                const meaningfulFiles = allOutputFiles;
                 const hasMeaningfulFiles = meaningfulFiles.length > 0;
                 const shouldHide = !isCancelled || !hasMeaningfulFiles;
                 await completeCancellation(shouldHide);

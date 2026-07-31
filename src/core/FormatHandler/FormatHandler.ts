@@ -148,12 +148,6 @@ export interface FileData {
    * `.convert-notice` card in the post-conversion result area.
    */
   notices?: Notice[];
-  /**
-   * Byte count of the input file before compression. Set only by the
-   * same-format compression path so the success popup can show a size
-   * delta. Absent for normal cross-format conversions.
-   */
-  originalBytes?: number;
 }
 
 /**

@@ -672,10 +672,27 @@ function resultsMarkup(): string {
           ? `These formats aren't ones i can compress. Images, audio, video and PDFs are.`
           : `That format isn't one i can compress. Images, audio, video and PDFs are.`
         : many
-          ? `Your originals are untouched, and still yours to keep.`
+          // Names the count, because the list below is capped and the rows
+          // can no longer be counted by eye.
+          ? `All ${results.length} are untouched, and still yours to keep.`
           : `Your original is untouched, and still yours to keep.`;
 
-  const rows = results.map(r => {
+  // A results list is a summary, not a manifest.
+  //
+  // 300 files is a legal batch, and every one of them used to become a row -
+  // a scroll container holding thousands of pixels of near-identical lines,
+  // with the headline and the buttons pushed to either end of it. The rows
+  // that carry information are the ones that *did* something, so those come
+  // first and the rest are counted rather than listed.
+  //
+  // The cap is per-run, not persisted: pressing "Try another level" rebuilds
+  // this from the new results.
+  const ROW_CAP = 8;
+  const ordered = [...results].sort((a, b) => Number(b.shrunk) - Number(a.shrunk));
+  const shown = ordered.slice(0, ROW_CAP);
+  const hidden = ordered.length - shown.length;
+
+  const rows = shown.map(r => {
     const detail = r.shrunk
       ? `<span class="cw-res-from">${formatBytes(r.originalSize)}</span>
          <span class="cw-res-arrow" aria-hidden="true">→</span>
@@ -689,7 +706,12 @@ function resultsMarkup(): string {
         <span class="cw-res-detail">${detail}</span>
       </li>
     `;
-  }).join("");
+  }).join("") + (hidden > 0
+    // Not a row: it names no file and must not read as one. It closes the
+    // list rather than hiding a scrollbar's worth of content behind a
+    // gesture nobody is told about.
+    ? `<li class="cw-res-more">and ${hidden} more file${hidden === 1 ? "" : "s"}</li>`
+    : "");
 
   // A PDF that came back no smaller has two quite different explanations and
   // we cannot tell them apart from here, so the note names both rather than

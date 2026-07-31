@@ -844,7 +844,9 @@ describe('CompressWorkspace - singular and plural', () => {
     ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('b.png', 'image/png')]);
     await ws.runCompression();
     const head = document.querySelector('.cw-results-head')!.textContent!;
-    expect(head).toMatch(/Your originals are untouched/);
+    // Names the count, because the row list is capped and can no longer be
+    // counted by eye.
+    expect(head).toMatch(/All 2 are untouched/);
   });
 
   it('speaks in the singular when only one format was unsupported', async () => {
@@ -855,6 +857,60 @@ describe('CompressWorkspace - singular and plural', () => {
     await ws.runCompression();
     const head = document.querySelector('.cw-results-head')!.textContent!;
     expect(head).toMatch(/That format isn't one i can compress/);
+  });
+});
+
+describe('CompressWorkspace - the results list stays a summary', () => {
+  const batch = (n: number, shrunkCount = 0) =>
+    [...Array(n)].map((_, i) => ({
+      name: `f${String(i).padStart(3, '0')}.png`,
+      bytes: new Uint8Array(i < shrunkCount ? 400 : 900),
+      originalSize: 1000,
+      shrunk: i < shrunkCount,
+      reason: i < shrunkCount ? undefined : 'no-gain',
+    })) as any;
+
+  it('caps the rows and counts the rest', async () => {
+    // 300 files is a legal batch. Every one of them used to become a row.
+    compressBatchMock.mockResolvedValue(batch(40));
+    ws.handleFiles([...Array(40)].map((_, i) => fakeFile(`f${String(i).padStart(3, '0')}.png`, 'image/png')));
+    await ws.runCompression();
+
+    expect(document.querySelectorAll('.cw-res-row')).toHaveLength(8);
+    expect(document.querySelector('.cw-res-more')!.textContent!.trim()).toBe('and 32 more files');
+  });
+
+  it('lists every file when the batch is small enough to fit', async () => {
+    compressBatchMock.mockResolvedValue(batch(3));
+    ws.handleFiles([...Array(3)].map((_, i) => fakeFile(`f${String(i).padStart(3, '0')}.png`, 'image/png')));
+    await ws.runCompression();
+
+    expect(document.querySelectorAll('.cw-res-row')).toHaveLength(3);
+    expect(document.querySelector('.cw-res-more')).toBeNull();
+  });
+
+  it('shows the files that did something, not the first eight alphabetically', async () => {
+    // The two that shrank are last by name. A plain slice would drop exactly
+    // the rows carrying information and keep eight identical "no gain" lines.
+    const rows = batch(20);
+    rows[18].shrunk = true; rows[18].bytes = new Uint8Array(400); rows[18].reason = undefined;
+    rows[19].shrunk = true; rows[19].bytes = new Uint8Array(400); rows[19].reason = undefined;
+    compressBatchMock.mockResolvedValue(rows);
+    ws.handleFiles([...Array(20)].map((_, i) => fakeFile(`f${String(i).padStart(3, '0')}.png`, 'image/png')));
+    await ws.runCompression();
+
+    const shown = [...document.querySelectorAll('.cw-res-row')];
+    expect(shown).toHaveLength(8);
+    expect(shown.filter(r => r.classList.contains('shrunk'))).toHaveLength(2);
+    expect(shown[0].textContent).toContain('f018.png');
+    expect(shown[1].textContent).toContain('f019.png');
+  });
+
+  it('states the total, since the rows can no longer be counted by eye', async () => {
+    compressBatchMock.mockResolvedValue(batch(40));
+    ws.handleFiles([...Array(40)].map((_, i) => fakeFile(`f${String(i).padStart(3, '0')}.png`, 'image/png')));
+    await ws.runCompression();
+    expect(document.querySelector('.cw-results-sub')!.textContent).toMatch(/All 40 are untouched/);
   });
 });
 
