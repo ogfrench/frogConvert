@@ -35,6 +35,26 @@ export const hasImageToTxt = await canResolve("../../src/handlers/image-to-txt/s
 /** True when the whole handler registry can load, which the app itself needs. */
 export const hasFullRegistry = hasXlsx && hasImageToTxt;
 
+/**
+ * A skip guard that silently skips *everywhere* is worse than the failure it
+ * replaced: the suite goes green having tested nothing, and nobody finds out.
+ *
+ * CI installs both dependencies (`bun i --frozen-lockfile` plus
+ * `submodules: recursive`), so a false probe there means this file is broken,
+ * not that the environment is limited. Fail loudly instead of skipping.
+ */
+const inGitHubActions =
+    typeof process !== "undefined" && process.env?.GITHUB_ACTIONS === "true";
+
+if (inGitHubActions && !hasFullRegistry) {
+    throw new Error(
+        "optionalDeps probe reported a missing dependency inside GitHub Actions " +
+        `(xlsx=${hasXlsx}, image-to-txt=${hasImageToTxt}). CI installs both, so the ` +
+        "probe itself is wrong and is hiding real test coverage. Fix the probe " +
+        "rather than the skip.",
+    );
+}
+
 /** Message shown next to a skip so the reason is never a mystery. */
 export const MISSING_DEPS_REASON =
     "needs xlsx (cdn.sheetjs.com) and/or the image-to-txt submodule (git.sr.ht); " +
