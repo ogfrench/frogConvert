@@ -39,7 +39,7 @@ For installation and CLI usage, see [DEPLOYMENT.md § CLI](DEPLOYMENT.md#cli-no-
 
 ## MCP Tools Reference
 
-Seven tools, all over `stdio`: one metadata (`list_formats`), two conversion (`find_conversion_path`, `convert_file`), four PDF editing (`pdf_merge`, `pdf_organize`, `pdf_extract`, `pdf_watermark`).
+Eight tools, all over `stdio`: one metadata (`list_formats`), two conversion (`find_conversion_path`, `convert_file`), one compression (`compress_file`), four PDF editing (`pdf_merge`, `pdf_organize`, `pdf_extract`, `pdf_watermark`).
 
 1. **`list_formats`**
    - **Description**: Returns a JSON array of all supported input and output formats available in the Node.js environment.
@@ -62,7 +62,7 @@ Seven tools, all over `stdio`: one metadata (`list_formats`), two conversion (`f
      | `outputMime` | required | Output MIME type. |
      | `outputExtension` | required | Output format extension. |
      | `outputFilePath` | optional | Absolute path where the output file should be saved. **Strongly recommended for large outputs** - avoids returning megabytes of base64 through the context window. |
-     | `quality` | optional | Quality preset: `"low"`, `"medium"`, `"high"`, or `"lossless"`. When omitted: cross-format requests use `"medium"`; same-format (compression) requests probe the input and pick a tier automatically, matching the web UI's Automatic. See [Quality preset](#quality-preset). |
+     | `quality` | optional | Quality preset: `"low"`, `"medium"`, `"high"`, or `"lossless"`. Applies to the re-encode a *cross-format* conversion performs; when omitted it is `"medium"`. To make a file smaller without changing its format, use [`compress_file` / `POST /compress`](#compression) instead. See [Quality preset](#quality-preset). |
    - **Description**: The core execution tool. Routes the file through the handler chain and returns all output files.
    - **Returns**:
      - When `outputFilePath` is omitted - a JSON array of output files:
@@ -200,7 +200,7 @@ Returns `400` on bad input, `413` if the file exceeds `MAX_UPLOAD_MB`, `415` if 
 
 #### Quality preset
 
-Both `POST /convert` and the MCP `convert_file` tool accept an optional `quality` preset. When omitted, a cross-format request runs at `"medium"`; a same-format (compression) request probes the input and picks a tier itself, the same Automatic behaviour the web UI defaults to, and may return the original untouched when the file is already at minimum useful quality.
+Both `POST /convert` and the MCP `convert_file` tool accept an optional `quality` preset, which governs the re-encode a conversion performs. When omitted it is `"medium"`. Compression has its own level parameter on its own endpoint - see [Compression](#compression).
 
 The preset is a request-level parameter here. The web UI's equivalent settings - **Compression** in the Converter's settings menu and the level picker on the **Compress** surface - are per-surface browser preferences stored in `localStorage`; they do not reach the API or MCP server, which run in a separate process. Pass `quality` explicitly to get a specific tier.
 
@@ -226,11 +226,58 @@ runs lossless, since a quality knob can't shrink it.
 This rule is shared by every surface - web UI, REST, MCP and CLI - so the same
 file and the same `quality` produce the same result whichever way you convert.
 
-### Same-format compression
+### Compression
 
-Both `POST /convert` and the MCP `convert_file` tool support **same-format compression**. Passing identical input and output formats (e.g. `inputExt: png`, `outputExt: png`) re-encodes the file using the specified `quality` preset to reduce its size. 
+Compression has its own endpoint and its own tool: **`POST /compress`** and **`compress_file`**. Use those, not `convert_file` with the same format twice.
 
-A **smart size-guard** is active: if the "compressed" result is larger than the original or saves less than 2% of the space, once conversion is complete, the original file is returned instead. This ensures you never pay for a re-encode with a larger file.
+> **Changed in v3.0.0.** Earlier documentation described same-format `convert` as the way to compress. It did not work: a same-format request resolves to a zero-hop path through the conversion graph and the runner executes no steps, so the input came straight back. Measured, a 10 MB image-heavy PDF returned byte-identical at every preset while the browser shrank the same file by 89%. Same-format `convert` still returns your file unchanged; it is simply not a compressor, and nothing about the fix changed cross-format conversion.
+
+Both surfaces share the engine selection, the level vocabulary and the 98% keep-threshold with the browser's Compress surface, so a rule added in one place reaches all three.
+
+**Levels:** `auto` (default), `high`, `medium`, `low`. `auto` probes each file and picks a level for it, exactly as the web UI does. There is deliberately **no `lossless`**: as a compression level it can only mean "do nothing", and the endpoint rejects it rather than silently substituting something else.
+
+**The keep-threshold is real here.** If a re-encode saves less than 2%, the original bytes are returned and the report says `shrunk: false` with a reason. You never pay for a re-encode with a larger file.
+
+#### `POST /compress`
+
+Multipart returns the bytes as a download with the report in an `X-Compress-Report` header:
+
+```bash
+curl -X POST http://localhost:3000/compress \
+  -F "file=@scan.pdf" -F "level=low" \
+  -D headers.txt -o scan-small.pdf
+```
+
+JSON returns the report with the bytes inline, and accepts a batch:
+
+```bash
+curl -X POST http://localhost:3000/compress \
+  -H "Content-Type: application/json" \
+  -d '{"level":"low","files":[{"fileName":"a.pdf","base64Bytes":"..."}]}'
+```
+
+```json
+{
+  "level": "low",
+  "files": [
+    { "name": "a.pdf", "originalSize": 10141096, "compressedSize": 128053,
+      "savedBytes": 10013043, "savedPercent": 98.7, "shrunk": true,
+      "base64Bytes": "..." }
+  ]
+}
+```
+
+#### `compress_file` (MCP)
+
+| Field | Required | Notes |
+|---|---|---|
+| `filePath` | one of | Absolute path. Preferred for large files - base64 in a tool result eats context. |
+| `base64Bytes` + `fileName` | one of | The in-band alternative. The extension identifies the format. |
+| `filePaths` | optional | A batch, compressed in one pass. Each result is written beside its source as `name-compressed.ext`, never over it. |
+| `outputFilePath` | optional | Where to write a single result. Omit to get base64 back. |
+| `level` | optional | `auto` (default), `high`, `medium`, `low`. |
+
+A file that could not be shrunk comes back with `shrunk: false` and a `reason`, not an error - one unsupported file in a batch never costs you the rest.
 
 Adaptive-cap behavior (frame sampling, GIF trim, PDF auto-shrink) applies at all lossy presets. `lossless` disables all of them, so it can produce very large outputs.
 
@@ -254,7 +301,7 @@ Two things to expect, so a correct result isn't mistaken for a broken one:
 
 #### Compressing an edited PDF
 
-The browser's PDF editor has a **PDF compression** setting that shrinks whatever it saves. The PDF tools below deliberately do not take a `quality` parameter - on the agent surfaces the same result is composition, not a flag: chain the edit into a same-format conversion.
+The browser's PDF editor has a **PDF compression** setting that shrinks whatever it saves. The PDF tools below deliberately do not take a `quality` parameter - on the agent surfaces the same result is composition, not a flag: chain the edit into `compress_file` / `POST /compress`.
 
 ```
 pdf_merge(inputs) -> convert_file(pdf -> pdf, quality: "medium")

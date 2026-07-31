@@ -56,7 +56,15 @@ function findHandlerByName(name: string, options: readonly HandlerOption[]): For
  * compress this" on a file it was perfectly capable of shrinking.
  */
 export function handlerSupportsFormat(handler: FormatHandler, format: FileFormat): FileFormat | null {
-    const cached = window.supportedFormatCache?.get(handler.name);
+    // `window` is a browser optimisation, not a requirement: the cache exists so
+    // the UI does not re-derive a lazily-loaded handler's format list. On the
+    // agent surfaces there is no window at all, and reading it unguarded threw
+    // `ReferenceError: window is not defined` the moment MCP and REST started
+    // using this resolver. The handler's own declaration is the source of truth
+    // either way; the cache is only ever a faster copy of it.
+    const cached = typeof window !== "undefined"
+        ? window.supportedFormatCache?.get(handler.name)
+        : undefined;
     const formats = cached ?? handler.supportedFormats ?? [];
     const matches = formats.filter(f => f.mime === format.mime && f.format === format.format);
     if (!matches.length) return null;

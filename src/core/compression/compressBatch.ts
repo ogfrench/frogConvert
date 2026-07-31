@@ -180,7 +180,12 @@ export async function compressBatch(
             try {
                 await handler.init();
                 ready = handler.ready;
-                if (ready && handler.supportedFormats) {
+                // Browser-only cache; see handlerSupportsFormat. Guarded because
+                // MCP and REST run this same batch with no window at all, and
+                // this line only fires for a handler that was lazily
+                // initialised - so it would have thrown later and elsewhere
+                // than the identical bug in the resolver.
+                if (ready && handler.supportedFormats && typeof window !== "undefined") {
                     window.supportedFormatCache?.set(handler.name, handler.supportedFormats);
                 }
             } catch (e) {

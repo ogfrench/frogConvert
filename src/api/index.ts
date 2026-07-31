@@ -7,6 +7,7 @@ import type { FileFormat } from '../core/FormatHandler/FormatHandler.ts';
 import { handleFormats } from './routes/formats.ts';
 import { handlePath } from './routes/path.ts';
 import { handleConvert } from './routes/convert.ts';
+import { handleCompress } from './routes/compress.ts';
 import { handlePdfMerge, handlePdfOrganize, handlePdfExtract, handlePdfWatermark } from './routes/pdf.ts';
 import { warmUpBridge } from '../mcp/core/browserBridge.ts';
 
@@ -62,6 +63,10 @@ async function main() {
 
             if (req.method === "POST" && url.pathname === "/convert") {
                 return handleConvert(req, handlers, graph, allHandlers);
+            }
+
+            if (req.method === "POST" && url.pathname === "/compress") {
+                return handleCompress(req, handlers);
             }
 
             if (req.method === "POST" && url.pathname === "/pdf/merge") {
