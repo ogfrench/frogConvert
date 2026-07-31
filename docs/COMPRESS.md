@@ -75,7 +75,7 @@ Measured by driving the real app in a browser, one file per level, downloading t
 |---|---|---|---|---|---|
 | **Convert** a 5.3 MB PNG to JPEG | 2,132,172 | 417,150 | 839,253 | 417,150 | 246,795 |
 | **Compress** a 2.1 MB JPEG | n/a | 497,203 | 969,280 | 497,203 | 308,378 |
-| **PDF Editor** merging two image-heavy PDFs | 2,595,455 | 143,673 | 143,673 | - | 27,024 |
+| **PDF Editor** merging two image-heavy PDFs | 2,595,455 | 143,673 | 143,673 | 69,133 | 27,024 |
 
 Three things in that table look like bugs and are not:
 
