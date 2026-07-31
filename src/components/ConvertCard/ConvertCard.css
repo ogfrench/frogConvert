@@ -16,6 +16,24 @@
   border-radius: var(--radius-full);
 }
 
+/* Breathing, for the wait before the converters have arrived.
+   Opacity only - no transform, no colour change - so it reads as "busy"
+   without competing with anything on the card. The disabled state alone is
+   indistinguishable from a broken button, which is what it looked like on a
+   slow connection where this can last a minute. */
+@keyframes convert-button-breathe {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.62; }
+}
+
+#convert-button.is-waiting {
+  animation: convert-button-breathe 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #convert-button.is-waiting { animation: none; }
+}
+
 /* --- Convert Hint (signpost shown under the format picker) --- */
 .convert-hint {
   display: block;

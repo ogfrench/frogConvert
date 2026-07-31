@@ -24,6 +24,7 @@ class MockIntersectionObserver {
 const { __testing } = await import('./PdfWorkspace.ts');
 import { renderPageThumbnail } from '../../tools/pdfThumbnails.ts';
 import type { PageEntry, SourceFile } from '../../tools/types.ts';
+import { ui } from '../store/store.ts';
 
 const renderPageThumbnailMock = vi.mocked(renderPageThumbnail);
 
@@ -565,5 +566,56 @@ describe('Watermark selection across file mutations', () => {
 
     const keys = [...__testing.getWmSelectedKeys()].sort();
     expect(keys).toEqual(['2:1', '2:2']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cancelling a per-file job
+// ---------------------------------------------------------------------------
+
+describe('a cancelled per-file save offers what it finished', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="popup-bg" class="modal-overlay"></div>
+      <div id="popup" class="card-base modal-container"></div>`;
+    // `ui` resolved its refs when the store module loaded, against a document
+    // this file has since replaced.
+    (ui as any).popupBox = document.getElementById('popup');
+    (ui as any).popupBackground = document.getElementById('popup-bg');
+  });
+
+  const doc = (name: string) => ({ name, bytes: new Uint8Array([1, 2, 3]) });
+
+  it('offers the finished files instead of closing silently', () => {
+    // These loops complete whole documents before they are stopped. Discarding
+    // them meant Cancel could only be paid for by redoing the ones that had
+    // already succeeded.
+    __testing.offerPartialPdfResult([doc('a.pdf'), doc('b.pdf'), doc('c.pdf')], 'organized.zip');
+
+    const popup = document.getElementById('popup')!;
+    expect(popup.querySelector('h2')!.textContent).toBe('Stopped');
+    expect(popup.querySelector('p')!.textContent).toMatch(/3.*finished before you stopped/);
+    const buttons = [...popup.querySelectorAll('.popup-actions-footer button')].map(b => b.textContent);
+    expect(buttons).toEqual(['Download 3 files (.zip)', 'Done']);
+  });
+
+  it('names the single file when only one finished', () => {
+    __testing.offerPartialPdfResult([doc('report.pdf')], 'organized.zip');
+    const popup = document.getElementById('popup')!;
+    expect(popup.querySelector('p')!.textContent).toMatch(/report\.pdf.*finished before you stopped/);
+    expect(popup.querySelector('.popup-actions-footer button')!.textContent).toBe('Download');
+  });
+
+  it('stays silent when nothing finished', () => {
+    // The popup is already closed, and "0 files were saved" is worse than the
+    // editor simply reappearing intact.
+    __testing.offerPartialPdfResult([], 'organized.zip');
+    expect(document.getElementById('popup')!.querySelector('h2')).toBeNull();
+  });
+
+  it('does not claim a download is under way', () => {
+    __testing.offerPartialPdfResult([doc('a.pdf'), doc('b.pdf')], 'z.zip');
+    expect(document.getElementById('popup')!.textContent).not.toMatch(/downloading now/i);
+    expect(document.getElementById('popup')!.textContent).toMatch(/ready to download/);
   });
 });

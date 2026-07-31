@@ -840,6 +840,17 @@ let convertRestoreAttempted = false;
 
 // --- Conversion logic ---
 
+// Connectivity changes the Convert button's waiting label, and nothing else
+// repaints it - the handler load is already in flight and will not report
+// again until it finishes. Cheap, and it means dropping off wifi mid-download
+// says so instead of breathing forever.
+if (typeof window !== "undefined") {
+  const repaintForConnectivity = () =>
+    updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
+  window.addEventListener("online", repaintForConnectivity);
+  window.addEventListener("offline", repaintForConnectivity);
+}
+
 initConvertButton();
 
 // --- Session persistence: flush on hide, restore on cold start ---

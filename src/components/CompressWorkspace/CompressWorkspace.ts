@@ -1,6 +1,6 @@
 import "./CompressWorkspace.css";
 import { showToast } from "../Toast/Toast.ts";
-import { escapeHTML, formatBytes, shortenFileName } from "../utils/index.ts";
+import { escapeHTML, formatBytes, shortenFileName, isOffline, OFFLINE_MESSAGE } from "../utils/index.ts";
 import { isTouchUi } from "../../core/utils/touchUi.ts";
 import {
   ABSOLUTE_MAX_FILES,
@@ -318,7 +318,13 @@ export async function runCompression() {
     celebrate = results.some(r => r.shrunk);
   } catch (e) {
     console.error("[compress] batch threw", e);
-    showToast("Something went wrong while compressing. Your files are untouched.", "error", 8000);
+    // Offline outranks the generic message: PDFs here need a ~16 MB engine
+    // fetched on first use, so with no network the failure is the download.
+    showToast(
+      isOffline() ? OFFLINE_MESSAGE : "Something went wrong while compressing. Your files are untouched.",
+      "error",
+      isOffline() ? 12000 : 8000,
+    );
     // Back to the file list rather than an empty results view: the batch is
     // still there and re-running it is the obvious next move.
     phase = "idle";

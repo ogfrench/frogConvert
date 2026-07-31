@@ -138,11 +138,11 @@ describe("updateConvertButtonState (DOM)", () => {
         expect(ui.convertButton.textContent).toBe("Convert");
     });
 
-    it("adds 'disabled' and text 'Loading formats…' when from is null and isLoadingHandlers=true", () => {
+    it("adds 'disabled' and names the download when from is null and isLoadingHandlers=true", () => {
         isLoadingHandlers.value = true;
         updateConvertButtonState(null, 1);
         expect(ui.convertButton.classList.contains("disabled")).toBe(true);
-        expect(ui.convertButton.textContent).toBe("Loading formats\u2026");
+        expect(ui.convertButton.textContent).toBe("Downloading converters\u2026");
     });
 
     it("adds 'disabled' when to is null", () => {
@@ -153,12 +153,54 @@ describe("updateConvertButtonState (DOM)", () => {
     it("reverts to 'Convert' text after isLoadingHandlers goes false", () => {
         isLoadingHandlers.value = true;
         updateConvertButtonState(null, null);
-        expect(ui.convertButton.textContent).toBe("Loading formats\u2026");
+        expect(ui.convertButton.textContent).toBe("Downloading converters\u2026");
 
         isLoadingHandlers.value = false;
         updateConvertButtonState(null, null);
         expect(ui.convertButton.textContent).toBe("Convert");
     });
+
+    // --- what the button says while it cannot be pressed ---
+        const setOnline = (v: boolean) =>
+            Object.defineProperty(navigator, "onLine", { value: v, configurable: true });
+
+        afterEach(() => { setOnline(true); isLoadingHandlers.value = false; });
+
+        it("names the download rather than the formats already on screen", () => {
+            // "Loading formats..." was wrong twice: the formats are in the picker
+            // and selectable, and what is still arriving is the converter code.
+            isLoadingHandlers.value = true;
+            updateConvertButtonState(null, null);
+            expect(ui.convertButton.textContent).toBe("Downloading converters…");
+            expect(ui.convertButton.textContent).not.toMatch(/formats/i);
+        });
+
+        it("breathes while it waits, so the disabled state does not read as frozen", () => {
+            isLoadingHandlers.value = true;
+            updateConvertButtonState(null, null);
+            expect(ui.convertButton.classList.contains("is-waiting")).toBe(true);
+        });
+
+        it("says so when there is no connection to download over", () => {
+            isLoadingHandlers.value = true;
+            setOnline(false);
+            updateConvertButtonState(null, null);
+            expect(ui.convertButton.textContent).toMatch(/offline/i);
+        });
+
+        it("stops breathing once both formats are picked", () => {
+            isLoadingHandlers.value = true;
+            updateConvertButtonState(0, 1);
+            expect(ui.convertButton.classList.contains("is-waiting")).toBe(false);
+        });
+
+        it("reads Convert when nothing is downloading", () => {
+            isLoadingHandlers.value = false;
+            updateConvertButtonState(null, null);
+            expect(ui.convertButton.textContent).toBe("Convert");
+            expect(ui.convertButton.classList.contains("is-waiting")).toBe(false);
+        });
+
 });
 
 // ---------------------------------------------------------------------------
@@ -321,3 +363,4 @@ describe("updateConvertButtonState (same-format signpost)", () => {
         expect((document.querySelector(".convert-hint") as HTMLElement).hidden).toBe(true);
     });
 });
+

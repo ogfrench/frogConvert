@@ -45,6 +45,8 @@ import {
     GENERIC_CONVERSION_ERROR_TEXT,
     CONVERSION_NOT_AVAILABLE_TEXT,
     formatBytes,
+    isOffline,
+    OFFLINE_MESSAGE,
     type UserErrorInfo,
 } from "../components/utils/index.ts";
 import { runInWorker, WORKER_TIMEOUT_MS } from "./workerClient.ts";
@@ -348,6 +350,15 @@ function showConversionFailedPopup(fromFormat: string, toFormat: string, error: 
     // Cancellation routes through showPartialDownloadPopup; if one ever leaks
     // here, don't render it under a failure title.
     if (error.kind === "cancelled") return;
+
+    // Offline outranks every other diagnosis. The converters are fetched on
+    // first use, so with no network the failure is always the download and
+    // never the file - and "the converter isn't available yet" would send
+    // someone hunting for a problem that reconnecting fixes.
+    if (isOffline()) {
+        showAlertPopup("You're offline", escapeHTML(OFFLINE_MESSAGE));
+        return;
+    }
 
     // Suppress the muted detail line when error.message is one of the catch-all
     // strings already conveyed by the kind-specific body. Specific messages

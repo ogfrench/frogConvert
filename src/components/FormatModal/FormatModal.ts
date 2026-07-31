@@ -202,6 +202,30 @@ function ensureConvertHint(): HTMLSpanElement {
   return el;
 }
 
+/**
+ * What the Convert button says while it cannot yet be pressed.
+ *
+ * It used to say "Loading formats…", which is wrong twice. The formats are
+ * already on screen - you can open the picker and choose PNG - so a user who
+ * has just done that reads a button claiming to be loading the thing they are
+ * looking at. What is actually still arriving is the converter code, tens of
+ * megabytes of it, fetched in the background.
+ *
+ * On a slow connection this state lasts a long time, and "loading" with no
+ * subject and no motion is indistinguishable from frozen. Naming the download,
+ * and saying plainly when there is no connection to download over, is the
+ * whole fix - there is no progress number to give, because the handlers arrive
+ * as a set of independent chunks.
+ */
+function waitingLabel(): string {
+    if (!isLoadingHandlers.value) return "Convert";
+    // `navigator.onLine` false is reliable (no network interface); true is a
+    // hint only. Used in that direction, it is worth stating: the download
+    // this button is waiting on cannot possibly finish.
+    const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    return offline ? "Offline - can't finish downloading" : "Downloading converters…";
+}
+
 export function updateConvertButtonState(selectedFromIndex: number | null, selectedToIndex: number | null) {
   const hint = ensureConvertHint();
   const bothPicked = selectedFromIndex !== null && selectedToIndex !== null;
@@ -218,8 +242,13 @@ export function updateConvertButtonState(selectedFromIndex: number | null, selec
     ui.convertButton.textContent = samePick ? "Download original" : "Convert";
   } else {
     ui.convertButton.classList.add("disabled");
-    ui.convertButton.textContent = isLoadingHandlers.value ? "Loading formats\u2026" : "Convert";
+    ui.convertButton.textContent = waitingLabel();
   }
+  // A breathing button, only while it is genuinely waiting on a download.
+  // Without it the disabled grey reads as broken rather than busy - which is
+  // exactly how it reads on a slow connection, where this state can last a
+  // minute or more with nothing on screen changing.
+  ui.convertButton.classList.toggle("is-waiting", !bothPicked && isLoadingHandlers.value);
 
   if (samePick) {
     // Two different situations share this signpost. If Compress can shrink

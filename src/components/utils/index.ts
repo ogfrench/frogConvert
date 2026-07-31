@@ -101,6 +101,30 @@ function cleanErrorText(err: unknown): string {
  * "Error:" prefix; maps a few known error shapes to friendlier copy; and
  * truncates to ~200 chars. Returns "" if nothing meaningful remains.
  */
+/**
+ * Whether the browser is certain there is no network.
+ *
+ * `navigator.onLine === false` is trustworthy: the machine has no usable
+ * interface. `true` is not - it means "there is an interface", which a captive
+ * portal or a dead uplink also satisfies. So this is only ever asked in the
+ * negative direction, to explain a failure that has already happened rather
+ * than to predict one.
+ *
+ * It matters here because the app is offline-first in an unusual way: the
+ * page itself is cached by the service worker, but the converters are not.
+ * They are tens of megabytes of WebAssembly fetched the first time each one is
+ * needed. So "the app opened" and "this conversion can run" are different
+ * questions offline, and a failure that says nothing about the network sends
+ * people looking for a problem with their file.
+ */
+export function isOffline(): boolean {
+    return typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
+/** The one sentence said whenever something failed and there is no network. */
+export const OFFLINE_MESSAGE =
+    "You're offline. frogConvert keeps working without a connection, but each converter downloads once the first time you use it, and this one hasn't been downloaded yet. Reconnect and try again.";
+
 export function toUserErrorInfo(err: unknown): UserErrorInfo {
     let text = cleanErrorText(err);
 

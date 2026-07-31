@@ -2140,33 +2140,37 @@ async function doWatermarkExportPerSource() {
 
   const isBatch = tasks.length > 1;
   const verb = isBatch ? `Watermarking ${tasks.length} PDFs` : 'Watermarking';
+  // Outside the closure so a cancellation cannot take the finished ones with it.
+  const results: { bytes: Uint8Array; name: string }[] = [];
+  const zipName = `watermarked-pdfs-${timestampForFilename()}.zip`;
 
   await runWithPopup(
     verb,
     'Stamping your pages. This only takes a moment.',
     'Watermark failed. Try simpler text or fewer pages.',
     async (signal) => {
-      const results: { bytes: Uint8Array; name: string }[] = [];
       for (const t of tasks) {
         const r = await watermark(t.file.bytes, t.file.name, t.opts, signal);
         results.push({ bytes: r.bytes, name: r.name });
       }
-      await setPdfResult(results, isBatch ? `watermarked-pdfs-${timestampForFilename()}.zip` : null);
+      await setPdfResult(results, isBatch ? zipName : null);
       return results;
     },
-    (results) => {
+    (out) => {
       if (isBatch) {
         showPdfSuccessModal(
-          `${results.length} PDFs watermarked! \u{1F389}`,
-          `Your <b>${results.length}</b> watermarked PDFs are zipped up and ready to download.`,
+          `${out.length} PDFs watermarked! \u{1F389}`,
+          `Your <b>${out.length}</b> watermarked PDFs are zipped up and ready to download.`,
         );
       } else {
         showPdfSuccessModal(
           'PDF watermarked! \u{1F389}',
-          `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is ready to download.`,
+          `<b>${escapeHTML(shortenFileName(out[0].name, 32))}</b> is ready to download.`,
         );
       }
     },
+    1200,
+    () => offerPartialPdfResult(results, zipName),
   );
 }
 
@@ -2971,15 +2975,18 @@ async function doOrganizeSaveCombined() {
 }
 
 async function doOrganizeSavePerSource() {
+  // Outside the closure: a cancellation throws straight past anything declared
+  // inside it, taking the finished documents with it.
+  const out: { bytes: Uint8Array; name: string }[] = [];
+  const zipName = `organized-pdfs-${timestampForFilename()}.zip`;
   await runWithPopup('Saving', 'Packing each source file separately. Hold tight.', 'Save failed. Try with fewer pages or a smaller file.', async (signal) => {
-    const out: { bytes: Uint8Array; name: string }[] = [];
     for (const sf of files) {
       const filtered = pages.filter(p => p.type === 'source' && p.sourceFileId === sf.id);
       if (filtered.length === 0) continue;
       const r = await organize([sf], filtered, signal);
       out.push({ bytes: r.bytes, name: r.name });
     }
-    await setPdfResult(out, out.length > 1 ? `organized-pdfs-${timestampForFilename()}.zip` : null);
+    await setPdfResult(out, out.length > 1 ? zipName : null);
     return out;
   }, (results) => {
     if (results.length > 1) {
@@ -2993,7 +3000,7 @@ async function doOrganizeSavePerSource() {
         `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is ready to download.`,
       );
     }
-  });
+  }, 1200, () => offerPartialPdfResult(out, zipName));
 }
 
 /**
@@ -3099,6 +3106,10 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
   if (files.length === 0 || indices.length === 0) return;
   const extractCount = indices.length;
   const sorted = [...indices].sort((a, b) => a - b);
+  // Only the per-source branch below builds its output incrementally; the
+  // combined branch produces one document and has no partial state to keep.
+  const allResults: { name: string; bytes: Uint8Array }[] = [];
+  const zipName = `extracted-pages-${timestampForFilename()}.zip`;
   await runWithPopup('Extracting', 'Pulling the selected pages into a new file. Almost there.', 'Extract failed. The PDF might be damaged. Try re-exporting it from the source app.',
     async (signal) => {
       const byFile = new Map<number, number[]>();
@@ -3130,14 +3141,13 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
         const name = `${firstName}${suffix}.pdf`;
         return await setPdfResult([{ bytes: outputBytes, name }], null);
       } else {
-        const allResults: { name: string; bytes: Uint8Array }[] = [];
         for (const [fid, pageNums] of byFile) {
           const sf = files.find(f => f.id === fid)!;
           const baseName = sf.name.replace(/\.pdf$/i, '');
           const results = await extract(sf.bytes, pageNums, baseName, false, signal);
           allResults.push(...results);
         }
-        await setPdfResult(allResults, allResults.length > 1 ? `extracted-pages-${timestampForFilename()}.zip` : null);
+        await setPdfResult(allResults, allResults.length > 1 ? zipName : null);
         return allResults;
       }
     },
@@ -3149,6 +3159,7 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
       );
     },
     1000,
+    () => offerPartialPdfResult(allResults, zipName),
   );
 }
 
@@ -3654,6 +3665,16 @@ async function runWithPopup<T>(
   fn: (signal: AbortSignal) => Promise<T>,
   onSuccess?: (result: T) => void,
   minMs: number = 1200,
+  /**
+   * Called instead of a silent close when the user cancels, for the jobs that
+   * build their output one file at a time. Those loops finish whole documents
+   * before they are stopped, and dropping them meant Cancel could only ever be
+   * paid for by redoing the files that had already succeeded. The Converter
+   * has offered its finished files back since it grew a Stop button; this is
+   * the same courtesy. Jobs that produce a single file have no partial state
+   * and pass nothing.
+   */
+  onCancelled?: () => void,
 ): Promise<void> {
   const controller = new AbortController();
   const wrap = el('div', { className: 'ws-processing' });
@@ -3673,6 +3694,7 @@ async function runWithPopup<T>(
   } catch (e: any) {
     if (e instanceof PdfEditCancelled) {
       hidePopup();
+      onCancelled?.();
       return;
     }
     console.error(`[pdfWorkspace] ${verb.toLowerCase()} failed:`, e);
@@ -3681,6 +3703,39 @@ async function runWithPopup<T>(
     const message = info.message || fallback;
     showError(appendSupportContact(message, FEEDBACK_CONTACT_TEXT));
   }
+}
+
+/**
+ * Offer the documents a cancelled job had already finished.
+ *
+ * Deliberately does not run the optional compression pass. The user pressed
+ * Stop; spending seconds of Ghostscript on the way out is the opposite of what
+ * was asked, and Original quality is what a cancelled save should hand back.
+ *
+ * Silent when nothing finished - `runWithPopup` has already closed the popup,
+ * and a modal that says "0 files were saved" is worse than the editor simply
+ * reappearing with everything intact.
+ */
+function offerPartialPdfResult(done: { bytes: Uint8Array; name: string }[], zipName: string | null) {
+  if (done.length === 0) return;
+  lastPdfResult = done;
+  lastPdfZipName = done.length > 1 ? zipName : null;
+  lastPdfCompression = null;
+
+  const h2 = el('h2', { textContent: 'Stopped' });
+  const p = el('p', {});
+  p.innerHTML = done.length === 1
+    ? `<b>${escapeHTML(shortenFileName(done[0].name, 32))}</b> was finished before you stopped, and is ready to download.`
+    : `<b>${done.length}</b> files were finished before you stopped, and are ready to download.`;
+
+  const actions = el('div', { className: 'popup-actions-footer' });
+  actions.appendChild(createPopupButton(
+    done.length > 1 ? `Download ${done.length} files (.zip)` : 'Download',
+    'btn-primary',
+    redownloadLastPdfResult,
+  ));
+  actions.appendChild(createPopupButton('Done', 'btn-secondary', hidePopup));
+  replacePopup([h2, p, actions]);
 }
 
 function redownloadLastPdfResult() {
@@ -3760,6 +3815,7 @@ export const __testing = {
     redoStack.length = 0;
   },
   compressionNote,
+  offerPartialPdfResult,
   getPages: () => pages,
   getFiles: () => files,
   getSelected: () => selected,
