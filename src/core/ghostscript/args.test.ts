@@ -52,6 +52,34 @@ describe("gsConvertArgs", () => {
         expect(args).toContain("-sColorConversionStrategy=UseDeviceIndependentColor");
     });
 
+    it("makes the quality level do something on every route", () => {
+        // Regression guard for an inert control. The distiller preset is the
+        // only lever the level has on the vector routes, and without it a
+        // PS -> PDF came out at the same 441,968 B whatever the user picked -
+        // against a real range of 127,981 B to 1,923,019 B on the same source.
+        // The video levels shipped with exactly this defect earlier in v3.
+        for (const route of ["pdf", "pdfa", "ps", "eps"] as const) {
+            const at = (quality: "low" | "medium" | "high") =>
+                gsConvertArgs({ ...base, route, quality }).find(a => a.startsWith("-dPDFSETTINGS="));
+            expect(at("low")).toBe("-dPDFSETTINGS=/screen");
+            expect(at("medium")).toBe("-dPDFSETTINGS=/ebook");
+            expect(at("high")).toBe("-dPDFSETTINGS=/printer");
+        }
+        // TIFF has no distiller; its lever is resolution, covered above.
+        expect(gsConvertArgs({ ...base, route: "tiff" }).some(a => a.startsWith("-dPDFSETTINGS=")))
+            .toBe(false);
+    });
+
+    it("keeps PDF/A's compliance flags alongside the distiller preset", () => {
+        // Downsampling does not cost compliance - verified against the engine,
+        // the output still carries its pdfaid marker at every preset - but
+        // dropping a required flag while adding one would.
+        const args = gsConvertArgs({ ...base, route: "pdfa", quality: "low" });
+        expect(args).toContain("-dPDFA=2");
+        expect(args).toContain("-sColorConversionStrategy=UseDeviceIndependentColor");
+        expect(args).toContain("-dPDFSETTINGS=/screen");
+    });
+
     it("adds -dEPSCrop only when asked", () => {
         expect(gsConvertArgs({ ...base, route: "pdf" })).not.toContain("-dEPSCrop");
         expect(gsConvertArgs({ ...base, route: "pdf", epsCrop: true })).toContain("-dEPSCrop");

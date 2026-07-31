@@ -1,4 +1,5 @@
 import type { QualityPreset } from "../FormatHandler/FormatHandler.ts";
+import { pdfSettingsFor } from "../compression/pdfSettings.ts";
 
 /**
  * Ghostscript argv for the *conversion* routes — the PostScript family, PDF/A
@@ -54,7 +55,7 @@ export type GsConvertOpts = {
     inputPath: string;
     /** For EPS this must carry a `%d`; use `needsPerPageOutput` to decide. */
     outputPath: string;
-    /** Governs raster resolution. Ignored by the vector routes. */
+    /** Raster resolution, and the distiller preset on the vector routes. */
     quality?: QualityPreset;
     /** Set for EPS input so the artwork's own bounding box wins over a page size. */
     epsCrop?: boolean;
@@ -64,9 +65,17 @@ export function gsConvertArgs(opts: GsConvertOpts): string[] {
     const { route, inputPath, outputPath, quality = "medium", epsCrop = false } = opts;
     const args: string[] = [];
 
+    // The distiller preset governs image downsampling, and it is the only thing
+    // the chosen level can change on these routes. Leaving it off made the
+    // control decoration: measured on an image-heavy source, `PS → PDF` came
+    // out at 441,968 B whatever the user picked, against a real range of
+    // 127,981 B (/screen) to 1,923,019 B (/prepress). Same defect the video
+    // levels had before this release.
+    const distiller = `-dPDFSETTINGS=${pdfSettingsFor(quality)}`;
+
     switch (route) {
         case "pdf":
-            args.push("-sDEVICE=pdfwrite", "-dCompatibilityLevel=1.4");
+            args.push("-sDEVICE=pdfwrite", "-dCompatibilityLevel=1.4", distiller);
             break;
         case "pdfa":
             // PDFA=2 is PDF/A-2b. CompatibilityPolicy=1 tells Ghostscript to
@@ -79,13 +88,16 @@ export function gsConvertArgs(opts: GsConvertOpts): string[] {
                 "-dPDFA=2",
                 "-dPDFACompatibilityPolicy=1",
                 "-sColorConversionStrategy=UseDeviceIndependentColor",
+                // Verified that downsampling does not cost compliance: the
+                // output still carries its pdfaid marker at every preset.
+                distiller,
             );
             break;
         case "ps":
-            args.push("-sDEVICE=ps2write");
+            args.push("-sDEVICE=ps2write", distiller);
             break;
         case "eps":
-            args.push("-sDEVICE=eps2write");
+            args.push("-sDEVICE=eps2write", distiller);
             break;
         case "tiff":
             // Colour, LZW, always. `tiff24nc`'s default is *uncompressed*, and
