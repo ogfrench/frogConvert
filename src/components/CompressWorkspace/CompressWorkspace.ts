@@ -18,6 +18,7 @@ import {
   type SkipReason,
 } from "../../core/compression/compressBatch.ts";
 import { runInWorker } from "../../conversion/workerClient.ts";
+import { REASSURANCE_LINE } from "../../conversion/actions.ts";
 import {
   showConversionInProgress,
   ensureCancelButton,
@@ -29,6 +30,7 @@ import {
   isCancelled,
 } from "../../conversion/cancellation.ts";
 import { hidePopup, showPopup } from "../Popup/Popup.ts";
+import { openFilesModal, type FilesModalSource } from "../FilesModal/FilesModal.ts";
 import { preloadGhostscript } from "../../tools/ghostscriptPreload.ts";
 import { downloadFile, downloadAsZip, timestampForFilename } from "../../conversion/download.ts";
 import { triggerConfetti } from "../../effects/Confetti/Confetti.ts";
@@ -72,13 +74,33 @@ let nextId = 1;
 let initialized = false;
 
 let phase: Phase = "idle";
-/** Whether the file list under the drop zone is expanded (the "manage" toggle). */
-let listOpen = false;
 let results: CompressOutcome[] = [];
 let progress = { done: 0, total: 0, current: "" };
 
 let rootEl: HTMLElement | null = null;
 let fileInput: HTMLInputElement | null = null;
+
+/**
+ * How the shared files modal reads and writes this surface's batch.
+ *
+ * The Converter's file manager is a modal with paging, per-row replace, drop
+ * more and remove all. This surface had an inline list with none of that, for
+ * no reason other than that it was written separately - so "Manage files" here
+ * opened a dead end while the same button one mode over opened a real manager.
+ * Same modal now; only the two genuinely different answers are configured.
+ */
+const filesModalSource: FilesModalSource = {
+  get: () => files.map(e => e.file),
+  set: (next) => {
+    // Ids are the list's identity for removal, so rebuild rather than mutate.
+    files = next.map(file => ({ id: nextId++, file }));
+  },
+  changed: () => { markCompressDirty("files"); render(); },
+  emptied: () => { clearCompressSession(); render(); },
+  // A folder of mixed media is exactly what this surface is for.
+  sameTypeOnly: false,
+  openPicker: () => openPicker(),
+};
 
 /** Test seam + share-target entry point. */
 export function getFiles(): readonly Entry[] { return files; }
@@ -263,6 +285,8 @@ export async function runCompression() {
     progressTitle(),
     "idle",
   );
+  // Video especially can run for minutes here, and the Converter has said
+  // "feel free to switch tabs" through its long waits since it grew them.
   ensureCancelButton();
 
   const options = allOptionsRef.value;
@@ -374,7 +398,13 @@ function paintProgress() {
   const detail = progress.current
     ? `<br><span class="conversion-path">${escapeHTML(shortenFileName(progress.current, 32))}</span>`
     : "";
-  showConversionInProgress(`${main}${detail}`, progressTitle());
+  // The same reassurance the Converter gives through its long waits. A single
+  // video can hold this modal for minutes - ffmpeg.wasm runs single-threaded
+  // in a worker, so a clip that takes seconds in a desktop encoder takes
+  // considerably longer here - and a spinner with a filename and nothing else
+  // gives no reason to believe leaving is safe.
+  const reassurance = `<br><span class="muted-text">${REASSURANCE_LINE}</span>`;
+  showConversionInProgress(`${main}${detail}${reassurance}`, progressTitle());
 }
 
 /**
@@ -407,7 +437,14 @@ export function compressedName(name: string): string {
  * a byte-identical copy of a file the user already has is not worth the read.
  */
 function downloadable() {
-  return results.filter(r => r.bytes.byteLength > 0);
+  // Only the files that changed.
+  //
+  // This used to be "anything with bytes", which quietly included whatever
+  // happened to be mid-flight when a batch was stopped - so a run reporting
+  // "1 file got smaller" offered a button reading "Download 2 files (.zip)".
+  // The count on the button and the count in the headline have to be the same
+  // number, and an untouched file is already on disk exactly as it is here.
+  return results.filter(r => r.shrunk && r.bytes.byteLength > 0);
 }
 
 function downloadableCount(): number {
@@ -426,7 +463,16 @@ export async function downloadResults() {
   else await downloadAsZip(out, `compressed-${timestampForFilename()}.zip`);
 }
 
-/** Back to the batch view, keeping the files so a different level can be tried. */
+/**
+ * Back to the batch view, keeping the files.
+ *
+ * This is what the Converter's "Done" does on its success modal: dismiss the
+ * result and return you to where you started. Here that place is the file list
+ * with the level picker on it, so the button that used to be labelled "Try
+ * another level" and this one are the same gesture - there was never a reason
+ * for this surface to invent its own word for it, or to sit two primary-weight
+ * buttons side by side where every other surface has one and a quiet second.
+ */
 export function backToFiles() {
   phase = "idle";
   results = [];
@@ -548,18 +594,6 @@ function openLevelPopup(): void {
   wrap.querySelector<HTMLElement>('[aria-checked="true"]')?.focus();
 }
 
-function fileListMarkup(): string {
-  const rows = files.map(e => `
-    <li class="cw-row" data-id="${e.id}">
-      <span class="cw-row-name" title="${escapeHTML(e.file.name)}">${escapeHTML(shortenFileName(e.file.name, 40))}</span>
-      <span class="cw-row-size">${formatBytes(e.file.size)}</span>
-      <button class="cw-row-remove" type="button" data-remove="${e.id}"
-        aria-label="Remove ${escapeHTML(e.file.name)}">&times;</button>
-    </li>
-  `).join("");
-  return `<ul class="cw-list" ${listOpen ? "" : "hidden"}>${rows}</ul>`;
-}
-
 /**
  * The download control, or nothing at all.
  *
@@ -573,7 +607,7 @@ function fileListMarkup(): string {
 function downloadButtonMarkup(): string {
   const n = downloadableCount();
   if (n === 0) return "";
-  return `<button class="cw-download" type="button">${
+  return `<button class="cw-download btn-primary" type="button">${
     n === 1 ? "Download" : `Download ${n} files (.zip)`
   }</button>`;
 }
@@ -606,12 +640,11 @@ function resultsMarkup(): string {
       ? `Stopped`
       : noneSupported
         ? `Nothing i can compress here`
-        // Deliberately not "nothing left to shave off": at an explicit level
-        // that is a claim about the file we cannot support, and the note right
-        // below it goes on to suggest trying another level - the headline was
-        // contradicting its own advice. Saying no more than what happened
-        // leaves the two consistent, and works for one file or many.
-        : `No smaller at this level`;
+        // Says what happened, in a sentence rather than a verdict. The old
+        // "No smaller at this level" read as a fragment of a spec sheet, and
+        // still had to avoid claiming the file cannot be compressed at all -
+        // the note underneath goes on to suggest another level.
+        : many ? `These didn't get any smaller` : `This one didn't get any smaller`;
   const sub = saved > 0
     ? stoppedCount > 0
       ? `${shrunkCount} file${shrunkCount === 1 ? "" : "s"} got smaller before you stopped. The rest are untouched.`
@@ -696,9 +729,9 @@ function resultsMarkup(): string {
         ${pdfNote}
       </div>
       <ul class="cw-results-list">${rows}</ul>
-      <div class="cw-results-actions">
+      <div class="popup-actions-footer cw-results-actions">
         ${downloadButtonMarkup()}
-        <button class="cw-back" type="button">Try another level</button>
+        <button class="cw-back btn-secondary" type="button">Done</button>
       </div>
     </div>
   `;
@@ -727,7 +760,7 @@ function render() {
     rootEl.innerHTML = resultsMarkup();
   } else {
     rootEl.innerHTML = files.length
-      ? `${uploadFieldMarkup()}${fileListMarkup()}${levelFieldMarkup()}${actionMarkup()}`
+      ? `${uploadFieldMarkup()}${levelFieldMarkup()}${actionMarkup()}`
       : uploadFieldMarkup();
   }
   wireRendered();
@@ -773,8 +806,7 @@ function wireRendered() {
 
   rootEl.querySelector<HTMLElement>(".cw-manage")?.addEventListener("click", (e) => {
     e.stopPropagation();
-    listOpen = !listOpen;
-    render();
+    openFilesModal(filesModalSource);
   });
   rootEl.querySelector<HTMLElement>(".cw-replace")?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -783,7 +815,6 @@ function wireRendered() {
   rootEl.querySelector<HTMLElement>(".cw-clear")?.addEventListener("click", (e) => {
     e.stopPropagation();
     files = [];
-    listOpen = false;
     markCompressDirty("files");
     render();
   });

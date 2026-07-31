@@ -283,7 +283,8 @@ function showConversionNotFoundPopup(fromFormat: string, toFormat: string) {
     );
 }
 
-const REASSURANCE_LINE = "feel free to switch tabs";
+/** Shared with the Compress surface, which has the same long waits. */
+export const REASSURANCE_LINE = "feel free to switch tabs";
 
 function mmss(totalSec: number): string {
     const m = Math.floor(totalSec / 60);

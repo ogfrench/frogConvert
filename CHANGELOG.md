@@ -30,6 +30,29 @@ Adding a real PDF engine paid for two things beyond compression: **PostScript, E
 - **The PDF Editor's long edits can be cancelled** ([#21](https://github.com/ogfrench/frogConvert/issues/21)). Merge, organize, watermark and extract are main-thread pdf-lib loops that previously parked you on a spinner with no way out but a reload. They now yield at checkpoints, carry a Cancel button, and honour Escape; a cancelled edit is a neutral outcome rather than an error.
 
 ### Changed
+- **Nothing downloads until you ask.** The Converter and the PDF Editor used to
+  fire a download moments after their success modal appeared. All three surfaces
+  now wait for the button, and that button names what it will produce -
+  "Download" or "Download 3 files (.zip)" - rather than the old "Download again",
+  which claimed something had already happened.
+- **One file manager, not two.** Compress used to render its own list of files
+  with its own remove buttons and no way to add more. It opens the Converter's
+  files modal now - paging, per-row replace, drop-more, remove all - through a
+  small source adapter. The only configured difference is that Compress accepts
+  a mixed batch on purpose and the Converter needs one format in.
+- **The compression levels are three real steps.** High quality applied no
+  resize at all, so on a large photo it reported *nothing to compress* while
+  Balanced took 83% off - the whole ladder's step sat between the top two
+  settings. The long-edge caps are now 3840 / 2560 / 1920 against quality
+  93 / 80 / 65.
+- **Cancelling a per-file PDF job keeps what it finished.** Organize, watermark
+  and extract build their output one document at a time; stopping used to
+  discard the completed ones, so Cancel could only be paid for by redoing them.
+- **The waiting Converter button says what it is waiting for.** "Loading
+  formats" was wrong twice - the formats are already on screen and selectable -
+  and it is now "Downloading converters", with a subtle breathing animation so
+  a slow connection does not read as a frozen page, and an explicit offline
+  state. Failures while offline say so instead of blaming the file.
 - **Compression is now a visible setting, in every mode.** The **Compression** control sits at the bottom of the settings menu and rebinds to whichever value the active mode owns: converted-output quality in the Converter (default **Original quality**), squeeze strength in Compress (default Automatic, the same value as the card's own picker and kept in sync), and whether a saved PDF is also shrunk in the PDF Editor (default **Original quality**). Only Compress defaults to Automatic, because shrinking is the whole request there; a conversion was asked for a format change and an edit was asked for an edit, and below `high` the levels apply a long-edge cap, so an Automatic default would silently return a 4032x3024 photo at 2560 px. Hiding it anywhere made the setting look like it only existed where you last saw it. The three values are independent and separately persisted - "how much quality to give up while changing format", "how hard to squeeze" and "should editing this also shrink it" are different questions, and an earlier build that shared one value meant changing it in one place silently moved the others.
 - **The PDF Editor can shrink what it saves.** Merge, organize, watermark and extract route their finished PDF through the same Ghostscript engine, level mapping and 98% keep-threshold as the Compress surface. It defaults to Original quality because these are *edits, not exports* - you expect the same document back - and offers no Automatic, since "read the file and decide" is a good answer for a file handed over to be shrunk and a surprising one for a file handed over to be edited. The step never costs you your work: if it fails or wouldn't save enough, you get the uncompressed result.
 - **Ghostscript is fetched before it is needed.** A PDF dropped on Compress, PDF chosen as a conversion target, or a PDF-Editor level set to anything but Original quality each start the ~16 MB download via `<link rel="prefetch">`, so it overlaps with whatever you do next instead of landing on the critical path. Nothing is downloaded for users who never touch a PDF.

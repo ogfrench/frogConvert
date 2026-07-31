@@ -371,9 +371,12 @@ export const COMPRESS_LEVEL_CHOICES = choices(
     // Fragments without trailing full stops, matching the Converter's set.
     // These sat side by side in one menu and were punctuated differently.
     auto: "Reads each file and picks a level",
-    high: "Modest savings",
-    medium: "Big savings, quality you won't miss",
-    low: "Visible quality loss",
+    high: "Smaller, at close to full quality",
+    // Promising the user won't notice is a promise about their eyes and their
+    // file, and this surface cannot make it: the same level is imperceptible
+    // on a photo and obvious on a screenshot of text.
+    medium: "Much smaller, some quality given up",
+    low: "Smallest, with visible quality loss",
   },
 );
 

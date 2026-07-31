@@ -32,7 +32,53 @@ function friendlyMimeLabel(mime: string): string {
 
 import { ModalManager } from "../utils/ModalManager.ts";
 
-export function openFilesModal() {
+/**
+ * Where this modal's files live, and who to tell when they change.
+ *
+ * The modal used to read and write `currentFiles` directly, which made it the
+ * Converter's file manager rather than the app's. Compress then grew its own
+ * inline list - same rows, same remove buttons, different code, and missing
+ * whatever the modal had gained since. Two implementations of one idea is one
+ * too many; this is the seam that lets both surfaces use the same modal.
+ */
+export type FilesModalSource = {
+  get(): File[];
+  set(files: File[]): void;
+  /** Repaint the owning surface and mark its session dirty. */
+  changed(): void;
+  /** The list just emptied: drop the session and reset the surface. */
+  emptied(): void;
+  /**
+   * Whether every file must share one format. The Converter needs this - it
+   * routes the whole batch through a single conversion path - and Compress
+   * deliberately does not, since taking a folder of mixed media is the point.
+   */
+  sameTypeOnly: boolean;
+  /** The picker "Replace all" should open. */
+  openPicker(): void;
+};
+
+/** The Converter's, and the default when a caller does not name one. */
+const converterSource: FilesModalSource = {
+  get: () => currentFiles.value,
+  set: (files) => { currentFiles.value = files; },
+  changed: () => {
+    showFileInUploadZone(currentFiles.value);
+    markConvertDirty("files");
+    if (onFilesChanged.value) onFilesChanged.value(currentFiles.value);
+  },
+  emptied: () => {
+    clearConvertSession();
+    if (onClearFiles.value) onClearFiles.value();
+  },
+  sameTypeOnly: true,
+  openPicker: () => ui.fileInput.click(),
+};
+
+let active: FilesModalSource = converterSource;
+
+export function openFilesModal(source: FilesModalSource = converterSource) {
+  active = source;
   filesModalPage.value = 0;
   hideFilesModalError();
   ModalManager.open(ui.filesModal, ui.filesModalBg, closeFilesModal);
@@ -81,7 +127,7 @@ function showFilesModalError(msg: string) {
 }
 
 function renderFilesModalList() {
-  const files = currentFiles.value;
+  const files = active.get();
   const totalPages = Math.max(1, Math.ceil(files.length / FILES_PER_PAGE));
   if (filesModalPage.value >= totalPages) filesModalPage.value = totalPages - 1;
 
@@ -158,17 +204,16 @@ function renderFilesModalList() {
 
 function applyFilesUpdate(updateList: boolean = true) {
   if (updateList) renderFilesModalList();
-  showFileInUploadZone(currentFiles.value);
-  markConvertDirty('files');
-  if (onFilesChanged.value) onFilesChanged.value(currentFiles.value);
+  active.changed();
 }
 
 function removeFileAtIndex(index: number) {
-  currentFiles.value.splice(index, 1);
-  if (currentFiles.value.length === 0) {
-    clearConvertSession();
+  const next = [...active.get()];
+  next.splice(index, 1);
+  active.set(next);
+  if (next.length === 0) {
     closeFilesModal();
-    if (onClearFiles.value) onClearFiles.value();
+    active.emptied();
     return;
   }
   applyFilesUpdate();
@@ -181,16 +226,18 @@ function replaceFileAtIndex(index: number) {
     const newFile = tempInput.files?.[0];
     if (!newFile) return;
 
-    const referenceFile = currentFiles.value.find((_, i) => i !== index);
-    if (referenceFile && newFile.type !== referenceFile.type) {
+    const referenceFile = active.get().find((_, i) => i !== index);
+    if (active.sameTypeOnly && referenceFile && newFile.type !== referenceFile.type) {
       const expected = friendlyMimeLabel(referenceFile.type);
-      const isPlural = currentFiles.value.length > 1;
+      const isPlural = active.get().length > 1;
       const label = isPlural ? `${expected}s` : expected;
       showFilesModalError(`This file doesn’t match your current ${label}. Please only upload files of the same format.`);
       return;
     }
 
-    currentFiles.value[index] = newFile;
+    const next = [...active.get()];
+    next[index] = newFile;
+    active.set(next);
     applyFilesUpdate();
   });
   tempInput.click();
@@ -202,15 +249,14 @@ export function initFilesModal() {
   ui.filesModalErrorClose.addEventListener("click", hideFilesModalError);
 
   ui.filesRemoveAll.addEventListener("click", () => {
-    currentFiles.value = [];
-    clearConvertSession();
+    active.set([]);
     closeFilesModal();
-    if (onClearFiles.value) onClearFiles.value();
+    active.emptied();
   });
 
   ui.filesReplaceAll.addEventListener("click", () => {
     closeFilesModal();
-    ui.fileInput.click();
+    active.openPicker();
   });
 
   // Drop more files zone
@@ -268,23 +314,24 @@ function addMoreFiles(newFiles: File[]) {
   hideFilesModalError();
 
   // Dynamic file count cap based on device memory + file weight
-  const projectedFiles = currentFiles.value.concat(newFiles);
+  const projectedFiles = active.get().concat(newFiles);
   const maxFiles = getMaxFiles(projectedFiles);
   if (projectedFiles.length > maxFiles) {
     showFilesModalError(`Too many files (${projectedFiles.length}). The limit for these files is ${maxFiles}.`);
     return;
   }
 
-  const expectedType = currentFiles.value.length > 0 ? currentFiles.value[0].type : newFiles[0].type;
+  const expectedType = active.get().length > 0 ? active.get()[0].type : newFiles[0].type;
 
-  const matchingFiles = newFiles.filter(f => f.type === expectedType);
+  // Compress takes a mixed batch on purpose, so it opts out of this entirely.
+  const matchingFiles = active.sameTypeOnly ? newFiles.filter(f => f.type === expectedType) : newFiles;
   const mismatchCount = newFiles.length - matchingFiles.length;
   if (mismatchCount > 0) {
     const expectedLabel = friendlyMimeLabel(expectedType);
     if (matchingFiles.length > 0) {
       showFilesModalError(`${mismatchCount} file${mismatchCount > 1 ? "s were" : " was"} skipped - ${mismatchCount > 1 ? `they weren’t ${expectedLabel}s` : `it wasn’t a ${expectedLabel}`}. Added ${matchingFiles.length} matching file${matchingFiles.length > 1 ? "s" : ""}.`);
     } else {
-      const isPluralCurrent = currentFiles.value.length > 1;
+      const isPluralCurrent = active.get().length > 1;
       const currentFilesText = isPluralCurrent
         ? `Your current files are ${expectedLabel}s`
         : `Your current file is a ${expectedLabel}`;
@@ -297,22 +344,24 @@ function addMoreFiles(newFiles: File[]) {
   }
 
   const filesToAdd = mismatchCount > 0 ? matchingFiles : newFiles;
-  const combinedFiles = currentFiles.value.concat(filesToAdd);
+  const combinedFiles = active.get().concat(filesToAdd);
 
   // Size safeguard check
   const { level, totalSize } = checkFileSizeLimits(combinedFiles);
   if (level !== "ok") {
     closeFilesModal();
     showSizeWarningPopup(totalSize, combinedFiles.length, () => {
-      currentFiles.value = combinedFiles;
-      sortFilesByName(currentFiles.value);
+      const sorted = [...combinedFiles];
+      sortFilesByName(sorted);
+      active.set(sorted);
       applyFilesUpdate(false);
-      openFilesModal();
+      openFilesModal(active);
     });
     return;
   }
 
-  currentFiles.value = combinedFiles;
-  sortFilesByName(currentFiles.value);
+  const sorted = [...combinedFiles];
+  sortFilesByName(sorted);
+  active.set(sorted);
   applyFilesUpdate();
 }

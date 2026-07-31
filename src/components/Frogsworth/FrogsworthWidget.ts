@@ -70,6 +70,17 @@ const IDLE_QUIPS: Quip[] = [
 // CAPABILITY_QUIPS these aren't safe to blend into every page's idle chatter.
 const CONVERT_QUIPS: Quip[] = [
   q("core formats hiding what you need? flip it to all formats in settings.", "idle"),
+  q("converting changes the format. nothing else. that's on purpose.", "smug"),
+  q("i won't shrink your file unless you ask. compression's in the settings menu.", "idle"),
+  q("pick a format from the list. i'll find a route, even a roundabout one.", "happy"),
+  q("some conversions go through two formats to get to yours. you'll never notice.", "smug"),
+  q("heic? avif? drop it and find out. i'm honest when i can't.", "idle"),
+  q("pdf to png gives you one file per page. the format insists.", "idle"),
+  q("drop a folder's worth. you'll get a zip back.", "excited"),
+  q("first time with a format, i fetch the converter. once. then it's yours.", "idle"),
+  q("nothing downloads until you press the button. i'm not presumptuous.", "smug"),
+  q("changed your mind mid-convert? stop. the finished ones are still yours.", "happy"),
+  q("eps, ps, illustrator files. new around here. be gentle.", "excited"),
 ];
 
 /**
@@ -103,6 +114,11 @@ const CAPABILITY_QUIPS: Quip[] = [
   q("escape closes things. arrow keys move around menus. i thought of everything.", "smug"),
   q("same format in and out? you probably wanted compress. i'll point the way.", "idle"),
   q("the pdf editor can shrink what it saves too. check the settings menu.", "happy"),
+  q("nothing lands in your downloads until you press the button. every mode.", "smug"),
+  q("converting won't touch your quality unless you tell it to. that's the default now.", "idle"),
+  q("stop any job mid-run. whatever finished is still yours to keep.", "happy"),
+  q("tap outside a dialog to close it. except while i'm working - i'm not losing that.", "smug"),
+  q("i speak rest and mcp too. there's an api if you're that sort of person.", "smug"),
 ];
 
 const PDF_GENERIC_QUIPS: Quip[] = [
@@ -139,6 +155,12 @@ const COMPRESS_QUIPS: Quip[] = [
   q("i compress files now. deeply satisfying work.", "excited"),
   q("that raw png could lose half its weight and never know", "smug"),
   q("feed me your biggest file. i dare you.", "hungry"),
+  q("images, audio, video, pdfs. mix them freely, i'll sort it out.", "excited"),
+  q("three levels, three real steps. no cliff between them.", "smug"),
+  q("video takes a while. it's one core and a lot of frames. go make tea.", "idle"),
+  q("i only hand back what actually got smaller. the rest you already have.", "idle"),
+  q("a png is already lossless. squeezing it just makes us both tired.", "smug"),
+  q("stop whenever. the files i finished are still yours.", "happy"),
 ];
 
 const PDF_MERGE_QUIPS: Quip[] = [

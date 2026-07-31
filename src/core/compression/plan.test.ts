@@ -115,8 +115,19 @@ describe("planImage", () => {
         // Halving the long edge quarters the pixels.
         expect(ctx({ preset: "low" }).imgMaxEdge).toBe(1920);
         expect(ctx({ preset: "medium" }).imgMaxEdge).toBe(2560);
-        // "High quality" means keep what you have.
-        expect(ctx({ preset: "high" }).imgMaxEdge).toBeNull();
+        // High quality used to be `null` - no resize at all - and that one gap
+        // put the whole ladder's step between the top two rungs. Measured on a
+        // 6000px wallpaper: High quality reported nothing to compress at all
+        // (a q93 re-encode at full size is *larger*, so the keep-threshold
+        // discarded it), Balanced took 83% off. 4K keeps the setting meaningful
+        // while making each rung a real step down from the one above.
+        expect(ctx({ preset: "high" }).imgMaxEdge).toBe(3840);
+    });
+
+    it("steps down monotonically, so no single rung does all the work", () => {
+        const edges = (["high", "medium", "low"] as const).map(p => ctx({ preset: p }).imgMaxEdge!);
+        expect(edges).toEqual([...edges].sort((a, b) => b - a));
+        expect(new Set(edges).size).toBe(3);
     });
 
     it("caps a video frame's longest edge at 1080p on the web default", () => {

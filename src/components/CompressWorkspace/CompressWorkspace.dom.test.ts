@@ -9,6 +9,9 @@ vi.mock('../../conversion/download.ts', () => ({
   timestampForFilename: () => '20260728-120000',
 }));
 vi.mock('../../core/FormatHandler/detectFormat.ts', () => ({ findMatchingFormat: vi.fn(() => 0) }));
+// The shared files modal has its own suite and its own DOM; here the point is
+// only that this surface hands off to it instead of rendering its own list.
+vi.mock('../FilesModal/FilesModal.ts', () => ({ openFilesModal: vi.fn() }));
 vi.mock('../../core/compression/compressBatch.ts', async (orig) => ({
   ...(await orig<typeof import('../../core/compression/compressBatch.ts')>()),
   compressBatch: vi.fn(),
@@ -49,12 +52,14 @@ import { showToast } from '../Toast/Toast.ts';
 import { compressBatch } from '../../core/compression/compressBatch.ts';
 import { downloadFile, downloadAsZip } from '../../conversion/download.ts';
 import { triggerConfetti } from '../../effects/Confetti/Confetti.ts';
+import { openFilesModal } from '../FilesModal/FilesModal.ts';
 
 const showToastMock = vi.mocked(showToast);
 const compressBatchMock = vi.mocked(compressBatch);
 const downloadFileMock = vi.mocked(downloadFile);
 const downloadAsZipMock = vi.mocked(downloadAsZip);
 const triggerConfettiMock = vi.mocked(triggerConfetti);
+const openFilesModalMock = vi.mocked(openFilesModal);
 
 function mountDom() {
   // Mirrors index.html, including the page description that sits *outside* the
@@ -74,7 +79,18 @@ function mountDom() {
       <input id="compress-file-input" type="file" multiple>
     </main>
     <p id="compress-description">Make files smaller without sending them anywhere.
-      Images, audio, video and PDFs, right here in your browser.</p>
+      Compress images, audio, video and PDFs, right here in your browser.</p>
+    <div id="files-modal-bg" class="modal-overlay" aria-hidden="true"></div>
+    <div id="files-modal" class="card-base modal-container">
+      <h2 id="files-modal-title"></h2>
+      <button id="files-modal-close"></button>
+      <div id="files-modal-error"><span id="files-modal-error-text"></span><button id="files-modal-error-close"></button></div>
+      <div id="files-list"></div>
+      <div id="files-pagination"></div>
+      <div id="files-drop-more"></div>
+      <button id="files-replace-all"></button>
+      <button id="files-remove-all"></button>
+    </div>
     <div id="popup-bg" class="modal-overlay" aria-hidden="true"></div>
     <div id="popup" class="card-base modal-container popup-size"
       role="status" aria-live="polite" aria-atomic="true"></div>
@@ -120,7 +136,6 @@ describe('CompressWorkspace - intake', () => {
       fakeFile('c.mp4', 'video/mp4'),
     ]);
     expect(ws.getFiles()).toHaveLength(3);
-    expect(document.querySelectorAll('.cw-row')).toHaveLength(3);
   });
 
   it('shows the file-info row and its actions once files land', () => {
@@ -133,11 +148,13 @@ describe('CompressWorkspace - intake', () => {
     expect(document.querySelector('.cw-clear')).not.toBeNull();
   });
 
-  it('toggles the file list from the manage button', () => {
+  it('opens the shared files modal from the manage button', () => {
+    // This surface used to render its own list here - same rows, same remove
+    // buttons, none of the modal's paging, per-row replace or drop-more.
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
-    expect(document.querySelector<HTMLElement>('.cw-list')!.hidden).toBe(true);
+    expect(document.querySelector('.cw-list')).toBeNull();
     document.querySelector<HTMLElement>('.cw-manage')!.click();
-    expect(document.querySelector<HTMLElement>('.cw-list')!.hidden).toBe(false);
+    expect(openFilesModalMock).toHaveBeenCalledTimes(1);
   });
 
   it('clears the batch from the remove-all button', () => {
@@ -173,12 +190,18 @@ describe('CompressWorkspace - intake', () => {
     expect(ws.isLikelyCompressible(fakeFile('mystery.bin', ''))).toBe(false);
   });
 
-  it('removes a file when its remove button is clicked', () => {
+  it('gives the modal a source that can read and write the batch', () => {
+    // The adapter is the whole interface between the two, so it is worth
+    // pinning: the modal removes by handing back a shorter list.
     ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('b.png', 'image/png')]);
     document.querySelector<HTMLElement>('.cw-manage')!.click();
-    document.querySelector<HTMLElement>('[data-remove]')!.click();
+    const source = openFilesModalMock.mock.calls[0][0]!;
+    expect(source.get().map(f => f.name)).toEqual(['a.png', 'b.png']);
+    expect(source.sameTypeOnly).toBe(false); // a mixed batch is the point here
+    source.set([source.get()[1]]);
+    source.changed();
     expect(ws.getFiles()).toHaveLength(1);
-    expect(document.querySelectorAll('.cw-row')).toHaveLength(1);
+    expect(ws.getFiles()[0].file.name).toBe('b.png');
   });
 
   it('accepts a single large video, which is the case people actually arrive with', () => {
@@ -286,7 +309,7 @@ describe('CompressWorkspace - running a batch', () => {
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
     await ws.runCompression();
     expect(document.querySelector('.cw-res-note')?.textContent).toContain('already compressed');
-    expect(document.querySelector('.cw-results-headline')?.textContent).toMatch(/No smaller at this level/);
+    expect(document.querySelector('.cw-results-headline')?.textContent).toMatch(/didn't get any smaller/);
   });
 
   it('downloads a single result directly and a batch as a zip', async () => {
@@ -318,7 +341,7 @@ describe('CompressWorkspace - running a batch', () => {
 
     expect(ws.getPhase()).toBe('idle');
     expect(document.querySelector('.cw-results-card')).toBeNull();
-    expect(document.querySelectorAll('.cw-row')).toHaveLength(2);
+    expect(ws.getFiles()).toHaveLength(2);
   });
 
   it('refuses to run before the handler registry has loaded', async () => {
@@ -354,7 +377,6 @@ describe('CompressWorkspace - lifecycle', () => {
     ws.cleanup();
     ws.initCompressWorkspace();
     expect(ws.getFiles()).toHaveLength(1);
-    expect(document.querySelectorAll('.cw-row')).toHaveLength(1);
   });
 
   it('resetAll clears the batch and restores the default level', () => {
@@ -553,7 +575,7 @@ describe('CompressWorkspace - batch edge cases', () => {
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
     await ws.runCompression();
     const head = document.querySelector('.cw-results-head')!.textContent!;
-    expect(head).toMatch(/No smaller at this level/);
+    expect(head).toMatch(/didn't get any smaller/);
     expect(head).toMatch(/Your original is untouched/);
     expect(head).not.toMatch(/These were|they usefully/i);
   });
@@ -761,18 +783,19 @@ describe('CompressWorkspace - download naming', () => {
     expect(downloadFileMock).toHaveBeenCalledWith(expect.anything(), 'photo-compressed.png');
   });
 
-  it('keeps the original name for files handed back untouched', async () => {
-    // A no-gain file is the original; calling original bytes "-compressed"
-    // would be a lie.
+  it('hands back only the files that changed', async () => {
+    // An untouched file is already on disk exactly as it is here, and shipping
+    // it made the button's count disagree with the headline's.
     compressBatchMock.mockResolvedValue([
       { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
       { name: 'tiny.png', bytes: new Uint8Array(90), originalSize: 90, shrunk: false, reason: 'no-gain' },
     ] as any);
     ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('tiny.png', 'image/png')]);
     await ws.runCompression();
+    expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download');
     await ws.downloadResults();
-    const [files] = downloadAsZipMock.mock.calls[0];
-    expect(files.map((f: { name: string }) => f.name)).toEqual(['a-compressed.png', 'tiny.png']);
+    expect(downloadAsZipMock).not.toHaveBeenCalled();
+    expect(downloadFileMock).toHaveBeenCalledWith(expect.anything(), 'a-compressed.png');
   });
 
   it('never stacks suffixes on a re-compressed download', () => {
@@ -939,12 +962,11 @@ describe('CompressWorkspace - confetti', () => {
 });
 
 describe('CompressWorkspace - the download control', () => {
-  it('names the number of files it will actually produce', async () => {
-    // Not the number of rows: a file that was never opened is listed with its
-    // reason but is not in the archive.
+  it('counts what it will produce, not the rows on screen', async () => {
+    // Rows report every file; the archive holds only the ones that changed.
     compressBatchMock.mockResolvedValue([
-      { name: 'a.png', bytes: new Uint8Array(900), originalSize: 1000, shrunk: false, reason: 'no-gain' },
-      { name: 'b.png', bytes: new Uint8Array(900), originalSize: 1000, shrunk: false, reason: 'no-gain' },
+      { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+      { name: 'b.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
       { name: 'c.heic', bytes: new Uint8Array(0), originalSize: 1000, shrunk: false, reason: 'unsupported' },
     ] as any);
     ws.handleFiles([
@@ -955,13 +977,16 @@ describe('CompressWorkspace - the download control', () => {
     expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download 2 files (.zip)');
   });
 
-  it('says just "Download" for a single file', async () => {
+  it('offers nothing when nothing changed', async () => {
+    // Every file is already on disk exactly as it is here. A button reading
+    // "Download 3 files" over a headline saying none of them got smaller was
+    // the two disagreeing about the same run.
     compressBatchMock.mockResolvedValue([
       { name: 'a.png', bytes: new Uint8Array(900), originalSize: 1000, shrunk: false, reason: 'no-gain' },
     ] as any);
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
     await ws.runCompression();
-    expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download');
+    expect(document.querySelector('.cw-download')).toBeNull();
   });
 
   it('names what it will produce, even when files shrank', async () => {

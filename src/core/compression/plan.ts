@@ -115,8 +115,22 @@ const PRESET_MAX_EDGE: Record<Exclude<QualityPreset, "lossless">, number | null>
   low: 1920,
   // Comfortably past 1440p, so a retina display still has pixels to spare.
   medium: 2560,
-  // "High quality" means keep what you have; only the quality knob moves.
-  high: null,
+  // 4K long edge. This used to be `null` - "High quality means keep what you
+  // have" - and that one null was the whole reason the ladder had a cliff in
+  // it rather than three rungs.
+  //
+  // Measured on a 6000px wallpaper (deep-field.jpg): High quality reported
+  // *nothing to compress*, Balanced took 83% off, Smallest file 93%. The step
+  // from "no" to "most of the file" sat entirely between the first two
+  // settings, because only they resized. Re-encoding an already-compressed
+  // JPEG at q93 and full size reliably produces a *larger* file, which the
+  // 98% keep-threshold then discards - so High quality had no effect that
+  // could ever be seen, on exactly the images where a user most wants a
+  // gentle one.
+  //
+  // With a cap here the rungs are 3840 / 2560 / 1920 against 93 / 80 / 65,
+  // and each is a real, visible step down from the one above it.
+  high: 3840,
 };
 
 export function planImage(ctx: ImageContext): CompressionPlan {
