@@ -67,6 +67,24 @@ This is why two files dropped together can come out at different levels, and why
 
 One definition backs all of this: `src/core/compression/automatic.ts`. The Converter, Compress and the MCP/REST entry point all call it, so the three surfaces cannot drift apart or miss a new per-format rule.
 
+### What each level is actually worth
+
+Measured by driving the real app in a browser, one file per level, downloading the result and weighing it (`scripts/level-sweep.mjs`):
+
+| Flow | Original quality | Automatic | High quality | Balanced | Smallest file |
+|---|---|---|---|---|---|
+| **Convert** a 5.3 MB PNG to JPEG | 2,132,172 | 417,150 | 839,253 | 417,150 | 246,795 |
+| **Compress** a 2.1 MB JPEG | n/a | 497,203 | 969,280 | 497,203 | 308,378 |
+| **PDF Editor** merging two image-heavy PDFs | 2,595,455 | 143,673 | 143,673 | - | 27,024 |
+
+Three things in that table look like bugs and are not:
+
+- **Automatic matches Balanced on images.** That is Automatic working: it probed the file, placed it in a band, and Balanced is where that band lands.
+- **Automatic matches High quality on PDFs.** The per-format rule above. A lower Ghostscript preset can produce a *larger* PDF, so Automatic aims at the setting that reliably helps.
+- **Original quality in the PDF Editor is much larger than every other row**, because it is the merged document untouched. That is the point of the default: an edit hands back what you edited.
+
+A fourth case worth knowing: **compressing a PNG gives the same file at every level.** PNG is lossless, so the quality dial has nothing to turn, and the only other lever is the resize cap - which does nothing to an image already smaller than it. Identical output is the correct answer, not a broken control.
+
 ## Reading the results
 
 Each row shows the outcome for one file. The wording is deliberate:
