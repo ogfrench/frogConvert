@@ -8,11 +8,38 @@ export class ModalManager {
         onClose?: () => void;
         onEscape?: () => void;
         persistent?: boolean;
+        onBackdrop?: (e: MouseEvent) => void;
     }[] = [];
 
     static open(modal: HTMLElement, bg: HTMLElement, onClose?: () => void, persistent = false, onEscape?: () => void) {
         const opener = document.activeElement;
-        this.activeModals.push({ modal, bg, opener, onClose, onEscape, persistent });
+
+        // Tapping the backdrop dismisses, exactly as Escape does.
+        //
+        // This used to be Escape only, which is a keyboard affordance and so no
+        // affordance at all on a phone. The compress level dialog made that
+        // plain: no close button, no Escape key, and tapping outside did
+        // nothing, so the only way out was to pick a level - including picking
+        // the one you already had, just to leave. Tapping outside a sheet is
+        // the ordinary way to dismiss it on touch, and it was the one route the
+        // app never wired up.
+        //
+        // Routed through `closeTop` so backdrop and Escape cannot drift: a
+        // modal with a custom `onEscape` (a confirm step, say) gets that same
+        // treatment here rather than being torn down behind its own back, and
+        // `persistent` still means persistent.
+        //
+        // The target check matters because callers lay these out both ways -
+        // backdrop as a sibling of the modal, and backdrop as its parent. Only
+        // a click on the backdrop *itself* counts, so a click on modal content
+        // that bubbles through an enclosing backdrop is ignored.
+        const onBackdrop = (e: MouseEvent) => {
+            if (e.target !== bg) return;
+            this.closeTop();
+        };
+        bg.addEventListener("click", onBackdrop);
+
+        this.activeModals.push({ modal, bg, opener, onClose, onEscape, persistent, onBackdrop });
 
         modal.classList.add("open");
         bg.classList.add("open");
@@ -36,8 +63,13 @@ export class ModalManager {
         }
         if (index === -1) return;
 
-        const { opener, onClose } = this.activeModals[index];
+        const { opener, onClose, onBackdrop } = this.activeModals[index];
         this.activeModals.splice(index, 1);
+
+        // Paired with the listener added in `open`. Stacked modals share one
+        // backdrop element, so this has to remove *this* entry's handler rather
+        // than clear listeners on `bg`.
+        if (onBackdrop) bg.removeEventListener("click", onBackdrop);
 
         modal.classList.remove("open");
         bg.classList.remove("open");

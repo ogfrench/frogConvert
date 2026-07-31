@@ -34,12 +34,24 @@ not, plus the handful of paths that need a real file and a real eye.
 
 ## 2. The level chooser, now a modal
 
+Measured in headless Chromium at 320x568 and 390x844: dialog 256 px tall and
+fully on screen, all four options 44 px, trigger 44 px, tick present on the
+active option only, no horizontal page scroll, Escape and backdrop both
+dismiss. So this section is about **feel on real glass**, not geometry.
+
 - [ ] Tap **Compression level**. It opens a centred dialog, not a dropdown
       hanging over the Compress button.
 - [ ] The current level carries a **tick**, not just bolder text.
-- [ ] **Escape** closes it. So does tapping the backdrop.
+- [ ] **Tap outside the dialog.** It closes. This was broken until sign-off:
+      the backdrop had no click handler anywhere in the app, and with no close
+      button and no Escape key on a phone, the only way out was to pick a
+      level - including re-picking the one you already had.
+- [ ] **Escape** closes it too (desktop).
 - [ ] On a **phone-sized window**, every level is reachable without the dialog
       running off the bottom. This is what the old dropdown got wrong.
+- [ ] Tapping outside still dismisses the **other** modals - files, formats,
+      the PDF dialogs - since the fix was made once, app-wide. Confirm nothing
+      now closes that you expected to stay open.
 
 ## 3. PostScript, EPS, Illustrator - new in this release
 

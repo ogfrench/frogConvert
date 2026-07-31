@@ -153,6 +153,10 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
+  /* Padding alone landed this at 43px - one short of the 44 the rest of the
+     touch targets use, and this is the control that opens them. Shared with
+     the Compress card's level selector, which is the same kind of target. */
+  min-height: 44px;
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
