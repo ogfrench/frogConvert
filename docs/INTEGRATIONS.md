@@ -62,7 +62,7 @@ Eight tools, all over `stdio`: one metadata (`list_formats`), two conversion (`f
      | `outputMime` | required | Output MIME type. |
      | `outputExtension` | required | Output format extension. |
      | `outputFilePath` | optional | Absolute path where the output file should be saved. **Strongly recommended for large outputs** - avoids returning megabytes of base64 through the context window. |
-     | `quality` | optional | Quality preset: `"low"`, `"medium"`, `"high"`, or `"lossless"`. Applies to the re-encode a *cross-format* conversion performs; when omitted it is `"medium"`. To make a file smaller without changing its format, use [`compress_file` / `POST /compress`](#compression) instead. See [Quality preset](#quality-preset). |
+     | `quality` | optional | Quality preset: `"low"`, `"medium"`, `"high"`, or `"lossless"`. Applies to the re-encode a *cross-format* conversion performs; when omitted it is `"lossless"`. To make a file smaller without changing its format, use [`compress_file` / `POST /compress`](#compression) instead. See [Quality preset](#quality-preset). |
    - **Description**: The core execution tool. Routes the file through the handler chain and returns all output files.
    - **Returns**:
      - When `outputFilePath` is omitted - a JSON array of output files:
@@ -200,14 +200,14 @@ Returns `400` on bad input, `413` if the file exceeds `MAX_UPLOAD_MB`, `415` if 
 
 #### Quality preset
 
-Both `POST /convert` and the MCP `convert_file` tool accept an optional `quality` preset, which governs the re-encode a conversion performs. When omitted it is `"medium"`. Compression has its own level parameter on its own endpoint - see [Compression](#compression).
+Both `POST /convert` and the MCP `convert_file` tool accept an optional `quality` preset, which governs the re-encode a conversion performs. **When omitted it is `"lossless"`**: a conversion changes the format and nothing else. Pass a level explicitly to also shrink the file, or use [`compress_file` / `POST /compress`](#compression) to shrink one without changing its format.
 
 The preset is a request-level parameter here. The web UI's equivalent settings - **Compression** in the Converter's settings menu and the level picker on the **Compress** surface - are per-surface browser preferences stored in `localStorage`; they do not reach the API or MCP server, which run in a separate process. Pass `quality` explicitly to get a specific tier.
 
 | Preset | JPEG singleton | Image resize cap | PDF page render cap | Video-frame cap | Video-to-GIF cap | Audio (stereo lossy) | Auto-adaptation |
 |---|---|---|---|---|---|---|---|
 | `low` | q65 | 1920 px | 1.2 MP | ~120 frames | 30s | 128 kbps | Fires earliest |
-| `medium` | q80 | 2560 px | 2.5 MP | ~300 frames, 1920 px | 60s | 192 kbps | Default |
+| `medium` | q80 | 2560 px | 2.5 MP | ~300 frames, 1920 px | 60s | 192 kbps | Fires at the midpoint |
 | `high` | q93 | no cap | 5.0 MP | ~1000 frames, 3840 px | 180s | 256 kbps | Fires latest |
 | `lossless` | q100 | no cap | 25 MP | no cap | no cap | uncompressed | Disabled |
 
@@ -217,6 +217,14 @@ The preset is a request-level parameter here. The web UI's equivalent settings -
 > 4032x3024 phone photo comes back 1920x1440 at `low`. If your script depended
 > on a `quality: "low"` conversion preserving pixel dimensions, pass `high` or
 > `lossless` instead. `high` and `lossless` are unchanged.
+>
+> **The omitted-`quality` default also changed, from `medium` to `lossless`.**
+> A request that says nothing about quality now returns the conversion at full
+> fidelity rather than q80 with a 2560 px cap. This matches the web UI, whose
+> Converter defaults to Original quality for the same reason: an agent cannot
+> see the output, the caller may never learn the image was resized, and the
+> conversion is usually the only copy kept. Scripts that relied on the old
+> behaviour should pass `quality: "medium"` explicitly.
 
 Adaptive-cap behavior (frame sampling, GIF trim, PDF auto-shrink) applies at all lossy presets. `lossless` disables all of them, so it can produce very large outputs.
 

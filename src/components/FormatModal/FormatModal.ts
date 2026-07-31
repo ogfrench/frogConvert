@@ -107,7 +107,12 @@ export function initFormatModal(
     }
   });
 
-  ui.formatModalBg.addEventListener("click", () => closeFormatModal());
+  // Backdrop dismissal is `ModalManager`'s, not this module's. It kept its own
+  // listener from before the manager had one, so after backdrop dismissal went
+  // app-wide a single click ran both: the bespoke handler closed this modal
+  // and popped it off the stack, then the manager's handler called `closeTop`
+  // against whatever was left - which is the modal *underneath* when this one
+  // is stacked. One gesture, one owner.
   ui.formatModalClose.addEventListener("click", () => closeFormatModal());
 
   // Arrow-key navigation across the visible format-option list. The list can

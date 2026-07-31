@@ -48,11 +48,13 @@ const ws = await import('./CompressWorkspace.ts');
 import { showToast } from '../Toast/Toast.ts';
 import { compressBatch } from '../../core/compression/compressBatch.ts';
 import { downloadFile, downloadAsZip } from '../../conversion/download.ts';
+import { triggerConfetti } from '../../effects/Confetti/Confetti.ts';
 
 const showToastMock = vi.mocked(showToast);
 const compressBatchMock = vi.mocked(compressBatch);
 const downloadFileMock = vi.mocked(downloadFile);
 const downloadAsZipMock = vi.mocked(downloadAsZip);
+const triggerConfettiMock = vi.mocked(triggerConfetti);
 
 function mountDom() {
   // Mirrors index.html, including the page description that sits *outside* the
@@ -914,11 +916,32 @@ describe('CompressWorkspace - the results list stays a summary', () => {
   });
 });
 
+describe('CompressWorkspace - confetti', () => {
+  it('celebrates any real saving, however small', async () => {
+    // A threshold was tried and reverted: the user who saved a kilobyte still
+    // got what they came for. The only silent result is the one below.
+    compressBatchMock.mockResolvedValue([
+      { name: 'a.png', bytes: new Uint8Array(9900), originalSize: 10000, shrunk: true },
+    ] as any);
+    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    await ws.runCompression();
+    expect(triggerConfettiMock).toHaveBeenCalled();
+  });
+
+  it('stays quiet when nothing could be compressed', async () => {
+    compressBatchMock.mockResolvedValue([
+      { name: 'a.png', bytes: new Uint8Array(10000), originalSize: 10000, shrunk: false, reason: 'no-gain' },
+    ] as any);
+    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    await ws.runCompression();
+    expect(triggerConfettiMock).not.toHaveBeenCalled();
+  });
+});
+
 describe('CompressWorkspace - the download control', () => {
   it('names the number of files it will actually produce', async () => {
     // Not the number of rows: a file that was never opened is listed with its
-    // reason but is not in the archive. Nothing shrank here, so the files have
-    // not been handed over and the button is still the first offer.
+    // reason but is not in the archive.
     compressBatchMock.mockResolvedValue([
       { name: 'a.png', bytes: new Uint8Array(900), originalSize: 1000, shrunk: false, reason: 'no-gain' },
       { name: 'b.png', bytes: new Uint8Array(900), originalSize: 1000, shrunk: false, reason: 'no-gain' },
@@ -932,7 +955,7 @@ describe('CompressWorkspace - the download control', () => {
     expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download 2 files (.zip)');
   });
 
-  it('says just "Download" for a single file it has not handed over', async () => {
+  it('says just "Download" for a single file', async () => {
     compressBatchMock.mockResolvedValue([
       { name: 'a.png', bytes: new Uint8Array(900), originalSize: 1000, shrunk: false, reason: 'no-gain' },
     ] as any);
@@ -941,28 +964,28 @@ describe('CompressWorkspace - the download control', () => {
     expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download');
   });
 
-  it('reads "Download again" once the result has been handed over', async () => {
-    // The Converter and the PDF Editor both deliver the file and then offer a
-    // second copy. This surface used to sit on the result behind a button.
+  it('names what it will produce, even when files shrank', async () => {
     compressBatchMock.mockResolvedValue([
       { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+      { name: 'b.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
     ] as any);
-    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('b.png', 'image/png')]);
     await ws.runCompression();
-    expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download again');
+    expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download 2 files (.zip)');
   });
 
-  it('hands the files over on its own when something shrank', async () => {
+  it('never downloads on its own, however good the result', async () => {
+    // No surface hands a file over unasked. The button is the transaction.
     vi.useFakeTimers();
     try {
       compressBatchMock.mockResolvedValue([
-        { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
+        { name: 'a.png', bytes: new Uint8Array(100), originalSize: 10000, shrunk: true },
       ] as any);
       ws.handleFiles([fakeFile('a.png', 'image/png')]);
       await ws.runCompression();
-      expect(downloadFileMock).not.toHaveBeenCalled(); // not before the results paint
-      await vi.advanceTimersByTimeAsync(500);
-      expect(downloadFileMock).toHaveBeenCalledWith(expect.anything(), 'a-compressed.png');
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(downloadFileMock).not.toHaveBeenCalled();
+      expect(downloadAsZipMock).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
@@ -986,8 +1009,7 @@ describe('CompressWorkspace - the download control', () => {
     }
   });
 
-  it('leaves a stopped batch to the button, as the Converter does', async () => {
-    // A partial result is offered, not delivered.
+  it('offers a stopped batch through the button like any other result', async () => {
     vi.useFakeTimers();
     try {
       compressBatchMock.mockResolvedValue([

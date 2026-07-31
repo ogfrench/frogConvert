@@ -990,7 +990,7 @@ async function handleMerge() {
   }, (r) => {
     showPdfSuccessModal(
       'PDF merged! \u{1F389}',
-      `<b>${escapeHTML(shortenFileName(r.name, 32))}</b> is downloading now.`,
+      `<b>${escapeHTML(shortenFileName(r.name, 32))}</b> is ready to download.`,
     );
   });
 }
@@ -2158,12 +2158,12 @@ async function doWatermarkExportPerSource() {
       if (isBatch) {
         showPdfSuccessModal(
           `${results.length} PDFs watermarked! \u{1F389}`,
-          `Your <b>${results.length}</b> watermarked PDFs are downloading as a zip.`,
+          `Your <b>${results.length}</b> watermarked PDFs are zipped up and ready to download.`,
         );
       } else {
         showPdfSuccessModal(
           'PDF watermarked! \u{1F389}',
-          `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is downloading now.`,
+          `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is ready to download.`,
         );
       }
     },
@@ -2188,12 +2188,12 @@ async function doWatermarkPassthroughPerSource() {
       if (isBatch) {
         showPdfSuccessModal(
           `${results.length} PDFs saved! \u{1F389}`,
-          `Your <b>${results.length}</b> source PDFs are downloading as a zip.`,
+          `Your <b>${results.length}</b> source PDFs are zipped up and ready to download.`,
         );
       } else {
         showPdfSuccessModal(
           'PDF saved! \u{1F389}',
-          `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is downloading now.`,
+          `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is ready to download.`,
         );
       }
     },
@@ -2214,7 +2214,7 @@ async function doWatermarkPassthroughCombined() {
     (results) => {
       showPdfSuccessModal(
         'PDF saved! \u{1F389}',
-        `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is downloading now.`,
+        `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is ready to download.`,
       );
     },
   );
@@ -2262,7 +2262,7 @@ async function doWatermarkExportCombined() {
     (results) => {
       showPdfSuccessModal(
         'PDF watermarked! \u{1F389}',
-        `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is downloading now.`,
+        `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is ready to download.`,
       );
     },
   );
@@ -2965,7 +2965,7 @@ async function doOrganizeSaveCombined() {
   }, (r) => {
     showPdfSuccessModal(
       'PDF saved! \u{1F389}',
-      `<b>${escapeHTML(shortenFileName(r.name, 32))}</b> is downloading now.`,
+      `<b>${escapeHTML(shortenFileName(r.name, 32))}</b> is ready to download.`,
     );
   });
 }
@@ -2985,12 +2985,12 @@ async function doOrganizeSavePerSource() {
     if (results.length > 1) {
       showPdfSuccessModal(
         `${results.length} PDFs saved! \u{1F389}`,
-        `Your <b>${results.length}</b> PDFs are downloading as a zip.`,
+        `Your <b>${results.length}</b> PDFs are zipped up and ready to download.`,
       );
     } else if (results.length === 1) {
       showPdfSuccessModal(
         'PDF saved! \u{1F389}',
-        `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is downloading now.`,
+        `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is ready to download.`,
       );
     }
   });
@@ -3145,7 +3145,7 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
       const pageWord = extractCount === 1 ? 'page' : 'pages';
       showPdfSuccessModal(
         'Pages extracted! \u{1F389}',
-        `${extractCount} ${pageWord} extracted and downloading now.`,
+        `${extractCount} ${pageWord} extracted, ready to download.`,
       );
     },
     1000,
@@ -3699,13 +3699,19 @@ function showPdfSuccessModal(title: string, resultHTML: string) {
   p.innerHTML = resultHTML + compressionNote();
 
   const actions = el('div', { className: 'popup-actions-footer' });
-  actions.appendChild(createPopupButton('Download again', 'btn-primary', redownloadLastPdfResult));
+  // Names the result rather than the gesture, matching the Converter and the
+  // Compress card. "Download again" claimed a download had already happened.
+  const dlLabel = lastPdfResult.length > 1
+    ? `Download ${lastPdfResult.length} files (.zip)`
+    : 'Download';
+  actions.appendChild(createPopupButton(dlLabel, 'btn-primary', redownloadLastPdfResult));
   actions.appendChild(createPopupButton('Done', 'btn-secondary', hidePopup));
 
   replacePopup([h2, frogDiv, p, actions]);
 
   setTimeout(() => { if (ui.popupBox.classList.contains('open')) triggerConfetti(); }, 150);
-  setTimeout(() => { if (ui.popupBox.classList.contains('open')) redownloadLastPdfResult(); }, 400);
+  // Deliberately no automatic download - see the note in `actions.ts`. The
+  // edit is finished and the file is held; the button is what sends it.
 }
 
 let errorTimeout: ReturnType<typeof setTimeout> | null = null;

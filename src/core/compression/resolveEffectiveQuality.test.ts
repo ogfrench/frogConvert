@@ -12,8 +12,18 @@ describe("resolveEffectiveQuality", () => {
         expect(await resolveEffectiveQuality("lossless", tiny, "audio/wav", "audio/flac")).toBe("lossless");
     });
 
-    it("cross-format + no explicit quality → DEFAULT_PRESET (medium)", async () => {
-        expect(await resolveEffectiveQuality(undefined, tiny, "image/png", "image/jpeg")).toBe("medium");
+    it("cross-format + no explicit quality → lossless: a conversion changes the format, not the quality", async () => {
+        // This used to be `medium`, so an agent asking for a PNG as a JPG and
+        // saying nothing about quality got q80 and a 2560 px long-edge cap it
+        // never asked for and could not see. The browser default moved for the
+        // same reason; the two answering differently would mean the same file
+        // came back at a different resolution depending which door it entered.
+        expect(await resolveEffectiveQuality(undefined, tiny, "image/png", "image/jpeg")).toBe("lossless");
+        expect(await resolveEffectiveQuality(undefined, tiny, "audio/wav", "audio/flac")).toBe("lossless");
+    });
+
+    it("still honours an explicit level, so an agent that wants smaller can ask", async () => {
+        expect(await resolveEffectiveQuality("low", tiny, "image/png", "image/jpeg")).toBe("low");
     });
 
     it("same-format + no explicit quality → runs tier-down via probe", async () => {

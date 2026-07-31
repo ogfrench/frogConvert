@@ -433,11 +433,11 @@ export function conversionResultText(opts: {
     let text: string;
     if (outCount > fileCount) {
         const subject = fileCount === 1 ? first : `${fileCount} files`;
-        text = `${subject} became <b>${outCount} ${fmt} files</b>, one per page, zipped up for you and downloading now.`;
+        text = `${subject} became <b>${outCount} ${fmt} files</b>, one per page, zipped up and ready to download.`;
     } else if (outCount > 1) {
-        text = `${outCount} files ${verb} to <b>${fmt}</b> and zipped up for you, downloading now.`;
+        text = `${outCount} files ${verb} to <b>${fmt}</b> and zipped up, ready to download.`;
     } else {
-        text = `${first} has been ${verb} to <b>${fmt}</b> and is downloading now.`;
+        text = `${first} has been ${verb} to <b>${fmt}</b> and is ready to download.`;
     }
 
     // One clause when the conversion also compressed, and nothing at all when
@@ -789,7 +789,14 @@ export function initConvertButton() {
 
             const actions = document.createElement("div");
             actions.className = "popup-actions-footer";
-            actions.appendChild(createPopupButton("Download again", "btn-primary", () => downloadAllConvertedFiles()));
+            // Names the result rather than the gesture. "Download again" was
+            // both wrong - nothing had been downloaded yet - and vaguer than
+            // the Compress card sitting one surface away, which has always
+            // said how many files and in what shape.
+            const dlLabel = allOutputFiles.length > 1
+                ? `Download ${allOutputFiles.length} files (.zip)`
+                : "Download";
+            actions.appendChild(createPopupButton(dlLabel, "btn-primary", () => downloadAllConvertedFiles()));
             actions.appendChild(createPopupButton("Done", "btn-secondary", () => hidePopup()));
             const popupChildren: HTMLElement[] = [h2, frogDiv, p];
             if (noticeCards.length > 0) popupChildren.push(...noticeCards);
@@ -806,11 +813,14 @@ export function initConvertButton() {
                 if (ui.popupBox.classList.contains("open")) triggerConfetti();
             }, 150);
 
-            // Delay download slightly longer to let the success UI breathe.
-            // Fire unconditionally - earlier we gated on popupBox.open which
-            // produced silent file loss when fast-clickers closed the popup
-            // before 400ms. The blob URL is independent of popup lifetime.
-            setTimeout(() => downloadAllConvertedFiles(), 400);
+            // Deliberately no automatic download.
+            //
+            // A file arriving in Downloads without being asked for is a
+            // decision made on the user's behalf, in the one place they can
+            // still say no: a conversion they got wrong, a level they want to
+            // change, a batch they only wanted to look at. The button below
+            // names exactly what it will produce, so pressing it is the whole
+            // transaction and nothing happens before it.
         } catch (e) {
             if (isCancelled) return;
             console.error(e);

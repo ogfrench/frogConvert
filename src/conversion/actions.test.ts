@@ -161,12 +161,12 @@ describe("conversionResultText", () => {
 
     it("names the file for a single conversion", () => {
         expect(conversionResultText(base))
-            .toBe("<b>photo.png</b> has been converted to <b>JPG</b> and is downloading now.");
+            .toBe("<b>photo.png</b> has been converted to <b>JPG</b> and is ready to download.");
     });
 
     it("counts the files for a batch", () => {
         expect(conversionResultText({ ...base, fileCount: 3, outCount: 3 }))
-            .toBe("3 files converted to <b>JPG</b> and zipped up for you, downloading now.");
+            .toBe("3 files converted to <b>JPG</b> and zipped up, ready to download.");
     });
 
     it("does not call one file three files when a format is one-per-page", () => {
@@ -174,13 +174,13 @@ describe("conversionResultText", () => {
         // old copy reported the output count as the input one and announced
         // "3 files converted" to somebody who converted a single document.
         const text = conversionResultText({ ...base, fileCount: 1, outCount: 3, firstInputName: "report.pdf", format: "EPS" });
-        expect(text).toBe("<b>report.pdf</b> became <b>3 EPS files</b>, one per page, zipped up for you and downloading now.");
+        expect(text).toBe("<b>report.pdf</b> became <b>3 EPS files</b>, one per page, zipped up and ready to download.");
         expect(text).not.toMatch(/3 files converted/);
     });
 
     it("counts both sides when a batch fans out", () => {
         expect(conversionResultText({ ...base, fileCount: 2, outCount: 6, format: "EPS" }))
-            .toBe("2 files became <b>6 EPS files</b>, one per page, zipped up for you and downloading now.");
+            .toBe("2 files became <b>6 EPS files</b>, one per page, zipped up and ready to download.");
     });
 
     it("says nothing about compression at the default level", () => {
@@ -217,5 +217,24 @@ describe("conversionResultText", () => {
         const text = conversionResultText({ ...base, firstInputName: '<img src=x onerror=alert(1)>.png' });
         expect(text).not.toMatch(/<img/);
         expect(text).toMatch(/&lt;img/);
+    });
+});
+
+describe("conversionResultText - nothing has downloaded yet", () => {
+    it("does not claim a download is under way", () => {
+        // No surface hands a file over unasked any more, so copy that says it
+        // is "downloading now" describes something that has not happened.
+        for (const opts of [
+            { fileCount: 1, outCount: 1 },
+            { fileCount: 3, outCount: 3 },
+            { fileCount: 1, outCount: 4 },
+        ]) {
+            const text = conversionResultText({
+                firstInputName: "a.png", format: "JPG", verb: "converted",
+                applied: null, requested: "lossless", ...opts,
+            });
+            expect(text).not.toMatch(/downloading now|is downloading/i);
+            expect(text).toMatch(/ready to download/);
+        }
     });
 });
