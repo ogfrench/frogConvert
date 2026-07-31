@@ -1,4 +1,5 @@
 import type { QualityPreset } from "../FormatHandler/FormatHandler.ts";
+import { GS_BASE_FLAGS } from "../ghostscript/args.ts";
 
 /**
  * Compression engine — PDF settings. Maps a quality preset onto the
@@ -32,14 +33,11 @@ export function pdfSettingsFor(quality: QualityPreset): PdfSettingsPreset {
 }
 
 /**
- * Full argv for a pdfwrite pass. `-dNOPAUSE -dBATCH` stop it waiting for input,
- * `-dQUIET` keeps stdout off our progress channel, and CompatibilityLevel 1.4
- * is the widest-supported output that still allows the object streams we want.
- *
- * No `-dSAFER`: the build is Ghostscript 9.56, where SAFER is the default and
- * the flag is a no-op, and it runs against an Emscripten MEMFS holding nothing
- * but the one input file — there is no host filesystem to reach in the first
- * place. Noted because "where is -dSAFER" is the obvious thing to ask here.
+ * Full argv for a pdfwrite pass. CompatibilityLevel 1.4 is the
+ * widest-supported output that still allows the object streams we want; the
+ * shared base flags (and the story of the missing `-dSAFER`) live with
+ * `GS_BASE_FLAGS` in core/ghostscript/args.ts, which builds the argv for the
+ * conversion routes the same way.
  */
 export function ghostscriptArgs(opts: {
     quality: QualityPreset;
@@ -50,9 +48,7 @@ export function ghostscriptArgs(opts: {
         "-sDEVICE=pdfwrite",
         "-dCompatibilityLevel=1.4",
         `-dPDFSETTINGS=${pdfSettingsFor(opts.quality)}`,
-        "-dNOPAUSE",
-        "-dQUIET",
-        "-dBATCH",
+        ...GS_BASE_FLAGS,
         `-sOutputFile=${opts.outputPath}`,
         opts.inputPath,
     ];

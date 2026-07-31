@@ -1,7 +1,23 @@
 import { expect, test } from 'vitest';
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
-import TMXHandler from './tmx.ts';
-import * as XLSX from "xlsx";
+
+import { hasXlsx, MISSING_DEPS_REASON } from '../../test/helpers/optionalDeps.ts';
+
+/**
+ * `xlsx` is not installable in every environment - see MISSING_DEPS_REASON.
+ * Both the handler and the library are imported inside the tests rather than
+ * at the top of the file, because a static import of either fails the whole
+ * file at transform time instead of skipping it.
+ */
+async function loadDeps() {
+    const specifier = 'xlsx';
+    const [tmx, x] = await Promise.all([
+        import('./tmx.ts'),
+        import(/* @vite-ignore */ specifier),
+    ]);
+    // CJS interop: the namespace may carry the module object on `default`.
+    return { TMXHandler: tmx.default, XLSX: (x as any).default ?? x };
+}
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -27,7 +43,8 @@ const xlsxFormatOut = CommonFormats.XLSX.supported('tmx-to-xlsx', false, true);
 const xlsxFormatIn = CommonFormats.XLSX.supported('xlsx-to-tmx', true, false);
 const tmxFormatOut = CommonFormats.TMX.supported('xlsx-to-tmx', false, true);
 
-test('TMX handler converts .tmx to .xlsx and back to .tmx (Round-trip)', async () => {
+test.skipIf(!hasXlsx)(`TMX handler converts .tmx to .xlsx and back to .tmx (Round-trip) [${MISSING_DEPS_REASON}]`, async () => {
+    const { TMXHandler, XLSX } = await loadDeps();
     const handler = new TMXHandler();
     await handler.init();
 
@@ -66,7 +83,8 @@ test('TMX handler converts .tmx to .xlsx and back to .tmx (Round-trip)', async (
     expect(outputXmlString).toContain('<tuv xml:lang="fr-FR"><seg>Au revoir</seg></tuv>');
 });
 
-test('TMX handler is registered as a background handler with 4 routing edges', async () => {
+test.skipIf(!hasXlsx)('TMX handler is registered as a background handler with 4 routing edges', async () => {
+    const { TMXHandler } = await loadDeps();
     const handler = new TMXHandler();
     expect(handler.requiresMainThread).toBe(false);
     expect(handler.supportedFormats.length).toBe(4);

@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { hasFullRegistry, MISSING_DEPS_REASON } from "../../test/helpers/optionalDeps.ts";
 
-describe('MCP Server Integration', () => {
+// The server loads the whole handler registry on boot, so a single
+// unresolvable handler import kills the child process and every assertion
+// here reports as "Connection closed" - a misleading symptom for a missing
+// package. Skip with the real reason instead.
+describe.skipIf(!hasFullRegistry)(`MCP Server Integration [${MISSING_DEPS_REASON}]`, () => {
     let client: Client;
 
     beforeAll(async () => {

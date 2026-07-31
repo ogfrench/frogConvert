@@ -16,10 +16,13 @@ export async function organize(
   pages: CorePageEntry[],
   signal?: AbortSignal
 ): Promise<FileData> {
-  // Load each source PDF once
+  // Load each source PDF once. Checkpointed per file because for a many-file
+  // organize the loads *are* the slow phase - without this, Cancel does
+  // nothing until every source has been parsed.
   const loaded = new Map<number, PDFDocument>();
   for (const sf of sourceFiles) {
     if (!loaded.has(sf.id)) {
+      await checkpoint(signal);
       loaded.set(sf.id, await PDFDocument.load(sf.bytes, { ignoreEncryption: true }));
     }
   }

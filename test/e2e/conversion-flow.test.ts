@@ -4,6 +4,7 @@ import puppeteer, { Browser, Page } from "puppeteer";
 import { createServer, ViteDevServer } from "vite";
 import path from "path";
 import fs from "fs";
+import { hasFullRegistry, MISSING_DEPS_REASON } from "../helpers/optionalDeps.ts";
 
 /** Navigate with a single retry to handle transient ERR_ABORTED from Vite dep re-optimization. */
 async function safeGoto(page: Page, url: string, options?: Parameters<Page["goto"]>[1]) {
@@ -23,7 +24,9 @@ async function safeGoto(page: Page, url: string, options?: Parameters<Page["goto
     }
 }
 
-describe("E2E Conversion Flow", () => {
+// Boots the real app from source, so it needs every handler import to
+// resolve - including the ones this environment cannot install.
+describe.skipIf(!hasFullRegistry)(`E2E Conversion Flow [${MISSING_DEPS_REASON}]`, () => {
     let server: ViteDevServer;
     let browser: Browser;
     let page: Page;

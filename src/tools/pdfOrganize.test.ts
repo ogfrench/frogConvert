@@ -159,7 +159,7 @@ describe('pdfOrganize', () => {
     const bytes = await makePdf(11);
     const file = sf(1, 'doc.pdf', bytes, 11);
     const pages = Array.from({ length: 11 }, (_, i) => page(1, i + 1));
-    // First checkpoint (before page 0) passes, second (before page 10) aborts.
+    // The load-phase checkpoint passes, the page-loop one aborts.
     await expect(organize([file], pages, abortAfter(1))).rejects.toThrow(PdfEditCancelled);
   });
 });
