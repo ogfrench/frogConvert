@@ -12,7 +12,7 @@ _(Backup domain: [frogconvert.netlify.app](https://frogconvert.netlify.app/)) ·
 
 > Turn your file into the prince it always was.
 
-frogConvert runs entirely in your browser. Convert between 70+ file formats, compress images, audio, video and PDFs, and edit PDFs (merge, reorder, extract, watermark) - without uploading anything to a server. Also available as an MCP server and a local REST API for AI agents and scripts.
+frogConvert runs entirely in your browser. Convert between 70+ file formats, compress images, audio, video and PDFs, and edit PDFs (merge, reorder, extract, watermark) - without uploading anything to a server. Also available as an MCP server and a local REST API, so agents and scripts can convert, compress and edit PDFs headlessly.
 
 ## Quick start
 

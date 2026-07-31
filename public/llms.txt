@@ -1,6 +1,6 @@
 # frogConvert
 
-> 100% client-side file converter, compressor and PDF editor. Converts 70+ formats (including PostScript, EPS and Illustrator artwork), compresses images, audio, video and PDFs, and edits PDFs entirely in the browser via WASM (FFmpeg, ImageMagick, Ghostscript, Pandoc, 7z-wasm, pdf-lib). No uploads, no servers, no telemetry: files never leave the device. Also exposes a Model Context Protocol (MCP) server and a local REST API so agents and scripts can drive it.
+> 100% client-side file converter, compressor and PDF editor. Converts 70+ formats (including PostScript, EPS and Illustrator artwork), compresses images, audio, video and PDFs, and edits PDFs entirely in the browser via WASM (FFmpeg, ImageMagick, Ghostscript, Pandoc, 7z-wasm, pdf-lib). No uploads, no servers, no telemetry: files never leave the device. Also exposes a Model Context Protocol (MCP) server and a local REST API so agents and scripts can convert, compress and edit PDFs headlessly.
 
 ## Project
 

@@ -31,10 +31,17 @@ not, plus the handful of paths that need a real file and a real eye.
 - [ ] **Cancel mid-batch** with the button. Finished files stay downloadable;
       the interrupted one says *stopped*, not *failed*.
 - [ ] **Cancel with Escape.** Same outcome.
-- [ ] Open the level dropdown and press **Escape**. It closes. (On a phone, a
-      stuck-open menu covers the Compress button.)
 
-## 2. PostScript, EPS, Illustrator - new in this release
+## 2. The level chooser, now a modal
+
+- [ ] Tap **Compression level**. It opens a centred dialog, not a dropdown
+      hanging over the Compress button.
+- [ ] The current level carries a **tick**, not just bolder text.
+- [ ] **Escape** closes it. So does tapping the backdrop.
+- [ ] On a **phone-sized window**, every level is reachable without the dialog
+      running off the bottom. This is what the old dropdown got wrong.
+
+## 3. PostScript, EPS, Illustrator - new in this release
 
 - [ ] Drop an `.eps` on the Converter. The card says *Ready to convert from EPS*.
 - [ ] Convert it to **PDF**. Opens, artwork intact, **text is selectable** -
@@ -52,7 +59,7 @@ not, plus the handful of paths that need a real file and a real eye.
 - [ ] First PostScript conversion of the session shows a one-time ~16 MB
       download that names itself sensibly (not "PDF compressor").
 
-## 3. PDF Editor cancellation - new in this release
+## 4. PDF Editor - cancellation and Automatic
 
 - [ ] Merge several large PDFs. A **Cancel** button is present during the wait.
 - [ ] Press it. You return to the editor with your files intact - not an error
@@ -62,21 +69,49 @@ not, plus the handful of paths that need a real file and a real eye.
 - [ ] Let one finish uninterrupted. The result is correct and downloads.
 - [ ] Extract several pages **as a single PDF** from a document with a repeated
       logo or letterhead. The output should not be much larger than the source.
+- [ ] The **PDF compression** menu offers **Automatic**, and the default is
+      still **Original quality**. Both halves matter: it is on the menu, and it
+      is not what you land on.
+- [ ] Save an edit at *Automatic* and again at *Original quality*. The
+      Automatic one should be smaller.
 
-## 4. The rest of the app still works
+## 5. Agents and scripts - new in this release
+
+Start the API with `bun run api` (port 3000).
+
+- [ ] `POST /compress` with a file shrinks it:
+      ```bash
+      curl -X POST http://localhost:3000/compress \
+        -F "file=@scan.pdf" -F "level=low" -D headers.txt -o out.pdf
+      ```
+      `headers.txt` carries an `X-Compress-Report` with the before/after sizes.
+- [ ] The same call at `level=high` gives a **different, larger** file.
+- [ ] `level=lossless` is **rejected with a 400**, not silently accepted.
+- [ ] A file with nothing to give (a small vector PDF) comes back with
+      `shrunk: false` and a reason, and its **original bytes**.
+- [ ] In an MCP client, `compress_file` appears in the tool list and compresses
+      a file given `filePath` + `outputFilePath`.
+- [ ] Sanity check the thing that was broken: `POST /convert` with `pdf` in and
+      `pdf` out still returns your file **unchanged**. That is expected -
+      convert is not a compressor - and is why `/compress` exists.
+
+## 6. The rest of the app still works
 
 - [ ] A plain image conversion (PNG → JPG).
 - [ ] A video conversion.
 - [ ] Light/dark toggle.
-- [ ] Mobile viewport: Compress, Convert and the PDF editor are all usable.
+- [ ] **Format filter** (Core / Core+ / All) opens as a dropdown, shows a tick
+      on the active one, and switching it changes the format list.
+- [ ] Mobile viewport: Compress, Convert and the PDF editor are all usable, and
+      the PDF tabs are comfortable to tap.
 - [ ] Install as a PWA, or open the existing install, and confirm it still runs.
 
-## 5. Copy and metadata
+## 7. Copy and metadata
 
 - [ ] Page description and any Frogsworth tips read naturally.
 - [ ] No user-facing string contains an em dash (a v3 rule).
-- [ ] `/docs/slidedeck.html` opens, the counter reads `1/15`, and slide 12 is
-      the v3 slide.
+- [ ] `/docs/slidedeck.html` opens, the counter reads `1/15` **on load**, and
+      slide 12 is the v3 slide.
 
 ---
 
@@ -86,17 +121,24 @@ not, plus the handful of paths that need a real file and a real eye.
 2. Tag: `git tag v3.0.0 && git push origin v3.0.0`.
    The electron workflow builds the desktop artifacts and publishes the GitHub
    Release from the tag.
-3. Update the **GitHub repo description** (Settings → About) to:
+3. Update the **GitHub repo description** (Settings → About). No tool available
+   to me can edit this, so it needs doing by hand:
    > Convert 70+ file formats, compress images, audio and video, and edit or
    > shrink PDFs, all in your browser. No uploads, no servers: your files never
    > leave your device.
-4. Close #12, #14, #16, #19 and #21 against the release.
+4. Close **#12, #14, #16, #19 and #21** against the release. Leave **#22**
+   (smarter Automatic) open - it is deliberately post-v3.
 5. Delete this file.
 
 ## Known limits, so they are not mistaken for bugs
 
 - A text-only PDF barely shrinks. Correct: the level governs *image*
   downsampling, and there are no images to downsample.
+- **Compressing a PNG gives the same file at every level.** PNG is lossless, so
+  the quality dial has nothing to turn, and the resize cap does nothing to an
+  image already under it.
+- **Automatic matches Balanced on images and High quality on PDFs.** Both are
+  the rule working, not a stuck control. See `docs/COMPRESS.md`.
 - `PDF → EPS` returning one file per page is required by the format.
 - Ghostscript presets are not monotonic for PDFs - a *lower* setting can
   produce a *larger* file on some documents. Automatic avoids the presets that
@@ -104,3 +146,5 @@ not, plus the handful of paths that need a real file and a real eye.
 - HEIC/AVIF are accepted at intake and then honestly refused per file.
 - Cancelling during the degraded canvas PDF fallback waits for that one file;
   it runs on the main thread and there is nothing to terminate.
+- Same-format `POST /convert` returns the file unchanged. Not a regression -
+  it never compressed, and `/compress` is now the supported route.
