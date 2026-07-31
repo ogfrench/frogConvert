@@ -431,12 +431,14 @@
    are going and gives no hint a third mode exists. The button opens a menu
    instead; the mobile pill group (below 800px) stays the mobile answer. */
 #app-mode-picker,
-#quality-picker {
+#quality-picker,
+#format-mode-picker {
   position: relative;
   display: flex;
 }
 
 #app-mode-menu,
+#format-mode-menu,
 #quality-menu {
   position: absolute;
   top: calc(100% + var(--space-2));
@@ -455,9 +457,11 @@
    13rem the longer ones wrapped onto a third line, which is what made the list
    read as cramped. */
 #app-mode-menu { min-width: 12rem; }
-#quality-menu { min-width: 17.5rem; }
+#quality-menu,
+#format-mode-menu { min-width: 17.5rem; }
 
 #app-mode-menu[hidden],
+#format-mode-menu[hidden],
 #quality-menu[hidden] { display: none; }
 
 .app-mode-item,
@@ -505,9 +509,18 @@
 }
 
 .app-mode-item[aria-current="true"],
+/* The active choice is marked three ways - tick, weight, colour - so it never
+   depends on colour alone to be identifiable (WCAG 1.4.1). Weight shifts are
+   easy to miss in a list where every row is short. The tick is generated
+   content rather than markup so it is decoration to a screen reader, which
+   already hears the row's aria-current. */
 .quality-item[aria-current="true"] {
   color: var(--foreground);
   font-weight: var(--font-medium);
+}
+
+.quality-item[aria-current="true"] .quality-item-label::after {
+  content: " ✓";
 }
 
 @media only screen and (max-width: 800px) {

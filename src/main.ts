@@ -467,6 +467,7 @@ function renderQualityOptions() {
     btn.dataset.value = c.value;
     btn.setAttribute("aria-current", String(c.value === current));
     const label = document.createElement("span");
+    label.className = "quality-item-label";
     label.textContent = c.label;
     const blurb = document.createElement("span");
     blurb.className = "quality-item-blurb";
