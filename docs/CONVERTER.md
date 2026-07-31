@@ -57,6 +57,14 @@ Ghostscript — the same engine that powers PDF compression — reads the PostSc
 | `PDF → PDF/A` | PDF/A-2b, for archival deposit. Anything that cannot be represented in the profile is dropped rather than failing the conversion. |
 | `PDF → TIFF` | Multi-page, LZW-compressed. Resolution follows the compression level: 96 dpi at *Smallest file*, 150 at *Balanced*, 300 at *High quality*. |
 
+**The compression level applies to these routes too.** It controls how far embedded images are downsampled, so it does nothing to a purely vector file and a great deal to a scan. Measured on a 10 MB image-heavy source:
+
+| Route | Smallest file | Balanced | High quality |
+|---|---|---|---|
+| `PS → PDF` | 128 KB | 508 KB | 1.07 MB |
+| `PDF → PDF/A` | 131 KB | 511 KB | 1.07 MB |
+| `PDF → PS` | 3.8 MB | 16.3 MB | 16.3 MB |
+
 Two things worth knowing:
 
 - **`.ai` files convert through their PDF layer.** Illustrator has written PDF-compatible `.ai` since version 9 (2000), so the artwork comes across intact — but layers, editable text and effects are flattened. Keep the `.ai` as your master. The Converter says so before you press the button.
