@@ -395,12 +395,20 @@ describe("pdfQuality (PDF editor)", () => {
         expect(pdfQuality.value).toBe("lossless");
     });
 
-    it("offers no Automatic level", () => {
-        // "Read the file and decide" is a sensible answer for a file handed
-        // over to be shrunk, and a surprising one for a file handed over to be
-        // edited.
-        expect(PDF_QUALITY_CHOICES.map(c => c.value)).not.toContain("auto");
-        expect(PDF_QUALITY_CHOICES.map(c => c.value)).toEqual(["lossless", "high", "medium", "low"]);
+    it("offers Automatic, but never lands on it by default", () => {
+        // Both halves matter. "Read the file and decide" is a good answer for
+        // someone who went looking for a smaller PDF, and a surprising one
+        // applied silently to an edit - so it is on the menu and is not the
+        // default. A regression either way is a behaviour change, not a tweak.
+        expect(PDF_QUALITY_CHOICES.map(c => c.value)).toContain("auto");
+        expect(PDF_QUALITY_DEFAULT).not.toBe("auto");
+    });
+
+    it("puts Original quality first, ahead of Automatic", () => {
+        // The default should be the first thing read, and the order otherwise
+        // runs gentlest to most aggressive like the other two surfaces.
+        expect(PDF_QUALITY_CHOICES.map(c => c.value))
+            .toEqual(["lossless", "auto", "high", "medium", "low"]);
     });
 
     it("persists a chosen level", () => {

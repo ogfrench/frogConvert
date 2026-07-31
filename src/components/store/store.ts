@@ -375,25 +375,29 @@ export function setCompressLevel(next: CompressLevel) {
 // editor touches nothing. Pick any other level and the finished PDF is run
 // through Ghostscript on the way out.
 //
-// No "Automatic" here on purpose. Automatic means "read the file and decide",
-// which is a sensible answer for a file the user handed us to shrink and a
-// surprising one for a file they handed us to edit - it would silently
-// recompress an edit nobody asked to shrink.
+// Automatic is offered but is *not* the default, which is the whole point.
+// "Read the file and decide" is a good answer for someone who wants a smaller
+// PDF and a surprising one applied silently to an edit, so it is available to
+// anyone who goes looking and never happens to anyone who doesn't. It resolves
+// through the same `decideAutoQuality` the other two surfaces use, including
+// the PDF-specific rule that a lower preset can produce a *larger* file.
 
-export type PdfQuality = Exclude<QualityLevel, "auto">;
+export type PdfQuality = QualityLevel;
 
 export const PDF_QUALITY_CHOICES = choices(
-  ["lossless", "high", "medium", "low"] as const,
+  ["lossless", "auto", "high", "medium", "low"] as const,
   {
     // A blurb that opens by repeating its own label ("Balanced. Good for...")
     // spends the reader's attention saying nothing.
     lossless: "No compression, your pages untouched",
+    auto: "Reads your PDF and picks a level",
     high: "Print-quality images",
     medium: "Good for sharing and email",
     low: "Visible quality loss on images",
   },
 );
 
+/** Original quality: an edit hands back the document you edited, untouched. */
 export const PDF_QUALITY_DEFAULT: PdfQuality = "lossless";
 
 export const pdfQuality = persisted(

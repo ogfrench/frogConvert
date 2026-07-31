@@ -1,6 +1,7 @@
 import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
 import { KEEP_THRESHOLD } from "../core/compression/compressBatch.ts";
 import { runInWorker, cancelActiveWorkerJob } from "./workerClient.ts";
+import { decideAutoQuality } from "../core/compression/automatic.ts";
 import type { PdfQuality } from "../components/store/store.ts";
 
 /**
@@ -59,13 +60,37 @@ export async function compressPdfOutput(
 ): Promise<Uint8Array> {
     if (level === "lossless" || cancelled) return bytes;
 
+    // Automatic has to become a real preset before the engine sees it -
+    // "--quality auto" is not something Ghostscript understands. Resolved
+    // through the shared definition rather than a fourth private copy, so the
+    // PDF rule (a lower preset can produce a *larger* file, so aim at the
+    // reliable win) applies here exactly as it does on the Compress surface.
+    let effective: Exclude<PdfQuality, "auto">;
+    if (level !== "auto") {
+        effective = level;
+    } else {
+        try {
+            const decision = await decideAutoQuality(bytes, PDF_FORMAT.mime);
+            // Nothing left to give. Returning the input is the honest answer
+            // and skips an engine pass that could only make it bigger.
+            if (decision.kind === "already-minimal") return bytes;
+            effective = decision.tier;
+        } catch (e) {
+            // The probe is an optimisation, not a gate. If it cannot read the
+            // document, fall back to the preset Automatic aims at for PDFs
+            // rather than abandoning a compression the user asked for.
+            console.warn("[pdf] automatic level probe failed, using high", e);
+            effective = "high";
+        }
+    }
+
     try {
         const out = await runInWorker(
             "Ghostscript",
             [{ name, bytes }],
             PDF_FORMAT,
             PDF_FORMAT,
-            ["--quality", level],
+            ["--quality", effective],
         );
         const produced = out?.[0]?.bytes;
         if (!produced?.byteLength) return bytes;

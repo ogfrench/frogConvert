@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  */
 
 vi.mock("./workerClient.ts", () => ({ runInWorker: vi.fn(), cancelActiveWorkerJob: vi.fn(() => true) }));
+vi.mock("../core/compression/automatic.ts", () => ({ decideAutoQuality: vi.fn() }));
 
 const {
     compressPdfOutput,
@@ -17,8 +18,10 @@ const {
     wasPdfOutputCompressionCancelled,
 } = await import("./compressPdfOutput.ts");
 import { runInWorker } from "./workerClient.ts";
+import { decideAutoQuality } from "../core/compression/automatic.ts";
 
 const runMock = vi.mocked(runInWorker);
+const autoMock = vi.mocked(decideAutoQuality);
 const bytes = (n: number) => new Uint8Array(n);
 
 beforeEach(() => {
@@ -41,6 +44,52 @@ describe("compressPdfOutput", () => {
         expect(runMock).toHaveBeenCalledWith(
             "Ghostscript", expect.anything(), expect.anything(), expect.anything(),
             ["--quality", "medium"]);
+    });
+
+    it("resolves Automatic to a real preset before the engine sees it", async () => {
+        // "--quality auto" is not something Ghostscript understands, so the
+        // level has to be decided here or the pass fails on the argv.
+        autoMock.mockResolvedValue({ kind: "compress", tier: "high" });
+        runMock.mockResolvedValue([{ name: "d.pdf", bytes: bytes(400) }]);
+
+        await compressPdfOutput(bytes(1000), "auto");
+
+        expect(runMock).toHaveBeenCalledWith(
+            "Ghostscript", expect.anything(), expect.anything(), expect.anything(),
+            ["--quality", "high"]);
+    });
+
+    it("skips the engine entirely when Automatic finds nothing left to give", async () => {
+        // An engine pass on an already-minimal PDF can only make it bigger,
+        // and the keep-threshold would discard the result anyway.
+        autoMock.mockResolvedValue({ kind: "already-minimal" });
+        const input = bytes(1000);
+
+        expect(await compressPdfOutput(input, "auto")).toBe(input);
+        expect(runMock).not.toHaveBeenCalled();
+    });
+
+    it("still compresses when the Automatic probe cannot read the document", async () => {
+        // The probe is an optimisation, not a gate. Abandoning a compression
+        // the user asked for because we could not inspect the file would be
+        // the wrong way to fail.
+        autoMock.mockRejectedValue(new Error("unreadable"));
+        runMock.mockResolvedValue([{ name: "d.pdf", bytes: bytes(400) }]);
+
+        await compressPdfOutput(bytes(1000), "auto");
+
+        expect(runMock).toHaveBeenCalledWith(
+            "Ghostscript", expect.anything(), expect.anything(), expect.anything(),
+            ["--quality", "high"]);
+    });
+
+    it("does not probe at all for an explicitly chosen level", async () => {
+        // The probe reads container metadata, not pixels, so letting it speak
+        // over an instruction is how the Compress surface once reported
+        // "already compressed" at every setting.
+        runMock.mockResolvedValue([{ name: "d.pdf", bytes: bytes(400) }]);
+        await compressPdfOutput(bytes(1000), "low");
+        expect(autoMock).not.toHaveBeenCalled();
     });
 
     it("keeps the original when the squeeze saves too little to be worth it", async () => {

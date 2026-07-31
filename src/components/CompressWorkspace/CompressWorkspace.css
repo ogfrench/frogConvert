@@ -75,29 +75,25 @@
   min-height: calc(var(--space-16) * 2.5);
 }
 
-/* --- Level dropdown (mirrors the format selector it sits in place of) --- */
+/* --- Level chooser -------------------------------------------------------
+   A modal, not an absolutely positioned dropdown. As a dropdown it opened
+   *over* the Compress button directly beneath it, so on a narrow screen a tap
+   aimed at Compress landed on the menu; and with five options it ran off the
+   bottom of a 640px-tall phone. The modal is centred and scroll-locked, so it
+   can do neither, and Escape / backdrop / focus restore come from
+   ModalManager rather than three hand-rolled listeners. */
 
-.cw-level-field { position: relative; }
-
-.cw-level-menu {
-  position: absolute;
-  top: calc(100% + var(--space-1));
-  left: 0;
-  right: 0;
-  /* --z-floating is the app's layer for transient overlays: above card content
-     (--z-content/--z-elevated), below the top bar and modals. A raw number here
-     would sit outside the documented scale and silently drift out of order. */
-  z-index: var(--z-floating);
+.cw-level-dialog {
   display: flex;
   flex-direction: column;
-  padding: var(--space-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background-color: var(--card);
-  box-shadow: var(--shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.15));
+  gap: var(--space-3);
 }
 
-.cw-level-menu[hidden] { display: none; }
+.cw-level-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
 
 .cw-level-option {
   display: flex;
@@ -122,10 +118,22 @@
   color: var(--foreground);
 }
 
-.cw-level-option[aria-current="true"] {
+/* The chosen level carries a tick as well as weight and colour, so it does not
+   depend on colour alone to be identifiable (WCAG 1.4.1). */
+.cw-level-option[aria-checked="true"] {
   color: var(--foreground);
   font-weight: var(--font-medium);
+  background-color: var(--accent);
 }
+
+.cw-level-option[aria-checked="true"] > span:first-child::after {
+  content: " ✓";
+  color: var(--foreground);
+}
+
+/* A comfortable target on a phone: the guideline both Apple and Google give,
+   and above the 24px WCAG 2.5.8 floor with room to spare. */
+.cw-level-option { min-height: 44px; justify-content: center; }
 
 .cw-level-blurb {
   font-size: var(--text-xs);

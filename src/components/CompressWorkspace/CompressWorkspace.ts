@@ -28,7 +28,7 @@ import {
   completeCancellation,
   isCancelled,
 } from "../../conversion/cancellation.ts";
-import { hidePopup } from "../Popup/Popup.ts";
+import { hidePopup, showPopup } from "../Popup/Popup.ts";
 import { preloadGhostscript } from "../../tools/ghostscriptPreload.ts";
 import { downloadFile, downloadAsZip, timestampForFilename } from "../../conversion/download.ts";
 import { triggerConfetti } from "../../effects/Confetti/Confetti.ts";
@@ -469,27 +469,75 @@ function uploadFieldMarkup(): string {
 }
 
 function levelFieldMarkup(): string {
-  const current = compressLevel.value;
-  const active = COMPRESS_LEVELS.find(l => l.value === current);
-  const options = COMPRESS_LEVELS.map(l => `
-    <button class="cw-level-option" type="button" role="menuitem" data-level="${l.value}"
-      aria-current="${l.value === current}">
-      <span>${escapeHTML(l.label)}</span>
-      <span class="cw-level-blurb">${escapeHTML(l.blurb)}</span>
-    </button>
-  `).join("");
+  const active = COMPRESS_LEVELS.find(l => l.value === compressLevel.value);
 
+  // A trigger only. The choices live in a modal rather than an absolutely
+  // positioned dropdown, which is what the Converter does for its format
+  // picker and what this used to get wrong: the open menu overlaid the
+  // Compress button, so a tap aimed at the button landed on the menu instead.
+  // A modal is centred, scroll-locked and dismissable, so it cannot cover the
+  // control that opened it or run off the bottom of a short screen.
   return `
     <div class="convert-field cw-level-field">
       <span class="convert-to-label">Compression level</span>
       <button class="format-selector has-value cw-level-selector" type="button"
-        aria-haspopup="menu" aria-expanded="false">
+        aria-haspopup="dialog" aria-expanded="false">
         <span class="selector-text truncate">${escapeHTML(active?.label ?? "Automatic")}</span>
         <span class="selector-chevron" aria-hidden="true">&#9662;</span>
       </button>
-      <div class="cw-level-menu" role="menu" aria-label="Compression level" hidden>${options}</div>
     </div>
   `;
+}
+
+/**
+ * The compression-level chooser, as a modal.
+ *
+ * Built from nodes rather than an HTML string so the labels and blurbs never
+ * pass through innerHTML, and routed through `showPopup` so it inherits the
+ * app's modal contract for free: Escape, backdrop dismissal, focus restore and
+ * scroll lock, all from `ModalManager` instead of three bespoke listeners.
+ */
+function openLevelPopup(): void {
+  const current = compressLevel.value;
+  const make = (tag: string, className?: string, text?: string) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+
+  const wrap = make("div", "cw-level-dialog");
+  wrap.appendChild(make("h2", undefined, "Compression level"));
+
+  const list = make("div", "cw-level-list");
+  list.setAttribute("role", "radiogroup");
+  list.setAttribute("aria-label", "Compression level");
+
+  for (const level of COMPRESS_LEVELS) {
+    const option = make("button", "cw-level-option") as HTMLButtonElement;
+    option.type = "button";
+    option.setAttribute("role", "radio");
+    option.setAttribute("aria-checked", String(level.value === current));
+    option.dataset.level = level.value;
+    option.appendChild(make("span", undefined, level.label));
+    option.appendChild(make("span", "cw-level-blurb", level.blurb));
+    option.addEventListener("click", () => {
+      hidePopup();
+      if (level.value === compressLevel.value) return;
+      setCompressLevel(level.value);
+      markCompressDirty("manifest");
+      render();
+      // Mirror into the settings menu, which shows this same setting.
+      window.dispatchEvent(new CustomEvent("frog:compress-level", { detail: { from: "card" } }));
+    });
+    list.appendChild(option);
+  }
+
+  wrap.appendChild(list);
+  showPopup(wrap);
+  // Land focus on the current choice so a keyboard or screen-reader user
+  // arrives at where they are, not at the top of an unlabelled list.
+  wrap.querySelector<HTMLElement>('[aria-checked="true"]')?.focus();
 }
 
 function fileListMarkup(): string {
@@ -666,27 +714,6 @@ function openPicker(accept = "") {
   fileInput.click();
 }
 
-/**
- * Escape closes the level dropdown, wherever focus happens to be.
- *
- * Module-scoped on purpose: `wireRendered()` runs on every render, and
- * `addEventListener` with an identical function reference is a no-op, so this
- * cannot stack up on `document` the way an inline closure would. It looks the
- * menu up per press rather than closing over it, so a re-render replacing the
- * element does not leave it pointing at a detached node.
- */
-function onLevelMenuEscape(e: KeyboardEvent) {
-  if (e.key !== "Escape") return;
-  const menu = rootEl?.querySelector<HTMLElement>(".cw-level-menu");
-  if (!menu || menu.hidden) return;
-  menu.hidden = true;
-  const selector = rootEl?.querySelector<HTMLElement>(".cw-level-selector");
-  selector?.setAttribute("aria-expanded", "false");
-  // Focus goes back where it came from, so keyboard users are not dropped at
-  // the top of the document.
-  selector?.focus();
-}
-
 function wireRendered() {
   if (!rootEl) return;
 
@@ -735,44 +762,13 @@ function wireRendered() {
     btn.addEventListener("click", () => removeFile(Number(btn.dataset.remove)));
   }
 
-  // Level selector: same dropdown contract as the format picker it mirrors.
-  const levelSelector = rootEl.querySelector<HTMLElement>(".cw-level-selector");
-  const levelMenu = rootEl.querySelector<HTMLElement>(".cw-level-menu");
-  if (levelSelector && levelMenu) {
-    const setOpen = (open: boolean) => {
-      levelMenu.hidden = !open;
-      levelSelector.setAttribute("aria-expanded", String(open));
-    };
-    levelSelector.addEventListener("click", (e) => {
-      e.stopPropagation();
-      setOpen(levelMenu.hidden);
-    });
-    levelMenu.addEventListener("click", (e) => {
-      const opt = (e.target as HTMLElement).closest(".cw-level-option") as HTMLElement | null;
-      if (!opt) return;
-      setOpen(false);
-      const next = opt.dataset.level as CompressLevel;
-      if (next === compressLevel.value) return;
-      setCompressLevel(next);
-      markCompressDirty("manifest");
-      render();
-      // Mirror into the settings menu, which shows this same setting.
-      window.dispatchEvent(new CustomEvent("frog:compress-level", { detail: { from: "card" } }));
-    });
-    // Escape is bound at document level, not on the menu. Opening the dropdown
-    // leaves focus on the *trigger*, so a keydown listener on the menu only
-    // fired once the user had already arrowed into it - meaning Escape did
-    // nothing in the ordinary case of "I opened this by mistake".
-    //
-    // That is worse than it sounds on a narrow screen: the menu overlays the
-    // Compress button, and a click aimed at the button lands on the menu (which
-    // is inside `.cw-level-field`, so the click-away handler ignores it too).
-    // With no working Escape, the surface was effectively stuck until the user
-    // guessed to tap elsewhere.
-    document.addEventListener("keydown", onLevelMenuEscape);
-    // Click-away is handled once at init, not here: wireRendered() runs on
-    // every render and a listener added per render piles up on `document`.
-  }
+  // Level selector: opens the modal. Escape, backdrop dismissal, focus restore
+  // and scroll lock all come from ModalManager via showPopup, which is why
+  // there is no document-level keydown listener or click-away handler here any
+  // more - three bespoke behaviours replaced by the one the rest of the app
+  // already uses.
+  rootEl.querySelector<HTMLElement>(".cw-level-selector")
+    ?.addEventListener("click", () => openLevelPopup());
 
   rootEl.querySelector<HTMLElement>(".cw-compress")?.addEventListener("click", () => { void runCompression(); });
   // The same celebration the Converter puts on its success popup. Compress
@@ -822,16 +818,6 @@ export function initCompressWorkspace() {
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") void flushCompressOnHide();
-    });
-    // One click-away listener for the lifetime of the surface. It looks the
-    // menu up per click rather than closing over it, so re-renders replacing
-    // the element don't need a fresh listener each time.
-    document.addEventListener("click", (e) => {
-      const menu = rootEl?.querySelector<HTMLElement>(".cw-level-menu");
-      if (!menu || menu.hidden) return;
-      if ((e.target as HTMLElement).closest(".cw-level-field")) return;
-      menu.hidden = true;
-      rootEl?.querySelector(".cw-level-selector")?.setAttribute("aria-expanded", "false");
     });
   }
   // pagehide covers the mobile / OS-killed-tab cases visibilitychange misses.

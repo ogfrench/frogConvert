@@ -781,46 +781,57 @@ describe('CompressWorkspace - download naming', () => {
   });
 });
 
-describe('CompressWorkspace - level dropdown dismissal', () => {
-  function openMenu() {
+describe('CompressWorkspace - level chooser', () => {
+  function open() {
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
     document.querySelector<HTMLElement>('.cw-level-selector')!.click();
-    return document.querySelector<HTMLElement>('.cw-level-menu')!;
+    return document.querySelector<HTMLElement>('.cw-level-dialog');
   }
 
-  it('closes on Escape even though focus is still on the trigger', () => {
-    // Opening the dropdown leaves focus on the button, so a keydown listener
-    // bound to the *menu* never fired. On a narrow screen the open menu covers
-    // the Compress button and swallows the click aimed at it, so "Escape does
-    // nothing" left the surface effectively stuck.
-    const menu = openMenu();
-    expect(menu.hidden).toBe(false);
-
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    expect(document.querySelector<HTMLElement>('.cw-level-menu')!.hidden).toBe(true);
-    expect(document.querySelector('.cw-level-selector')!.getAttribute('aria-expanded')).toBe('false');
+  it('opens as a modal rather than a dropdown over the card', () => {
+    // As an absolutely positioned menu this opened directly on top of the
+    // Compress button, so on a narrow screen a tap aimed at Compress landed on
+    // the menu instead - and with five options it ran off a short screen
+    // entirely. A modal can do neither.
+    expect(open()).not.toBeNull();
+    expect(document.querySelector('.cw-level-menu')).toBeNull();
   });
 
-  it('puts focus back on the trigger rather than dropping it', () => {
-    openMenu();
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    expect(document.activeElement).toBe(document.querySelector('.cw-level-selector'));
+  it('marks the current level for assistive tech, not by styling alone', () => {
+    open();
+    const checked = [...document.querySelectorAll('.cw-level-option')]
+      .filter(o => o.getAttribute('aria-checked') === 'true');
+    expect(checked).toHaveLength(1);
+    expect(checked[0].textContent).toContain('Automatic');
   });
 
-  it('ignores Escape when the menu is already closed', () => {
-    ws.handleFiles([fakeFile('a.png', 'image/png')]);
-    const before = document.activeElement;
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    // No focus grab, so Escape elsewhere on the page still belongs to whoever
-    // else wants it (the progress modal, for one).
-    expect(document.activeElement).toBe(before);
+  it('exposes the choices as a radiogroup', () => {
+    open();
+    const group = document.querySelector('.cw-level-list');
+    expect(group?.getAttribute('role')).toBe('radiogroup');
+    expect(document.querySelectorAll('.cw-level-option[role="radio"]').length)
+      .toBe(ws.COMPRESS_LEVELS.length);
   });
 
-  it('still closes on a click outside the field', () => {
-    const menu = openMenu();
-    expect(menu.hidden).toBe(false);
-    document.body.click();
-    expect(document.querySelector<HTMLElement>('.cw-level-menu')!.hidden).toBe(true);
+  it('closes on Escape, wherever focus happens to be', () => {
+    // Dismissal is ModalManager's now, but the outcome is the user-visible
+    // contract and still worth pinning: opening the chooser and being unable
+    // to leave it is the failure this replaced.
+    open();
+    expect(document.getElementById('popup')!.classList.contains('open')).toBe(true);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(document.getElementById('popup')!.classList.contains('open')).toBe(false);
+  });
+
+  it('applies a pick and closes', () => {
+    open();
+    const smallest = [...document.querySelectorAll<HTMLElement>('.cw-level-option')]
+      .find(o => o.textContent?.includes('Smallest file'))!;
+    smallest.click();
+    expect(ws.getLevel()).toBe('low');
+    expect(document.getElementById('popup')!.classList.contains('open')).toBe(false);
+    expect(document.querySelector('.cw-level-selector .selector-text')?.textContent)
+      .toContain('Smallest file');
   });
 });
 
