@@ -35,7 +35,7 @@ export class ModalManager {
         // that bubbles through an enclosing backdrop is ignored.
         const onBackdrop = (e: MouseEvent) => {
             if (e.target !== bg) return;
-            this.closeTop();
+            this.closeTop("backdrop");
         };
         bg.addEventListener("click", onBackdrop);
 
@@ -83,10 +83,36 @@ export class ModalManager {
         }
     }
 
-    static closeTop() {
+    /**
+     * Dismiss the top modal, as Escape and a backdrop tap both ask to do.
+     *
+     * The two are not the same gesture, and `persistent` is where they part.
+     *
+     * Escape is deliberate: nothing else is bound to that key, so a modal that
+     * is persistent *and* carries an `onEscape` is asking for the keystroke to
+     * run its handler rather than tear the modal down. That is how a job in
+     * flight offers "Escape stops this" - `onEscape` is the cancel, and it has
+     * to win over `persistent` or the key would do nothing.
+     *
+     * A backdrop tap is not deliberate. It is the largest target on a phone,
+     * sitting directly around a small dialog, and it is where a thumb lands by
+     * accident. Routing it to `onEscape` too - which is what this did when
+     * backdrop dismissal was first added - meant a stray tap beside the
+     * progress modal silently cancelled a running merge or a long video
+     * convert, destroying minutes of work that the user never asked to stop.
+     * `persistent` already marks exactly those modals, so the backdrop honours
+     * it and does nothing. Stopping stays where it is discoverable and
+     * deliberate: the Cancel button, and the key.
+     */
+    static closeTop(source: "escape" | "backdrop" = "escape") {
         if (this.activeModals.length === 0) return;
         const top = this.activeModals[this.activeModals.length - 1];
-        
+
+        // Read from the live entry, not the opening call: `updateTop` flips
+        // both of these while a modal is on screen (the cancel button arrives
+        // after the progress popup has opened).
+        if (source === "backdrop" && top.persistent) return;
+
         if (top.onEscape) {
             top.onEscape();
             return;

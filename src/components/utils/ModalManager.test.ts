@@ -352,6 +352,45 @@ describe("ModalManager backdrop dismissal", () => {
         expect(modal.classList.contains("open")).toBe(true);
     });
 
+    it("does not cancel a job in flight when the backdrop is tapped", () => {
+        // The shape every progress modal uses: persistent, with `onEscape`
+        // wired to the cancel. Routing the backdrop to `onEscape` as well made
+        // a stray tap beside the dialog abandon a running merge or a long
+        // convert - the largest target on a phone, silently destroying work.
+        const modal = makeModal("m"); const bg = makeBg("bg");
+        const cancel = vi.fn();
+        ModalManager.open(modal, bg, undefined, true, cancel);
+
+        bg.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        expect(cancel).not.toHaveBeenCalled();
+        expect(modal.classList.contains("open")).toBe(true);
+    });
+
+    it("still lets Escape cancel that same job", () => {
+        // Escape has to keep winning over `persistent`, or the key does
+        // nothing and the only way to stop is the button.
+        const modal = makeModal("m"); const bg = makeBg("bg");
+        const cancel = vi.fn();
+        ModalManager.open(modal, bg, undefined, true, cancel);
+
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+        expect(cancel).toHaveBeenCalledTimes(1);
+    });
+
+    it("honours a persistent flag set after the modal opened", () => {
+        // `updateTop` flips this while the modal is on screen - the cancel
+        // button arrives after the progress popup has already opened - so the
+        // check has to read the live entry, not the opening call.
+        const modal = makeModal("m"); const bg = makeBg("bg");
+        const cancel = vi.fn();
+        ModalManager.open(modal, bg);
+        ModalManager.updateTop({ onEscape: cancel, persistent: true });
+
+        bg.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        expect(cancel).not.toHaveBeenCalled();
+        expect(modal.classList.contains("open")).toBe(true);
+    });
+
     it("stops listening once closed, so a shared backdrop cannot close a stale modal", () => {
         const modal = makeModal("m"); const bg = makeBg("bg");
         ModalManager.open(modal, bg);
