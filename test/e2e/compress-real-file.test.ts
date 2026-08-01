@@ -130,7 +130,12 @@ describe("Compress, end to end, in a browser", () => {
                 shrunk: !!row?.classList.contains("shrunk"),
                 rowText: row?.textContent?.replace(/\s+/g, " ").trim() ?? "",
                 headline: document.querySelector(".cw-results-headline")?.textContent?.replace(/\s+/g, " ").trim() ?? "",
-                popupClosed: !document.getElementById("popup")!.classList.contains("open"),
+                // The results are the modal now, not a card behind it.
+                popupOpen: document.getElementById("popup")!.classList.contains("open"),
+                resultsInPopup: !!document.querySelector("#popup .cw-results-card"),
+                buttons: [...document.querySelectorAll("#popup .popup-actions-footer button")]
+                    .map(b => b.textContent?.trim() ?? ""),
+                spinnerGone: !document.querySelector("#popup .loader-gooey, #popup .loader-spinner"),
             };
         });
 
@@ -139,8 +144,16 @@ describe("Compress, end to end, in a browser", () => {
         expect(result.rowText).not.toMatch(/already compressed|can't compress/i);
         expect(result.shrunk).toBe(true);
         expect(result.headline).toMatch(/saved/i);
-        // The modal must come down, whatever happened.
-        expect(result.popupClosed).toBe(true);
+
+        // The finished batch is the same modal the Converter and the PDF
+        // Editor end in: the progress popup is replaced in place, so there is
+        // no flash of the card between working and finished. This used to
+        // assert the popup came *down*, back when Compress rendered its result
+        // into the card instead - a third shape for the same moment.
+        expect(result.popupOpen).toBe(true);
+        expect(result.resultsInPopup).toBe(true);
+        expect(result.spinnerGone).toBe(true);
+        expect(result.buttons).toEqual(["Download", "Done"]);
     }, 1_200_000);
 
     /**
