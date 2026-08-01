@@ -82,7 +82,30 @@ export type AgentCompressOptions = {
     handlers: readonly FormatHandler[];
     /** `auto` matches the web UI's default: probe each file and pick its tier. */
     level: QualityPreset | "auto";
+    /**
+     * Last resort for formats this process has no engine for.
+     *
+     * `ffmpeg.wasm` throws on construction under Node, so video and audio came
+     * back `unsupported` over REST and MCP - a true statement about the
+     * process, not about the file or the app. Conversion had kept a headless
+     * browser for exactly this since long before; compression was simply never
+     * wired to it. Injected rather than imported so this module stays free of
+     * Puppeteer, and so the browser build (where the fallback is meaningless)
+     * carries none of it.
+     */
+    browserFallback?: (input: AgentCompressInput, level: QualityPreset | "auto")
+        => Promise<AgentCompressResult>;
 };
+
+/**
+ * Reasons that mean "not here", as opposed to "not worth it".
+ *
+ * `unsupported` is the engine being absent; `failed` is it having tried and
+ * broken. Both are worth a second attempt somewhere with a working engine.
+ * `no-gain`, `already-minimal`, `too-small` and `cancelled` are answers about
+ * the file, and re-running them in a browser would only cost time.
+ */
+const WORTH_RETRYING_IN_A_BROWSER = new Set(["unsupported", "failed"]);
 
 /**
  * Compress one or more files and report honestly on each.
@@ -153,7 +176,7 @@ export async function compressForAgents(
     // `inputs.map((_, i) => results.get(i)!)`), so the original is always to
     // hand. For the outcomes that *do* carry bytes when unshrunk, those bytes
     // are the original anyway, which is why this can key off `shrunk` alone.
-    return outcomes.map((o, i) => ({
+    const results: AgentCompressResult[] = outcomes.map((o, i) => ({
         name: o.name,
         bytes: o.shrunk ? o.bytes : inputs[i]!.bytes,
         originalSize: o.originalSize,
@@ -161,4 +184,27 @@ export async function compressForAgents(
         reason: o.reason,
         warning: o.warning,
     }));
+
+    if (!opts.browserFallback) return results;
+
+    // Anything this process had no engine for gets one more go somewhere that
+    // does. Serial on purpose: the bridge is a single page and a single job at
+    // a time, and a batch of videos would otherwise queue up inside it anyway.
+    for (let i = 0; i < results.length; i++) {
+        const r = results[i];
+        if (r.shrunk || !r.reason || !WORTH_RETRYING_IN_A_BROWSER.has(r.reason)) continue;
+        try {
+            const viaBrowser = await opts.browserFallback(inputs[i]!, opts.level);
+            // Only take it if it actually helped. A browser that also declines
+            // leaves the native answer in place, which already carries the
+            // right reason and the caller's original bytes.
+            if (viaBrowser.shrunk && viaBrowser.bytes.byteLength > 0) results[i] = viaBrowser;
+        } catch {
+            // The fallback is a bonus on top of an answer we already have.
+            // Failing to reach a browser must not turn "unsupported" into an
+            // exception that loses the rest of the batch.
+        }
+    }
+
+    return results;
 }

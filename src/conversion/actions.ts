@@ -372,6 +372,13 @@ function showConversionFailedPopup(fromFormat: string, toFormat: string, error: 
     const contact = `<span class="muted-text error-detail">${escapeHTML(SUPPORT_CONTACT_TEXT)}</span>`;
     const fromTo = `<b>${fromFormat}</b> to <b>${toFormat}</b>`;
 
+    // The engine, not the file. Said before anything else, because every other
+    // message here would send the user to look at their document.
+    if (error.kind === "engine_download") {
+        showAlertPopup("Couldn't download the converter", escapeHTML(error.message));
+        return;
+    }
+
     if (error.kind === "not_available") {
         showAlertPopup(
             "Conversion not available yet",

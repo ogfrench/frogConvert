@@ -30,6 +30,17 @@ Adding a real PDF engine paid for two things beyond compression: **PostScript, E
 - **The PDF Editor's long edits can be cancelled** ([#21](https://github.com/ogfrench/frogConvert/issues/21)). Merge, organize, watermark and extract are main-thread pdf-lib loops that previously parked you on a spinner with no way out but a reload. They now yield at checkpoints, carry a Cancel button, and honour Escape; a cancelled edit is a neutral outcome rather than an error.
 
 ### Changed
+- **Video and audio now compress over REST and MCP.** `ffmpeg.wasm` throws on
+  construction under Node, so those formats came back `unsupported` from the
+  agent surfaces - true about the process, not about the file. `compress_file`
+  and `POST /compress` now fall back to the same headless browser `convert_file`
+  has used for years. If the bridge cannot be reached the file returns unshrunk
+  with its original bytes, never empty.
+- **A converter that fails to download says so.** A dropped fetch of a one-time
+  ~16 MB engine was reported as "didn't complete this time - try a different
+  target format or another file": advice that cannot work, pointed at a file
+  that was never the problem. Reported on a real EPS to PDF over a weak
+  connection.
 - **Nothing downloads until you ask.** The Converter and the PDF Editor used to
   fire a download moments after their success modal appeared. All three surfaces
   now wait for the button, and that button names what it will produce -

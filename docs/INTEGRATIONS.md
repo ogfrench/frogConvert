@@ -263,7 +263,7 @@ Both surfaces share the engine selection, the level vocabulary and the 98% keep-
 | PDF | yes, Ghostscript | yes |
 | Video and audio | **no** - reported `unsupported` | yes, FFmpeg |
 
-`ffmpeg.wasm` does not run under Node, so the handler never initialises off the browser. `convert_file` and `POST /convert` work around this by falling back to a headless-browser bridge; **compression has no such fallback**, so an MP4 or MP3 comes back with `shrunk: false` and `reason: "unsupported"` - and its original bytes. Nothing is lost and nothing is silently degraded, but if you need video compression today, drive the web UI rather than the API.
+`ffmpeg.wasm` does not run under Node, so the handler never initialises in-process. `convert_file`, `POST /convert`, `compress_file` and `POST /compress` all fall back to the same headless-browser bridge, so video and audio compress over the API exactly as they do in the web UI. The first such call pays for starting the browser; afterwards it is warm. If the bridge cannot be reached, the file comes back with `shrunk: false`, `reason: "unsupported"` and its **original bytes** - never an empty file.
 
 **Levels:** `auto` (default), `high`, `medium`, `low`. `auto` probes each file and picks a level for it, exactly as the web UI does. There is deliberately **no `lossless`**: as a compression level it can only mean "do nothing", and the endpoint rejects it rather than silently substituting something else.
 

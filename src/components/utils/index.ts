@@ -66,6 +66,8 @@ export type UserErrorKind =
     | "input_issue"
     | "runtime_failure"
     | "cancelled"
+    /** The engine itself could not be downloaded. Nothing to do with the file. */
+    | "engine_download"
     | "unknown";
 
 export interface UserErrorInfo {
@@ -117,6 +119,18 @@ function cleanErrorText(err: unknown): string {
  * questions offline, and a failure that says nothing about the network sends
  * people looking for a problem with their file.
  */
+/**
+ * Said when the converter could not be fetched.
+ *
+ * This is not the offline case: the browser has a connection, it just did not
+ * survive a 16 MB download. Diagnosed as "unknown" it produced "didn't
+ * complete this time - try a different target format or another file", which
+ * is advice that cannot possibly work, aimed at a file that was never the
+ * problem. Reported on a real EPS to PDF over a weak connection.
+ */
+export const ENGINE_DOWNLOAD_FAILED_TEXT =
+    "The converter for this format couldn't finish downloading. It's a one-time ~16 MB file and a weak connection will drop it. Your file is fine - try again, ideally on a steadier network.";
+
 export function isOffline(): boolean {
     return typeof navigator !== "undefined" && navigator.onLine === false;
 }
@@ -131,6 +145,14 @@ export function toUserErrorInfo(err: unknown): UserErrorInfo {
     if (!text) return { message: "", kind: "unknown" };
 
     if (/^cancell?ed\b/i.test(text)) return { message: "Cancelled.", kind: "cancelled" };
+
+    // A download that died, not a file that cannot be read. Checked before the
+    // capability patterns below, because "Couldn't fetch the converter" also
+    // matches the Ghostscript rule and would otherwise be reported as a format
+    // we do not support.
+    if (/failed to fetch|networkerror|network error|load failed|dynamically imported module|couldn'?t fetch the|err_(internet|network|connection)|net::/i.test(text)) {
+        return { message: ENGINE_DOWNLOAD_FAILED_TEXT, kind: "engine_download" };
+    }
     if (/password/i.test(text)) {
         return {
             message: "This file looks password-protected. Remove the password and upload it again.",

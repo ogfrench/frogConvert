@@ -1,5 +1,6 @@
 import type { FormatHandler, QualityPreset } from "../../core/FormatHandler/FormatHandler.ts";
 import { compressForAgents, type AgentCompressInput } from "../../core/compression/compressForAgents.ts";
+import { compressInBrowser } from "../compressInBrowser.ts";
 import mime from "mime";
 
 /**
@@ -92,7 +93,7 @@ export async function handleCompress(
         }
 
         const input = toInput(file.name, new Uint8Array(await file.arrayBuffer()));
-        const [result] = await compressForAgents([input], { handlers, level });
+        const [result] = await compressForAgents([input], { handlers, level, browserFallback: compressInBrowser });
         const report = reportFor(result);
 
         // The bytes are the payload; the report rides in a header so a caller
@@ -144,7 +145,7 @@ export async function handleCompress(
             inputs.push(toInput(raw.fileName, bytes));
         }
 
-        const results = await compressForAgents(inputs, { handlers, level });
+        const results = await compressForAgents(inputs, { handlers, level, browserFallback: compressInBrowser });
         return Response.json({
             level,
             files: results.map(r => ({

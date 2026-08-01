@@ -5,6 +5,7 @@ import mime from "mime";
 import type { McpContext } from "../core/types.ts";
 import { resolveBytes } from "../core/fileInput.ts";
 import { compressForAgents, type AgentCompressInput } from "../../core/compression/compressForAgents.ts";
+import { compressInBrowser } from "../../api/compressInBrowser.ts";
 
 /**
  * `compress_file` - make a file smaller without changing what it is.
@@ -74,7 +75,7 @@ export function registerCompressFileTool(server: McpServer, initPromise: Promise
                 return { content: [{ type: "text", text: `Error: ${err?.message ?? err}` }], isError: true };
             }
 
-            const results = await compressForAgents(inputs, { handlers, level: level ?? "auto" });
+            const results = await compressForAgents(inputs, { handlers, level: level ?? "auto", browserFallback: compressInBrowser });
 
             // Writing to disk is the point for a batch - handing an agent
             // several megabytes of base64 it did not ask for wastes its context.
