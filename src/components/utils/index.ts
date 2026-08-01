@@ -164,7 +164,7 @@ export function toUserErrorInfo(err: unknown): UserErrorInfo {
         // WASM-handler delegate / missing-module errors are capability gaps, not
         // file-content issues. ImageMagick without Ghostscript on EPS/PS, policy
         // denials on PDF, etc. all surface here.
-        || /no\s*decode\s*delegate|no\s*encode\s*delegate|delegate failed|missing delegate|ghostscript|unable to load module|imagemagick is not configured|not authoriz(ed|ation)|policy denies|not allowed by .*polic|security polic/i.test(text)) {
+        || /no\s*decode\s*delegate|no\s*encode\s*delegate|delegate failed|missing delegate|failedtoexecutecommand|ghostscript|unable to load module|imagemagick is not configured|not authoriz(ed|ation)|policy denies|not allowed by .*polic|security polic/i.test(text)) {
         return { message: CONVERSION_NOT_AVAILABLE_TEXT, kind: "not_available" };
     }
     if (/not ready after init|headless not yet initialized|headless initialization failed|browser bridge requires/i.test(text)) {
