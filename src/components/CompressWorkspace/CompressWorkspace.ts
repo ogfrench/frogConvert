@@ -8,7 +8,7 @@ import {
   LARGE_FILE_WARN_SIZE,
   compressBatchBudget,
 } from "../../constants/ui.ts";
-import { allOptionsRef, compressLevel, setCompressLevel, COMPRESS_LEVEL_CHOICES, type CompressLevel } from "../store/store.ts";
+import { ui, allOptionsRef, compressLevel, setCompressLevel, COMPRESS_LEVEL_CHOICES, type CompressLevel } from "../store/store.ts";
 import { findMatchingFormat } from "../../core/FormatHandler/detectFormat.ts";
 import {
   compressBatch,
@@ -29,7 +29,7 @@ import {
   completeCancellation,
   isCancelled,
 } from "../../conversion/cancellation.ts";
-import { hidePopup, showPopup } from "../Popup/Popup.ts";
+import { hidePopup, showPopup, replacePopup, createPopupButton } from "../Popup/Popup.ts";
 import { openFilesModal, type FilesModalSource } from "../FilesModal/FilesModal.ts";
 import { preloadGhostscript } from "../../tools/ghostscriptPreload.ts";
 import { downloadFile, downloadAsZip, timestampForFilename } from "../../conversion/download.ts";
@@ -100,6 +100,7 @@ const filesModalSource: FilesModalSource = {
   // A folder of mixed media is exactly what this surface is for.
   sameTypeOnly: false,
   openPicker: () => openPicker(),
+  backLabel: "Go back to compress",
 };
 
 /** Test seam + share-target entry point. */
@@ -206,6 +207,8 @@ export function handleFiles(incoming: File[]) {
     );
   }
 
+  // The results modal describes a batch that is being replaced.
+  if (phase === "done") hidePopup();
   // Dropping onto a finished batch means starting a new one; without this the
   // results view stays up and the added files are invisible.
   if (phase === "done") {
@@ -351,8 +354,14 @@ export async function runCompression() {
     );
     // Back to the file list rather than an empty results view: the batch is
     // still there and re-running it is the obvious next move.
+    //
+    // This path closes the popup itself. The success path deliberately does
+    // not - it replaces the progress modal's contents with the results in
+    // place - and there are no results to put here, so leaving it up would
+    // strand the progress spinner over a toast explaining the failure.
     phase = "idle";
     results = [];
+    hidePopup();
     render();
     return;
   } finally {
@@ -366,14 +375,21 @@ export async function runCompression() {
     } catch (err) {
       console.error("[compress] cancel cleanup failed:", err);
     }
-    hidePopup();
+    // Deliberately no `hidePopup()` here: `showResultsModal` replaces the
+    // progress modal's contents in place, the way the Converter's success
+    // popup replaces its own. Closing first flashes the card between the two.
     resetCancellation();
   }
 
   render();
-  // After the paint, not before: firing it while the progress card is still
-  // on screen celebrates a result the user cannot see yet.
-  if (celebrate) triggerConfetti();
+  showResultsModal();
+  // Same 150ms beat the Converter and the PDF Editor use, and the same guard:
+  // confetti is popup-anchored, so skip it if the user already dismissed.
+  if (celebrate) {
+    setTimeout(() => {
+      if (ui.popupBox.classList.contains("open")) triggerConfetti();
+    }, 150);
+  }
 }
 
 /** Mirrors the Converter's "Converting your files" heading. */
@@ -722,19 +738,52 @@ function resultsMarkup(): string {
   return `
     <div class="cw-results-card">
       <div class="cw-results-head" role="status" aria-live="polite" aria-atomic="true">
-        ${saved > 0 ? `<div class="cw-results-frog" aria-hidden="true"></div>` : ""}
         <p class="cw-results-headline">${headline}</p>
         <p class="cw-results-sub">${escapeHTML(sub)}</p>
         ${warningNotes}
         ${pdfNote}
       </div>
       <ul class="cw-results-list">${rows}</ul>
-      <div class="popup-actions-footer cw-results-actions">
-        ${downloadButtonMarkup()}
-        <button class="cw-back btn-secondary" type="button">Done</button>
-      </div>
     </div>
   `;
+}
+
+/**
+ * Show the finished batch, in the modal the Converter and the PDF Editor both
+ * use for exactly this moment.
+ *
+ * It used to render into the card instead - the same information, a bespoke
+ * footer, and a different shape for the same event on the third surface. There
+ * was never a reason for it: the per-file table is a few rows of markup and
+ * sits inside a popup as happily as inside a card, and everything the modal
+ * brings (Escape, backdrop, focus restore, scroll lock, the primary/secondary
+ * footer) had to be either re-implemented here or done without.
+ */
+function showResultsModal() {
+  const h2 = document.createElement("h2");
+  h2.textContent = results.some(r => r.reason === "cancelled")
+    ? "Stopped"
+    : results.length > 1 ? "Files compressed! \u{1F389}" : "File compressed! \u{1F389}";
+
+  const body = document.createElement("div");
+  body.innerHTML = resultsMarkup();
+
+  const actions = document.createElement("div");
+  actions.className = "popup-actions-footer";
+  const n = downloadableCount();
+  if (n > 0) {
+    actions.appendChild(createPopupButton(
+      n === 1 ? "Download" : `Download ${n} files (.zip)`,
+      "btn-primary",
+      () => { void downloadResults(); },
+    ));
+  }
+  actions.appendChild(createPopupButton("Done", "btn-secondary", () => {
+    hidePopup();
+    backToFiles();
+  }));
+
+  replacePopup([h2, createDancingFrog(), body, actions]);
 }
 
 // The privacy promise deliberately lives in #compress-description, the page
@@ -753,16 +802,11 @@ function actionMarkup(): string {
 
 function render() {
   if (!rootEl) return;
-  // "running" deliberately has no view of its own. The progress modal is up
-  // and blocking, and the card behind it stays on the file list, so pressing
-  // Stop reveals the batch exactly where it was rather than a dead panel.
-  if (phase === "done") {
-    rootEl.innerHTML = resultsMarkup();
-  } else {
-    rootEl.innerHTML = files.length
-      ? `${uploadFieldMarkup()}${levelFieldMarkup()}${actionMarkup()}`
-      : uploadFieldMarkup();
-  }
+  // Neither "running" nor "done" has a view of its own: both are modals over
+  // the card, so the batch is exactly where it was when either closes.
+  rootEl.innerHTML = files.length
+    ? `${uploadFieldMarkup()}${levelFieldMarkup()}${actionMarkup()}`
+    : uploadFieldMarkup();
   wireRendered();
 }
 

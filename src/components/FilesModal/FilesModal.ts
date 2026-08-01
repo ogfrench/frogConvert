@@ -56,6 +56,8 @@ export type FilesModalSource = {
   sameTypeOnly: boolean;
   /** The picker "Replace all" should open. */
   openPicker(): void;
+  /** Where the footer button sends you back to, named. */
+  backLabel: string;
 };
 
 /** The Converter's, and the default when a caller does not name one. */
@@ -73,6 +75,7 @@ const converterSource: FilesModalSource = {
   },
   sameTypeOnly: true,
   openPicker: () => ui.fileInput.click(),
+  backLabel: "Go back to convert",
 };
 
 let active: FilesModalSource = converterSource;
@@ -301,7 +304,9 @@ export function initFilesModal() {
     footer.className = "files-modal-footer";
     const backBtn = document.createElement("button");
     backBtn.className = "files-modal-back btn-secondary";
-    backBtn.textContent = "Go back to convert";
+    // Named by whoever opened it - this modal is shared now, and it said
+    // "convert" on the Compress surface.
+    backBtn.textContent = active.backLabel;
     backBtn.addEventListener("click", closeFilesModal);
     footer.appendChild(backBtn);
     ui.filesModal.appendChild(footer);

@@ -367,3 +367,22 @@
   text-align: left;
   line-height: 1.45;
 }
+
+/* The card's primary action is full-width, like the Converter's Convert button
+   and the PDF Editor's. It was sized to its own text, so on a wide card it sat
+   as a small pill on the left with the rest of the row empty. */
+.cw-compress {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+/* The results live in the shared popup now, not in the card, so the wrapper
+   must not draw a second surface inside one. Only the rows and the head keep
+   their own styling. */
+.cw-results-card {
+  background: none;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+}

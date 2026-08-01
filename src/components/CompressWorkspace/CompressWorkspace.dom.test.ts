@@ -98,6 +98,10 @@ function mountDom() {
 }
 
 /** jsdom File with a controllable size, so budget logic can be exercised. */
+const popupButtons = () =>
+  [...document.querySelectorAll<HTMLButtonElement>('#popup .popup-actions-footer button')];
+const popupButton = (i: number) => popupButtons()[i];
+
 function fakeFile(name: string, type: string, size = 1024): File {
   const f = new File(['x'], name, { type });
   Object.defineProperty(f, 'size', { value: size });
@@ -288,8 +292,8 @@ describe('CompressWorkspace - running a batch', () => {
     await ws.runCompression();
 
     expect(ws.getPhase()).toBe('done');
-    expect(document.querySelector('.cw-results-headline')?.textContent).toMatch(/Saved/);
-    expect(document.querySelector('.cw-results-headline')?.textContent).toMatch(/60% smaller/);
+    expect(document.querySelector('#popup .cw-results-headline')?.textContent).toMatch(/Saved/);
+    expect(document.querySelector('#popup .cw-results-headline')?.textContent).toMatch(/60% smaller/);
     expect(document.querySelector('.cw-res-pct')?.textContent).toBe('−60%');
   });
 
@@ -309,7 +313,7 @@ describe('CompressWorkspace - running a batch', () => {
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
     await ws.runCompression();
     expect(document.querySelector('.cw-res-note')?.textContent).toContain('already compressed');
-    expect(document.querySelector('.cw-results-headline')?.textContent).toMatch(/didn't get any smaller/);
+    expect(document.querySelector('#popup .cw-results-headline')?.textContent).toMatch(/didn't get any smaller/);
   });
 
   it('downloads a single result directly and a batch as a zip', async () => {
@@ -340,7 +344,8 @@ describe('CompressWorkspace - running a batch', () => {
     ws.handleFiles([fakeFile('b.png', 'image/png')]);
 
     expect(ws.getPhase()).toBe('idle');
-    expect(document.querySelector('.cw-results-card')).toBeNull();
+    // The results modal described the batch that just got replaced.
+    expect(document.getElementById('popup')!.classList.contains('open')).toBe(false);
     expect(ws.getFiles()).toHaveLength(2);
   });
 
@@ -364,9 +369,10 @@ describe('CompressWorkspace - running a batch', () => {
     compressBatchMock.mockResolvedValue([outcome()]);
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
     await ws.runCompression();
-    document.querySelector<HTMLElement>('.cw-back')!.click();
+    popupButtons().find(b => b.textContent === 'Done')!.click();
     expect(ws.getPhase()).toBe('idle');
     expect(ws.getFiles()).toHaveLength(1);
+    expect(document.getElementById('popup')!.classList.contains('open')).toBe(false);
     expect(document.querySelector('.cw-compress')).not.toBeNull();
   });
 });
@@ -441,13 +447,19 @@ describe('CompressWorkspace - assistive technology', () => {
     expect(message.textContent).toContain('b.png');
   });
 
-  it('takes the modal down when the batch settles', async () => {
+  it('replaces the progress modal with the results, in place', async () => {
+    // The Converter and the PDF Editor both swap their progress popup for a
+    // success one rather than closing and reopening; closing first flashes the
+    // card between the two.
     compressBatchMock.mockResolvedValue([
       { name: 'a.png', bytes: new Uint8Array(400), originalSize: 1000, shrunk: true },
     ] as any);
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
     await ws.runCompression();
-    expect(document.getElementById('popup')!.classList.contains('open')).toBe(false);
+    const popup = document.getElementById('popup')!;
+    expect(popup.classList.contains('open')).toBe(true);
+    expect(popup.querySelector('h2')!.textContent).toMatch(/compressed/i);
+    expect(popup.querySelector('.cw-results-card')).not.toBeNull();
   });
 
   it('takes the modal down even when the batch throws', async () => {
@@ -484,7 +496,7 @@ describe('CompressWorkspace - honest PDF messaging', () => {
     ws.handleFiles([fakeFile('spec.pdf', 'application/pdf')]);
     await ws.runCompression();
 
-    const note = document.querySelector('.cw-results-note');
+    const note = document.querySelector('#popup .cw-results-note');
     expect(note).not.toBeNull();
     expect(note!.textContent).toMatch(/text/i);
   });
@@ -495,7 +507,7 @@ describe('CompressWorkspace - honest PDF messaging', () => {
     ] as any);
     ws.handleFiles([fakeFile('scan.pdf', 'application/pdf')]);
     await ws.runCompression();
-    expect(document.querySelector('.cw-results-note')).toBeNull();
+    expect(document.querySelector('#popup .cw-results-note')).toBeNull();
   });
 
   it('does not blame PDFs for a non-PDF that made no gain', async () => {
@@ -504,7 +516,7 @@ describe('CompressWorkspace - honest PDF messaging', () => {
     ] as any);
     ws.handleFiles([fakeFile('tiny.png', 'image/png')]);
     await ws.runCompression();
-    expect(document.querySelector('.cw-results-note')).toBeNull();
+    expect(document.querySelector('#popup .cw-results-note')).toBeNull();
   });
 });
 
@@ -519,7 +531,7 @@ describe('CompressWorkspace - degraded-route warning', () => {
     ws.handleFiles([fakeFile('scan.pdf', 'application/pdf')]);
     await ws.runCompression();
 
-    const warn = document.querySelector('.cw-results-warning');
+    const warn = document.querySelector('#popup .cw-results-warning');
     expect(warn).not.toBeNull();
     expect(warn!.textContent).toMatch(/no longer selectable/i);
   });
@@ -533,7 +545,7 @@ describe('CompressWorkspace - degraded-route warning', () => {
     ws.handleFiles([fakeFile('a.pdf', 'application/pdf'), fakeFile('b.pdf', 'application/pdf')]);
     await ws.runCompression();
 
-    expect(document.querySelectorAll('.cw-results-warning')).toHaveLength(1);
+    expect(document.querySelectorAll('#popup .cw-results-warning')).toHaveLength(1);
   });
 
   it('stays silent on a normal run', async () => {
@@ -542,7 +554,7 @@ describe('CompressWorkspace - degraded-route warning', () => {
     ] as any);
     ws.handleFiles([fakeFile('a.pdf', 'application/pdf')]);
     await ws.runCompression();
-    expect(document.querySelector('.cw-results-warning')).toBeNull();
+    expect(document.querySelector('#popup .cw-results-warning')).toBeNull();
   });
 });
 
@@ -674,7 +686,7 @@ describe('CompressWorkspace - stopping early', () => {
     ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('b.png', 'image/png')]);
     await ws.runCompression();
 
-    const card = document.querySelector('.cw-results-card')!.textContent!;
+    const card = document.querySelector('#popup .cw-results-card')!.textContent!;
     expect(card).toMatch(/stopped/i);
     expect(card).not.toMatch(/failed/i);
   });
@@ -792,7 +804,7 @@ describe('CompressWorkspace - download naming', () => {
     ] as any);
     ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('tiny.png', 'image/png')]);
     await ws.runCompression();
-    expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download');
+    expect(popupButton(0)!.textContent!.trim()).toBe('Download');
     await ws.downloadResults();
     expect(downloadAsZipMock).not.toHaveBeenCalled();
     expect(downloadFileMock).toHaveBeenCalledWith(expect.anything(), 'a-compressed.png');
@@ -901,8 +913,8 @@ describe('CompressWorkspace - the results list stays a summary', () => {
     ws.handleFiles([...Array(40)].map((_, i) => fakeFile(`f${String(i).padStart(3, '0')}.png`, 'image/png')));
     await ws.runCompression();
 
-    expect(document.querySelectorAll('.cw-res-row')).toHaveLength(8);
-    expect(document.querySelector('.cw-res-more')!.textContent!.trim()).toBe('and 32 more files');
+    expect(document.querySelectorAll('#popup .cw-res-row')).toHaveLength(8);
+    expect(document.querySelector('#popup .cw-res-more')!.textContent!.trim()).toBe('and 32 more files');
   });
 
   it('lists every file when the batch is small enough to fit', async () => {
@@ -910,8 +922,8 @@ describe('CompressWorkspace - the results list stays a summary', () => {
     ws.handleFiles([...Array(3)].map((_, i) => fakeFile(`f${String(i).padStart(3, '0')}.png`, 'image/png')));
     await ws.runCompression();
 
-    expect(document.querySelectorAll('.cw-res-row')).toHaveLength(3);
-    expect(document.querySelector('.cw-res-more')).toBeNull();
+    expect(document.querySelectorAll('#popup .cw-res-row')).toHaveLength(3);
+    expect(document.querySelector('#popup .cw-res-more')).toBeNull();
   });
 
   it('shows the files that did something, not the first eight alphabetically', async () => {
@@ -924,7 +936,7 @@ describe('CompressWorkspace - the results list stays a summary', () => {
     ws.handleFiles([...Array(20)].map((_, i) => fakeFile(`f${String(i).padStart(3, '0')}.png`, 'image/png')));
     await ws.runCompression();
 
-    const shown = [...document.querySelectorAll('.cw-res-row')];
+    const shown = [...document.querySelectorAll('#popup .cw-res-row')];
     expect(shown).toHaveLength(8);
     expect(shown.filter(r => r.classList.contains('shrunk'))).toHaveLength(2);
     expect(shown[0].textContent).toContain('f018.png');
@@ -935,7 +947,7 @@ describe('CompressWorkspace - the results list stays a summary', () => {
     compressBatchMock.mockResolvedValue(batch(40));
     ws.handleFiles([...Array(40)].map((_, i) => fakeFile(`f${String(i).padStart(3, '0')}.png`, 'image/png')));
     await ws.runCompression();
-    expect(document.querySelector('.cw-results-sub')!.textContent).toMatch(/All 40 are untouched/);
+    expect(document.querySelector('#popup .cw-results-sub')!.textContent).toMatch(/All 40 are untouched/);
   });
 });
 
@@ -948,7 +960,7 @@ describe('CompressWorkspace - confetti', () => {
     ] as any);
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
     await ws.runCompression();
-    expect(triggerConfettiMock).toHaveBeenCalled();
+    await vi.waitFor(() => expect(triggerConfettiMock).toHaveBeenCalled());
   });
 
   it('stays quiet when nothing could be compressed', async () => {
@@ -973,8 +985,8 @@ describe('CompressWorkspace - the download control', () => {
       fakeFile('a.png', 'image/png'), fakeFile('b.png', 'image/png'), fakeFile('c.heic', 'image/heic'),
     ]);
     await ws.runCompression();
-    expect(document.querySelectorAll('.cw-res-row')).toHaveLength(3);
-    expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download 2 files (.zip)');
+    expect(document.querySelectorAll('#popup .cw-res-row')).toHaveLength(3);
+    expect(popupButton(0)!.textContent!.trim()).toBe('Download 2 files (.zip)');
   });
 
   it('offers nothing when nothing changed', async () => {
@@ -986,7 +998,7 @@ describe('CompressWorkspace - the download control', () => {
     ] as any);
     ws.handleFiles([fakeFile('a.png', 'image/png')]);
     await ws.runCompression();
-    expect(document.querySelector('.cw-download')).toBeNull();
+    expect(popupButtons().map(b => b.textContent)).toEqual(['Done']);
   });
 
   it('names what it will produce, even when files shrank', async () => {
@@ -996,7 +1008,7 @@ describe('CompressWorkspace - the download control', () => {
     ] as any);
     ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('b.png', 'image/png')]);
     await ws.runCompression();
-    expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download 2 files (.zip)');
+    expect(popupButton(0)!.textContent!.trim()).toBe('Download 2 files (.zip)');
   });
 
   it('never downloads on its own, however good the result', async () => {
@@ -1046,7 +1058,7 @@ describe('CompressWorkspace - the download control', () => {
       await vi.advanceTimersByTimeAsync(500);
       expect(downloadFileMock).not.toHaveBeenCalled();
       expect(downloadAsZipMock).not.toHaveBeenCalled();
-      expect(document.querySelector('.cw-download')!.textContent!.trim()).toBe('Download');
+      expect(popupButton(0)!.textContent!.trim()).toBe('Download');
     } finally {
       vi.useRealTimers();
     }
@@ -1062,9 +1074,9 @@ describe('CompressWorkspace - the download control', () => {
     ws.handleFiles([fakeFile('big.mp4', 'video/mp4')]);
     await ws.runCompression();
 
-    expect(document.querySelector('.cw-download')).toBeNull();
-    // The way back is still there.
-    expect(document.querySelector('.cw-back')).not.toBeNull();
-    expect(document.querySelector('.cw-results-headline')!.textContent).toMatch(/Stopped/);
+    // Only the way out. "Download 0 files" is a button whose sole outcome is
+    // a toast explaining why it did nothing.
+    expect(popupButtons().map(b => b.textContent)).toEqual(['Done']);
+    expect(document.querySelector('#popup .cw-results-headline')!.textContent).toMatch(/Stopped/);
   });
 });
