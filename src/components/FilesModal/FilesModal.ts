@@ -82,6 +82,10 @@ let active: FilesModalSource = converterSource;
 
 export function openFilesModal(source: FilesModalSource = converterSource) {
   active = source;
+  // The footer is built once at init, so its label has to be set per open -
+  // it read "Go back to convert" on the Compress page otherwise.
+  const back = ui.filesModal.querySelector<HTMLElement>(".files-modal-back");
+  if (back) back.textContent = active.backLabel;
   filesModalPage.value = 0;
   hideFilesModalError();
   ModalManager.open(ui.filesModal, ui.filesModalBg, closeFilesModal);
