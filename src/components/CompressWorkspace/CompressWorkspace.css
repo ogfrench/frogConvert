@@ -386,3 +386,7 @@
   padding: 0;
   box-shadow: none;
 }
+
+/* 44px, not the 43 that padding alone produced - the same one-pixel miss the
+   format selector had, on this card's primary action. */
+.cw-compress { min-height: 44px; }

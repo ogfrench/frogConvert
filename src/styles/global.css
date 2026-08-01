@@ -1070,3 +1070,11 @@ summary {
     cursor: text !important;
   }
 }
+
+/* Popup footer actions are touch targets like everything else in this release.
+   Padding alone landed the primary at 43px - measured on the Compress results
+   modal, where Download was 43 and Done 45, so they were not even consistent
+   with each other. */
+.popup-actions-footer button {
+  min-height: 44px;
+}
