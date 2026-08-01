@@ -199,10 +199,21 @@ export async function compressForAgents(
             // leaves the native answer in place, which already carries the
             // right reason and the caller's original bytes.
             if (viaBrowser.shrunk && viaBrowser.bytes.byteLength > 0) results[i] = viaBrowser;
-        } catch {
+        } catch (err) {
             // The fallback is a bonus on top of an answer we already have.
             // Failing to reach a browser must not turn "unsupported" into an
             // exception that loses the rest of the batch.
+            //
+            // It does have to be *visible*, though. Swallowed whole, "the
+            // bridge never started" and "a browser looked and also declined"
+            // arrive as the same `unsupported`, and the first is a broken
+            // deployment while the second is the correct answer.
+            const detail = err instanceof Error ? err.message : String(err);
+            results[i] = {
+                ...r,
+                warning: [r.warning, `Could not reach a browser to retry this one: ${detail}`]
+                    .filter(Boolean).join(" "),
+            };
         }
     }
 

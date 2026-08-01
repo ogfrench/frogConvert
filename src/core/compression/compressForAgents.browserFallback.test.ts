@@ -63,4 +63,27 @@ describe("the browser fallback", () => {
         expect(out.bytes.byteLength).toBe(1000);
     });
 
+    it("says so when the bridge was unreachable, rather than reporting a bare 'unsupported'", async () => {
+        // Otherwise a broken deployment and a browser that genuinely declined
+        // are the same string to the caller. Diagnosed exactly this confusion
+        // by hand against a real MCP server before splitting the two apart.
+        const browserFallback = vi.fn(async () => { throw new Error("no browser here"); });
+        const [out] = await compressForAgents([input("clip.mp4", "video/mp4", "mp4")], {
+            handlers: [], level: "auto", browserFallback,
+        });
+        expect(out.warning).toMatch(/could not reach a browser/i);
+        expect(out.warning).toContain("no browser here");
+    });
+
+    it("stays quiet when a browser was reached and simply declined", async () => {
+        const browserFallback = vi.fn(async (i: any) => ({
+            name: i.name, bytes: i.bytes, originalSize: i.bytes.byteLength,
+            shrunk: false, reason: "unsupported" as const,
+        }));
+        const [out] = await compressForAgents([input("clip.mp4", "video/mp4", "mp4")], {
+            handlers: [], level: "auto", browserFallback,
+        });
+        expect(out.warning ?? "").not.toMatch(/could not reach a browser/i);
+    });
+
 });
