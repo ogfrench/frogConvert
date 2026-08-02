@@ -30,11 +30,11 @@ export const REASSURANCE_LINE = "feel free to switch tabs";
  * where walking away matters most - the line telling you that it is safe to do
  * so was the first thing to disappear.
  *
- * A 1:1 flip would be noise. Six seconds is long enough to actually read a
+ * A 1:1 flip would be noise. Nine seconds is long enough to actually read a
  * frame counter and watch it move; three is long enough to register the
  * reassurance without it feeling like a flicker.
  */
-export const PROGRESS_WINDOW_MS = 6000;
+export const PROGRESS_WINDOW_MS = 9000;
 export const REASSURANCE_WINDOW_MS = 3000;
 const CYCLE_MS = PROGRESS_WINDOW_MS + REASSURANCE_WINDOW_MS;
 
@@ -68,11 +68,18 @@ export function formatProgress(p: ProgressEvent | undefined): string | undefined
     // disagree about the same moment. The engine's own wording wins: it knows
     // what it is measuring.
     const detailHasPercent = /\d\s*%/.test(detail);
-    // FFmpeg briefly reports slightly over 1 as a stream finishes (see the
-    // clamp at FFmpeg.ts:934), and a "104%" would undo the credibility the
-    // whole line exists to build.
     if (!detailHasPercent && typeof p.ratio === "number" && Number.isFinite(p.ratio)) {
+        // Clamped before it is judged. FFmpeg briefly reports slightly over 1 as
+        // a stream finishes (see FFmpeg.ts:934), and a "104%" would undo the
+        // credibility the whole line exists to build.
         const pct = Math.round(Math.min(1, Math.max(0, p.ratio)) * 100);
+        // A bare "0%" is not progress, it is the absence of it. FFmpeg resets
+        // the bar to zero at the start of every run (including its internal
+        // recovery retries), and with no detail beside it that event rendered
+        // as a lone "0%" sitting on screen through the whole engine load -
+        // technically true, and less use than the reassurance it displaced.
+        // Once a detail arrives, "Encoded 0.0s of 20.0s · 0%" is worth showing.
+        if (!detail && pct === 0) return undefined;
         parts.push(`${pct}%`);
     }
     return parts.length ? parts.join(" · ") : undefined;
@@ -81,7 +88,7 @@ export function formatProgress(p: ProgressEvent | undefined): string | undefined
 /**
  * Decide what the live line should say right now.
  *
- * Pure, and shared by every surface with a long wait, so the 6s/3s rhythm is
+ * Pure, and shared by every surface with a long wait, so the 9s/3s rhythm is
  * defined once. Before there is any progress to show it returns the reassurance
  * unconditionally - alternating with nothing would just be a line that blinks.
  *

@@ -30,11 +30,23 @@ describe("formatProgress", () => {
         expect(formatProgress({ detail: "   " })).toBeUndefined();
     });
 
+    it("says nothing for a bare zero, which is the absence of progress", () => {
+        // FFmpeg resets the bar to 0 at the start of every run. With no detail
+        // beside it that rendered as a lone "0%" through the entire engine
+        // load, displacing the reassurance with a less useful non-fact.
+        expect(formatProgress({ ratio: 0 })).toBeUndefined();
+        // But a zero with something to say is worth saying.
+        expect(formatProgress({ ratio: 0, detail: "Encoded 0.0s of 20.0s of video." }))
+            .toBe("Encoded 0.0s of 20.0s of video. · 0%");
+    });
+
     it("clamps the ratio into 0-100", () => {
         // FFmpeg briefly reports slightly over 1 as a stream finishes; a "104%"
         // would undo the credibility the line exists to build.
         expect(formatProgress({ ratio: 1.04 })).toBe("100%");
-        expect(formatProgress({ ratio: -0.2 })).toBe("0%");
+        // Negative clamps to zero, and a bare zero says nothing at all.
+        expect(formatProgress({ ratio: -0.2 })).toBeUndefined();
+        expect(formatProgress({ ratio: -0.2, detail: "Working" })).toBe("Working · 0%");
     });
 
     it("does not add a second percentage when the engine already gave one", () => {
@@ -66,7 +78,7 @@ describe("alternatingLine", () => {
         expect(alternatingLine(undefined, 7000)).toBe(REASSURANCE_LINE);
     });
 
-    it("leads with progress for the first six seconds of each cycle", () => {
+    it("leads with progress for the first nine seconds of each cycle", () => {
         expect(alternatingLine(PROGRESS, 0)).toBe(PROGRESS);
         expect(alternatingLine(PROGRESS, PROGRESS_WINDOW_MS - 1)).toBe(PROGRESS);
     });
@@ -84,9 +96,21 @@ describe("alternatingLine", () => {
         expect(alternatingLine(PROGRESS, cycle * 2)).toBe(PROGRESS);
     });
 
-    it("keeps the requested 6s / 3s rhythm", () => {
-        expect(PROGRESS_WINDOW_MS).toBe(6000);
+    it("keeps the requested 9s / 3s rhythm", () => {
+        expect(PROGRESS_WINDOW_MS).toBe(9000);
         expect(REASSURANCE_WINDOW_MS).toBe(3000);
+    });
+
+    it("gives progress three quarters of every cycle", () => {
+        // The point of widening 6s to 9s: the reassurance should be a periodic
+        // reminder, not an equal partner. Counted rather than asserted from the
+        // constants, so the split is checked as it is actually rendered.
+        const cycle = PROGRESS_WINDOW_MS + REASSURANCE_WINDOW_MS;
+        let showingProgress = 0;
+        for (let t = 0; t < cycle; t += 100) {
+            if (alternatingLine(PROGRESS, t) === PROGRESS) showingProgress++;
+        }
+        expect(showingProgress / (cycle / 100)).toBeCloseTo(0.75, 2);
     });
 
     it("never leaves the user without a line", () => {

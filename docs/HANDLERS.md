@@ -142,7 +142,7 @@ Three rules the renderer applies, worth knowing before you write a `detail` stri
 
 - **Never two percentages.** If your `detail` already contains one, the `ratio` is not appended. Ghostscript relies on this: its engine download reads `Fetching the compressor (52%)` while `ratio` is at 26%, because the fetch is only the first half of its overall work.
 - **The ratio is clamped to 0–100.** FFmpeg briefly reports slightly over 1 as a stream finishes.
-- **The line alternates.** It shows your progress for 6 seconds, then `feel free to switch tabs` for 3, on repeat, with an elapsed clock appended once a run passes 10 seconds. Do not put "you can leave this tab" style reassurance in your own `detail` — the surface already says it.
+- **The line alternates.** It shows your progress for 9 seconds, then `feel free to switch tabs` for 3, on repeat, with an elapsed clock appended once a run passes 10 seconds. Do not put "you can leave this tab" style reassurance in your own `detail` — the surface already says it.
 
 Emitting is what makes a wait legible, so it is worth doing even for an engine that is usually fast: the first use of any WASM handler also pays for fetching and compiling the binary, which is the longest wait most users ever see.
 

@@ -121,7 +121,9 @@ describe("Compress, end to end, in a browser", () => {
         });
         expect(modal.title).toMatch(/compressing/i);
         expect(modal.hasSpinner).toBe(true);
-        expect(modal.cancel).toMatch(/cancel/i);
+        // "Stop", not "Cancel" - the app says stop everywhere it offers to
+        // abandon work in flight (see modeCopy in cancellation.ts).
+        expect(modal.cancel).toMatch(/stop/i);
 
         await page.waitForSelector(".cw-results-card", { timeout: 900_000 });
         const result = await page.evaluate(() => {

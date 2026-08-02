@@ -144,7 +144,11 @@ export function toUserErrorInfo(err: unknown): UserErrorInfo {
 
     if (!text) return { message: "", kind: "unknown" };
 
-    if (/^cancell?ed\b/i.test(text)) return { message: "Cancelled.", kind: "cancelled" };
+    // The pattern still matches the internal sentinel (`new Error("Cancelled")`
+    // from workerClient), but what the user reads says stop, like everything
+    // else that reports abandoned work. `kind` stays "cancelled" - it is an
+    // identifier, and callers branch on it.
+    if (/^cancell?ed\b/i.test(text)) return { message: "Stopped.", kind: "cancelled" };
 
     // A download that died, not a file that cannot be read. Checked before the
     // capability patterns below, because "Couldn't fetch the converter" also

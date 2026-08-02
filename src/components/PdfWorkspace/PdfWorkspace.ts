@@ -529,7 +529,7 @@ async function setPdfResult(
   // them. Measured across the batch, because that is what the user saved.
   const before = results.reduce((n, r) => n + r.bytes.byteLength, 0);
   // Live status in the popup's own subtext, using the same formatter and the
-  // same 6s/3s rhythm as Convert and Compress. Ghostscript reports a real
+  // same 9s/3s rhythm as Convert and Compress. Ghostscript reports a real
   // percentage - including, on first use, the download of its own ~16 MB engine
   // - and all of it used to be discarded here.
   const startedAt = Date.now();
