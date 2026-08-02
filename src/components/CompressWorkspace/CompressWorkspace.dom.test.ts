@@ -452,7 +452,7 @@ describe('CompressWorkspace - assistive technology', () => {
     await startStalledRun();
     const cancel = document.getElementById('cancel-conversion-btn');
     expect(cancel).not.toBeNull();
-    expect(cancel!.textContent).toBe('Cancel compression');
+    expect(cancel!.textContent).toBe('Stop compression');
   });
 
   it('announces which file is being compressed as the batch advances', async () => {
@@ -1139,6 +1139,31 @@ describe('CompressWorkspace - the download control', () => {
     // Only the way out. "Download 0 files" is a button whose sole outcome is
     // a toast explaining why it did nothing.
     expect(popupButtons().map(b => b.textContent)).toEqual(['Done']);
-    expect(document.querySelector('#popup .cw-results-headline')!.textContent).toMatch(/Stopped/);
+    // The headline says what it cost, not "Stopped" again - see below.
+    expect(document.querySelector('#popup .cw-results-headline')!.textContent)
+      .toMatch(/Nothing got smaller/);
+  });
+
+  it('says "Stopped" once, not three times over', async () => {
+    // Reported from a screenshot: the modal title, the headline and the opening
+    // word of the sentence beneath it were all "Stopped", stacked vertically.
+    compressBatchMock.mockResolvedValue([
+      { name: 'big.mp4', bytes: new Uint8Array(0), originalSize: 17_000_000, shrunk: false, reason: 'cancelled' },
+    ] as any);
+    ws.handleFiles([fakeFile('big.mp4', 'video/mp4')]);
+    await ws.runCompression();
+
+    const popup = document.getElementById('popup')!;
+    expect(popup.querySelector('h2')!.textContent).toBe('Stopped');
+    // The header block only - the per-file rows legitimately label a skipped
+    // file "stopped", which is information rather than repetition.
+    const header = [
+      popup.querySelector('h2')?.textContent ?? '',
+      popup.querySelector('.cw-results-headline')?.textContent ?? '',
+      popup.querySelector('.cw-results-sub')?.textContent ?? '',
+    ].join(' ');
+    expect(header.match(/stopped/gi) ?? []).toHaveLength(1);
+    // The reassurance survives the de-duplication - it is the part that matters.
+    expect(popup.querySelector('.cw-results-sub')!.textContent).toMatch(/untouched/);
   });
 });

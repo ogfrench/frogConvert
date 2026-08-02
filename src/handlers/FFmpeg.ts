@@ -120,6 +120,39 @@ function parseFfmpegTimestamp(ts: string): number | null {
  * - `Duration: HH:MM:SS.ms` appears once when the input is opened.
  * - `time=HH:MM:SS.ms` appears every ~0.5s during the run.
  */
+/**
+ * How long the run being measured actually is, in milliseconds.
+ *
+ * Input reaches FFmpeg through the concat demuxer (`-f concat -i list.txt`) so
+ * that one code path serves both single and multi-file runs. The cost is that
+ * concat reports `Duration: N/A` - it does not know the total up front - and
+ * that takes out *both* progress sources at once: the log tap never sees a
+ * `Duration:` line to divide by, and FFmpeg's own progress event is computed
+ * against the same missing duration, so it reports 0.0 for the entire run.
+ * Compressing a 20-second video sat at "0%" for four and a half minutes while
+ * emitting a hundred perfectly good events, every one of them zero.
+ *
+ * The number was already in hand: the `-i` probe reads it before the encode is
+ * built. An explicit `-t` wins over the probe, because a trimmed run (the
+ * video-to-GIF cap) encodes less than the source holds, and measuring against
+ * the full length would stall the bar short of the end.
+ *
+ * @param command The assembled FFmpeg argv.
+ * @param probedDurationSec Source duration in seconds, 0 when unprobed.
+ * @returns Milliseconds, or null when nothing reliable is known - in which case
+ * the caller falls back to whatever FFmpeg itself reports.
+ */
+export function resolveProgressDurationMs(
+    command: readonly string[], probedDurationSec: number,
+): number | null {
+    const i = command.lastIndexOf("-t");
+    if (i >= 0 && i + 1 < command.length) {
+        const explicit = Number(command[i + 1]);
+        if (Number.isFinite(explicit) && explicit > 0) return explicit * 1000;
+    }
+    return probedDurationSec > 0 ? probedDurationSec * 1000 : null;
+}
+
 function parseFfmpegProgress(line: string): { durationMs?: number; timeMs?: number } | null {
   // "Duration: 00:01:23.45, start: 0.000000, bitrate: ..."
   const dur = line.match(/Duration:\s*(\d+:\d{2}:\d{2}(?:\.\d+)?)/);
@@ -891,7 +924,21 @@ class FFmpegHandler implements FormatHandler {
     //
     // Both sources share one throttle (≥ 250 ms between emits) so duplicate
     // events on WASM don't flood postMessage.
-    let durationMs: number | null = null;
+    // Seeded from the probe rather than left null.
+    //
+    // Input reaches FFmpeg through the concat demuxer (`-f concat -i list.txt`,
+    // above) so that one code path serves both single and multi-file runs. The
+    // cost is that concat reports `Duration: N/A`: the demuxer does not know the
+    // total up front. That takes out *both* progress sources at once - the log
+    // tap never sees a `Duration:` line to divide by, and ffmpeg's own progress
+    // event is computed against the same missing duration, so it reports 0.0
+    // forever. Compressing a 20-second video sat at "0%" for its entire run
+    // while emitting a hundred perfectly good events, every one of them zero.
+    //
+    // The number was already in hand: `probedDuration` came from the `-i` probe
+    // a few dozen lines up. An explicit `-t` (the video-to-GIF cap) wins over
+    // it, because that is the duration actually being encoded.
+    let durationMs: number | null = resolveProgressDurationMs(command, probedDuration);
     let lastEmit = 0;
     // Format an "Encoded Xs of Ys" detail line when both times are known.
     // Skipped once durationMs is unknown, the elapsed line alone is fine.
@@ -931,8 +978,14 @@ class FFmpegHandler implements FormatHandler {
       wasmProgressListener = (ev) => {
         // ev.progress is 0..1 (sometimes > 1 briefly at the very end).
         // ev.time is microseconds of encoded source media.
-        if (typeof ev.progress === "number" && isFinite(ev.progress)) {
-          const timeMs = typeof ev.time === "number" && isFinite(ev.time) ? ev.time / 1000 : undefined;
+        const timeMs = typeof ev.time === "number" && isFinite(ev.time) ? ev.time / 1000 : undefined;
+        // Our own duration beats ffmpeg's when we have one. Under the concat
+        // demuxer ffmpeg has no total to divide by and reports a flat 0, but
+        // `ev.time` - how much source media it has encoded - stays correct, so
+        // dividing that by the probed duration gives a real ratio.
+        if (timeMs !== undefined && durationMs && durationMs > 0) {
+          emitProgress(timeMs / durationMs, timeMs);
+        } else if (typeof ev.progress === "number" && isFinite(ev.progress)) {
           emitProgress(ev.progress, timeMs);
         }
       };

@@ -3704,7 +3704,9 @@ async function runWithPopup<T>(
   wrap.appendChild(el('div', { className: 'ws-spinner' }));
   wrap.appendChild(el('p', { textContent: subtext }));
   const actions = el('div', { className: 'popup-actions-footer' });
-  actions.appendChild(createPopupButton('Cancel', 'btn-secondary', () => controller.abort()));
+  // "Stop", not "Cancel": this abandons work already running, and the app says
+  // stop everywhere else it offers that (see modeCopy in cancellation.ts).
+  actions.appendChild(createPopupButton('Stop', 'btn-secondary', () => controller.abort()));
   wrap.appendChild(actions);
   showPopup(wrap, true, () => controller.abort());
   const startTime = performance.now();

@@ -685,7 +685,11 @@ function resultsMarkup(): string {
   const headline = saved > 0
     ? `Saved ${formatBytes(saved)} <span class="cw-pct">(${pctText})</span>`
     : stoppedCount > 0
-      ? `Stopped`
+      // Not "Stopped" again. The modal's own title already says that, and this
+      // line sits directly beneath it - the two together read as a stutter,
+      // with the sentence under them opening on the word a third time. The
+      // title carries the *what*; this line owes the reader the outcome.
+      ? `Nothing got smaller`
       : noneSupported
         ? `Nothing i can compress here`
         // Says what happened, in a sentence rather than a verdict. The old
@@ -698,7 +702,9 @@ function resultsMarkup(): string {
       ? `${shrunkCount} file${shrunkCount === 1 ? "" : "s"} got smaller before you stopped. The rest are untouched.`
       : `${shrunkCount} of ${results.length} file${results.length === 1 ? "" : "s"} got smaller.`
     : stoppedCount > 0
-      ? `Stopped before anything got smaller. Your files are untouched.`
+      // The title said "Stopped" and the headline said what that cost. All
+      // this line still owes is the reassurance.
+      ? many ? `Your files are untouched.` : `Your file is untouched.`
       : noneSupported
         ? many
           ? `These formats aren't ones i can compress. Images, audio, video and PDFs are.`

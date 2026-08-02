@@ -17,6 +17,21 @@ export function setActiveConversionMode(mode: ConversionMode) {
 export function getActiveConversionMode(): ConversionMode {
     return _activeMode;
 }
+/**
+ * One verb for stopping, everywhere.
+ *
+ * The app used to run two vocabularies side by side: the button said "Cancel
+ * compression", the interstitial said "Cancelling compression", the finished
+ * state said "Compression cancelled" - and then the results list labelled those
+ * same files *stopped*, and the partial-download popup said they were converted
+ * "before stopping". One popup managed to say "cancelled" in its title and
+ * "stopping" in its body.
+ *
+ * Settled on **stop**. It is the plainer word, it is what the results rows and
+ * the documentation already used, and on a button that abandons work in flight
+ * it is the more accurate one: "Cancel" in a dialog usually means *dismiss this
+ * dialog*, which is the opposite of what this control does.
+ */
 export function modeCopy() {
     return _activeMode === "compress"
         ? {
@@ -27,9 +42,9 @@ export function modeCopy() {
             routeLabel: "compression route",
             toolLabel: "compressor",
             readyLabel: "Ready to compress!",
-            cancellingTitle: "Cancelling compression",
-            cancelledTitle: "Compression cancelled",
-            cancelButton: "Cancel compression",
+            cancellingTitle: "Stopping compression",
+            cancelledTitle: "Compression stopped",
+            cancelButton: "Stop compression",
             titleIng: "Compressing...",
             actionButton: "Compress now",
             successTitleSingle: "File compressed! 🎉",
@@ -43,9 +58,9 @@ export function modeCopy() {
             routeLabel: "conversion route",
             toolLabel: "converter",
             readyLabel: "Ready to convert!",
-            cancellingTitle: "Cancelling conversion",
-            cancelledTitle: "Conversion cancelled",
-            cancelButton: "Cancel conversion",
+            cancellingTitle: "Stopping conversion",
+            cancelledTitle: "Conversion stopped",
+            cancelButton: "Stop conversion",
             titleIng: "Converting...",
             actionButton: "Convert now",
             successTitleSingle: "File converted! 🎉",
@@ -209,7 +224,7 @@ function armHardCancelTimer() {
  * Single cancel handler. Behavior is path-aware, not click-count-aware:
  *
  * - **`canHardCancel = true`** (every hop runs in a worker): terminate the
- *   worker, show the brief "Cancelling conversion / Stopping now..." popup.
+ *   worker, show the brief "Stopping conversion / Stopping now..." popup.
  *   The in-flight file is discarded; already-converted files are kept and
  *   offered via the partial-download popup in the conversion's finally block.
  *

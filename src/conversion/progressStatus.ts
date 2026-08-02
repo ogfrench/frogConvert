@@ -1,5 +1,6 @@
 import type { ProgressEvent } from "../core/FormatHandler/FormatHandler.ts";
 import { escapeHTML } from "../components/utils/index.ts";
+import { ui } from "../components/store/store.ts";
 import {
     showConversionInProgress,
     updateCancelProgress,
@@ -128,6 +129,7 @@ export function startConversionStatus(
     let mainLine = main;
     let subLine = subtitle;
     let currentPhase: ProgressPhase = phase;
+    let painted = false;
 
     const render = () => {
         // Driven by elapsed time rather than a counter, so the rhythm stays
@@ -149,6 +151,7 @@ export function startConversionStatus(
         if (html === lastHTML) return;
         lastHTML = html;
         showConversionInProgress(html, title, currentPhase);
+        painted = true;
     };
 
     render(); // initial paint, callers no longer paint the modal themselves
@@ -158,15 +161,24 @@ export function startConversionStatus(
      * alternation needs a heartbeat from the first progress event, and the
      * elapsed clock still holds itself back until 10s so short runs stay quiet.
      */
+    const stop = () => {
+        if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+    };
+
     tickTimer = setInterval(() => {
+        // Self-limiting. The timer used to be armed only after ten seconds, so
+        // a run that finished sooner never had one to leak; arming it up front
+        // for the alternation means it has to know when it has been orphaned.
+        // Once the modal is gone - results replaced it, the surface tore down,
+        // the caller forgot to cancel - there is nothing left to paint, and a
+        // handle that keeps ticking would write into a modal that has moved on.
+        if (painted && !ui.popupBox?.classList.contains("open")) { stop(); return; }
         if (!showElapsed && Date.now() - startedAt >= 10_000) showElapsed = true;
         render();
     }, 1000);
 
     return {
-        cancel: () => {
-            if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
-        },
+        cancel: stop,
         update: (p) => {
             latest = p;
             // The cancel popup's sub-line wants the words, not the percentage -
