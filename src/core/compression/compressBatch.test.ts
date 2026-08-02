@@ -611,3 +611,108 @@ describe("compressBatch - lazy input reads", () => {
         expect(out[1].shrunk).toBe(true);
     });
 });
+
+/**
+ * The reported bug: compressing a 190 MB video showed one unchanging sentence
+ * for minutes. `RunHandler` had declared an `onProgress` parameter since it was
+ * written and the two call sites simply never passed it, so every engine that
+ * reports its own progress was silenced on this surface.
+ */
+describe("progress reaches the surface", () => {
+    /** A runner that reports progress the way a real engine does. */
+    const reportingRun = (events: { ratio?: number; detail?: string }[]) =>
+        vi.fn(async (_n: string, files: any[], _i: any, _o: any, _a: any, onProgress?: any) => {
+            for (const e of events) onProgress?.(e);
+            return [{ name: files[0].name, bytes: new Uint8Array(Math.floor(files[0].bytes.byteLength * 0.5)) }];
+        });
+
+    it("forwards engine progress from a worker handler", async () => {
+        resolveMock.mockReturnValue({ handler: handler("FFmpeg"), args: [] });
+        const seen: any[] = [];
+        await compressBatch([input("clip.mp4", 10_000, fmt("video/mp4", "mp4"))], {
+            options: [], level: "medium",
+            run: reportingRun([{ ratio: 0.3, detail: "Encoded 3s of 10s" }, { ratio: 0.9 }]),
+            onEngineProgress: p => seen.push(p),
+        });
+        expect(seen).toEqual([{ ratio: 0.3, detail: "Encoded 3s of 10s" }, { ratio: 0.9 }]);
+    });
+
+    it("forwards engine progress from a main-thread handler too", async () => {
+        // pdfCanvasCompress runs on the main thread and reports per-page ratios;
+        // it bypasses `run` entirely, so it needs its own pass-through.
+        const h = handler("pdfCanvasCompress", { mainThread: true });
+        (h.doConvert as any).mockImplementation(
+            async (files: any[], _i: any, _o: any, _a: any, onProgress?: any) => {
+                onProgress?.({ ratio: 0.5, detail: "Rasterising page 1 of 2" });
+                return [{ name: files[0].name, bytes: new Uint8Array(100) }];
+            });
+        resolveMock.mockReturnValue({ handler: h, args: [] });
+
+        const seen: any[] = [];
+        await compressBatch([input("scan.pdf", 10_000, fmt("application/pdf", "pdf"))], {
+            options: [], level: "medium", run: vi.fn(),
+            onEngineProgress: p => seen.push(p),
+        });
+        expect(seen).toEqual([{ ratio: 0.5, detail: "Rasterising page 1 of 2" }]);
+    });
+
+    it("announces an engine load before the wait, with the format that needs it", async () => {
+        const h = handler("FFmpeg");
+        (h as any).ready = false;
+        (h.init as any).mockImplementation(async () => { (h as any).ready = true; });
+        resolveMock.mockReturnValue({ handler: h, args: [] });
+
+        const inits: [string, string][] = [];
+        await compressBatch([input("clip.mp4", 10_000, fmt("video/mp4", "mp4"))], {
+            options: [], level: "medium", run: shrinkingRun(0.5),
+            onEngineInit: (name, format) => inits.push([name, format.format]),
+        });
+        expect(inits).toEqual([["FFmpeg", "mp4"]]);
+    });
+
+    it("says nothing about loading an engine that was already loaded", async () => {
+        resolveMock.mockReturnValue({ handler: handler("FFmpeg"), args: [] });
+        const onEngineInit = vi.fn();
+        await compressBatch([input("clip.mp4", 10_000, fmt("video/mp4", "mp4"))], {
+            options: [], level: "medium", run: shrinkingRun(0.5), onEngineInit,
+        });
+        expect(onEngineInit).not.toHaveBeenCalled();
+    });
+
+    it("reports reading and compressing as separate phases, in that order", async () => {
+        // The modal used to say "Reading your file..." across the engine load
+        // and then "Compressing..." across the actual read. Both labels were on
+        // the wrong phase.
+        resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
+        const order: string[] = [];
+        await compressBatch([input("photo.png", 10_000, fmt("image/png", "png"))], {
+            options: [], level: "medium", run: shrinkingRun(0.5),
+            onFileRead: n => order.push(`read:${n}`),
+            onFileCompress: n => order.push(`compress:${n}`),
+        });
+        expect(order).toEqual(["read:photo.png", "compress:photo.png"]);
+    });
+
+    it("still leaves the reading phase for an engine that reports nothing", async () => {
+        // ImageMagick emits no progress at all. Without `onFileCompress` the
+        // modal would sit on "Reading your file..." for the whole compression.
+        resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
+        const onFileCompress = vi.fn();
+        await compressBatch([input("photo.png", 10_000, fmt("image/png", "png"))], {
+            options: [], level: "medium", run: shrinkingRun(0.5), onFileCompress,
+        });
+        expect(onFileCompress).toHaveBeenCalledWith("photo.png");
+    });
+
+    it("never announces a read for a file it decided about from metadata", async () => {
+        // A file too small to gain anything is never opened; claiming to read it
+        // would be a phase the user waits through that does not exist.
+        resolveMock.mockReturnValue({ handler: handler("ImageMagick"), args: [] });
+        const onFileRead = vi.fn();
+        const out = await compressBatch([input("tiny.png", 100, fmt("image/png", "png"))], {
+            options: [], level: "medium", run: vi.fn(), onFileRead,
+        });
+        expect(out[0].reason).toBe("already-minimal");
+        expect(onFileRead).not.toHaveBeenCalled();
+    });
+});

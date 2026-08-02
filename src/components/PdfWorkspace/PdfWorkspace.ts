@@ -35,6 +35,8 @@ import {
   resetPdfOutputCompression,
   wasPdfOutputCompressionCancelled,
 } from '../../conversion/compressPdfOutput.ts';
+import { formatProgress, alternatingLine } from '../../conversion/progressStatus.ts';
+import type { ProgressEvent } from '../../core/FormatHandler/FormatHandler.ts';
 import { MAX_TOTAL_FILE_SIZE, ABSOLUTE_MAX_FILES } from '../../constants/ui.ts';
 
 // ---------------------------------------------------------------------------
@@ -526,9 +528,29 @@ async function setPdfResult(
   // coming out - so nothing has to be threaded through the engine to report
   // them. Measured across the batch, because that is what the user saved.
   const before = results.reduce((n, r) => n + r.bytes.byteLength, 0);
+  // Live status in the popup's own subtext, using the same formatter and the
+  // same 6s/3s rhythm as Convert and Compress. Ghostscript reports a real
+  // percentage - including, on first use, the download of its own ~16 MB engine
+  // - and all of it used to be discarded here.
+  const startedAt = Date.now();
+  const note = document.querySelector<HTMLElement>('.ws-processing p');
+  let ticker: ReturnType<typeof setInterval> | null = null;
+  let latest: ProgressEvent | undefined;
+  let position = '';
+  const paint = () => {
+    if (!note) return;
+    const line = alternatingLine(formatProgress(latest), Date.now() - startedAt);
+    note.textContent = position ? `${position} — ${line}` : line;
+  };
+  if (note) ticker = setInterval(paint, 1000);
   try {
-    lastPdfResult = await compressPdfOutputs(results, level);
+    lastPdfResult = await compressPdfOutputs(results, level, (p, index, total) => {
+      latest = p;
+      position = total > 1 ? `PDF ${index + 1} of ${total}` : '';
+      paint();
+    });
   } finally {
+    if (ticker) clearInterval(ticker);
     skipButton?.remove();
   }
   const after = lastPdfResult.reduce((n, r) => n + r.bytes.byteLength, 0);

@@ -87,6 +87,40 @@ export type CompressBatchOptions = {
     /** Off-main-thread runner. Main-thread-only handlers bypass it. */
     run: RunHandler;
     onProgress?: (done: number, total: number, current: string) => void;
+    /**
+     * Live progress from the engine itself - frame counts, page counts, the
+     * ratio a video encoder reports as it works.
+     *
+     * `RunHandler` has declared this parameter since it was written, and the two
+     * call sites below simply never passed it, so every engine that reports its
+     * own progress was silenced on this surface. Six of them do: FFmpeg,
+     * Ghostscript, comics, pdfCanvasCompress, pdftoimg and pdftotxt. That is why
+     * compressing a large video showed one unchanging sentence for minutes.
+     */
+    onEngineProgress?: (p: ProgressEvent) => void;
+    /**
+     * Called when a handler has to be initialised before it can run, with the
+     * engine's own name. Loading one means fetching and compiling a WASM binary
+     * - 32 MB for FFmpeg, 16 MB for Ghostscript, 14 MB for ImageMagick - and the
+     * surface used to sit on "Reading your file..." throughout, which is both
+     * untrue and the single longest unexplained wait in the app.
+     */
+    onEngineInit?: (handlerName: string, format: FileFormat) => void;
+    /**
+     * Called immediately before a file's bytes are read off disk. The read is
+     * where "Reading your file..." actually belongs; it used to be shown before
+     * the engine load instead, one phase too early.
+     */
+    onFileRead?: (name: string) => void;
+    /**
+     * Called once the bytes are in hand and the engine is about to run.
+     *
+     * Separate from {@link onFileRead} because the surface has to be able to
+     * leave the "Reading..." wording behind even for the ~76 handlers that
+     * report no progress of their own. Without it, compressing with ImageMagick
+     * would sit on "Reading your file..." for the entire compression.
+     */
+    onFileCompress?: (name: string) => void;
     isCancelled?: () => boolean;
 };
 
@@ -118,7 +152,11 @@ export async function compressBatch(
     inputs: readonly CompressInput[],
     opts: CompressBatchOptions,
 ): Promise<CompressOutcome[]> {
-    const { options, level, run, onProgress, isCancelled } = opts;
+    const {
+        options, level, run, onProgress,
+        onEngineProgress, onEngineInit, onFileRead, onFileCompress,
+        isCancelled,
+    } = opts;
 
     // Preserve input order in the results regardless of grouping.
     const results = new Map<number, CompressOutcome>();
@@ -177,6 +215,8 @@ export async function compressBatch(
         // expensive part and a mixed batch may need more than one engine.
         let ready = handler.ready;
         if (!ready) {
+            // Say so before the wait, not after it. This is the 32 MB download.
+            onEngineInit?.(handler.name, group.format);
             try {
                 await handler.init();
                 ready = handler.ready;
@@ -219,6 +259,7 @@ export async function compressBatch(
             // batch is. A file moved or deleted between picking and compressing
             // rejects here - ordinary behaviour, not an edge case.
             let bytes: Uint8Array;
+            onFileRead?.(input.name);
             try {
                 bytes = await input.read();
             } catch (e) {
@@ -257,6 +298,8 @@ export async function compressBatch(
             const perFileArgs = withQualityArg(args, effective);
             const originalSize = bytes.byteLength;
             const fileData: FileData = { name: input.name, bytes };
+            // Bytes are in hand; from here the engine is doing the work.
+            onFileCompress?.(input.name);
 
             const attempt = async (h: typeof handler, a: string[]) => {
                 // Resolve the format against the handler that will actually run
@@ -265,8 +308,8 @@ export async function compressBatch(
                 // primary's entry only works while the two happen to agree.
                 const fmt = h === handler ? inFmt : (handlerSupportsFormat(h, group.format) ?? inFmt);
                 const produced = h.requiresMainThread
-                    ? await h.doConvert([fileData], fmt, fmt, a)
-                    : await run(h.name, [fileData], fmt, fmt, a);
+                    ? await h.doConvert([fileData], fmt, fmt, a, onEngineProgress)
+                    : await run(h.name, [fileData], fmt, fmt, a, onEngineProgress);
                 return produced?.length && produced[0].bytes.byteLength > 0 ? produced[0] : null;
             };
 
@@ -282,8 +325,12 @@ export async function compressBatch(
                 const fb = group.dispatch.fallback;
                 if (fb && !isCancelled?.()) {
                     try {
-                        // The group-level init only ran for the primary.
-                        if (!fb.handler.ready) await fb.handler.init();
+                        // The group-level init only ran for the primary, so this
+                        // is a second engine load and deserves the same notice.
+                        if (!fb.handler.ready) {
+                            onEngineInit?.(fb.handler.name, group.format);
+                            await fb.handler.init();
+                        }
                         output = await attempt(fb.handler, withQualityArg(fb.args, effective));
                         if (output) warning = fb.warning;
                     } catch (e2) {

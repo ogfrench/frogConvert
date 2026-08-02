@@ -8,7 +8,7 @@ import {
   LARGE_FILE_WARN_SIZE,
   compressBatchBudget,
 } from "../../constants/ui.ts";
-import { ui, allOptionsRef, compressLevel, setCompressLevel, COMPRESS_LEVEL_CHOICES, type CompressLevel } from "../store/store.ts";
+import { ui, allOptionsRef, compressLevel, setCompressLevel, COMPRESS_LEVEL_CHOICES, CATEGORY_LABELS, type CompressLevel } from "../store/store.ts";
 import { findMatchingFormat } from "../../core/FormatHandler/detectFormat.ts";
 import {
   compressBatch,
@@ -18,9 +18,8 @@ import {
   type SkipReason,
 } from "../../core/compression/compressBatch.ts";
 import { runInWorker } from "../../conversion/workerClient.ts";
-import { REASSURANCE_LINE } from "../../conversion/actions.ts";
+import { startConversionStatus, type StatusHandle } from "../../conversion/progressStatus.ts";
 import {
-  showConversionInProgress,
   ensureCancelButton,
   setActiveConversionMode,
   setCanHardCancel,
@@ -28,6 +27,7 @@ import {
   resetCancellation,
   completeCancellation,
   isCancelled,
+  modeCopy,
 } from "../../conversion/cancellation.ts";
 import { hidePopup, showPopup, replacePopup, createPopupButton } from "../Popup/Popup.ts";
 import { openFilesModal, type FilesModalSource } from "../FilesModal/FilesModal.ts";
@@ -76,6 +76,12 @@ let initialized = false;
 let phase: Phase = "idle";
 let results: CompressOutcome[] = [];
 let progress = { done: 0, total: 0, current: "" };
+/**
+ * The live status handle for the run in flight, so the `finally` block can stop
+ * its timer however the batch ends. Leaking one leaves a 1s interval repainting
+ * a modal that is no longer on screen.
+ */
+let statusHandle: StatusHandle | null = null;
 
 let rootEl: HTMLElement | null = null;
 let fileInput: HTMLInputElement | null = null;
@@ -282,14 +288,17 @@ export async function runCompression() {
   progress = { done: 0, total: files.length, current: "" };
   render();
 
-  showConversionInProgress(
-    `Reading your ${files.length > 1 ? "files" : "file"}...`
-    + `<br><span class="conversion-path">getting ready to compress</span>`,
-    progressTitle(),
-    "idle",
-  );
-  // Video especially can run for minutes here, and the Converter has said
-  // "feel free to switch tabs" through its long waits since it grew them.
+  // One status handle owns the modal for the whole batch. It carries the
+  // elapsed clock and the alternating reassurance that Convert has had since it
+  // grew long waits, and that this surface - the one with the longest waits of
+  // all - never had, because the helper used to be private to actions.ts.
+  const status = startConversionStatus({
+    main: "Getting things ready...",
+    subtitle: `checking your ${files.length > 1 ? "files" : "file"}`,
+    title: progressTitle(),
+    phase: "idle",
+  });
+  statusHandle = status;
   ensureCancelButton();
 
   const options = allOptionsRef.value;
@@ -332,9 +341,38 @@ export async function runCompression() {
       level: compressLevel.value,
       run: runInWorker,
       onProgress: (done, _total, current) => {
+        // Position only. The wording is owned by the phase callbacks below, so
+        // that the modal never claims to be compressing a file it has not read.
         progress = { done: alreadyDone + done, total: files.length, current };
-        paintProgress();
+        setCurrentFileProgress(Math.min(progress.done + 1, progress.total), progress.total);
       },
+      // The engine has to be fetched and compiled before it can do anything.
+      // Naming it is the difference between a 32 MB download and a hang.
+      onEngineInit: (_handlerName, format) => {
+        const cat = Array.isArray(format?.category) ? format.category[0] : format?.category;
+        // Optional chaining throughout, deliberately. This runs inside a
+        // progress callback: a missing label is a cosmetic problem, but a throw
+        // here would abort the compression itself over one word.
+        const label = (cat && CATEGORY_LABELS?.[cat])
+          ? CATEGORY_LABELS[cat].toLowerCase()
+          : "file";
+        status.setPhase(
+          `Downloading the ${label} ${modeCopy().toolLabel}...`,
+          { subtitle: "this happens once and may take a moment", phase: "idle" },
+        );
+      },
+      // Always singular: files are read one at a time, however big the batch.
+      onFileRead: (name) => status.setPhase(
+        "Reading your file...",
+        { subtitle: shortenFileName(name, 32), phase: "idle" },
+      ),
+      onFileCompress: (name) => status.setPhase(
+        progressLine(),
+        { subtitle: shortenFileName(name, 32), phase: "converting" },
+      ),
+      // The whole point: frame counts, page counts and encoder ratios, from the
+      // six handlers that report them, finally reaching the screen.
+      onEngineProgress: (p) => status.update(p),
       isCancelled: () => isCancelled,
     });
 
@@ -365,6 +403,10 @@ export async function runCompression() {
     render();
     return;
   } finally {
+    // Before anything else: the status handle owns a 1s interval, and an
+    // orphaned one would keep repainting a modal that has moved on.
+    statusHandle?.cancel();
+    statusHandle = null;
     if (phase === "running") phase = "done";
     // Whatever happened, the modal comes down. Split from the state reset the
     // same way the conversion flow splits it: `completeCancellation` awaits a
@@ -398,29 +440,19 @@ function progressTitle(): string {
 }
 
 /**
- * Push per-file progress into the shared modal. `showConversionInProgress`
- * diffs its own content, so calling it per file is cheap, and it declines to
- * overwrite the cancel copy once Stop has been pressed.
+ * The main line while an engine is actually working.
+ *
+ * A single video can hold this modal for minutes - ffmpeg.wasm runs
+ * single-threaded in a worker, so a clip that takes seconds in a desktop
+ * encoder takes considerably longer here. The batch position lives here; the
+ * live detail underneath it comes from the engine via `status.update`.
  */
-function paintProgress() {
+function progressLine(): string {
   // `done` counts finished files; the one being worked on is the next one up.
   const current = Math.min(progress.done + 1, progress.total);
-  // Keeps the shared cancel copy able to say "Finishing file 2 of 3".
-  setCurrentFileProgress(current, progress.total);
-
-  const main = progress.total > 1
+  return progress.total > 1
     ? `Compressing file ${current} of ${progress.total}...`
     : "Compressing your file...";
-  const detail = progress.current
-    ? `<br><span class="conversion-path">${escapeHTML(shortenFileName(progress.current, 32))}</span>`
-    : "";
-  // The same reassurance the Converter gives through its long waits. A single
-  // video can hold this modal for minutes - ffmpeg.wasm runs single-threaded
-  // in a worker, so a clip that takes seconds in a desktop encoder takes
-  // considerably longer here - and a spinner with a filename and nothing else
-  // gives no reason to believe leaving is safe.
-  const reassurance = `<br><span class="muted-text">${REASSURANCE_LINE}</span>`;
-  showConversionInProgress(`${main}${detail}${reassurance}`, progressTitle());
 }
 
 /**

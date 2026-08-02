@@ -3,6 +3,7 @@ import { KEEP_THRESHOLD } from "../core/compression/compressBatch.ts";
 import { runInWorker, cancelActiveWorkerJob } from "./workerClient.ts";
 import { decideAutoQuality } from "../core/compression/automatic.ts";
 import type { PdfQuality } from "../components/store/store.ts";
+import type { ProgressEvent } from "../core/FormatHandler/FormatHandler.ts";
 
 /**
  * Run a finished PDF through Ghostscript on its way out.
@@ -57,6 +58,13 @@ export async function compressPdfOutput(
     bytes: Uint8Array,
     level: PdfQuality,
     name = "document.pdf",
+    /**
+     * Live progress from Ghostscript. It reports both a ratio and, on first
+     * use, a real download percentage for its own ~16 MB engine - and until
+     * this parameter existed the PDF editor threw all of it away and sat behind
+     * a static spinner instead.
+     */
+    onProgress?: (p: ProgressEvent) => void,
 ): Promise<Uint8Array> {
     if (level === "lossless" || cancelled) return bytes;
 
@@ -91,6 +99,7 @@ export async function compressPdfOutput(
             PDF_FORMAT,
             PDF_FORMAT,
             ["--quality", effective],
+            onProgress,
         );
         const produced = out?.[0]?.bytes;
         if (!produced?.byteLength) return bytes;
@@ -105,11 +114,23 @@ export async function compressPdfOutput(
 export async function compressPdfOutputs(
     results: readonly { bytes: Uint8Array; name: string }[],
     level: PdfQuality,
+    /**
+     * Progress for the batch. Receives the engine's own event plus the batch
+     * position, so a multi-document save can say which one it is on rather than
+     * restarting an anonymous percentage for each.
+     */
+    onProgress?: (p: ProgressEvent, index: number, total: number) => void,
 ): Promise<{ bytes: Uint8Array; name: string }[]> {
     if (level === "lossless") return results.map(r => ({ ...r }));
     const out: { bytes: Uint8Array; name: string }[] = [];
-    for (const r of results) {
-        out.push({ name: r.name, bytes: await compressPdfOutput(r.bytes, level, r.name) });
+    for (const [i, r] of results.entries()) {
+        out.push({
+            name: r.name,
+            bytes: await compressPdfOutput(
+                r.bytes, level, r.name,
+                onProgress ? (p) => onProgress(p, i, results.length) : undefined,
+            ),
+        });
     }
     return out;
 }

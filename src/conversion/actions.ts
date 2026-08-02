@@ -33,7 +33,6 @@ import {
     ensureCancelButton,
     removeCancelButton,
     modeCopy,
-    updateCancelProgress,
 } from "./cancellation.ts";
 import { createDancingFrog } from "../components/Frogsworth/DancingFrog.ts";
 import { clearConvertSession } from "../components/persistence/convertPersist.ts";
@@ -51,6 +50,11 @@ import {
 } from "../components/utils/index.ts";
 import { runInWorker, WORKER_TIMEOUT_MS } from "./workerClient.ts";
 import { hopQualityArgs, resolveAutoQuality } from "../core/compression/hopQuality.ts";
+import { startConversionStatus, type StatusHandle } from "./progressStatus.ts";
+// Re-exported rather than moved outright: the Compress surface and the tests
+// have imported it from here since it existed, and its home is an
+// implementation detail of where the status line lives.
+export { REASSURANCE_LINE } from "./progressStatus.ts";
 
 // --- Helpers ---
 
@@ -307,70 +311,6 @@ function showConversionNotFoundPopup(fromFormat: string, toFormat: string) {
     );
 }
 
-/** Shared with the Compress surface, which has the same long waits. */
-export const REASSURANCE_LINE = "feel free to switch tabs";
-
-function mmss(totalSec: number): string {
-    const m = Math.floor(totalSec / 60);
-    const s = Math.floor(totalSec % 60);
-    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-/**
- * Owns the conversion modal for the duration of one file's work. Three slots:
- * main line (stable), muted format/path subtitle, muted live-status line (shows
- * reassurance text, or latest handler detail when one was reported, with a
- * ` · MM:SS` elapsed suffix once the timer has been running ≥10s).
- */
-type StatusHandle = {
-    cancel: () => void;
-    update: (detail: string) => void;
-};
-function startConversionStatus({ main, subtitle }: { main: string; subtitle: string }): StatusHandle {
-    const startedAt = Date.now();
-    let tickTimer: ReturnType<typeof setInterval> | null = null;
-    let latestDetail: string | undefined;
-    let lastHTML: string | null = null;
-    let showElapsed = false;
-
-    const render = () => {
-        const leading = latestDetail ? escapeHTML(latestDetail) : REASSURANCE_LINE;
-        const suffix = showElapsed ? ` · ${mmss((Date.now() - startedAt) / 1000)}` : "";
-        const html = [
-            main,
-            `<span class="muted-text">${escapeHTML(subtitle)}</span>`,
-            `<span class="muted-text">${leading}${suffix}</span>`,
-        ].join("<br>");
-        if (html === lastHTML) return;
-        lastHTML = html;
-        showConversionInProgress(html, _convertingTitle);
-    };
-
-    render(); // initial paint, callers no longer paint the modal themselves
-
-    const slowKick = setTimeout(() => {
-        if (isCancelled) return;
-        showElapsed = true;
-        render();
-        tickTimer = setInterval(() => {
-            if (isCancelled) { clearInterval(tickTimer!); tickTimer = null; return; }
-            render();
-        }, 1000);
-    }, 10000);
-
-    return {
-        cancel: () => {
-            clearTimeout(slowKick);
-            if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
-        },
-        update: (detail) => {
-            latestDetail = detail;
-            updateCancelProgress(detail);
-            render();
-        },
-    };
-}
-
 function showConversionFailedPopup(fromFormat: string, toFormat: string, error: UserErrorInfo) {
     // Cancellation routes through showPartialDownloadPopup; if one ever leaks
     // here, don't render it under a failure title.
@@ -609,13 +549,12 @@ export function initConvertButton() {
             // Enforce minimum startup/warming-up phase duration (includes file reading time)
             await ensureMinDuration(startupStartTime, 1200);
 
-            // slowHandle.update fans out to both the in-progress notice and
-            // (when cancel is active) the cancel popup sub-line.
-            const makeProgressSink = (status: StatusHandle) => (p: ProgressEvent) => {
-                if (typeof p.detail === "string") {
-                    status.update(p.detail);
-                }
-            };
+            // The whole event, not just `p.detail`. This used to drop `p.ratio`
+            // on the floor, which is why no surface had ever shown a percentage
+            // despite FFmpeg and Ghostscript both reporting one all along.
+            // `update` fans out to the in-progress notice and (when cancel is
+            // active) the cancel popup sub-line.
+            const makeProgressSink = (status: StatusHandle) => (p: ProgressEvent) => status.update(p);
 
             // Same-format picks convert nothing, so they pass straight
             // through. Recompressing in place lives on the Compress surface.
@@ -673,7 +612,7 @@ export function initConvertButton() {
                 setCurrentFileProgress(fileNum, fileCount);
                 const main = `Converting file ${fileNum} of ${fileCount}...`;
 
-                const status = startConversionStatus({ main, subtitle: formatConversionPath(conversionPath) });
+                const status = startConversionStatus({ main, subtitle: formatConversionPath(conversionPath), title: _convertingTitle });
 
                 let result = await attemptConvertPath(
                     [inputFileData[i]],
@@ -705,7 +644,7 @@ export function initConvertButton() {
                         return;
                     }
                     setCanHardCancel(pathSupportsHardCancel(conversionPath));
-                    const retryStatus = startConversionStatus({ main, subtitle: formatConversionPath(conversionPath) });
+                    const retryStatus = startConversionStatus({ main, subtitle: formatConversionPath(conversionPath), title: _convertingTitle });
 
                     result = await attemptConvertPath(
                         [inputFileData[i]],

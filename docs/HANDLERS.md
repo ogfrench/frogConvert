@@ -125,7 +125,9 @@ PDF render knobs (DPI and megapixel caps) live in `src/core/FormatHandler/qualit
 
 ### Progress reporting
 
-After 10 seconds the UI shows a live "Working on it..." notice with elapsed time and a rotating reassurance line. Handlers that have an internal counter (page loop, frame loop, image loop) should call `onProgress?.({ detail: "..." })` once per iteration so the notice can surface a concrete fact like `Page 12 of 50`, `Encoded 3.2s of 8.7s`, or `Image 4 of 18`. Keep the string under ~40 characters; it's rendered verbatim. Handlers with nothing meaningful to say should simply not emit, the elapsed line alone is fine.
+Every long-running surface — Convert, Compress and the PDF editor — renders one shared live status line, owned by `src/conversion/progressStatus.ts`. Handlers feed it through `onProgress`.
+
+Handlers with an internal counter (page loop, frame loop, image loop) should call `onProgress?.({ detail: "..." })` once per iteration so the line can surface a concrete fact like `Page 12 of 50`, `Encoded 3.2s of 8.7s`, or `Image 4 of 18`. Keep the string under ~40 characters; it is rendered verbatim. Handlers with nothing meaningful to say should simply not emit — the surface still reports which file it is on and how long it has been going.
 
 ```ts
 for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
@@ -134,7 +136,17 @@ for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
 }
 ```
 
-`ratio` (0..1) is also supported for progress-bar style signals. FFmpeg emits both; the slow-conversion notice falls back to a `"N% done"` line when a handler emits ratio without detail.
+`ratio` (0..1) is rendered as a percentage appended to the detail: `Encoded 12.4s of 47.0s of video. · 34%`. Emit it only when it is a real fraction of the work — FFmpeg, Ghostscript and pdfCanvasCompress do; a counter with no known total should send `detail` alone rather than a number that jumps.
+
+Three rules the renderer applies, worth knowing before you write a `detail` string:
+
+- **Never two percentages.** If your `detail` already contains one, the `ratio` is not appended. Ghostscript relies on this: its engine download reads `Fetching the compressor (52%)` while `ratio` is at 26%, because the fetch is only the first half of its overall work.
+- **The ratio is clamped to 0–100.** FFmpeg briefly reports slightly over 1 as a stream finishes.
+- **The line alternates.** It shows your progress for 6 seconds, then `feel free to switch tabs` for 3, on repeat, with an elapsed clock appended once a run passes 10 seconds. Do not put "you can leave this tab" style reassurance in your own `detail` — the surface already says it.
+
+Emitting is what makes a wait legible, so it is worth doing even for an engine that is usually fast: the first use of any WASM handler also pays for fetching and compiling the binary, which is the longest wait most users ever see.
+
+**Only 6 of ~82 handlers emit anything today** (FFmpeg, Ghostscript, comics, pdfCanvasCompress, pdftoimg, pdftotxt). The rest are silent, which is fine for the ones that finish instantly — but ImageMagick is a notable gap: it is not instant on large images and reports nothing.
 
 ### Multi-file output
 

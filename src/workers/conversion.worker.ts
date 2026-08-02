@@ -45,7 +45,20 @@ self.onmessage = async (ev: MessageEvent<ConvertRequestMessage>) => {
     const msg = ev.data;
     const { id, handlerName, inputFiles, inputFormat, outputFormat, args } = msg;
 
+    const post = (m: ConvertResponseMessage) => (self as any).postMessage(m);
+
     try {
+        // The worker keeps its own handler instances, so an engine already
+        // loaded on the main thread still has to be fetched and compiled again
+        // here - 32 MB for FFmpeg, 14 MB for ImageMagick. `getHandler` awaits
+        // that init before `doConvert` is ever called, which put it outside the
+        // reach of any progress callback: on both Convert and Compress it was a
+        // silent stall with the previous phase's wording still on screen.
+        //
+        // Ghostscript is unaffected either way - it defers its load to
+        // `loadOnce()` inside doConvert, which is why its download percentage
+        // has always reached the modal.
+        post({ id, type: "progress", detail: "Getting the engine ready" });
         const handler = await getHandler(handlerName);
         if (!handler) {
             throw new Error(`Handler "${handlerName}" not found in worker.`);

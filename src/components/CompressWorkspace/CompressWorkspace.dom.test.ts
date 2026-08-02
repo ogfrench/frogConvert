@@ -44,6 +44,9 @@ vi.mock('../store/store.ts', () => {
       { value: 'medium', label: 'Balanced', blurb: 'Recommended.' },
       { value: 'low', label: 'Smallest file', blurb: 'Visible quality loss.' },
     ],
+    // Used to name the engine being fetched ("Downloading the video
+    // compressor..."), the same way the Converter names its own.
+    CATEGORY_LABELS: { video: 'Video', image: 'Image', document: 'Document' },
   };
 });
 
@@ -400,17 +403,34 @@ describe('CompressWorkspace - lifecycle', () => {
 describe('CompressWorkspace - assistive technology', () => {
   /** Start a run that never settles, so the surface stays in the running phase. */
   async function startStalledRun(files = ['a.png', 'b.png', 'c.png']) {
-    let emit: ((done: number, total: number, current: string) => void) | undefined;
+    let captured: any;
     compressBatchMock.mockImplementation((async (_files: any, opts: any) => {
-      emit = opts.onProgress;
+      captured = opts;
       return new Promise(() => { /* never settles */ });
     }) as any);
     ws.handleFiles(files.map(n => fakeFile(n, 'image/png')));
     void ws.runCompression();
     // runCompression reads each file's bytes before it reaches compressBatch,
     // so wait for the real task queue rather than a single microtask.
-    for (let i = 0; i < 20 && !emit; i++) await new Promise(r => setTimeout(r, 0));
-    return { emit: (done: number, total: number, current: string) => emit!(done, total, current) };
+    for (let i = 0; i < 20 && !captured; i++) await new Promise(r => setTimeout(r, 0));
+    return {
+      /**
+       * Drive one file's worth of callbacks in the order `compressBatch` really
+       * fires them: batch position first, then the read, then the engine. The
+       * wording lives on the later two so that the modal never claims to be
+       * compressing a file whose bytes it has not loaded yet.
+       */
+      emit: (done: number, total: number, current: string) => {
+        captured.onProgress?.(done, total, current);
+        captured.onFileRead?.(current);
+        captured.onFileCompress?.(current);
+      },
+      /** Engine-level progress, for the six handlers that report it. */
+      engine: (p: { ratio?: number; detail?: string }) => captured.onEngineProgress?.(p),
+      /** An engine having to be fetched and compiled before it can run. */
+      engineInit: (name: string, format: any) => captured.onEngineInit?.(name, format),
+      readOnly: (current: string) => captured.onFileRead?.(current),
+    };
   }
 
   it('runs its progress in the shared conversion modal, not inside the card', async () => {
@@ -445,6 +465,48 @@ describe('CompressWorkspace - assistive technology', () => {
     // `done` counts finished files, so file 2 is the one being worked on.
     expect(message.textContent).toContain('file 2 of 3');
     expect(message.textContent).toContain('b.png');
+  });
+
+  it('names the engine download instead of calling it "reading your file"', async () => {
+    // The 32 MB fetch used to happen behind "Reading your file...", which is
+    // both untrue and the longest unexplained wait in the app.
+    const { engineInit } = await startStalledRun();
+    engineInit('FFmpeg', { format: 'mp4', category: 'video' });
+    const message = document.getElementById('popup')!.querySelector('p')!;
+    expect(message.textContent).toContain('compressor');
+    expect(message.textContent).toContain('this happens once');
+    expect(message.textContent).not.toContain('Reading your file');
+  });
+
+  it('says it is reading only while it is actually reading', async () => {
+    const { readOnly } = await startStalledRun();
+    readOnly('b.png');
+    const message = document.getElementById('popup')!.querySelector('p')!;
+    expect(message.textContent).toContain('Reading your file');
+    expect(message.textContent).toContain('b.png');
+  });
+
+  it('shows live engine progress with a percentage', async () => {
+    // The reported bug: this line never changed for the whole run.
+    const { emit, engine } = await startStalledRun();
+    emit(0, 3, 'b.png');
+    engine({ ratio: 0.34, detail: 'Encoded 12.4s of 47.0s of video.' });
+    const message = document.getElementById('popup')!.querySelector('p')!;
+    expect(message.textContent).toContain('Encoded 12.4s of 47.0s of video.');
+    expect(message.textContent).toContain('34%');
+  });
+
+  it('keeps the volatile line out of the live region', async () => {
+    // #popup is aria-atomic, so every write re-announces the whole modal. A
+    // percentage updating several times a second would make a screen reader
+    // unusable; the phase and the file name stay announced.
+    const { emit, engine } = await startStalledRun();
+    emit(0, 3, 'b.png');
+    engine({ ratio: 0.34, detail: 'Encoded 12.4s of 47.0s of video.' });
+    const hidden = document.getElementById('popup')!
+      .querySelector('p [aria-hidden="true"]');
+    expect(hidden).not.toBeNull();
+    expect(hidden!.textContent).toContain('34%');
   });
 
   it('replaces the progress modal with the results, in place', async () => {

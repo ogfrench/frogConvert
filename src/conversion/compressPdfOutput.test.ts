@@ -41,9 +41,11 @@ describe("compressPdfOutput", () => {
         runMock.mockResolvedValue([{ name: "d.pdf", bytes: bytes(400) }]);
         const out = await compressPdfOutput(bytes(1000), "medium");
         expect(out.byteLength).toBe(400);
-        expect(runMock).toHaveBeenCalledWith(
-            "Ghostscript", expect.anything(), expect.anything(), expect.anything(),
-            ["--quality", "medium"]);
+        // Positional rather than a whole-call match: the assertion is about
+        // which quality reached the engine, not how many parameters the call
+        // happens to take.
+        expect(runMock.mock.calls[0][0]).toBe("Ghostscript");
+        expect(runMock.mock.calls[0][4]).toEqual(["--quality", "medium"]);
     });
 
     it("resolves Automatic to a real preset before the engine sees it", async () => {
@@ -54,9 +56,11 @@ describe("compressPdfOutput", () => {
 
         await compressPdfOutput(bytes(1000), "auto");
 
-        expect(runMock).toHaveBeenCalledWith(
-            "Ghostscript", expect.anything(), expect.anything(), expect.anything(),
-            ["--quality", "high"]);
+        // Positional rather than a whole-call match: the assertion is about
+        // which quality reached the engine, not how many parameters the call
+        // happens to take.
+        expect(runMock.mock.calls[0][0]).toBe("Ghostscript");
+        expect(runMock.mock.calls[0][4]).toEqual(["--quality", "high"]);
     });
 
     it("skips the engine entirely when Automatic finds nothing left to give", async () => {
@@ -78,9 +82,11 @@ describe("compressPdfOutput", () => {
 
         await compressPdfOutput(bytes(1000), "auto");
 
-        expect(runMock).toHaveBeenCalledWith(
-            "Ghostscript", expect.anything(), expect.anything(), expect.anything(),
-            ["--quality", "high"]);
+        // Positional rather than a whole-call match: the assertion is about
+        // which quality reached the engine, not how many parameters the call
+        // happens to take.
+        expect(runMock.mock.calls[0][0]).toBe("Ghostscript");
+        expect(runMock.mock.calls[0][4]).toEqual(["--quality", "high"]);
     });
 
     it("does not probe at all for an explicitly chosen level", async () => {
@@ -205,5 +211,48 @@ describe("skipping the compression step", () => {
         runMock.mockResolvedValueOnce([{ name: "x.pdf", bytes: bytes(100) }] as never);
         const out = await compressPdfOutput(bytes(1000), "medium", "x.pdf");
         expect(out.byteLength).toBe(100);
+    });
+});
+
+/**
+ * Ghostscript reports a ratio, and on first use a real download percentage for
+ * its own ~16 MB engine. The PDF editor used to discard all of it and sit
+ * behind a static spinner.
+ */
+describe("progress forwarding", () => {
+    it("hands the engine a progress callback", async () => {
+        runMock.mockResolvedValueOnce([{ name: "x.pdf", bytes: bytes(100) }] as never);
+        const onProgress = vi.fn();
+        await compressPdfOutput(bytes(1000), "medium", "x.pdf", onProgress);
+        // 6th argument of runInWorker is the progress sink.
+        expect(runMock.mock.calls[0][5]).toBe(onProgress);
+    });
+
+    it("works exactly as before when nobody is listening", async () => {
+        runMock.mockResolvedValueOnce([{ name: "x.pdf", bytes: bytes(100) }] as never);
+        const out = await compressPdfOutput(bytes(1000), "medium", "x.pdf");
+        expect(out.byteLength).toBe(100);
+        expect(runMock.mock.calls[0][5]).toBeUndefined();
+    });
+
+    it("tags each batch event with its position, so the popup can say which PDF", async () => {
+        runMock.mockResolvedValue([{ name: "a.pdf", bytes: bytes(10) }] as never);
+        const seen: [number, number][] = [];
+        await compressPdfOutputs(
+            [{ name: "a.pdf", bytes: bytes(1000) }, { name: "b.pdf", bytes: bytes(1000) }],
+            "medium",
+            (_p, index, total) => seen.push([index, total]),
+        );
+        // Drive the sinks the worker would have driven.
+        const sinks = runMock.mock.calls.map(c => c[5] as ((p: unknown) => void) | undefined);
+        sinks.forEach(s => s?.({ ratio: 0.5 }));
+        expect(seen).toEqual([[0, 2], [1, 2]]);
+    });
+
+    it("never reaches the engine at Original quality, so never reports progress", async () => {
+        const onProgress = vi.fn();
+        await compressPdfOutputs([{ name: "a.pdf", bytes: bytes(1000) }], "lossless", onProgress);
+        expect(runMock).not.toHaveBeenCalled();
+        expect(onProgress).not.toHaveBeenCalled();
     });
 });
