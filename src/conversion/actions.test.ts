@@ -176,7 +176,7 @@ describe("conversionResultText", () => {
         expect(conversionResultText({
             ...base, format: "ZIP", applied: null, requested: "low", qualityApplies: false,
         })).toBe("<b>photo.png</b> has been converted to <b>ZIP</b> and is ready to download."
-            + " Your compression level doesn't apply to <b>ZIP</b>, so the file was left as-is.");
+            + " Your compression level doesn't apply to <b>ZIP</b>, so the converted file was not compressed and left as-is.");
     });
 
     it("says nothing extra when the user never asked for a level", () => {

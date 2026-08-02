@@ -517,7 +517,7 @@ export function conversionResultText(opts: {
         // costs one clause and answers the question they are about to ask,
         // which is why the file did not get smaller. Naming the format matters:
         // "doesn't apply here" invites "where does it apply, then?".
-        text += ` Your compression level doesn't apply to <b>${fmt}</b>, so the file was left as-is.`;
+        text += ` Your compression level doesn't apply to <b>${fmt}</b>, so the converted file was not compressed and left as-is.`;
     }
     return text;
 }

@@ -36,7 +36,11 @@ function which(cmd: string): boolean {
 const hasElectron = fs.existsSync(ELECTRON_BIN);
 const hasXvfb = which("xvfb-run");
 const canRun = hasElectron && hasXvfb && hasFullRegistry;
-const WHY = !hasFullRegistry ? MISSING_DEPS_REASON
+// Only ever a *reason to skip*. Written as a plain fallthrough it labelled a
+// perfectly good run "[xvfb-run not on PATH]", which reads as a skipped suite
+// to anyone scanning CI output.
+const WHY = canRun ? "runs here"
+    : !hasFullRegistry ? MISSING_DEPS_REASON
     : !hasElectron ? "electron binary not installed (run `npm rebuild electron`)"
     : "xvfb-run not on PATH";
 
@@ -155,12 +159,18 @@ describe.skipIf(!canRun)(`Electron desktop app [${WHY}]`, () => {
 
         await page.waitForFunction(() => !!document.querySelector(".cw-compress"), { timeout: 60_000 });
         const geom = await page.evaluate(() => {
-            const btn = document.querySelector(".cw-compress")!.getBoundingClientRect();
-            const card = document.querySelector("#compress-card")!;
+            // `offsetHeight`/`clientWidth`, not `getBoundingClientRect()`. The
+            // card carries an entrance animation whose transform scales the
+            // *painted* box, so a rect read mid-animation reported the 44px
+            // button as 43.36 and failed a rule that was being obeyed. The
+            // assertion is about CSS sizing, so measure the layout box, which
+            // no transform touches.
+            const btn = document.querySelector(".cw-compress") as HTMLElement;
+            const card = document.querySelector("#compress-card") as HTMLElement;
             const cs = getComputedStyle(card);
-            const inner = card.getBoundingClientRect().width
+            const inner = card.clientWidth
                 - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-            return { w: btn.width, h: btn.height, inner };
+            return { w: btn.offsetWidth, h: btn.offsetHeight, inner };
         });
 
         expect(geom.h).toBeGreaterThanOrEqual(44);
