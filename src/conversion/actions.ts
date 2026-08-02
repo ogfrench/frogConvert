@@ -90,6 +90,16 @@ let _lastConversionError: UserErrorInfo | null = null;
  */
 let _lastAppliedQuality: QualityPreset | null = null;
 
+/**
+ * Whether the engine that produced the output reads `--quality` at all.
+ *
+ * Distinct from `_lastAppliedQuality` being null, which is also what you get
+ * when the user simply asked for Original quality. Only this tells the modal
+ * the difference between "you asked for nothing" and "you asked for something
+ * this format cannot do".
+ */
+let _lastQualityApplicable = true;
+
 /** Called once after a conversion completes, then cleared. Used to defer work that is unsafe to run mid-conversion. */
 let onConversionEnd: (() => void) | null = null;
 export function setOnConversionEnd(fn: (() => void) | null) {
@@ -207,7 +217,16 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
     // Kept for the success modal, which is the only place the user finds out
     // this happened. Automatic resolves to a real tier here and nowhere else,
     // so recording the resolved answer is the only way to name it afterwards.
-    _lastAppliedQuality = requestedQuality;
+    //
+    // Only claim it where it can be true. This used to be set from the setting
+    // alone, so converting to a container format announced "Compressed at
+    // Smallest file" while `jszip` - which never reads `--quality` - handed
+    // back a file 126 bytes *larger* than the input. The last hop is the one
+    // that produces the artifact the user keeps, so it is the only hop whose
+    // opinion counts; a lossless target opts out wherever it appears.
+    const finalHop = path[path.length - 1];
+    _lastQualityApplicable = !!finalHop?.handler?.usesQuality && !finalHop.format.lossless;
+    _lastAppliedQuality = _lastQualityApplicable ? requestedQuality : null;
 
     for (let i = 0; i < path.length - 1; i++) {
         if (isCancelled) return null;
@@ -436,8 +455,15 @@ export function conversionResultText(opts: {
     applied: QualityPreset | null;
     /** What the *setting* says, so Automatic can be named as Automatic. */
     requested: string;
+    /**
+     * Whether the target format's engine reads the quality argument at all.
+     * False for containers like ZIP and for the ~35 handlers that ignore it.
+     * Defaults to true so existing callers keep their behaviour.
+     */
+    qualityApplies?: boolean;
 }): string {
     const { fileCount, outCount, firstInputName, verb, applied, requested } = opts;
+    const qualityApplies = opts.qualityApplies ?? true;
     const fmt = escapeHTML(opts.format);
     const first = `<b>${escapeHTML(shortenFileName(firstInputName, 32))}</b>`;
 
@@ -480,6 +506,13 @@ export function conversionResultText(opts: {
         const label = CONVERT_QUALITY_CHOICES.find(c => c.value === applied)?.label ?? applied;
         const suffix = requested === "auto" ? " (Automatic)" : "";
         text += ` Compressed at <b>${escapeHTML(label)}</b>${escapeHTML(suffix)}.`;
+    } else if (!qualityApplies && requested !== "lossless") {
+        // The user went to the settings menu, chose a level, and it did
+        // nothing - because this target has no quality knob to turn. Saying so
+        // costs one clause and answers the question they are about to ask,
+        // which is why the file did not get smaller. Naming the format matters:
+        // "doesn't apply here" invites "where does it apply, then?".
+        text += ` Your compression level doesn't apply to <b>${fmt}</b>, so the file was left as-is.`;
     }
     return text;
 }
@@ -520,6 +553,7 @@ export function initConvertButton() {
             const conversionStartTime = performance.now();
             resetCancellation();
             _lastAppliedQuality = null;
+            _lastQualityApplicable = true;
 
             const inputOption = allOptionsRef.value[selectedFromIndex.value];
             const outputOption = allOptionsRef.value[selectedToIndex.value];
@@ -728,6 +762,7 @@ export function initConvertButton() {
                 verb: modeCopy().verb,
                 applied: _lastAppliedQuality,
                 requested: convertQuality.value,
+                qualityApplies: _lastQualityApplicable,
             });
 
             const h2 = document.createElement("h2");

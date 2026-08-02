@@ -221,6 +221,21 @@ export interface FormatHandler {
    */
   requiresMainThread?: boolean;
   /**
+   * Whether this handler actually reads the `--quality` argument.
+   *
+   * Every hop is handed `--quality`, but only the media and PDF engines do
+   * anything with it; the other ~35 handlers ignore it entirely. Without a way
+   * to tell the two apart the Converter announced "Compressed at Smallest file"
+   * after zipping a JPEG - a claim about work that never happened, on a file
+   * that came back *larger* than it went in, because ZIP only adds container
+   * overhead to already-compressed data.
+   *
+   * Opt-in, and absence means "no": a handler that forgets to declare it stays
+   * quiet rather than claiming a compression it did not perform. Silence is the
+   * safe direction to fail in.
+   */
+  usesQuality?: boolean;
+  /**
    * Initializes the handler if necessary.
    * Should set {@link ready} to true.
    */

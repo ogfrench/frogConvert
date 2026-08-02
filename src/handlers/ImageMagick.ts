@@ -56,6 +56,8 @@ export const DELEGATES_TO_GHOSTSCRIPT = new Set([
 class ImageMagickHandler implements FormatHandler {
 
   public name: string = "ImageMagick";
+  /** Reads `--quality`: this engine is one of the few that actually does. */
+  public usesQuality = true;
 
   public supportedFormats: FileFormat[] = [];
 

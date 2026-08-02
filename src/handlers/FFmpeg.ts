@@ -285,6 +285,8 @@ class NativeFFmpegAdapter {
 class FFmpegHandler implements FormatHandler {
 
   public name: string = "FFmpeg";
+  /** Reads `--quality`: this engine is one of the few that actually does. */
+  public usesQuality = true;
   public supportedFormats: FileFormat[] = [];
   public ready: boolean = false;
 

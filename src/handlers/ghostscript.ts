@@ -198,6 +198,8 @@ class GhostscriptHandler implements FormatHandler {
     // Emscripten + fetch only; no DOM. Running off the main thread keeps a
     // multi-second pass on a large PDF from freezing the page.
     public requiresMainThread = false;
+    /** Reads `--quality`: this engine is one of the few that actually does. */
+    public usesQuality = true;
 
     async init() {
         // Deliberately does not download here. init() is called before a batch

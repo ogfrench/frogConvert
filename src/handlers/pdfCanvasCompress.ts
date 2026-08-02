@@ -67,6 +67,8 @@ class PdfCanvasCompressHandler implements FormatHandler {
 
     public ready = false;
     public requiresMainThread = true;
+    /** Reads `--quality`: this engine is one of the few that actually does. */
+    public usesQuality = true;
 
     async init() {
         this.ready = true;

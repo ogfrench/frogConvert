@@ -159,6 +159,40 @@ describe("conversionResultText", () => {
         requested: "lossless",
     };
 
+    // Measured through the real UI: a 1,207,043-byte JPEG converted to ZIP
+    // comes back at 1,207,169 bytes - 126 bytes *larger* - at every one of the
+    // four levels, because `jszip` never reads `--quality`. The modal used to
+    // announce "Compressed at Smallest file" over the top of that.
+    it("never claims a compression the engine could not have performed", () => {
+        for (const applied of ["low", "medium", "high"] as QualityPreset[]) {
+            const text = conversionResultText({
+                ...base, format: "ZIP", applied: null, requested: applied, qualityApplies: false,
+            });
+            expect(text).not.toMatch(/Compressed at/);
+        }
+    });
+
+    it("explains that the level does not apply, instead of staying silent", () => {
+        expect(conversionResultText({
+            ...base, format: "ZIP", applied: null, requested: "low", qualityApplies: false,
+        })).toBe("<b>photo.png</b> has been converted to <b>ZIP</b> and is ready to download."
+            + " Your compression level doesn't apply to <b>ZIP</b>, so the file was left as-is.");
+    });
+
+    it("says nothing extra when the user never asked for a level", () => {
+        // Original quality is the Converter's default. Explaining that a level
+        // did not apply, to someone who chose no level, is noise.
+        expect(conversionResultText({
+            ...base, format: "ZIP", applied: null, requested: "lossless", qualityApplies: false,
+        })).toBe("<b>photo.png</b> has been converted to <b>ZIP</b> and is ready to download.");
+    });
+
+    it("still reports a level the engine really did apply", () => {
+        expect(conversionResultText({
+            ...base, format: "WEBP", applied: "low", requested: "low", qualityApplies: true,
+        })).toMatch(/Compressed at <b>Smallest file<\/b>\./);
+    });
+
     it("names the file for a single conversion", () => {
         expect(conversionResultText(base))
             .toBe("<b>photo.png</b> has been converted to <b>JPG</b> and is ready to download.");

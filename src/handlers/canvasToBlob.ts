@@ -27,6 +27,8 @@ class canvasToBlobHandler implements FormatHandler {
 
   public ready: boolean = false;
   public requiresMainThread: boolean = true;
+  /** Reads `--quality`: this engine is one of the few that actually does. */
+  public usesQuality = true;
 
   async init() {
     this.#canvas = document.createElement("canvas");
