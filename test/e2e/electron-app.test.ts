@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import puppeteer, { type Browser, type Page } from "puppeteer-core";
+// `puppeteer`, not `puppeteer-core`: only the former is a declared dependency,
+// and connect() over an existing DevTools endpoint needs nothing core-specific.
+import puppeteer, { type Browser, type Page } from "puppeteer";
 import { spawn, type ChildProcess } from "child_process";
 import { build } from "vite";
 import fs from "fs";
