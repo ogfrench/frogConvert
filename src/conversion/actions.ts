@@ -517,7 +517,10 @@ export function conversionResultText(opts: {
         // costs one clause and answers the question they are about to ask,
         // which is why the file did not get smaller. Naming the format matters:
         // "doesn't apply here" invites "where does it apply, then?".
-        text += ` Your compression level doesn't apply to <b>${fmt}</b>, so the converted file was not compressed and left as-is.`;
+        // Pluralised rather than written "file(s) was/were": the whole point of
+        // this sentence is to be read without decoding.
+        const subject = outCount === 1 ? "file was" : "files were";
+        text += ` Compression is not available for <b>${fmt}</b> files, so the converted ${subject} not compressed.`;
     }
     return text;
 }

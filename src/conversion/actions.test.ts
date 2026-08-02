@@ -176,7 +176,13 @@ describe("conversionResultText", () => {
         expect(conversionResultText({
             ...base, format: "ZIP", applied: null, requested: "low", qualityApplies: false,
         })).toBe("<b>photo.png</b> has been converted to <b>ZIP</b> and is ready to download."
-            + " Your compression level doesn't apply to <b>ZIP</b>, so the converted file was not compressed and left as-is.");
+            + " Compression is not available for <b>ZIP</b> files, so the converted file was not compressed.");
+
+        // Plural, so the sentence reads without decoding a "file(s) was/were".
+        expect(conversionResultText({
+            ...base, fileCount: 3, outCount: 3, format: "ZIP",
+            applied: null, requested: "low", qualityApplies: false,
+        })).toMatch(/so the converted files were not compressed\./);
     });
 
     it("says nothing extra when the user never asked for a level", () => {
