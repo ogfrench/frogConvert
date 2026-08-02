@@ -1,4 +1,5 @@
 import './styles/global.css';
+import { registerExclusiveMenu } from "./components/TopBar/exclusiveMenus.ts";
 import { initFrogsworth } from "./components/Frogsworth/FrogsworthWidget.ts";
 import type { FormatHandler } from "./core/FormatHandler/FormatHandler.js";
 import handlers, { loadBackgroundHandlers } from "./handlers";
@@ -320,7 +321,10 @@ function setAppMode(mode: AppMode) {
 // modes, cycling hides the destination and never reveals that a third exists.
 const modeMenu = document.getElementById("app-mode-menu")!;
 
+const closeOtherMenusForAppMode = registerExclusiveMenu(() => setModeMenuOpen(false));
+
 function setModeMenuOpen(open: boolean) {
+  if (open) closeOtherMenusForAppMode();
   modeMenu.hidden = !open;
   modeToggleBtn.setAttribute("aria-expanded", String(open));
   if (open) {
@@ -424,6 +428,16 @@ type QualityBinding = {
    * Each mode names the thing the level will actually be applied to.
    */
   title: string;
+  /**
+   * One sentence on where the level does and does not bite, shown in the
+   * control's tooltip.
+   *
+   * Only seven of the ~42 handlers read the quality argument - the media and
+   * PDF engines. Convert to a container or a lossless format and the level is
+   * simply not consulted, which used to be discoverable only by weighing the
+   * output. Omitted for a surface where the level always applies.
+   */
+  hint?: string;
 };
 
 const QUALITY_BINDINGS: Record<AppMode, QualityBinding> = {
@@ -432,12 +446,14 @@ const QUALITY_BINDINGS: Record<AppMode, QualityBinding> = {
     get: () => convertQuality.value,
     set: (v) => setConvertQuality(v as ConvertQuality),
     title: "Conversion compression",
+    hint: "Applies to images, audio, video and PDFs. Other target formats are converted without compression.",
   },
   compress: {
     choices: COMPRESS_LEVEL_CHOICES,
     get: () => compressLevel.value,
     set: (v) => setCompressLevel(v as CompressLevel),
     title: "Compression level",
+    hint: "Applies to images, audio, video and PDFs. Anything else is reported as it is, untouched.",
   },
   "pdf-editor": {
     choices: PDF_QUALITY_CHOICES,
@@ -491,7 +507,7 @@ function renderQualityOptions() {
 }
 
 function syncQualityUI() {
-  const { choices, current, title } = qualityContext();
+  const { choices, current, title, hint } = qualityContext();
   const label = choices.find(c => c.value === current)?.label ?? "Balanced";
 
   // The heading is rebuilt with the options, and named for the active mode, so
@@ -502,7 +518,14 @@ function syncQualityUI() {
   if (mobileLabel) mobileLabel.textContent = title;
   qualityMenu.setAttribute("aria-label", title);
 
-  qualityToggle.title = `${title}: ${label}`;
+  // The hint rides the tooltip rather than the aria-label: the label is the
+  // control's name and state, and hearing the caveat on every tab-through
+  // would be tiresome. With an aria-label present, `title` is exposed as the
+  // accessible *description*, which is the right slot for it.
+  //
+  // Known gap: a tooltip cannot be reached by touch. The result modal is what
+  // covers that case, and says the same thing at the point it matters.
+  qualityToggle.title = hint ? `${title}: ${label}\n${hint}` : `${title}: ${label}`;
   qualityToggle.setAttribute("aria-label", `${title}: ${label}. Change`);
   for (const item of qualityMenu.querySelectorAll<HTMLElement>(".quality-item")) {
     item.setAttribute("aria-current", String(item.dataset.value === current));
@@ -514,7 +537,10 @@ function syncQualityUI() {
   }
 }
 
+const closeOtherMenusForQuality = registerExclusiveMenu(() => setQualityMenuOpen(false));
+
 function setQualityMenuOpen(open: boolean) {
+  if (open) closeOtherMenusForQuality();
   qualityMenu.hidden = !open;
   qualityToggle.setAttribute("aria-expanded", String(open));
   if (open) qualityMenu.querySelector<HTMLElement>(".quality-item")?.focus();

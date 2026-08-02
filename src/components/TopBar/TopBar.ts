@@ -1,4 +1,5 @@
 import "./TopBar.css";
+import { registerExclusiveMenu } from "./exclusiveMenus.ts";
 import { ui, formatMode, updateScrollLock, isCategoryVisible, type FormatMode } from "../store/store.ts";
 import { safeLocalStorageSet } from "../utils/index.ts";
 
@@ -57,8 +58,13 @@ export function initModeToggle(onModeChanged: () => void) {
   // the whole format list contains.
   const menu = document.getElementById("format-mode-menu");
 
+  const closeOtherMenus = registerExclusiveMenu(() => {
+    if (menu) setMenuOpen(false);
+  });
+
   const setMenuOpen = (open: boolean) => {
     if (!menu) return;
+    if (open) closeOtherMenus();
     menu.hidden = !open;
     ui.modeToggleButton.setAttribute("aria-expanded", String(open));
     if (open) menu.querySelector<HTMLElement>('[aria-current="true"], .quality-item')?.focus();
