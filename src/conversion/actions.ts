@@ -224,7 +224,12 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
     // back a file 126 bytes *larger* than the input. The last hop is the one
     // that produces the artifact the user keeps, so it is the only hop whose
     // opinion counts; a lossless target opts out wherever it appears.
-    const finalHop = path[path.length - 1];
+    // `path.length >= 2` is load-bearing, not a null-check. A single-node path
+    // is zero hops: the loop below runs no steps and the input is handed back
+    // untouched, but `path[path.length - 1]` would then be the *source* node -
+    // so a PNG under ImageMagick would report a compression that, once again,
+    // never ran.
+    const finalHop = path.length >= 2 ? path[path.length - 1] : undefined;
     _lastQualityApplicable = !!finalHop?.handler?.usesQuality && !finalHop.format.lossless;
     _lastAppliedQuality = _lastQualityApplicable ? requestedQuality : null;
 
