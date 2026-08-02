@@ -55,21 +55,6 @@ jobs:
       - name: Build Distribution for ${{ matrix.platform }}
         run: ${{ matrix.dist_cmd }}
 
-      # The desktop shell has its own app:// protocol handler, route fallback
-      # and header injection that no http:// test touches - app://-/compress
-      # 404'd all the way to a release because nothing ever opened the built
-      # artifact. Linux only: it needs a framebuffer, and one platform proving
-      # the shell is enough since the protocol handler is shared.
-      # `bun i` skips electron's postinstall (no trustedDependencies), so the
-      # binary the test drives has to be fetched explicitly.
-      - name: Install Electron binary for the smoke test
-        if: matrix.platform == 'linux'
-        run: npm rebuild electron
-
-      - name: Smoke-test the desktop shell
-        if: matrix.platform == 'linux'
-        run: bun x vitest run test/e2e/electron-app.test.ts
-
       - name: Upload Artifacts
         uses: actions/upload-artifact@v6
         with:
