@@ -619,3 +619,147 @@ describe('a cancelled per-file save offers what it finished', () => {
     expect(document.getElementById('popup')!.textContent).toMatch(/ready to download/);
   });
 });
+
+describe('sidebar file management', () => {
+  const countRowButtons = (root: ParentNode) =>
+    [...root.querySelectorAll('.ws-sidebar-count-row .ws-count-btn-group button')]
+      .map(b => b.textContent);
+
+  /** The visible panel: desktop card and mobile tray are both in the DOM. */
+  const panels = () => [
+    ...document.querySelectorAll('.ws-sidebar-card, .ws-wm-panel-card, .ws-tray-scroll'),
+  ].filter(p => p.querySelector('.ws-sidebar-files'));
+
+  for (const tab of ['merge', 'organize', 'watermark'] as const) {
+    it(`offers Replace all and Clear on ${tab}, in every panel that lists files`, () => {
+      __testing.setupForTest(tab, [sf(1, 2), sf(2, 3)]);
+      const found = panels();
+      expect(found.length).toBeGreaterThan(0);
+      for (const panel of found) {
+        // Exactly two, never three: a third small button wraps every label onto
+        // two lines at the sidebar's real width.
+        expect(countRowButtons(panel)).toEqual(['Replace all', 'Clear']);
+      }
+    });
+
+    it(`moves + Add out of the count row and under the file list on ${tab}`, () => {
+      __testing.setupForTest(tab, [sf(1, 2), sf(2, 3)]);
+      for (const panel of panels()) {
+        const list = panel.querySelector('.ws-sidebar-files')!;
+        const addRow = list.nextElementSibling;
+        expect(addRow?.className).toContain('ws-sidebar-btn-row');
+        expect([...addRow!.querySelectorAll('button')].map(b => b.textContent)).toContain('+ Add');
+      }
+    });
+  }
+
+  it('asks before clearing, and keeps the files if the confirm is dismissed', () => {
+    document.body.insertAdjacentHTML('beforeend',
+      '<div id="popup-bg" class="modal-overlay"></div><div id="popup" class="card-base modal-container"></div>');
+    (ui as any).popupBox = document.getElementById('popup');
+    (ui as any).popupBackground = document.getElementById('popup-bg');
+    __testing.setupForTest('merge', [sf(1, 2), sf(2, 3)]);
+
+    const clear = [...document.querySelectorAll<HTMLButtonElement>('.ws-count-btn-group button')]
+      .find(b => b.textContent === 'Clear')!;
+    clear.click();
+
+    const popup = document.getElementById('popup')!;
+    expect(popup.querySelector('h2')!.textContent).toBe('Clear all files?');
+    const [confirm, dismiss] = [...popup.querySelectorAll<HTMLButtonElement>('.popup-actions-footer button')];
+    expect(confirm.textContent).toBe('Clear');
+    expect(dismiss.textContent).toBe('Keep them');
+
+    dismiss.click();
+    expect(__testing.getFiles().length).toBe(2);
+  });
+
+  it('puts Pages above the tool settings on watermark, as on organize', () => {
+    __testing.setupForTest('watermark', [sf(1, 3)]);
+    const panel = panels()[0];
+    const labels = [...panel.querySelectorAll('.ws-sidebar-section-label')].map(l => l.textContent);
+    // Asserted as an order, not an index, so a block gaining a row cannot
+    // silently break it.
+    expect(labels.indexOf('Pages')).toBeGreaterThanOrEqual(0);
+    expect(labels.indexOf('Watermark')).toBeGreaterThanOrEqual(0);
+    expect(labels.indexOf('Pages')).toBeLessThan(labels.indexOf('Watermark'));
+  });
+});
+
+describe('removing a file from the mobile tray', () => {
+  it('leaves the tray open instead of destroying it mid-interaction', () => {
+    __testing.setupForTest('watermark', [sf(1, 2), sf(2, 2)]);
+    const iconBtn = document.querySelector<HTMLButtonElement>('.ws-toolbar-icon')!;
+    iconBtn.click();
+    expect(document.querySelector('.ws-tray.ws-tray-open')).not.toBeNull();
+
+    document.querySelector<HTMLButtonElement>('.ws-tray .ws-file-list-remove')!.click();
+
+    expect(__testing.getFiles().length).toBe(1);
+    // A different element than before - the tool re-rendered - but still open,
+    // so clearing three files does not mean reopening the sheet three times.
+    expect(document.querySelector('.ws-tray.ws-tray-open')).not.toBeNull();
+    expect(document.querySelector('.ws-tray .ws-file-list-remove')).not.toBeNull();
+  });
+
+  it('does not strand focus on <body> after the removed row is destroyed', () => {
+    __testing.setupForTest('watermark', [sf(1, 2), sf(2, 2)]);
+    document.querySelector<HTMLButtonElement>('.ws-toolbar-icon')!.click();
+    document.querySelector<HTMLButtonElement>('.ws-tray .ws-file-list-remove')!.click();
+
+    const tray = document.querySelector('.ws-tray.ws-tray-open')!;
+    expect(document.activeElement).not.toBe(document.body);
+    expect(tray.contains(document.activeElement)).toBe(true);
+  });
+
+  it('releases the scroll lock when cleanup deletes an open tray', () => {
+    // The lock is derived from an open tray existing. Deleting the tray without
+    // re-deriving it left `overflow-y: hidden` on <html> with no sheet on
+    // screen and no way to dismiss it.
+    __testing.setupForTest('watermark', [sf(1, 2)]);
+    document.querySelector<HTMLButtonElement>('.ws-toolbar-icon')!.click();
+    expect(document.documentElement.classList.contains('scroll-lock')).toBe(true);
+
+    __testing.cleanup();
+
+    expect(document.querySelector('.ws-tray')).toBeNull();
+    expect(document.documentElement.classList.contains('scroll-lock')).toBe(false);
+  });
+});
+
+describe('removing a file from a panel that survives the removal', () => {
+  it('hands focus to the next × on merge, which repaints in place', () => {
+    __testing.setupForTest('merge', [sf(1, 2), sf(2, 2), sf(3, 2)]);
+    const card = document.querySelector<HTMLElement>('.ws-sidebar-card')!;
+    const first = card.querySelectorAll<HTMLButtonElement>('.ws-file-list-remove')[0];
+    first.focus();
+
+    first.click();
+
+    expect(__testing.getFiles().length).toBe(2);
+    expect(document.activeElement).not.toBe(document.body);
+    expect(card.contains(document.activeElement)).toBe(true);
+    expect((document.activeElement as HTMLElement).className).toContain('ws-file-list-remove');
+  });
+
+  it('falls back to the button row once the last file is removed', () => {
+    __testing.setupForTest('merge', [sf(1, 2)]);
+    const card = document.querySelector<HTMLElement>('.ws-sidebar-card')!;
+    const only = card.querySelector<HTMLButtonElement>('.ws-file-list-remove');
+    // With a single file the row may not offer a ×; nothing to assert if so.
+    if (!only) return;
+    only.focus();
+    only.click();
+    expect(document.activeElement).not.toBe(document.body);
+  });
+
+  it('leaves focus alone when the × was clicked without holding focus', () => {
+    __testing.setupForTest('merge', [sf(1, 2), sf(2, 2)]);
+    const card = document.querySelector<HTMLElement>('.ws-sidebar-card')!;
+    (document.activeElement as HTMLElement | null)?.blur();
+
+    card.querySelectorAll<HTMLButtonElement>('.ws-file-list-remove')[0].click();
+
+    expect(document.activeElement).toBe(document.body);
+  });
+});

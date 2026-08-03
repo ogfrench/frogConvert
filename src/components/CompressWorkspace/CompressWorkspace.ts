@@ -562,7 +562,7 @@ function uploadFieldMarkup(): string {
             <button class="upload-action-btn icon-btn floating-card-surface cw-replace" type="button"
               title="Add more files" aria-label="Add more files">&#8635;</button>
             <button class="upload-action-btn icon-btn floating-card-surface cw-clear" type="button"
-              title="Remove all files" aria-label="Remove all files">&times;</button>
+              title="Clear all files" aria-label="Clear all files">&times;</button>
           </div>
         </div>
       </div>

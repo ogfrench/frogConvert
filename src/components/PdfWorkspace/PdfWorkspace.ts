@@ -611,6 +611,23 @@ let toolContent: HTMLElement;
 let fileInput: HTMLInputElement;
 let errorEl: HTMLElement;
 
+/**
+ * Whether the next successful pick replaces the file list instead of appending.
+ *
+ * One `<input type=file>` serves + Add, every dropzone and Replace all, and a
+ * cancelled picker fires no event at all - so a flag set at click time would
+ * survive a cancel and silently turn the next + Add into a replace. Routing
+ * every caller through `openPicker` means the flag is rewritten on each open,
+ * so the last button pressed is always the one that decides.
+ */
+let replaceOnPick = false;
+
+function openPicker(multiple: boolean, replace = false): void {
+  replaceOnPick = replace;
+  fileInput.multiple = multiple;
+  fileInput.click();
+}
+
 const EAGER_LIMIT = 50;
 
 const MAX_FILES = ABSOLUTE_MAX_FILES;
@@ -722,7 +739,9 @@ export function initPdfWorkspace() {
   });
 
   fileInput.addEventListener('change', () => {
-    if (fileInput.files?.length) handleFiles(Array.from(fileInput.files));
+    const replacing = replaceOnPick;
+    replaceOnPick = false;
+    if (fileInput.files?.length) handleFiles(Array.from(fileInput.files), replacing);
     fileInput.value = '';
   });
 
@@ -812,8 +831,87 @@ function makeSidebarFileRow(sf: SourceFile, opts: SidebarFileRowOpts = {}): HTML
   }
   if (opts.onRemove) {
     const delBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-list-remove', innerHTML: Icons.x(), ariaLabel: `Remove ${sf.name}` });
-    delBtn.addEventListener('click', (e) => { e.stopPropagation(); opts.onRemove!(); });
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const panel = row.closest<HTMLElement>('.ws-tray-scroll, .ws-sidebar-card, .ws-wm-panel-card');
+      const idx = panel
+        ? [...panel.querySelectorAll('.ws-file-list-remove')].indexOf(delBtn)
+        : -1;
+      const hadFocus = document.activeElement === delBtn;
+      opts.onRemove!();
+      // This button is gone with its row, so focus has to be placed somewhere
+      // deliberate or it falls to <body> and the user is dumped at the top of
+      // the document.
+      if (!hadFocus) return;
+      if (panel?.isConnected) {
+        // Merge repaints its list in place, so the panel outlives the row:
+        // step to the neighbouring ×, or to the button row if that was the
+        // last file.
+        const remaining = panel.querySelectorAll<HTMLElement>('.ws-file-list-remove');
+        if (remaining.length) remaining[Math.min(idx, remaining.length - 1)].focus();
+        else panel.querySelector<HTMLElement>('.ws-sidebar-btn-row button')?.focus();
+        return;
+      }
+      // The panel was rebuilt. A reopened tray has already claimed focus.
+      const tray = document.querySelector('.ws-tray.ws-tray-open');
+      if (tray?.contains(document.activeElement)) return;
+      // Otherwise that was the last file and the whole view is now the empty
+      // dropzone, which is the only thing left worth focusing.
+      document.querySelector<HTMLElement>('.ws-dropzone')?.focus();
+    });
     row.appendChild(delBtn);
+  }
+  return row;
+}
+
+/**
+ * Replace all / Clear, for the count row at the top of a file block.
+ *
+ * Files were the only collection in the app without bulk actions - the
+ * Converter and Compress have had them in the shared Files modal all along
+ * (`index.html:588-590`), which is where this wording comes from. "Clear"
+ * rather than "Remove all" is not only shorter: at the sidebar's real width
+ * two long labels wrap onto two lines each, and one long plus one short does
+ * not.
+ *
+ * `+ Add` moves out of this row and onto its own below the list, so the three
+ * actions are not competing for the ~130px left over beside the count.
+ */
+function makeFileBulkActions(): HTMLElement {
+  const group = el('div', { className: 'ws-count-btn-group' });
+
+  const replaceBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Replace all' });
+  // No confirm: the picker opens first and the list is only swapped once files
+  // come back, so cancelling the picker costs nothing. Same contract as the
+  // Files modal's own Replace all.
+  replaceBtn.addEventListener('click', () => openPicker(true, true));
+  group.appendChild(replaceBtn);
+
+  const clearBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Clear' });
+  clearBtn.addEventListener('click', () => {
+    showConfirmPopup(
+      'Clear all files?',
+      'Page order, rotations and watermark settings go with them.',
+      { label: 'Clear', onClick: () => resetAll() },
+      { label: 'Keep them' },
+    );
+  });
+  group.appendChild(clearBtn);
+
+  return group;
+}
+
+/**
+ * `+ Add`, on its own row under a file list, optionally with Organize's
+ * Restore beside it.
+ */
+function makeAddFileRow(opts: { restore?: boolean } = {}): HTMLElement {
+  const row = el('div', { className: 'ws-sidebar-btn-row' });
+  row.appendChild(createAddFileButton());
+  if (opts.restore) {
+    const restoreBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Restore' });
+    restoreBtn.addEventListener('click', resetPages);
+    row.appendChild(restoreBtn);
   }
   return row;
 }
@@ -957,9 +1055,7 @@ function updateMergeSidebarContent(sidebar: HTMLElement) {
   const countText = `${files.length} file${files.length !== 1 ? 's' : ''} · ${total} pages`;
   const countRow = el('div', { className: 'ws-sidebar-count-row' });
   countRow.appendChild(el('p', { className: 'ws-sidebar-count', textContent: countText }));
-  const mergeBtnGroup = el('div', { className: 'ws-count-btn-group' });
-  mergeBtnGroup.appendChild(createAddFileButton());
-  countRow.appendChild(mergeBtnGroup);
+  countRow.appendChild(makeFileBulkActions());
   sidebar.appendChild(countRow);
 
   const fileList = el('div', { className: 'ws-sidebar-files' });
@@ -977,6 +1073,7 @@ function updateMergeSidebarContent(sidebar: HTMLElement) {
     }));
   }
   sidebar.appendChild(fileList);
+  sidebar.appendChild(makeAddFileRow());
 
   const bottom = el('div', { className: 'ws-sidebar-bottom' });
 
@@ -1752,9 +1849,7 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
     : `${totalAcrossFiles} page${totalAcrossFiles !== 1 ? 's' : ''}`;
   const countRow = el('div', { className: 'ws-sidebar-count-row' });
   countRow.appendChild(el('p', { className: 'ws-sidebar-count', textContent: countText }));
-  const btnGroup = el('div', { className: 'ws-count-btn-group' });
-  btnGroup.appendChild(createAddFileButton());
-  countRow.appendChild(btnGroup);
+  countRow.appendChild(makeFileBulkActions());
   panel.appendChild(countRow);
 
   const fileList = el('div', { className: 'ws-sidebar-files' });
@@ -1765,14 +1860,83 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
       onRemove: () => {
         files = files.filter(x => x.id !== f.id);
         onFilesMutated();
-        renderActiveTool();
+        withTrayPreserved(renderActiveTool);
       },
     }));
   });
   panel.appendChild(fileList);
+  panel.appendChild(makeAddFileRow());
   panel.appendChild(makeSidebarDivider());
 
-  // ---- BLOCK 2: Watermark (config), what to stamp ----
+  // ---- BLOCK 2: Pages, scope: which pages get the watermark ----
+  // Above the settings, so Watermark reads files -> scope -> what to stamp,
+  // the same shape as Organize and Extract. It used to come last, which put
+  // the range input and its Select all / Deselect all below five controls on a
+  // phone - off-screen exactly when the user is choosing which pages to mark.
+  panel.appendChild(makeSectionLabel('Pages'));
+  const ri = el('input', {
+    type: 'text',
+    className: 'ws-range-input ws-wm-range-input',
+    placeholder: 'e.g. 1-5, 8, 12-20',
+    value: wmSelectedToRangeString(),
+    autocomplete: 'off',
+    ariaLabel: 'Page range',
+  }) as HTMLInputElement;
+  ri.addEventListener('input', () => {
+    const text = ri.value.trim();
+    if (!text) {
+      wmSelected.clear();
+      ri.classList.remove('ws-input-error');
+      ri.removeAttribute('aria-invalid');
+      wmUpdateSelectionVisuals();
+      wmSyncRangeInputs();
+      rebuildWatermarkPanelDownloadState();
+      wmKickVisible();
+      markDirty('manifest');
+      return;
+    }
+    const parsed = wmParseRangeToSelection(text);
+    if (!parsed) {
+      ri.classList.add('ws-input-error');
+      ri.setAttribute('aria-invalid', 'true');
+      return;
+    }
+    ri.classList.remove('ws-input-error');
+    ri.removeAttribute('aria-invalid');
+    wmSelected = parsed;
+    wmUpdateSelectionVisuals();
+    rebuildWatermarkPanelDownloadState();
+    wmKickVisible();
+    markDirty('manifest');
+  });
+  panel.appendChild(ri);
+
+  const btnRow = el('div', { className: 'ws-sidebar-btn-row' });
+  const selectAllBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Select all' });
+  selectAllBtn.addEventListener('click', () => {
+    wmSelected = wmAllKeys();
+    wmUpdateSelectionVisuals();
+    wmSyncRangeInputs();
+    rebuildWatermarkPanelDownloadState();
+    wmKickVisible();
+    markDirty('manifest');
+  });
+  const deselectBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Deselect all' });
+  deselectBtn.addEventListener('click', () => {
+    wmSelected.clear();
+    wmUpdateSelectionVisuals();
+    wmSyncRangeInputs();
+    rebuildWatermarkPanelDownloadState();
+    wmKickVisible();
+    markDirty('manifest');
+  });
+  btnRow.appendChild(selectAllBtn);
+  btnRow.appendChild(deselectBtn);
+  panel.appendChild(btnRow);
+
+  panel.appendChild(makeSidebarDivider());
+
+  // ---- BLOCK 3: Watermark (config), what to stamp ----
   panel.appendChild(makeSectionLabel('Watermark'));
 
   // Text row: shown on desktop sidebar only. On mobile the fixed toolbar
@@ -1875,70 +2039,6 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
   repeatRow.appendChild(repeatChk);
   repeatRow.appendChild(el('span', { textContent: 'Repeat across page' }));
   styleBody.appendChild(repeatRow);
-
-  panel.appendChild(makeSidebarDivider());
-
-  // ---- BLOCK 3: Pages, scope: which pages get the watermark ----
-  panel.appendChild(makeSectionLabel('Pages'));
-  const ri = el('input', {
-    type: 'text',
-    className: 'ws-range-input ws-wm-range-input',
-    placeholder: 'e.g. 1-5, 8, 12-20',
-    value: wmSelectedToRangeString(),
-    autocomplete: 'off',
-    ariaLabel: 'Page range',
-  }) as HTMLInputElement;
-  ri.addEventListener('input', () => {
-    const text = ri.value.trim();
-    if (!text) {
-      wmSelected.clear();
-      ri.classList.remove('ws-input-error');
-      ri.removeAttribute('aria-invalid');
-      wmUpdateSelectionVisuals();
-      wmSyncRangeInputs();
-      rebuildWatermarkPanelDownloadState();
-      wmKickVisible();
-      markDirty('manifest');
-      return;
-    }
-    const parsed = wmParseRangeToSelection(text);
-    if (!parsed) {
-      ri.classList.add('ws-input-error');
-      ri.setAttribute('aria-invalid', 'true');
-      return;
-    }
-    ri.classList.remove('ws-input-error');
-    ri.removeAttribute('aria-invalid');
-    wmSelected = parsed;
-    wmUpdateSelectionVisuals();
-    rebuildWatermarkPanelDownloadState();
-    wmKickVisible();
-    markDirty('manifest');
-  });
-  panel.appendChild(ri);
-
-  const btnRow = el('div', { className: 'ws-sidebar-btn-row' });
-  const selectAllBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Select all' });
-  selectAllBtn.addEventListener('click', () => {
-    wmSelected = wmAllKeys();
-    wmUpdateSelectionVisuals();
-    wmSyncRangeInputs();
-    rebuildWatermarkPanelDownloadState();
-    wmKickVisible();
-    markDirty('manifest');
-  });
-  const deselectBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Deselect all' });
-  deselectBtn.addEventListener('click', () => {
-    wmSelected.clear();
-    wmUpdateSelectionVisuals();
-    wmSyncRangeInputs();
-    rebuildWatermarkPanelDownloadState();
-    wmKickVisible();
-    markDirty('manifest');
-  });
-  btnRow.appendChild(selectAllBtn);
-  btnRow.appendChild(deselectBtn);
-  panel.appendChild(btnRow);
 
   // ---- Action ----
   const actions = el('div', { className: 'ws-sidebar-bottom ws-wm-actions' });
@@ -2542,6 +2642,12 @@ export function cleanup() {
   if (wmRafId !== null) { cancelAnimationFrame(wmRafId); wmRafId = null; }
   // Remove body-appended mobile elements (toolbar, tray, overlay)
   document.querySelectorAll('.ws-toolbar, .ws-tray, .ws-tray-overlay').forEach(e => e.remove());
+  // The lock is derived from `.ws-tray.ws-tray-open` existing, so deleting an
+  // open tray without re-deriving it leaves `html.scroll-lock` - and its
+  // `overflow-y: hidden` - applied with no sheet on screen and nothing left to
+  // dismiss. Re-deriving here makes "the lock follows the tray" true by
+  // construction instead of by every caller remembering.
+  updateScrollLock();
 }
 
 export function resetAll() {
@@ -2568,7 +2674,7 @@ export function resetAll() {
 
 function createAddFileButton(): HTMLButtonElement {
   const btn = el('button', { className: 'ws-btn ws-btn-small', textContent: '+ Add' }) as HTMLButtonElement;
-  btn.addEventListener('click', () => { fileInput.multiple = true; fileInput.click(); });
+  btn.addEventListener('click', () => openPicker(true));
   return btn;
 }
 
@@ -2590,12 +2696,11 @@ function createDropzone(text: string, multi: boolean): HTMLElement {
   zone.innerHTML = `<p class="upload-text">${text}</p><p class="upload-hint">${hint}</p>`;
 
   let dragRejecting: boolean | null = null;
-  zone.addEventListener('click', () => { fileInput.multiple = multi; fileInput.click(); });
+  zone.addEventListener('click', () => openPicker(multi));
   zone.addEventListener('keydown', (e) => {
     if (e.key !== ' ' && e.key !== 'Enter') return;
     e.preventDefault();
-    fileInput.multiple = multi;
-    fileInput.click();
+    openPicker(multi);
   });
   zone.addEventListener('dragover', (e) => {
     e.preventDefault();
@@ -2657,7 +2762,7 @@ function renderEmptyState(text = 'Drop your PDFs here', multi = true) {
 // File handling
 // ---------------------------------------------------------------------------
 
-async function handleFiles(rawFiles: File[]) {
+async function handleFiles(rawFiles: File[], replaceExisting = false) {
   const results: UploadResult[] = [];
   const parsed: SourceFile[] = [];
 
@@ -2675,10 +2780,18 @@ async function handleFiles(rawFiles: File[]) {
     }
   }
 
-  let fileBudget = MAX_FILES - files.length;
+  // Replace all measures its budgets against an empty workspace, since the
+  // incoming set is about to become the whole list. Nothing is discarded yet -
+  // the swap happens below, only once something has actually been accepted, so
+  // a pick of unreadable or oversized PDFs leaves the user's files alone
+  // instead of emptying the editor for nothing.
+  const replacing = replaceExisting && parsed.length > 0;
+  const base = replacing ? [] : files;
+
+  let fileBudget = MAX_FILES - base.length;
   let sizeBudget = MAX_TOTAL_FILE_SIZE;
   let pageBudget = MAX_TOTAL_PAGES;
-  for (const f of files) { sizeBudget -= f.size; pageBudget -= f.pageCount; }
+  for (const f of base) { sizeBudget -= f.size; pageBudget -= f.pageCount; }
 
   const accepted: SourceFile[] = [];
   for (const sf of parsed) {
@@ -2701,6 +2814,18 @@ async function handleFiles(rawFiles: File[]) {
     });
   }
   if (accepted.length === 0) return;
+
+  if (replacing) {
+    files = [];
+    lastClickedIdx = -1;
+    history.length = 0;
+    redoStack.length = 0;
+    clearThumbnailCache();
+    // `pages`, `selected`, `selectedFiles` and the watermark's flat page list
+    // are deliberately left alone: onFilesMutated below diffs against
+    // knownFileIds, sees every old id as removed and every new one as added,
+    // and prunes them in the one place that already knows how.
+  }
 
   files.push(...accepted);
   markDirty('files');
@@ -2757,14 +2882,7 @@ function updateSidebarContent(sidebar: HTMLElement) {
   }
   const countRow = el('div', { className: 'ws-sidebar-count-row' });
   countRow.appendChild(el('p', { className: 'ws-sidebar-count', innerHTML: countHtml }));
-  const btnGroup = el('div', { className: 'ws-count-btn-group' });
-  if (modified) {
-    const restoreBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Restore' });
-    restoreBtn.addEventListener('click', resetPages);
-    btnGroup.appendChild(restoreBtn);
-  }
-  btnGroup.appendChild(createAddFileButton());
-  countRow.appendChild(btnGroup);
+  countRow.appendChild(makeFileBulkActions());
   sidebar.appendChild(countRow);
 
   const fileList = el('div', { className: 'ws-sidebar-files' });
@@ -2780,6 +2898,10 @@ function updateSidebarContent(sidebar: HTMLElement) {
     }));
   }
   sidebar.appendChild(fileList);
+  // Restore rides with + Add rather than staying in the count row: that row now
+  // carries Replace all / Clear, and a third small button there wraps every
+  // label onto two lines at the sidebar's real width.
+  sidebar.appendChild(makeAddFileRow({ restore: modified }));
 
   sidebar.appendChild(makeSidebarDivider());
 
@@ -2886,7 +3008,7 @@ function removeFile(fid: number) {
   onFilesMutated();
   if (files.length === 0) clearThumbnailCache();
   if (pages.length === 0) organizeInitialized = false;
-  renderActiveTool();
+  withTrayPreserved(renderActiveTool);
   if (activeTool === 'organize' && pages.length > 0) kickPageThumbs(pages);
 }
 
@@ -3291,6 +3413,57 @@ function createInsertBtn(atIdx: number): HTMLElement {
 const MORE_SVG  = Icons.moreVertical(18);
 const COLLAPSE_SVG = Icons.chevronDown(18);
 
+/**
+ * Set while a tool re-render is replacing a tray the user had open, so the
+ * rebuilt one comes back open. See `withTrayPreserved`.
+ */
+let restoreTrayOpen = false;
+/**
+ * Set by `wireTrayToggle` when it builds a replacement for a tray that was
+ * open. Deferred rather than opened on the spot because the tray is wired
+ * before it is appended to the body, and focusing a detached node does
+ * nothing - which is how the reopened sheet ended up open but with focus
+ * still stranded on `<body>`.
+ */
+let pendingTrayOpen: (() => void) | null = null;
+
+/**
+ * Run a re-render that destroys and rebuilds the mobile tray, and put the user
+ * back where they were.
+ *
+ * `cleanup()` deletes the body-appended toolbar, tray and overlay, so anything
+ * routed through `renderActiveTool()` closes the sheet. That is right when the
+ * user is switching tools and wrong when they are editing the list inside it:
+ * removing three files on Organize or Watermark meant reopening the tray three
+ * times, and the page jumped to the top on the way. Merge never had the
+ * problem because it repaints its sidebar in place.
+ */
+function withTrayPreserved(rerender: () => void): void {
+  const openTray = document.querySelector<HTMLElement>('.ws-tray.ws-tray-open');
+  const scrollTop = openTray ? trayScroll(openTray).scrollTop : 0;
+  const pageScroll = window.scrollY;
+  restoreTrayOpen = !!openTray;
+  pendingTrayOpen = null;
+  try {
+    rerender();
+  } finally {
+    restoreTrayOpen = false;
+  }
+  const reopen = pendingTrayOpen;
+  pendingTrayOpen = null;
+  if (!reopen) return;
+
+  // Open first, then restore the offsets: opening moves focus, and focusing a
+  // control at the top of the sheet would otherwise scroll the tray back up.
+  reopen();
+  const rebuilt = document.querySelector<HTMLElement>('.ws-tray');
+  if (rebuilt) trayScroll(rebuilt).scrollTop = scrollTop;
+  // Removing files shortens the grid, which can clamp the page scroll to 0
+  // behind the sheet. Restore it so dismissing the tray does not reveal a
+  // different part of the document than the one it was opened over.
+  window.scrollTo({ top: pageScroll });
+}
+
 function wireTrayToggle(tray: HTMLElement, overlay: HTMLElement, iconBtn: HTMLElement) {
   // Tray is a non-modal dialog: gives it semantics + ESC + focus return.
   // We do NOT set aria-modal=true because we don't trap focus - claiming
@@ -3331,6 +3504,14 @@ function wireTrayToggle(tray: HTMLElement, overlay: HTMLElement, iconBtn: HTMLEl
   };
   iconBtn.addEventListener('click', () => setOpen(!tray.classList.contains('ws-tray-open')));
   overlay.addEventListener('click', () => setOpen(false));
+
+  // This tray replaces one the user had open, so it opens with it - handed
+  // back to `withTrayPreserved` to run once the tray is in the document. Going
+  // through setOpen rather than the class alone keeps the icon, aria-expanded,
+  // the Escape handler, the scroll lock and focus in step; focus lands on the
+  // first control in the sheet instead of on <body>, where the destroyed × row
+  // used to strand it.
+  if (restoreTrayOpen) pendingTrayOpen = () => setOpen(true);
 }
 
 function appendMobileToolbar(_gridCard: HTMLElement) {
@@ -3388,14 +3569,7 @@ function buildMobileTrayContent(tray: HTMLElement) {
   }
   const countRow = el('div', { className: 'ws-sidebar-count-row' });
   countRow.appendChild(el('p', { className: 'ws-sidebar-count', innerHTML: countHtml }));
-  const trayBtnGroup = el('div', { className: 'ws-count-btn-group' });
-  if (modified) {
-    const restoreBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Restore' });
-    restoreBtn.addEventListener('click', resetPages);
-    trayBtnGroup.appendChild(restoreBtn);
-  }
-  trayBtnGroup.appendChild(createAddFileButton());
-  countRow.appendChild(trayBtnGroup);
+  countRow.appendChild(makeFileBulkActions());
   tray.appendChild(countRow);
 
   const fileList = el('div', { className: 'ws-sidebar-files' });
@@ -3411,6 +3585,7 @@ function buildMobileTrayContent(tray: HTMLElement) {
     }));
   }
   tray.appendChild(fileList);
+  tray.appendChild(makeAddFileRow({ restore: modified }));
 
   tray.appendChild(makeSidebarDivider());
 
@@ -3841,6 +4016,7 @@ export const __testing = {
   },
   compressionNote,
   offerPartialPdfResult,
+  cleanup,
   getPages: () => pages,
   getFiles: () => files,
   getSelected: () => selected,
