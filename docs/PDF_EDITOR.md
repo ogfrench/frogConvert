@@ -16,6 +16,16 @@ The top bar's mode control opens a menu with **Converter**, **PDF Editor** and *
 
 Shrinking a PDF *without* editing it lives in the [Compress](COMPRESS.md) mode. The editor can also compress what it saves as an optional final step; see [Shrinking a saved PDF](#shrinking-a-saved-pdf) below.
 
+## Managing the file list
+
+Every tab's sidebar lists the loaded files, and carries the same three actions wherever it appears (desktop panel or the phone tray):
+
+- **`+ Add`**, below the list, appends more files.
+- **Replace all**, in the count row, swaps the whole list for a fresh pick. Cancelling the picker changes nothing.
+- **Clear**, beside it, empties the editor and returns you to the drop zone. It asks first, because page order, rotations and watermark settings go with the files.
+
+Individual files carry an `x` on their row. On Merge, selecting cards also grows a **Remove N files** button for the selection.
+
 ## What you can do
 
 ### Merge
@@ -45,9 +55,9 @@ Reshape a single PDF at the page level. Extract is a sub-mode of the same tab, n
 Stamp a text watermark across selected pages, drawn at the page center or tiled across the whole page.
 
 1. Drop one or more PDFs onto the workspace and switch to the **Watermark** tab.
-2. Type the watermark text (default `CONFIDENTIAL`).
-3. Adjust style: size, color, opacity, rotation. Toggle **Repeat across page** to tile the watermark across the page with internally-computed spacing.
-4. Choose **Pages** by typing a range like `1-3, 8, 10-12`. With multiple files the range is over the flattened page sequence (file A's pages first, then file B, etc.). **Select all** fills `1-N`; **Deselect all** clears.
+2. Choose **Pages** by typing a range like `1-3, 8, 10-12`. With multiple files the range is over the flattened page sequence (file A's pages first, then file B, etc.). **Select all** fills `1-N`; **Deselect all** clears.
+3. Type the watermark text (default `CONFIDENTIAL`).
+4. Adjust style: size, color, opacity, rotation. Toggle **Repeat across page** to tile the watermark across the page with internally-computed spacing.
 5. The preview is the actual output for the page being viewed; it updates as you adjust settings.
 6. Click **Export PDF**. With multiple files you'll be asked whether to produce one combined PDF or one watermarked PDF per source file (per-source delivers a zip).
 
