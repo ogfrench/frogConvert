@@ -763,3 +763,37 @@ describe('removing a file from a panel that survives the removal', () => {
     expect(document.activeElement).toBe(document.body);
   });
 });
+
+describe('bulk file action accessibility', () => {
+  it('names what Replace all and Clear act on, keeping the visible text as a prefix', () => {
+    __testing.setupForTest('merge', [sf(1, 2), sf(2, 2)]);
+    const buttons = [...document.querySelectorAll<HTMLButtonElement>(
+      '.ws-sidebar-card .ws-count-btn-group button')];
+    for (const btn of buttons) {
+      const name = btn.getAttribute('aria-label')!;
+      expect(name).toBeTruthy();
+      // WCAG 2.5.3: speech control has to be able to act on what it can read.
+      expect(name.startsWith(btn.textContent!)).toBe(true);
+      expect(name).toMatch(/files$/);
+    }
+    expect(buttons.map(b => b.getAttribute('aria-label')))
+      .toEqual(['Replace all files', 'Clear all files']);
+  });
+
+  it('does not leave a stale Escape handler behind for every rebuilt tray', () => {
+    __testing.setupForTest('watermark', [sf(1, 2), sf(2, 2), sf(3, 2)]);
+    document.querySelector<HTMLButtonElement>('.ws-toolbar-icon')!.click();
+    // Two removals, each rebuilding the tray while it is open.
+    document.querySelector<HTMLButtonElement>('.ws-tray .ws-file-list-remove')!.click();
+    document.querySelector<HTMLButtonElement>('.ws-tray .ws-file-list-remove')!.click();
+
+    // Escape must close the one live tray, not fire once per orphaned handler
+    // against detached nodes.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+    expect(document.querySelector('.ws-tray.ws-tray-open')).toBeNull();
+    const iconBtn = document.querySelector<HTMLButtonElement>('.ws-toolbar-icon')!;
+    expect(iconBtn.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(iconBtn);
+  });
+});

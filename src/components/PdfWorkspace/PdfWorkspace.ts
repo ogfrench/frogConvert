@@ -880,14 +880,26 @@ function makeSidebarFileRow(sf: SourceFile, opts: SidebarFileRowOpts = {}): HTML
 function makeFileBulkActions(): HTMLElement {
   const group = el('div', { className: 'ws-count-btn-group' });
 
-  const replaceBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Replace all' });
+  // Both labels are terse enough to be ambiguous read out of context - "Clear"
+  // on its own says nothing about what - so each names its object. The visible
+  // text is a prefix of the accessible name, which is what speech control
+  // needs to be able to act on what it can see (WCAG 2.5.3).
+  const replaceBtn = el('button', {
+    className: 'ws-btn ws-btn-small',
+    textContent: 'Replace all',
+    ariaLabel: 'Replace all files',
+  });
   // No confirm: the picker opens first and the list is only swapped once files
   // come back, so cancelling the picker costs nothing. Same contract as the
   // Files modal's own Replace all.
   replaceBtn.addEventListener('click', () => openPicker(true, true));
   group.appendChild(replaceBtn);
 
-  const clearBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Clear' });
+  const clearBtn = el('button', {
+    className: 'ws-btn ws-btn-small',
+    textContent: 'Clear',
+    ariaLabel: 'Clear all files',
+  });
   clearBtn.addEventListener('click', () => {
     showConfirmPopup(
       'Clear all files?',
@@ -3428,6 +3440,21 @@ let restoreTrayOpen = false;
 let pendingTrayOpen: (() => void) | null = null;
 
 /**
+ * Read and clear `pendingTrayOpen` in one step.
+ *
+ * Also the only way to read it without fighting the compiler: assigning `null`
+ * to a module-level `let` narrows it to `null` for the rest of the block, and
+ * the intervening `rerender()` - which is what actually sets it, several
+ * frames deep - does not widen that back. Reading it from a function whose
+ * body never assigns before the read keeps the declared union.
+ */
+function takePendingTrayOpen(): (() => void) | null {
+  const fn = pendingTrayOpen;
+  pendingTrayOpen = null;
+  return fn;
+}
+
+/**
  * Run a re-render that destroys and rebuilds the mobile tray, and put the user
  * back where they were.
  *
@@ -3443,14 +3470,13 @@ function withTrayPreserved(rerender: () => void): void {
   const scrollTop = openTray ? trayScroll(openTray).scrollTop : 0;
   const pageScroll = window.scrollY;
   restoreTrayOpen = !!openTray;
-  pendingTrayOpen = null;
+  takePendingTrayOpen();
   try {
     rerender();
   } finally {
     restoreTrayOpen = false;
   }
-  const reopen = pendingTrayOpen;
-  pendingTrayOpen = null;
+  const reopen = takePendingTrayOpen();
   if (!reopen) return;
 
   // Open first, then restore the offsets: opening moves focus, and focusing a
@@ -3490,6 +3516,17 @@ function wireTrayToggle(tray: HTMLElement, overlay: HTMLElement, iconBtn: HTMLEl
       );
       (first ?? tray).focus();
       onKeyDown = (e) => {
+        // `cleanup()` deletes the tray without going through setOpen, so this
+        // listener outlives the sheet it belongs to. Left unguarded it would
+        // accumulate one stale Escape handler per rebuild - and now that a
+        // removal rebuilds an *open* tray, that is once per file removed - each
+        // one still calling setOpen(false) on a detached node. Unregister on
+        // the first keystroke after the tray is gone.
+        if (!tray.isConnected) {
+          document.removeEventListener('keydown', onKeyDown!);
+          onKeyDown = null;
+          return;
+        }
         if (e.key === 'Escape') {
           e.stopPropagation();
           setOpen(false);
