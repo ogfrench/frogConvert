@@ -35,7 +35,7 @@ import {
   resetPdfOutputCompression,
   wasPdfOutputCompressionCancelled,
 } from '../../conversion/compressPdfOutput.ts';
-import { formatProgress, alternatingLine } from '../../conversion/progressStatus.ts';
+import { formatProgress, liveLine, reassuranceLine } from '../../conversion/progressStatus.ts';
 import type { ProgressEvent } from '../../core/FormatHandler/FormatHandler.ts';
 import { MAX_TOTAL_FILE_SIZE, ABSOLUTE_MAX_FILES } from '../../constants/ui.ts';
 
@@ -539,7 +539,8 @@ async function setPdfResult(
   let position = '';
   const paint = () => {
     if (!note) return;
-    const line = alternatingLine(formatProgress(latest), Date.now() - startedAt);
+    const live = liveLine(formatProgress(latest), Date.now() - startedAt);
+    const line = live ? `${live} — ${reassuranceLine()}` : reassuranceLine();
     note.textContent = position ? `${position} — ${line}` : line;
   };
   if (note) ticker = setInterval(paint, 1000);

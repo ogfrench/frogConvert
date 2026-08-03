@@ -940,13 +940,22 @@ class FFmpegHandler implements FormatHandler {
     // it, because that is the duration actually being encoded.
     let durationMs: number | null = resolveProgressDurationMs(command, probedDuration);
     let lastEmit = 0;
-    // Format an "Encoded Xs of Ys" detail line when both times are known.
-    // Skipped once durationMs is unknown, the elapsed line alone is fine.
+    // "Compressed 12.4s of 20.0s" / "Converted 12.4s of 20.0s".
+    //
+    // It used to read "Encoded ... of video." Two problems: "encoded" is the
+    // engine's word, not the user's - they pressed Compress or Convert and
+    // deserve to see that verb echoed back - and "of video" was wrong on the
+    // MP4-to-MP3 route, where there is no video left to speak of. Same format
+    // in and out is what the Compress surface asks for; anything else is a
+    // conversion. Ghostscript already makes exactly this distinction.
+    //
+    // Skipped while durationMs is unknown; the elapsed clock alone is fine.
+    const sameFormat = inputFormat.format === outputFormat.format
+      && inputFormat.mime === outputFormat.mime;
+    const workVerb = sameFormat ? "Compressed" : "Converted";
     const formatDetail = (timeMs: number): string | undefined => {
       if (!durationMs || durationMs <= 0) return undefined;
-      // "of media", not "of video": this same line reports an MP4 being turned
-      // into an MP3, where there is no video left to speak of.
-      return `Encoded ${(timeMs / 1000).toFixed(1)}s of ${(durationMs / 1000).toFixed(1)}s of media.`;
+      return `${workVerb} ${(timeMs / 1000).toFixed(1)}s of ${(durationMs / 1000).toFixed(1)}s`;
     };
     const emitProgress = onProgress
       ? (ratio: number, timeMs?: number) => {

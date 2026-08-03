@@ -185,13 +185,13 @@ describe('watermark()', () => {
   it('produces filename "<base>_watermarked.pdf"', async () => {
     const bytes = await makePdf(1);
     const result = await watermark(bytes, 'report.pdf', baseTextOpts);
-    expect(result.name).toBe('report_watermarked.pdf');
+    expect(result.name).toMatch(/^report_watermarked-\d{8}-\d{6}\.pdf$/);
   });
 
   it('handles names without extension', async () => {
     const bytes = await makePdf(1);
     const result = await watermark(bytes, 'noext', baseTextOpts);
-    expect(result.name).toBe('noext_watermarked.pdf');
+    expect(result.name).toMatch(/^noext_watermarked-\d{8}-\d{6}\.pdf$/);
   });
 
   it('defaults to every page when pageNums is omitted', async () => {

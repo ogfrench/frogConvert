@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
 import type { FileData } from '../core/FormatHandler/FormatHandler.ts';
 import { checkpoint } from './cancellation.ts';
+import { timestampForFilename } from '../conversion/download.ts';
 
 // See src/tools/cancellation.ts - checked every Nth stamped page (including
 // the first) so a cancel is caught quickly without yielding on every page.
@@ -410,7 +411,9 @@ export async function watermark(
 
   const out = await doc.save();
   return {
-    name: `${stripExt(baseName)}_watermarked.pdf`,
+    // Timestamped: watermarking the same document twice used to produce
+    // two files with one name.
+    name: `${stripExt(baseName)}_watermarked-${timestampForFilename()}.pdf`,
     bytes: new Uint8Array(out),
   };
 }

@@ -64,7 +64,8 @@ describe('registerPdfWatermarkTool', () => {
 
     expect(result.isError).toBeFalsy();
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed[0].fileName).toBe('doc_watermarked.pdf');
+    // Timestamped so repeated runs never collide; see pdfWatermark.ts.
+    expect(parsed[0].fileName).toMatch(/^doc_watermarked-\d{8}-\d{6}\.pdf$/);
     const out = await PDFDocument.load(new Uint8Array(Buffer.from(parsed[0].base64Bytes, 'base64')));
     expect(out.getPageCount()).toBe(3);
   });

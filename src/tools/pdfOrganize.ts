@@ -2,6 +2,7 @@ import { PDFDocument, degrees } from 'pdf-lib';
 import type { FileData } from '../core/FormatHandler/FormatHandler.ts';
 import type { CorePageEntry, CoreSourceFile } from './types.ts';
 import { checkpoint } from './cancellation.ts';
+import { timestampForFilename } from '../conversion/download.ts';
 
 // Yield cadence for the page loop below - checked every Nth page so the yield
 // cost stays negligible on a small document (see src/tools/cancellation.ts).
@@ -54,13 +55,15 @@ export async function organize(
 
   // Name based on number of real sources (exclude blank pages)
   const uniqueSources = new Set(pages.filter(p => p.type !== 'blank').map(p => p.sourceFileId));
-  let name = 'organized_pdfs.pdf';
+  // Timestamped so a second organise does not collide with the first.
+  const stamp = timestampForFilename();
+  let name = `organized_pdfs-${stamp}.pdf`;
   if (uniqueSources.size === 1) {
     const sf = sourceFiles.find(f => f.id === [...uniqueSources][0]);
     if (sf) {
       const dot = sf.name.lastIndexOf('.');
       const base = dot > 0 ? sf.name.slice(0, dot) : sf.name;
-      name = `${base}_organized_pdfs.pdf`;
+      name = `${base}_organized_pdfs-${stamp}.pdf`;
     }
   }
 

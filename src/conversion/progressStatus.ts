@@ -1,6 +1,7 @@
 import type { ProgressEvent } from "../core/FormatHandler/FormatHandler.ts";
 import { escapeHTML } from "../components/utils/index.ts";
 import { ui } from "../components/store/store.ts";
+import { isTouchUi } from "../core/utils/touchUi.ts";
 import {
     showConversionInProgress,
     updateCancelProgress,
@@ -19,24 +20,34 @@ import {
  * clock and the PDF editor never had a status line: they could not reach it.
  */
 
-/** Shared with every surface that has a long wait. */
+/** What we tell a desktop user, where it is true. */
 export const REASSURANCE_LINE = "feel free to switch tabs";
 
+/** What we tell a touch user, where the other thing is not true. */
+export const KEEP_OPEN_LINE = "keep this tab open while it works";
+
 /**
- * How the third line alternates once real progress is arriving.
+ * The reassurance, which is only reassuring where it is honest.
  *
- * Progress alone is not enough. The moment a handler reports its first detail
- * the reassurance used to vanish for good, so on the longest runs - the ones
- * where walking away matters most - the line telling you that it is safe to do
- * so was the first thing to disappear.
+ * On desktop a Web Worker keeps running in a background tab - timers get
+ * throttled, but the WASM compute this app does is unaffected - so "feel free
+ * to switch tabs" is a promise the browser keeps.
  *
- * A 1:1 flip would be noise. Nine seconds is long enough to actually read a
- * frame counter and watch it move; three is long enough to register the
- * reassurance without it feeling like a flicker.
+ * On phones it is not. iOS Safari suspends a backgrounded page almost at once,
+ * and Android Chrome freezes background tabs and discards them under memory
+ * pressure; switching *apps* is harder still than switching tabs. The longer
+ * the run, the likelier the kill - so the advice failed exactly where it was
+ * being given most confidently, on the five-minute video that prompted all of
+ * this. The app already assumes this elsewhere: CompressWorkspace flushes its
+ * state on `visibilitychange` and `pagehide` precisely because the page can
+ * die mid-run.
+ *
+ * Chosen on pointer type rather than user agent, matching `isTouchUi()`
+ * everywhere else in the app.
  */
-export const PROGRESS_WINDOW_MS = 9000;
-export const REASSURANCE_WINDOW_MS = 3000;
-const CYCLE_MS = PROGRESS_WINDOW_MS + REASSURANCE_WINDOW_MS;
+export function reassuranceLine(): string {
+    return isTouchUi() ? KEEP_OPEN_LINE : REASSURANCE_LINE;
+}
 
 /** `01:23` for an elapsed-seconds count. */
 export function mmss(totalSec: number): string {
@@ -86,20 +97,27 @@ export function formatProgress(p: ProgressEvent | undefined): string | undefined
 }
 
 /**
- * Decide what the live line should say right now.
+ * The live line: what the engine is doing, and how long it has been doing it.
  *
- * Pure, and shared by every surface with a long wait, so the 9s/3s rhythm is
- * defined once. Before there is any progress to show it returns the reassurance
- * unconditionally - alternating with nothing would just be a line that blinks.
+ * The reassurance is no longer part of this. It used to take turns with the
+ * progress on a single line, which meant the one number worth watching
+ * disappeared every few seconds - a flicker between two things, neither of
+ * which you could settle on. The reassurance is static text, so it costs a line
+ * and nothing else; it now has its own and simply stays there.
+ *
+ * Returns "" when there is nothing to report yet, which is the caller's cue to
+ * omit the line entirely rather than render an empty one.
  *
  * @param progressText Result of {@link formatProgress}, or undefined.
- * @param elapsedMs How long this run has been going.
+ * @param elapsedMs How long this run has been going, or null before the clock starts.
  */
-export function alternatingLine(
-    progressText: string | undefined, elapsedMs: number,
+export function liveLine(
+    progressText: string | undefined, elapsedMs: number | null,
 ): string {
-    if (!progressText) return REASSURANCE_LINE;
-    return elapsedMs % CYCLE_MS < PROGRESS_WINDOW_MS ? progressText : REASSURANCE_LINE;
+    const parts: string[] = [];
+    if (progressText) parts.push(progressText);
+    if (elapsedMs !== null) parts.push(mmss(elapsedMs / 1000));
+    return parts.join(" · ");
 }
 
 /**
@@ -139,22 +157,30 @@ export function startConversionStatus(
     let painted = false;
 
     const render = () => {
-        // Driven by elapsed time rather than a counter, so the rhythm stays
-        // correct however often render() happens to be called - progress events
-        // arrive at whatever rate the engine feels like.
-        const leading = escapeHTML(
-            alternatingLine(formatProgress(latest), Date.now() - startedAt));
-        const suffix = showElapsed ? ` · ${mmss((Date.now() - startedAt) / 1000)}` : "";
-        const html = [
+        const live = liveLine(
+            formatProgress(latest),
+            showElapsed ? Date.now() - startedAt : null);
+        const lines = [
             mainLine,
             `<span class="muted-text">${escapeHTML(subLine)}</span>`,
+        ];
+        // Omitted entirely when there is nothing to report, rather than left as
+        // an empty row pushing the reassurance around.
+        if (live) {
             // aria-hidden, deliberately. #popup is role="status" aria-live="polite"
-            // aria-atomic="true", so every write re-announces the whole modal. This
-            // line changes once a second for the clock and faster still for a
-            // percentage, which would turn a screen reader into a metronome. The
-            // lines that carry meaning - the phase and the file - stay announced.
-            `<span class="muted-text" aria-hidden="true">${leading}${suffix}</span>`,
-        ].join("<br>");
+            // aria-atomic="true", so every write re-announces the whole modal.
+            // This line changes once a second for the clock and faster still for
+            // a percentage, which would turn a screen reader into a metronome.
+            // The lines that carry meaning stay announced.
+            lines.push(`<span class="muted-text" aria-hidden="true">${escapeHTML(live)}</span>`);
+        }
+        // Its own line, always. This used to take turns with the progress on a
+        // single row, so the one number worth watching vanished every few
+        // seconds and came back - a flicker between two things, neither of which
+        // you could settle on. It is static text; it costs a line and nothing
+        // else, and it is announced once instead of being re-read every tick.
+        lines.push(`<span class="muted-text">${reassuranceLine()}</span>`);
+        const html = lines.join("<br>");
         if (html === lastHTML) return;
         lastHTML = html;
         showConversionInProgress(html, title, currentPhase);

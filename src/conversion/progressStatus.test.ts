@@ -1,12 +1,21 @@
-import { describe, it, expect } from "vitest";
-import {
+import { describe, it, expect, vi } from "vitest";
+
+// `isTouchUi` captures one matchMedia result at module load, so pointer type
+// has to be swappable from here rather than set on the document.
+let coarsePointer = false;
+vi.mock("../core/utils/touchUi.ts", () => ({
+    isTouchUi: () => coarsePointer,
+    subscribeTouchUi: () => () => {},
+}));
+
+const {
     formatProgress,
-    alternatingLine,
+    liveLine,
     mmss,
+    reassuranceLine,
     REASSURANCE_LINE,
-    PROGRESS_WINDOW_MS,
-    REASSURANCE_WINDOW_MS,
-} from "./progressStatus.ts";
+    KEEP_OPEN_LINE,
+} = await import("./progressStatus.ts");
 
 describe("formatProgress", () => {
     it("shows the detail and the percentage together", () => {
@@ -36,8 +45,8 @@ describe("formatProgress", () => {
         // load, displacing the reassurance with a less useful non-fact.
         expect(formatProgress({ ratio: 0 })).toBeUndefined();
         // But a zero with something to say is worth saying.
-        expect(formatProgress({ ratio: 0, detail: "Encoded 0.0s of 20.0s of video." }))
-            .toBe("Encoded 0.0s of 20.0s of video. · 0%");
+        expect(formatProgress({ ratio: 0, detail: "Compressed 0.0s of 20.0s" }))
+            .toBe("Compressed 0.0s of 20.0s · 0%");
     });
 
     it("clamps the ratio into 0-100", () => {
@@ -69,59 +78,6 @@ describe("formatProgress", () => {
     });
 });
 
-describe("alternatingLine", () => {
-    const PROGRESS = "Encoded 12.4s of 47.0s of video. · 34%";
-
-    it("shows the reassurance while there is no progress to show", () => {
-        // Alternating with nothing would just be a line that blinks.
-        expect(alternatingLine(undefined, 0)).toBe(REASSURANCE_LINE);
-        expect(alternatingLine(undefined, 7000)).toBe(REASSURANCE_LINE);
-    });
-
-    it("leads with progress for the first nine seconds of each cycle", () => {
-        expect(alternatingLine(PROGRESS, 0)).toBe(PROGRESS);
-        expect(alternatingLine(PROGRESS, PROGRESS_WINDOW_MS - 1)).toBe(PROGRESS);
-    });
-
-    it("switches to the reassurance for the next three", () => {
-        expect(alternatingLine(PROGRESS, PROGRESS_WINDOW_MS)).toBe(REASSURANCE_LINE);
-        const cycle = PROGRESS_WINDOW_MS + REASSURANCE_WINDOW_MS;
-        expect(alternatingLine(PROGRESS, cycle - 1)).toBe(REASSURANCE_LINE);
-    });
-
-    it("comes back round to progress on the next cycle", () => {
-        const cycle = PROGRESS_WINDOW_MS + REASSURANCE_WINDOW_MS;
-        expect(alternatingLine(PROGRESS, cycle)).toBe(PROGRESS);
-        expect(alternatingLine(PROGRESS, cycle + PROGRESS_WINDOW_MS)).toBe(REASSURANCE_LINE);
-        expect(alternatingLine(PROGRESS, cycle * 2)).toBe(PROGRESS);
-    });
-
-    it("keeps the requested 9s / 3s rhythm", () => {
-        expect(PROGRESS_WINDOW_MS).toBe(9000);
-        expect(REASSURANCE_WINDOW_MS).toBe(3000);
-    });
-
-    it("gives progress three quarters of every cycle", () => {
-        // The point of widening 6s to 9s: the reassurance should be a periodic
-        // reminder, not an equal partner. Counted rather than asserted from the
-        // constants, so the split is checked as it is actually rendered.
-        const cycle = PROGRESS_WINDOW_MS + REASSURANCE_WINDOW_MS;
-        let showingProgress = 0;
-        for (let t = 0; t < cycle; t += 100) {
-            if (alternatingLine(PROGRESS, t) === PROGRESS) showingProgress++;
-        }
-        expect(showingProgress / (cycle / 100)).toBeCloseTo(0.75, 2);
-    });
-
-    it("never leaves the user without a line", () => {
-        // Whatever the elapsed time, something is always on screen. A blank
-        // status line reads as a hang, which is the whole failure being fixed.
-        for (let t = 0; t < 40_000; t += 250) {
-            expect(alternatingLine(PROGRESS, t).length).toBeGreaterThan(0);
-        }
-    });
-});
-
 describe("mmss", () => {
     it("zero-pads both halves", () => {
         expect(mmss(0)).toBe("00:00");
@@ -132,5 +88,59 @@ describe("mmss", () => {
     it("keeps counting past an hour rather than wrapping", () => {
         // A 190 MB video really can run this long, and "05:00" would be a lie.
         expect(mmss(3900)).toBe("65:00");
+    });
+});
+
+describe("liveLine", () => {
+    const PROGRESS = "Compressed 12.4s of 20.0s · 62%";
+
+    it("joins the progress and the clock", () => {
+        expect(liveLine(PROGRESS, 134_000)).toBe(`${PROGRESS} · 02:14`);
+    });
+
+    it("is the progress alone before the clock starts", () => {
+        // The elapsed clock holds itself back for the first ten seconds so a
+        // short run never sprouts a timer it does not need.
+        expect(liveLine(PROGRESS, null)).toBe(PROGRESS);
+    });
+
+    it("is the clock alone when the engine reports nothing", () => {
+        // ImageMagick and ~75 others never emit. The run is still going, and
+        // saying how long for is better than an empty row.
+        expect(liveLine(undefined, 7_000)).toBe("00:07");
+    });
+
+    it("is empty when there is nothing at all to say", () => {
+        // The caller omits the line entirely rather than render a blank one.
+        expect(liveLine(undefined, null)).toBe("");
+    });
+
+    it("no longer takes turns with the reassurance", () => {
+        // The reassurance has its own permanent line now. Whatever the elapsed
+        // time, this line is about the work and only the work - it never
+        // swaps itself out for a different sentence.
+        for (const t of [0, 5_000, 9_000, 12_000, 60_000]) {
+            expect(liveLine(PROGRESS, t)).toContain(PROGRESS);
+            expect(liveLine(PROGRESS, t)).not.toContain(REASSURANCE_LINE);
+        }
+    });
+});
+
+describe("reassuranceLine", () => {
+    const setPointer = (coarse: boolean) => { coarsePointer = coarse; };
+
+    it("promises tab-switching only where the browser keeps that promise", () => {
+        setPointer(false);
+        expect(reassuranceLine()).toBe(REASSURANCE_LINE);
+        expect(REASSURANCE_LINE).toMatch(/switch tabs/);
+    });
+
+    it("asks a phone to stay put instead", () => {
+        setPointer(true);
+        expect(reassuranceLine()).toBe(KEEP_OPEN_LINE);
+        // iOS suspends a backgrounded page and Android freezes it, so telling a
+        // phone it may leave is advice that loses the user their work.
+        expect(KEEP_OPEN_LINE).not.toMatch(/switch tabs/);
+        expect(KEEP_OPEN_LINE).toMatch(/keep this tab open/);
     });
 });

@@ -1146,7 +1146,24 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 }
 
 @media (max-width: 600px) {
-  .ws-file-cards { grid-template-columns: 1fr; }
+  /* Deliberately not `1fr`.
+   *
+   * Collapsing to a single column is the right reflex for cards made of text,
+   * and the wrong one here: the bulk of this card is an aspect-locked page
+   * preview, so one column makes it full-width and the thumbnail grows to
+   * ~260x368 - over half a phone screen for one entry in what is meant to be a
+   * file *list*. On a 360px handset a single merge input filled the viewport
+   * and ran under the sticky action bar.
+   *
+   * Measured with both a US-Letter document and a PDF built from phone
+   * screenshots (1080pt-wide pages): identical 260x368, because the thumb is
+   * locked to A4 and letterboxes with object-fit. The page geometry never
+   * mattered - the column count did.
+   *
+   * auto-fill keeps two up on any normal handset and still degrades to one on
+   * something genuinely tiny, without ever handing a single card the full width.
+   */
+  .ws-file-cards { grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); }
 }
 
 @media (max-width: 400px) {
