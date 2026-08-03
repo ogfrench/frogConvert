@@ -425,7 +425,16 @@ const PAIR_QUIPS: Record<string, Quip[]> = {
   ],
 };
 
-const FORMAT_QUIPS: Record<string, Quip[]> = {
+/**
+ * Exported for tests only.
+ *
+ * The suite used to check format-specific selection by drawing 30 quips and
+ * asserting one of them contained a keyword. Every draw does come from this
+ * pool, but only a few entries carry the keywords, so the assertion was a
+ * ~99.6% coin flip - green almost always and red at random in CI. Membership
+ * is both deterministic and the stronger claim.
+ */
+export const FORMAT_QUIPS: Record<string, Quip[]> = {
   // Documents
   pdf: [
     q("adobe's ongoing revenge on humanity", "smug"),

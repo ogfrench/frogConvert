@@ -14,8 +14,42 @@ const NO_STREAM_COPY = "--no-stream-copy";
 const VIDEO_CODEC_FOR_CONTAINER: Record<string, string> = {
   mp4: "libx264", mov: "libx264", mkv: "libx264", m4v: "libx264",
   avi: "libx264", flv: "libx264", ts: "libx264", mts: "libx264",
-  webm: "libvpx-vp9",
+  // VP8, not VP9. See WEBM_VIDEO_CODEC below - VP9 crashes this build.
+  webm: "libvpx",
 };
+
+/**
+ * WebM video is encoded with VP8, overriding the muxer's own default.
+ *
+ * ffmpeg picks `libvpx-vp9` for a .webm output, and in this WASM core that
+ * encoder dies with `RuntimeError: memory access out of bounds` - not on long
+ * or large input, but on a **three-second clip**, which is to say always. Every
+ * MP4-to-WebM conversion failed after a minute and a half of work with
+ * "didn't complete this time", about a conversion the app advertises.
+ *
+ * VP8 through `libvpx` encodes the same clip cleanly. It is the older codec and
+ * compresses less well, but a WebM that exists beats a VP9 file that does not.
+ *
+ * Worth knowing if you re-test this: a bounds error leaves the WASM instance
+ * unusable, so anything run afterwards on the same engine also fails. VP8 first
+ * looked broken for exactly that reason; on a fresh instance it works.
+ */
+const WEBM_VIDEO_CODEC = "libvpx";
+
+/**
+ * WebM audio is encoded with Vorbis, for the same reason.
+ *
+ * Opus is the better codec and the usual pairing for WebM, and `libopus` in
+ * this core dies exactly like `libvpx-vp9` does - "memory access out of
+ * bounds", on two seconds of audio. Isolated on fresh engine instances:
+ *
+ *   vp8 video-only   OK      vp8 + opus     FAIL
+ *   vp8 + vorbis     OK      vp9 (default)  FAIL
+ *
+ * So both halves of the muxer's preferred pairing are broken here, and the
+ * conversion only completes with the older codec on each side.
+ */
+const WEBM_AUDIO_CODEC = "libvorbis";
 
 /**
  * Codecs that reject arbitrary sample rates. When the input rate isn't in
@@ -843,6 +877,9 @@ class FFmpegHandler implements FormatHandler {
       command.push("-c", "copy");
     } else if (outputFormat.mime === "video/mp4" && !isAudioToVideo) {
       command.push("-pix_fmt", "yuv420p");
+    } else if (outputFormat.format === "webm" && !isAudioToVideo && !userHasEncoderFlag) {
+      // Explicit on both sides, because both muxer defaults crash this core.
+      command.push("-c:v", WEBM_VIDEO_CODEC, "-c:a", WEBM_AUDIO_CODEC);
     } else if (outputFormat.internal === "dvd") {
       command.push("-vf", "setsar=1", "-target", "ntsc-dvd", "-pix_fmt", "rgb24");
     } else if (outputFormat.internal === "vcd") {
@@ -905,7 +942,7 @@ class FFmpegHandler implements FormatHandler {
         "-c:v", placeholderCodec,
         ...(placeholderCodec === "libx264" ? ["-tune", "stillimage"] : []),
         "-pix_fmt", "yuv420p",
-        "-c:a", outputFormat.format === "webm" ? "libopus" : "aac",
+        "-c:a", outputFormat.format === "webm" ? WEBM_AUDIO_CODEC : "aac",
         "-b:a", "192k",
         "-shortest",
       );

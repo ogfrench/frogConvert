@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { pick } from "./FrogsworthWidget.ts";
+import { pick, FORMAT_QUIPS } from "./FrogsworthWidget.ts";
 
 const VALID_FACES = new Set(["idle", "thinking", "happy", "excited", "smug", "hungry"]);
 
@@ -80,30 +80,34 @@ describe("pick() - known pair -> PAIR_QUIPS", () => {
 
 describe("pick() - single known format -> FORMAT_QUIPS", () => {
     it("picks from FORMAT_QUIPS[pdf] when only from is 'pdf'", () => {
-        const texts = new Set<string>();
-        for (let i = 0; i < 30; i++) texts.add(pick("pdf", null).text);
-        const hasFormatQuip = [...texts].some(t =>
-            t.includes("adobe") || t.includes("padlock") || t.includes("trap") || t.includes("locked")
-        );
-        expect(hasFormatQuip).toBe(true);
+        // A Quip is a bare string or a [text, face] tuple.
+        const pool = new Set(FORMAT_QUIPS["pdf"].map(q => typeof q === "string" ? q : q[0]));
+        expect(pool.size).toBeGreaterThan(0);
+        // Every draw, not "at least one draw in thirty" - the old form sampled
+        // for a keyword only some entries carry and failed at random.
+        for (let i = 0; i < 60; i++) {
+            expect(pool.has(pick("pdf", null).text)).toBe(true);
+        }
     });
 
-    it("picks from FORMAT_QUIPS[mp3] when only to is 'mp3'", () => {
-        const texts = new Set<string>();
-        for (let i = 0; i < 30; i++) texts.add(pick(null, "mp3").text);
-        const hasFormatQuip = [...texts].some(t =>
-            t.includes("128kbps") || t.includes("compressed") || t.includes("psychoacoustic")
-        );
-        expect(hasFormatQuip).toBe(true);
+    it("picks from FORMAT_QUIPS[mp3] when only from is 'mp3'", () => {
+        const pool = new Set(FORMAT_QUIPS["mp3"].map(q => typeof q === "string" ? q : q[0]));
+        expect(pool.size).toBeGreaterThan(0);
+        // Every draw, not "at least one draw in thirty" - the old form sampled
+        // for a keyword only some entries carry and failed at random.
+        for (let i = 0; i < 60; i++) {
+            expect(pool.has(pick(null, "mp3").text)).toBe(true);
+        }
     });
 
     it("picks from FORMAT_QUIPS[png] when only from is 'png'", () => {
-        const texts = new Set<string>();
-        for (let i = 0; i < 30; i++) texts.add(pick("png", null).text);
-        const hasFormatQuip = [...texts].some(t =>
-            t.includes("lossless") || t.includes("grudge") || t.includes("transparent") || t.includes("pixel")
-        );
-        expect(hasFormatQuip).toBe(true);
+        const pool = new Set(FORMAT_QUIPS["png"].map(q => typeof q === "string" ? q : q[0]));
+        expect(pool.size).toBeGreaterThan(0);
+        // Every draw, not "at least one draw in thirty" - the old form sampled
+        // for a keyword only some entries carry and failed at random.
+        for (let i = 0; i < 60; i++) {
+            expect(pool.has(pick("png", null).text)).toBe(true);
+        }
     });
 
     it("case-insensitive: 'PDF' matches FORMAT_QUIPS['pdf']", () => {

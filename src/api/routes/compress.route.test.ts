@@ -4,6 +4,20 @@
 // a File's name or contents through a Request body - it arrives as a nameless
 // 9-byte blob. Testing multipart against that would be testing jsdom.
 import { describe, it, expect, vi, beforeEach } from "vitest";
+
+// No real browser, ever.
+//
+// The route falls back to `compressInBrowser` when a handler declines a file,
+// and that launches Chromium. These tests hand it deliberately-declining fake
+// handlers, so the fallback fired on almost every case: fine alone, but under
+// a full parallel suite the launch contended for CPU and blew the 20s timeout,
+// giving two tests that passed 10/10 in isolation and failed at random in CI.
+// The fallback has its own coverage in compressForAgents.browserFallback.test;
+// what is under test here is the route's shape.
+vi.mock("../compressInBrowser.ts", () => ({
+    compressInBrowser: vi.fn(async () => null),
+}));
+
 import { handleCompress } from "./compress.ts";
 import type { FormatHandler, FileFormat } from "../../core/FormatHandler/FormatHandler.ts";
 
