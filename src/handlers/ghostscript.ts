@@ -234,7 +234,16 @@ class GhostscriptHandler implements FormatHandler {
         for (let i = 0; i < inputFiles.length; i++) {
             const file = inputFiles[i];
             onProgress?.({
-                ratio: 0.5 + (i / inputFiles.length) * 0.5,
+                // Position in the batch, not progress through this file - so it
+                // is only worth reporting when there is a batch. With a single
+                // file this evaluated to exactly 0.5 and stayed there for the
+                // whole pass, painting a frozen "50%" on screen. A number that
+                // never moves reads as a stall, which is the failure the live
+                // line exists to prevent; the file name and the elapsed clock
+                // carry this case honestly instead.
+                ratio: inputFiles.length > 1
+                    ? 0.5 + (i / inputFiles.length) * 0.5
+                    : undefined,
                 detail: `${isCompression ? "Compressing" : "Converting"} ${file.name}`,
             });
 

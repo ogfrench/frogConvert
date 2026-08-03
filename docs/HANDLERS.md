@@ -136,7 +136,7 @@ for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
 }
 ```
 
-`ratio` (0..1) is rendered as a percentage appended to the detail: `Encoded 12.4s of 47.0s of video. · 34%`. Emit it only when it is a real fraction of the work — FFmpeg, Ghostscript and pdfCanvasCompress do; a counter with no known total should send `detail` alone rather than a number that jumps.
+`ratio` (0..1) is rendered as a percentage appended to the detail: `Encoded 12.4s of 47.0s of media. · 34%`. Emit it only when it is a **real, moving fraction of this file's work**. FFmpeg and pdfCanvasCompress qualify. A counter with no known total should send `detail` alone rather than a number that jumps — and a value that cannot change during the pass is worse than none: Ghostscript used to emit a constant `0.5` for a single file, painting a frozen "50%" that read as a stall, so it now omits the ratio unless it is genuinely tracking position across several files.
 
 Three rules the renderer applies, worth knowing before you write a `detail` string:
 

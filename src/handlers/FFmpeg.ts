@@ -944,7 +944,9 @@ class FFmpegHandler implements FormatHandler {
     // Skipped once durationMs is unknown, the elapsed line alone is fine.
     const formatDetail = (timeMs: number): string | undefined => {
       if (!durationMs || durationMs <= 0) return undefined;
-      return `Encoded ${(timeMs / 1000).toFixed(1)}s of ${(durationMs / 1000).toFixed(1)}s of video.`;
+      // "of media", not "of video": this same line reports an MP4 being turned
+      // into an MP3, where there is no video left to speak of.
+      return `Encoded ${(timeMs / 1000).toFixed(1)}s of ${(durationMs / 1000).toFixed(1)}s of media.`;
     };
     const emitProgress = onProgress
       ? (ratio: number, timeMs?: number) => {
