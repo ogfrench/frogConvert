@@ -52,6 +52,30 @@ const WEBM_VIDEO_CODEC = "libvpx";
 const WEBM_AUDIO_CODEC = "libvorbis";
 
 /**
+ * VP8 encodes at `-cpu-used 5` rather than libvpx's default of 0.
+ *
+ * The default is far too slow to finish here. Measured in this core on 1080p30,
+ * fresh engine per run, with the arguments the app actually sends:
+ *
+ *   2s -> 17s     5s -> 49s     10s -> 96s     20s -> 205s
+ *
+ * That is a flat ~10x realtime, and `runInWorker` gives up at ten minutes
+ * (`workerClient.ts:21`), so the ceiling lands around a minute of 1080p on this
+ * machine and proportionally less on a slower one. The reported 20-second phone
+ * recording failed at ~12 minutes for exactly that reason: pinning the codecs
+ * stopped the crash and revealed the timeout underneath it.
+ *
+ * `-cpu-used 5` is 4.6x faster on the same clip (205s -> 45s), which puts a
+ * 20-second 1080p source comfortably inside the ceiling even on hardware
+ * several times slower than the one measured on. It costs efficiency, not
+ * quality target: the same content came back 1.54 MB instead of 0.75 MB.
+ *
+ * Peak wasm heap was 100-115 MB at every duration against a 2 GiB ceiling, so
+ * this was never the memory problem it looked like from the outside.
+ */
+const WEBM_CPU_USED = "5";
+
+/**
  * Codecs that reject arbitrary sample rates. When the input rate isn't in
  * this set we snap to the nearest allowed value via `-ar` upfront, instead
  * of waiting for the encoder to fail and retrying with recovery args.
@@ -880,6 +904,9 @@ class FFmpegHandler implements FormatHandler {
     } else if (outputFormat.format === "webm" && !isAudioToVideo && !userHasEncoderFlag) {
       // Explicit on both sides, because both muxer defaults crash this core.
       command.push("-c:v", WEBM_VIDEO_CODEC, "-c:a", WEBM_AUDIO_CODEC);
+      // And explicit about speed, because the default cannot finish. See
+      // WEBM_CPU_USED.
+      if (!args?.includes("-cpu-used")) command.push("-cpu-used", WEBM_CPU_USED);
     } else if (outputFormat.internal === "dvd") {
       command.push("-vf", "setsar=1", "-target", "ntsc-dvd", "-pix_fmt", "rgb24");
     } else if (outputFormat.internal === "vcd") {

@@ -57,4 +57,27 @@ describe("FFmpeg source invariants", () => {
         expect(SRC).not.toMatch(/"libvpx-vp9"/);
         expect(SRC).not.toMatch(/"libopus"/);
     });
+
+    it("still pins the VP8 speed that lets a clip finish inside the worker ceiling", () => {
+        // libvpx's default (-cpu-used 0) encodes 1080p at ~10x realtime in this
+        // core - 205s for a 20-second clip - against a ten-minute worker
+        // timeout. `-cpu-used 5` is 4.6x faster on the same source. Dropping
+        // this line puts long clips back over the ceiling, which reads to the
+        // user as the generic failure #23 was filed about.
+        expect(SRC).toMatch(/const WEBM_CPU_USED = "5"/);
+        expect(SRC).toMatch(/command\.push\("-cpu-used", WEBM_CPU_USED\)/);
+    });
+
+    it("does not rely on -crf for WebM, which this core ignores", () => {
+        // Measured on high-entropy 720p, fresh engine per run: -crf 23, -crf 32,
+        // and both again with -b:v 0, all produced byte-identical output
+        // (136,955 B). `-b:v 2M` produced 709,669 B. So CRF is inert for libvpx
+        // here and bitrate is the only lever that moves - which is why the
+        // WebM branch pins speed rather than quality, and why the compression
+        // level not reaching this route is tracked separately.
+        const webmBranch = SRC.slice(
+            SRC.indexOf('outputFormat.format === "webm" && !isAudioToVideo'),
+            SRC.indexOf('outputFormat.internal === "dvd"'));
+        expect(webmBranch).not.toMatch(/"-crf"/);
+    });
 });
