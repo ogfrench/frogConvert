@@ -45,6 +45,7 @@ export async function loadBackgroundHandlers() {
     lazy('font', () => import("./font.ts")),
     lazy('FFmpeg', () => import("./FFmpeg.ts")),
     lazy('ImageMagick', () => import("./ImageMagick.ts")),
+    lazy('imageToPdf', () => import("./imageToPdf.ts")),
     lazy('libreoffice', () => import("./libreoffice.ts")),
     lazy('pandoc', () => import("./pandoc.ts")),
     lazy('meyda', () => import("./meyda.ts")),
