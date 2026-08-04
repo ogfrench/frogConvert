@@ -152,17 +152,27 @@ if (typeof Worker === 'undefined') {
     };
 
     (globalThis as any).setTimeout = (fn: any, delay?: any, ...args: any[]) => {
-        const id = (realSetTimeout as any)(fn, delay, ...args);
         const ms = Number(delay) || 0;
-        if (ms >= ONE_SHOT_FLOOR_MS) {
-            const origin = originOf();
-            if (origin) live.set(id, { kind: "timeout", delay: ms, origin });
+        const origin = ms >= ONE_SHOT_FLOOR_MS ? originOf() : "";
+        if (!origin || typeof fn !== "function") {
+            return (realSetTimeout as any)(fn, delay, ...args);
         }
+        // A one-shot that *fires* is finished, and finished is not a leak. The
+        // callback is wrapped so the record clears itself: tracking creation
+        // and cancellation alone reported every completed sleep as a survivor,
+        // which is how the first version of this check failed three files in
+        // CI that were doing nothing wrong.
+        let id: any;
+        const wrapped = (...callArgs: any[]) => { live.delete(id); return fn(...callArgs); };
+        id = (realSetTimeout as any)(wrapped, delay, ...args);
+        live.set(id, { kind: "timeout", delay: ms, origin });
         return id;
     };
     (globalThis as any).setInterval = (fn: any, delay?: any, ...args: any[]) => {
         const id = (realSetInterval as any)(fn, delay, ...args);
         const ms = Number(delay) || 0;
+        // No equivalent for a repeating timer: firing is exactly what it does,
+        // and it is still armed afterwards. Only cancellation ends one.
         if (ms >= REPEATING_FLOOR_MS) {
             const origin = originOf();
             if (origin) live.set(id, { kind: "interval", delay: ms, origin });
