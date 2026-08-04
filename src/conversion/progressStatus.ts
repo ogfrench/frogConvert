@@ -199,6 +199,14 @@ export function startConversionStatus(
     };
 
     tickTimer = setInterval(() => {
+        // Nothing to paint on, so stop rather than reach for it. A repeating
+        // timer can outlive the document it was painting - a page torn down
+        // mid-run, or a test environment disposed of between ticks - and every
+        // line below this one goes through `ui`, which resolves against that
+        // document. This is the structural end of the failure, not a guard
+        // against one caller: it holds for every surface that starts a status,
+        // including ones not written yet.
+        if (typeof document === "undefined") { stop(); return; }
         // Self-limiting. The timer used to be armed only after ten seconds, so
         // a run that finished sooner never had one to leak; arming it up front
         // for the alternation means it has to know when it has been orphaned.

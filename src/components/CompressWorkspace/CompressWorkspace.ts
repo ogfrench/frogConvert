@@ -414,8 +414,14 @@ export async function runCompression() {
   } finally {
     // Before anything else: the status handle owns a 1s interval, and an
     // orphaned one would keep repainting a modal that has moved on.
-    statusHandle?.cancel();
-    statusHandle = null;
+    //
+    // Cancel *this* run's handle, not whatever the module variable happens to
+    // hold. Reading the variable meant an overlapping run - one that reassigned
+    // it between this one arming its timer and reaching here - left the first
+    // interval ticking with nothing able to reach it again. Measured: 7 of 51
+    // intervals armed by this suite were never cleared.
+    status.cancel();
+    if (statusHandle === status) statusHandle = null;
     if (phase === "running") phase = "done";
     // Whatever happened, the modal comes down. Split from the state reset the
     // same way the conversion flow splits it: `completeCancellation` awaits a

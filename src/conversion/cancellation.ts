@@ -366,6 +366,14 @@ export function showEnginesLoadingPopup() {
         });
     });
     _enginesLoadingPollId = setInterval(async () => {
+        // This one polls every 200ms and only stops itself once the graph has
+        // loaded - so if it never does, it never stops. Nothing to poll for
+        // once the window is gone; see the note on the status tick.
+        if (typeof window === "undefined") {
+            clearInterval(_enginesLoadingPollId!);
+            _enginesLoadingPollId = null;
+            return;
+        }
         if (window.traversionGraph.nodeCount > 0) {
             clearInterval(_enginesLoadingPollId!);
             _enginesLoadingPollId = null;

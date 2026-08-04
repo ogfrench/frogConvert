@@ -8,11 +8,26 @@ vi.mock("../core/utils/touchUi.ts", () => ({
     subscribeTouchUi: () => () => {},
 }));
 
+// The status tick reaches the DOM two ways, and the test below is about what
+// happens when the document behind both of them goes away. `ui` is stubbed the
+// way the real store behaves - resolving elements lazily, through `document` -
+// because resolving them eagerly would hide the very thing being tested.
+vi.mock("../components/store/store.ts", () => ({
+    ui: new Proxy({} as Record<string, HTMLElement | null>, {
+        get: (_, prop: string) => document.querySelector(`#${prop}`),
+    }),
+}));
+vi.mock("./cancellation.ts", () => ({
+    showConversionInProgress: () => {},
+    updateCancelProgress: () => {},
+}));
+
 const {
     formatProgress,
     liveLine,
     mmss,
     reassuranceLine,
+    startConversionStatus,
     REASSURANCE_LINE,
     KEEP_OPEN_LINE,
 } = await import("./progressStatus.ts");
@@ -142,5 +157,32 @@ describe("reassuranceLine", () => {
         // phone it may leave is advice that loses the user their work.
         expect(KEEP_OPEN_LINE).not.toMatch(/switch tabs/);
         expect(KEEP_OPEN_LINE).toMatch(/keep this tab open/);
+    });
+});
+
+describe("the status tick outliving its document", () => {
+    // A status handle owns a 1s interval, and not every run cancels it: a run
+    // that stalls, or a page torn down mid-encode, leaves one ticking. Every
+    // line in that tick reaches through `ui` to the document, so a tick that
+    // lands after the document has gone used to throw where nothing could
+    // catch it. In CI that read as a run with every test passing and the job
+    // still failing - twice, on two different timers, because the first fix
+    // only moved the failure to the next one along.
+    //
+    // Measured in the Compress suite: 7 of 51 intervals armed were still
+    // running at the end, all of them from deliberately stalled runs.
+    it("stops instead of reaching for a document that is gone", () => {
+        vi.useFakeTimers();
+        try {
+            startConversionStatus({ main: "Working", subtitle: "a file", title: "Busy" });
+            vi.stubGlobal("document", undefined);
+            expect(() => vi.advanceTimersByTime(1000)).not.toThrow();
+            // And it does not keep trying every second forever.
+            expect(() => vi.advanceTimersByTime(10_000)).not.toThrow();
+            expect(vi.getTimerCount()).toBe(0);
+        } finally {
+            vi.unstubAllGlobals();
+            vi.useRealTimers();
+        }
     });
 });

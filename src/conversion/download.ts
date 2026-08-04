@@ -40,7 +40,12 @@ export function downloadFile(bytes: Uint8Array, name: string) {
     link.href = objectUrl;
     link.download = sanitizeDownloadName(name);
     link.click();
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
+    // Five seconds is a long time for a timer nobody owns. If the page it
+    // belonged to is gone there is no URL registry left to revoke from, and
+    // reaching for one throws where nothing can catch it.
+    setTimeout(() => {
+        if (typeof URL !== "undefined") URL.revokeObjectURL(objectUrl);
+    }, 5000);
 }
 
 export async function downloadAsZip(files: { name: string; bytes: Uint8Array }[], zipName: string) {
