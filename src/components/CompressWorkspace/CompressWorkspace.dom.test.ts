@@ -1167,3 +1167,43 @@ describe('CompressWorkspace - the download control', () => {
     expect(popup.querySelector('.cw-results-sub')!.textContent).toMatch(/untouched/);
   });
 });
+
+describe('the replace button replaces, like the Converter\'s', () => {
+  it('swaps the batch rather than adding to it', () => {
+    // The same glyph on the two surfaces used to do opposite things: three
+    // files in, pick one, and the Converter left you with one while Compress
+    // left you with four. Adding has its own labelled home in the Files
+    // modal's "Drop more files" zone, so the icon does not need to duplicate it.
+    ws.handleFiles([
+      fakeFile('a.png', 'image/png'),
+      fakeFile('b.png', 'image/png'),
+      fakeFile('c.png', 'image/png'),
+    ]);
+    expect(ws.getFiles()).toHaveLength(3);
+
+    ws.handleFiles([fakeFile('d.png', 'image/png')], true);
+
+    expect(ws.getFiles().map((e: any) => e.file.name)).toEqual(['d.png']);
+  });
+
+  it('still adds when not replacing', () => {
+    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    ws.handleFiles([fakeFile('b.png', 'image/png')]);
+    expect(ws.getFiles()).toHaveLength(2);
+  });
+
+  it('keeps the existing batch when a replacing pick is entirely rejected', () => {
+    // Nothing acceptable came back, so there is nothing to swap in - emptying
+    // the surface here would lose the batch for no gain.
+    ws.handleFiles([fakeFile('a.png', 'image/png'), fakeFile('b.png', 'image/png')]);
+    ws.handleFiles([fakeFile('notes.txt', 'text/plain')], true);
+    expect(ws.getFiles()).toHaveLength(2);
+  });
+
+  it('names the button for what it does', () => {
+    ws.handleFiles([fakeFile('a.png', 'image/png')]);
+    const btn = document.querySelector('.cw-replace')!;
+    expect(btn.getAttribute('aria-label')).toBe('Replace all files');
+    expect(btn.getAttribute('title')).toBe('Replace all files');
+  });
+});

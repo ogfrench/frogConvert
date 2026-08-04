@@ -139,7 +139,7 @@ export function isLikelyCompressible(file: File): boolean {
   return mime.startsWith("image/") || mime.startsWith("audio/") || mime.startsWith("video/");
 }
 
-export function handleFiles(incoming: File[]) {
+export function handleFiles(incoming: File[], replaceExisting = false) {
   if (!incoming.length) return;
 
   const accepted = incoming.filter(isLikelyCompressible);
@@ -155,7 +155,15 @@ export function handleFiles(incoming: File[]) {
   }
   if (!accepted.length) return;
 
-  const roomLeft = ABSOLUTE_MAX_FILES - files.length;
+  // A replace measures its room and its budget against an empty batch, since
+  // the incoming files are about to become the whole of it. Nothing is dropped
+  // yet - the swap happens below, once something has actually been accepted -
+  // so a pick that is entirely oversized leaves the existing batch alone rather
+  // than emptying the surface for nothing.
+  const replacing = replaceExisting;
+  const base = replacing ? [] : files;
+
+  const roomLeft = ABSOLUTE_MAX_FILES - base.length;
   if (roomLeft <= 0) {
     showToast(`That's the ${ABSOLUTE_MAX_FILES}-file ceiling. Compress these first.`, "warn", 8000);
     return;
@@ -172,7 +180,7 @@ export function handleFiles(incoming: File[]) {
   // at a time. Someone arriving with a single large video is the common case,
   // and the old cap refused them in order to guard against the rare one.
   const budget = compressBatchBudget();
-  let total = files.reduce((sum, e) => sum + e.file.size, 0);
+  let total = base.reduce((sum, e) => sum + e.file.size, 0);
   const withinBudget: File[] = [];
   let oversized = 0;
   let batchFull = false;
@@ -222,6 +230,7 @@ export function handleFiles(incoming: File[]) {
     results = [];
   }
 
+  if (replacing) files = [];
   for (const file of withinBudget) files.push({ id: nextId++, file });
   // A PDF in the batch means the 16 MB engine is on the critical path of the
   // Compress button. Start fetching it while the user is still adding files.
@@ -560,7 +569,7 @@ function uploadFieldMarkup(): string {
             <button class="upload-action-btn icon-btn floating-card-surface cw-manage" type="button"
               title="Manage files" aria-label="Manage files">&#9776;</button>
             <button class="upload-action-btn icon-btn floating-card-surface cw-replace" type="button"
-              title="Add more files" aria-label="Add more files">&#8635;</button>
+              title="Replace all files" aria-label="Replace all files">&#8635;</button>
             <button class="upload-action-btn icon-btn floating-card-surface cw-clear" type="button"
               title="Clear all files" aria-label="Clear all files">&times;</button>
           </div>
@@ -852,8 +861,20 @@ function render() {
  *  means "all of the above", which is the input's own markup default. */
 const ALL_ACCEPT = "image/*,audio/*,video/*,application/pdf,.pdf";
 
-function openPicker(accept = "") {
+/**
+ * Whether the next successful pick replaces the batch instead of adding to it.
+ *
+ * One input serves the drop zone, the category pills and the replace button, and
+ * a cancelled picker fires no event at all - so a flag set at click time would
+ * survive the cancel and turn the next drop-zone pick into a replace. Every
+ * caller goes through `openPicker`, which rewrites the flag on each open, so the
+ * last control pressed is always the one that decides.
+ */
+let replaceOnPick = false;
+
+function openPicker(accept = "", replace = false) {
   if (!fileInput) return;
+  replaceOnPick = replace;
   fileInput.multiple = true;
   fileInput.accept = accept || ALL_ACCEPT;
   fileInput.click();
@@ -892,7 +913,13 @@ function wireRendered() {
   });
   rootEl.querySelector<HTMLElement>(".cw-replace")?.addEventListener("click", (e) => {
     e.stopPropagation();
-    openPicker();
+    // Replaces, like the Converter's identical-looking button. This used to
+    // append, so the same glyph on the two surfaces did opposite things:
+    // three files in, pick one, and the Converter left you with one while
+    // Compress left you with four. Adding has its own large, labelled home in
+    // the Files modal's "Drop more files" zone, so the icon does not need to
+    // duplicate it.
+    openPicker("", true);
   });
   rootEl.querySelector<HTMLElement>(".cw-clear")?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -976,8 +1003,10 @@ export function initCompressWorkspace() {
   }
 
   fileInput?.addEventListener("change", () => {
+    const replacing = replaceOnPick;
+    replaceOnPick = false;
     if (!fileInput?.files) return;
-    handleFiles(Array.from(fileInput.files));
+    handleFiles(Array.from(fileInput.files), replacing);
     fileInput.value = "";
   });
 
