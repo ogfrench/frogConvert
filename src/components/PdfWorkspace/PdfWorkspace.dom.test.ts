@@ -764,6 +764,60 @@ describe('removing a file from a panel that survives the removal', () => {
   });
 });
 
+describe('announcing removals to a screen reader', () => {
+  // A removal changes nothing that reads as text: the row disappears and the
+  // count beside it is rebuilt rather than edited. Sighted users watch the
+  // list get shorter; without this, screen reader users get silence.
+  const announcer = () => document.getElementById('a11y-announcer');
+
+  it('says what went and what is left', () => {
+    __testing.setupForTest('merge', [sf(1, 2), sf(2, 2), sf(3, 2)]);
+    const card = document.querySelector<HTMLElement>('.ws-sidebar-card')!;
+    card.querySelectorAll<HTMLButtonElement>('.ws-file-list-remove')[0].click();
+
+    expect(announcer()!.textContent).toMatch(/Removed .+\. 2 files remaining\./);
+  });
+
+  it('counts down in words that match the number', () => {
+    __testing.setupForTest('merge', [sf(1, 2), sf(2, 2)]);
+    const card = document.querySelector<HTMLElement>('.ws-sidebar-card')!;
+    card.querySelectorAll<HTMLButtonElement>('.ws-file-list-remove')[0].click();
+    // "1 files remaining" is the kind of thing only a machine says.
+    expect(announcer()!.textContent).toMatch(/1 file remaining\./);
+  });
+
+  it('says so when that was the last one', () => {
+    __testing.setupForTest('merge', [sf(1, 2)]);
+    const btn = document.querySelector<HTMLButtonElement>('.ws-file-list-remove');
+    if (!btn) return;
+    btn.click();
+    expect(announcer()!.textContent).toMatch(/No files left\./);
+  });
+
+  it('announces a second removal even when the sentence repeats', () => {
+    // Two removals can produce identical text, and identical text is not a
+    // change - so the second would pass in silence.
+    __testing.setupForTest('merge', [sf(1, 2), sf(2, 2), sf(3, 2)]);
+    const card = document.querySelector<HTMLElement>('.ws-sidebar-card')!;
+    card.querySelectorAll<HTMLButtonElement>('.ws-file-list-remove')[0].click();
+    const first = announcer()!.textContent;
+    card.querySelectorAll<HTMLButtonElement>('.ws-file-list-remove')[0].click();
+    expect(announcer()!.textContent).not.toBe(first);
+  });
+
+  it('keeps the region out of sight and out of the layout', () => {
+    __testing.setupForTest('merge', [sf(1, 2), sf(2, 2)]);
+    document.querySelector<HTMLButtonElement>('.ws-file-list-remove')!.click();
+    const region = announcer()!;
+    expect(region.className).toContain('sr-only');
+    expect(region.getAttribute('aria-live')).toBe('polite');
+    // Not hidden: display:none and visibility:hidden both take an element out
+    // of the accessibility tree, which is the one thing a live region cannot be.
+    expect(region.hasAttribute('hidden')).toBe(false);
+    expect(region.getAttribute('aria-hidden')).toBeNull();
+  });
+});
+
 describe('bulk file action accessibility', () => {
   it('names what Replace all and Clear act on, keeping the visible text as a prefix', () => {
     __testing.setupForTest('merge', [sf(1, 2), sf(2, 2)]);

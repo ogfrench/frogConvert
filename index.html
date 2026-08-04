@@ -606,6 +606,16 @@
   <div id="popup" class="card-base modal-container popup-size" role="status" aria-live="polite" aria-atomic="true">
   </div>
 
+  <!-- The app's one live region, for changes that happen without any text on
+       screen changing to describe them - removing a file from the PDF Editor,
+       say, where the row simply vanishes.
+
+       It lives here, empty, rather than being created when there is something
+       to say, because a live region has to exist *before* the change it
+       announces. Marking up the element that changed does nothing: screen
+       readers watch regions they already know about, and one that arrives
+       carrying its own message arrives too late. See `announce()`. -->
+  <div id="a11y-announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <script type="module" src="src/main.ts"></script>
 

@@ -25,7 +25,7 @@ import { isTouchUi } from '../../core/utils/touchUi.ts';
 import { showToast } from '../Toast/Toast.ts';
 import { Icons } from '../icons.ts';
 import { showPopup, hidePopup, replacePopup, createPopupButton, showConfirmPopup, showUploadSummaryPopup, type UploadResult } from '../Popup/Popup.ts';
-import { formatBytes, escapeHTML, shortenFileName, ensureMinDuration, toUserErrorInfo, appendSupportContact, FEEDBACK_CONTACT_TEXT } from '../utils/index.ts';
+import { formatBytes, escapeHTML, shortenFileName, ensureMinDuration, toUserErrorInfo, appendSupportContact, FEEDBACK_CONTACT_TEXT, announce } from '../utils/index.ts';
 import { createDancingFrog } from '../Frogsworth/DancingFrog.ts';
 import { celebrateOnPopup } from '../../effects/Confetti/Confetti.ts';
 import { ui, updateScrollLock, pdfQuality } from '../store/store.ts';
@@ -839,6 +839,14 @@ function makeSidebarFileRow(sf: SourceFile, opts: SidebarFileRowOpts = {}): HTML
         : -1;
       const hadFocus = document.activeElement === delBtn;
       opts.onRemove!();
+      // Nothing on screen says a file went: the row is gone and the count
+      // beside it is rebuilt rather than edited, so there is no text change
+      // for a screen reader to notice. Announced here rather than at each of
+      // the four call sites, because they all remove a file the same way and
+      // only differ in what they repaint afterwards.
+      announce(files.length
+        ? `Removed ${sf.name}. ${files.length} ${files.length === 1 ? 'file' : 'files'} remaining.`
+        : `Removed ${sf.name}. No files left.`);
       // This button is gone with its row, so focus has to be placed somewhere
       // deliberate or it falls to <body> and the user is dumped at the top of
       // the document.
@@ -904,7 +912,15 @@ function makeFileBulkActions(): HTMLElement {
     showConfirmPopup(
       'Clear all files?',
       'Page order, rotations and watermark settings go with them.',
-      { label: 'Clear', onClick: () => resetAll() },
+      {
+        label: 'Clear',
+        onClick: () => {
+          // Said before the reset, while there is still a count to report.
+          const n = files.length;
+          resetAll();
+          announce(`Cleared ${n} ${n === 1 ? 'file' : 'files'}.`);
+        },
+      },
       { label: 'Keep them' },
     );
   });

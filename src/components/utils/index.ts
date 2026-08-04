@@ -205,3 +205,49 @@ export function appendSupportContact(message: string, contactText: string = SUPP
     if (message.includes(SUPPORT_CONTACT_EMAIL)) return message;
     return `${message} ${contactText}`;
 }
+
+/** The id of the always-present live region in `index.html`. */
+const ANNOUNCER_ID = "a11y-announcer";
+
+/**
+ * Say something to a screen reader that the screen does not already say.
+ *
+ * For changes with no visible text to carry them. Removing a file from the PDF
+ * Editor is the case this was built for: the row disappears, the count beside
+ * it is rebuilt from scratch, and a sighted user sees the list get shorter
+ * while a screen reader user gets silence.
+ *
+ * Two things make this less trivial than it looks.
+ *
+ * The region has to **pre-exist the change**. Putting `aria-live` on the count
+ * itself would be dead markup, because that element is recreated on every
+ * update - and a region that appears already holding its message is not a
+ * change to anything the screen reader was watching. So the region is static
+ * markup in `index.html` and only its text content moves.
+ *
+ * And the same message twice is **not a change**, so removing two files in a
+ * row would announce once. Alternating a trailing no-break space makes the
+ * second one textually different without altering a word of what is read out.
+ * Done this way rather than with the usual clear-then-set-on-a-timer, because
+ * a deferred callback that reaches for the DOM is precisely the thing that
+ * took CI red twice on this branch.
+ */
+export function announce(message: string): void {
+    if (typeof document === "undefined" || !message) return;
+    let region = document.getElementById(ANNOUNCER_ID);
+    if (!region) {
+        // Entry points that do not ship index.html's markup (the docs page, a
+        // test mounting one component) still get working announcements rather
+        // than a silent no-op that only shows up in an audit.
+        region = document.createElement("div");
+        region.id = ANNOUNCER_ID;
+        region.className = "sr-only";
+        region.setAttribute("role", "status");
+        region.setAttribute("aria-live", "polite");
+        region.setAttribute("aria-atomic", "true");
+        document.body.appendChild(region);
+    }
+    const NBSP = " ";
+    const previous = region.textContent ?? "";
+    region.textContent = previous.endsWith(NBSP) ? message : message + NBSP;
+}

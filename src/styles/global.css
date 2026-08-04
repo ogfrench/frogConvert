@@ -286,6 +286,24 @@ html.scroll-lock {
   overflow-y: hidden !important;
 }
 
+/* Present to assistive tech, absent to everyone else.
+   `display: none` and `visibility: hidden` both remove the element from the
+   accessibility tree as well as the page, which is exactly wrong for a live
+   region: it has to be *there* to announce anything. Clipping a 1px box keeps
+   it in the tree while taking it out of the layout. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* UI chrome shouldn't be a text-selection target. Range-drags across buttons,
    tabs, and disclosure triangles would otherwise highlight their labels. */
 button,
