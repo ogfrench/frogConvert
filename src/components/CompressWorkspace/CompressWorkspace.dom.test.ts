@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 vi.mock('../Toast/Toast.ts', () => ({ showToast: vi.fn() }));
 // The celebration's *timing* is Confetti's own suite; what matters here is
@@ -129,6 +129,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   ws.initCompressWorkspace();
 });
+
+// Several tests here start a run that never settles on purpose, and a run owns
+// a 1s interval. Without this the last one keeps ticking after the file is
+// done - which is how a suite with nothing failing still took CI red.
+afterEach(() => { ws.resetAll(); });
 
 describe('CompressWorkspace - empty state', () => {
   it('renders a dropzone when no files are loaded', () => {

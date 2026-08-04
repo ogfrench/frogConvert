@@ -938,8 +938,24 @@ class FrogsworthWidget {
 }
 
 let initialized = false;
+let instance: FrogsworthWidget | null = null;
 export function initFrogsworth(getContext: () => Context): void {
   if (initialized) return;
   initialized = true;
-  new FrogsworthWidget(getContext);
+  instance = new FrogsworthWidget(getContext);
+}
+
+/**
+ * Tear the widget down: its idle timer, its window listeners, its element.
+ *
+ * The page never needs this - Frogsworth lives as long as the tab does - but
+ * the instance used to be constructed and dropped on the floor, which made
+ * `destroy()` unreachable and left a 15-second timer and three window
+ * listeners with no owner. Anything that mounts the widget and then throws the
+ * document away (every test that touches it) had no way to clean up.
+ */
+export function destroyFrogsworth(): void {
+  instance?.destroy();
+  instance = null;
+  initialized = false;
 }

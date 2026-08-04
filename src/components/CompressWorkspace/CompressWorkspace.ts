@@ -1056,6 +1056,11 @@ export function cleanup() {
 export function resetAll() {
   files = [];
   setCompressLevel(DEFAULT_LEVEL);
+  // A reset abandons whatever was in flight, and the status handle owns a 1s
+  // interval pointed at a modal for a batch that no longer exists. Dropping
+  // the reference without cancelling left it repainting into nothing.
+  statusHandle?.cancel();
+  statusHandle = null;
   phase = "idle";
   results = [];
   void clearCompressSession();
