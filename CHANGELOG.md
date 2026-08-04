@@ -121,7 +121,16 @@ Adding a real PDF engine paid for two things beyond compression: **PostScript, E
 - **MP4 → WEBM converts, and finishes** ([#23](https://github.com/ogfrench/frogConvert/issues/23)). Two faults, one behind the other. `libvpx-vp9` and `libopus` both die with a memory-access fault on a two-second clip, and ffmpeg selects exactly that pair for a `.webm` output; both are now pinned to encoders that complete. That stopped the crash and exposed the second fault underneath: libvpx's default speed encodes 1080p at about ten times realtime in this core - 205s for a 20-second clip - against the ten-minute worker ceiling, so a longer clip simply ran out of time and reported the generic failure. `-cpu-used 5` is 4.6x faster on the same source. Peak wasm heap was flat at 100-115 MB across every duration against a 2 GiB limit, so this was never the memory problem it looked like from the outside.
 
 ### Known limits
-- **The compression level does not reach the WebM encoder** ([#25](https://github.com/ogfrench/frogConvert/issues/25)). `-crf` is inert for libvpx in this core, so on a source below the downscale threshold - 75 MB at *Smallest file*, 150 MB at *Balanced*, 300 MB at *High quality* - all three levels produce byte-identical output. Measured on a 4-second 1080p clip: 304,097 bytes at every level, against 372,827 / 1,019,076 / 2,527,091 for explicit bitrates of 600k / 2M / 5M. Above those thresholds the levels do diverge, but by downscaling and capping maxrate rather than by the quality lever. Found while fixing #23 and filed rather than folded in, because it changes output for every WebM user.
+- **The compression level reaches the WebM encoder** ([#25](https://github.com/ogfrench/frogConvert/issues/25)). It never did: `-crf` is inert for libvpx in this core, so all four levels produced byte-identical output and every WebM came back at the encoder's own default. The reported 20-second phone video went in at 7,276 kbps and came out at 972 - an 87% cut on a *format conversion*, the same at every setting. The route now sets a bitrate derived from the source rather than a constant, because a fixed ladder would inflate a lean clip. Measured on six seconds of 1072x1920 at two source bitrates, output as a share of input:
+
+  | Level | 7,067 kbps source | 1,523 kbps source |
+  |---|---|---|
+  | Original quality | 78% | 86% |
+  | High quality | 63% | 70% |
+  | Balanced | 42% | 60% |
+  | Smallest file | 28% | 60% |
+
+  No level exceeds its input at either bitrate, which is the constraint that ruled out fixed targets. On the lean source the two lowest levels converge, because libvpx will not go below roughly 900 kbps at this resolution - the encoder's floor, not a bug.
 - Cancelling a Compress batch during the degraded canvas PDF fallback (which only runs when Ghostscript is unreachable) waits for that one file: it is a main-thread handler, so there is nothing to terminate.
 - The whole batch is held in memory.
 - The Compress drop zone filters on MIME type alone, so a few image types that have no same-format compressor (HEIC, AVIF) are accepted and then reported *can't compress this* per file. Erring this way is deliberate: the authoritative answer needs the handler registry, which loads later, and over-rejecting at the door would turn away files that can in fact be compressed.

@@ -76,6 +76,56 @@ const WEBM_AUDIO_CODEC = "libvorbis";
 const WEBM_CPU_USED = "5";
 
 /**
+ * WebM rate control is a bitrate, because `-crf` does nothing here.
+ *
+ * Measured on high-entropy 720p, fresh engine per run: `-crf 23`, `-crf 32`,
+ * and both again with `-b:v 0`, all produced byte-identical output. `-b:v 2M`
+ * produced five times as much. So the compression level - which reaches this
+ * handler as a CRF from `planVideo` - had no effect at all on this route, and
+ * every WebM came back at libvpx's own default. The reported 20-second phone
+ * video, 7,276 kbps in, came out at 972: an 87% cut on a *format conversion*,
+ * identical at all four levels.
+ *
+ * The target is a fraction of what came in rather than a constant. A fixed
+ * ladder would inflate a lean source - asking 5 Mbps of a 1.5 Mbps clip returns
+ * something several times larger than it went in, which is indefensible for an
+ * operation whose purpose is changing the container.
+ *
+ * Fractions chosen against measured overshoot, six seconds of 1072x1920 at two
+ * source bitrates, output as a share of input bytes:
+ *
+ *            asked 0.25   0.50   0.75   1.00
+ *   7067kbps       0.28   0.52   0.78   1.03  <- 1.00 exceeds the input
+ *   1523kbps       0.60   0.61   0.86   1.12  <- and by more when lean
+ *
+ * `-b:v` is a target, not a ceiling: it overshot by 3-12% on the fat source and
+ * by up to 2.4x when asked for less than the encoder will give at this
+ * resolution. Hence a ceiling of 0.75, which stayed under the input on both.
+ *
+ * The floor in that table is real and worth knowing: on the lean source, 0.25
+ * and 0.50 both landed near 0.60, because libvpx will not go below roughly
+ * 900 kbps for this many pixels. Levels converge on an already-small file. That
+ * is the encoder, not a bug, and it never inflates.
+ */
+export const WEBM_BITRATE_FRACTION: Record<QualityPreset, number> = {
+  lossless: 0.75,  // "Original quality": preserve as far as a VP8 re-encode can
+  high: 0.6,
+  medium: 0.4,
+  low: 0.25,
+};
+
+/**
+ * Target kbps for the WebM video stream, or null when the source cannot be
+ * measured - an unprobed duration means no honest fraction exists, and
+ * inventing one is worse than leaving libvpx's default in place.
+ */
+export function webmVideoBitrateKbps(inputBytes: number, durationSec: number, preset: QualityPreset): number | null {
+  if (!(durationSec > 0) || !(inputBytes > 0)) return null;
+  const sourceKbps = (inputBytes * 8) / durationSec / 1000;
+  return Math.max(1, Math.round(sourceKbps * WEBM_BITRATE_FRACTION[preset]));
+}
+
+/**
  * Codecs that reject arbitrary sample rates. When the input rate isn't in
  * this set we snap to the nearest allowed value via `-ar` upfront, instead
  * of waiting for the encoder to fail and retrying with recovery args.
@@ -137,7 +187,12 @@ function ffmpegPlanArgs(plan: CompressionPlan, outputFormat: FileFormat): string
   if (mime.startsWith("video/")) {
     if (outputFormat.format === "gif" || outputFormat.format === "apng") return [];
     const args: string[] = [];
-    if (plan.videoCrf !== undefined) args.push("-crf", String(plan.videoCrf));
+    // WebM gets its rate control as a bitrate instead: libvpx ignores -crf in
+    // this core, so emitting one here put a flag in the command that reads like
+    // the level is being honoured while doing nothing. The maxrate below still
+    // applies, and constrains the bitrate the WebM branch sets.
+    const crfIsInert = outputFormat.format === "webm";
+    if (plan.videoCrf !== undefined && !crfIsInert) args.push("-crf", String(plan.videoCrf));
     if (plan.videoMaxrate) {
       args.push("-maxrate", plan.videoMaxrate, "-bufsize", `${parseInt(plan.videoMaxrate) * 2}M`);
     }
@@ -907,6 +962,13 @@ class FFmpegHandler implements FormatHandler {
       // And explicit about speed, because the default cannot finish. See
       // WEBM_CPU_USED.
       if (!args?.includes("-cpu-used")) command.push("-cpu-used", WEBM_CPU_USED);
+      // And explicit about bitrate, because -crf does nothing here and the
+      // level would otherwise reach the encoder as nothing at all. See
+      // WEBM_BITRATE_FRACTION.
+      if (!args?.includes("-b:v")) {
+        const kbps = webmVideoBitrateKbps(inputBytes, probedDuration, preset);
+        if (kbps !== null) command.push("-b:v", `${kbps}k`);
+      }
     } else if (outputFormat.internal === "dvd") {
       command.push("-vf", "setsar=1", "-target", "ntsc-dvd", "-pix_fmt", "rgb24");
     } else if (outputFormat.internal === "vcd") {

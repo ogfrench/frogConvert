@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
+import { WEBM_BITRATE_FRACTION, webmVideoBitrateKbps } from "./FFmpeg.ts";
 
 /**
  * Source-level guards for two FFmpeg behaviours that unit tests cannot reach.
@@ -79,5 +80,54 @@ describe("FFmpeg source invariants", () => {
             SRC.indexOf('outputFormat.format === "webm" && !isAudioToVideo'),
             SRC.indexOf('outputFormat.internal === "dvd"'));
         expect(webmBranch).not.toMatch(/"-crf"/);
+    });
+});
+
+describe("WebM rate control", () => {
+    it("sets a bitrate on the WebM branch, since -crf is inert here", () => {
+        // Without this the compression level reaches libvpx as nothing at all
+        // and every WebM comes back at the encoder's own default - measured at
+        // 972 kbps from a 7,276 kbps source, identical at all four levels.
+        expect(SRC).toMatch(/command\.push\("-b:v", `\$\{kbps\}k`\)/);
+        expect(SRC).toMatch(/webmVideoBitrateKbps\(inputBytes, probedDuration, preset\)/);
+    });
+
+    it("does not emit an inert -crf for WebM", () => {
+        // A flag that reads like the level is being honoured while doing
+        // nothing is worse than no flag.
+        expect(SRC).toMatch(/const crfIsInert = outputFormat\.format === "webm"/);
+    });
+
+    it("keeps every level's fraction under 1, so no level can exceed the input", () => {
+        // -b:v is a target rather than a ceiling: measured overshoot was 3-12%
+        // on a fat source and up to 2.4x when asked for less than the encoder
+        // will give. A fraction of 1.0 measured 1.03 and 1.12 of the input.
+        for (const [preset, fraction] of Object.entries(WEBM_BITRATE_FRACTION)) {
+            expect(fraction, preset).toBeGreaterThan(0);
+            expect(fraction, preset).toBeLessThanOrEqual(0.75);
+        }
+    });
+
+    it("orders the levels, so a gentler setting never yields a smaller target", () => {
+        const { low, medium, high, lossless } = WEBM_BITRATE_FRACTION;
+        expect(low).toBeLessThan(medium);
+        expect(medium).toBeLessThan(high);
+        expect(high).toBeLessThan(lossless);
+    });
+
+    it("scales the target with the source rather than using a constant", () => {
+        // The whole point: a fixed ladder inflates a lean clip.
+        const fat = webmVideoBitrateKbps(5_299_891, 6, "lossless")!;
+        const lean = webmVideoBitrateKbps(1_142_339, 6, "lossless")!;
+        expect(fat).toBeGreaterThan(lean * 3);
+        // And the ask always sits under the source's own bitrate.
+        expect(lean).toBeLessThan((1_142_339 * 8) / 6 / 1000);
+    });
+
+    it("declines to guess when the source cannot be measured", () => {
+        // An unprobed duration means no honest fraction exists; leaving
+        // libvpx's default in place beats inventing a number.
+        expect(webmVideoBitrateKbps(1_000_000, 0, "medium")).toBeNull();
+        expect(webmVideoBitrateKbps(0, 10, "medium")).toBeNull();
     });
 });
