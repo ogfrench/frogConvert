@@ -2,7 +2,7 @@ import normalizeMimeType from "../core/utils/normalizeMimeType.ts";
 import { downloadFile, downloadAsZip, timestampForFilename } from "./download.ts";
 import { isSafari } from "../tools/pdfThumbnails.ts";
 import type { FileFormat, FormatHandler, FileData, ConvertPathNode, ProgressEvent, QualityPreset, Notice } from "../core/FormatHandler/FormatHandler.ts";
-import { triggerConfetti } from "../effects/Confetti/Confetti.ts";
+import { celebrateOnPopup } from "../effects/Confetti/Confetti.ts";
 import {
     ui,
     currentFiles,
@@ -810,9 +810,7 @@ export function initConvertButton() {
             clearConvertSession();
             // Show confetti faster for immediate celebration. Confetti is
             // popup-anchored, so skip it if the user already dismissed.
-            setTimeout(() => {
-                if (ui.popupBox.classList.contains("open")) triggerConfetti();
-            }, 150);
+            celebrateOnPopup(ui.popupBox);
 
             // Deliberately no automatic download.
             //

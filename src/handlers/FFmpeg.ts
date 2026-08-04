@@ -106,6 +106,15 @@ const WEBM_CPU_USED = "5";
  * and 0.50 both landed near 0.60, because libvpx will not go below roughly
  * 900 kbps for this many pixels. Levels converge on an already-small file. That
  * is the encoder, not a bug, and it never inflates.
+ *
+ * One honest limit on the bound. The fraction is taken from the *container*
+ * bitrate - total bytes over duration - and spent on `-b:v`, the video stream
+ * alone, with audio encoded on top. On the video-dominant sources measured that
+ * leaves plenty of room, which is why no level exceeded its input. It is not a
+ * hard guarantee: a source where audio carries most of the bitrate would get a
+ * video target well above its own video bitrate. Nothing measured behaves that
+ * way, and conversions that grow are already understood on this route, so this
+ * is recorded rather than defended against with an unmeasured constant.
  */
 export const WEBM_BITRATE_FRACTION: Record<QualityPreset, number> = {
   lossless: 0.75,  // "Original quality": preserve as far as a VP8 re-encode can

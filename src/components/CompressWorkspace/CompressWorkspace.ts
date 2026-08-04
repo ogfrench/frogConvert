@@ -33,7 +33,7 @@ import { hidePopup, showPopup, replacePopup, createPopupButton } from "../Popup/
 import { openFilesModal, type FilesModalSource } from "../FilesModal/FilesModal.ts";
 import { preloadGhostscript } from "../../tools/ghostscriptPreload.ts";
 import { downloadFile, downloadAsZip, timestampForFilename } from "../../conversion/download.ts";
-import { triggerConfetti } from "../../effects/Confetti/Confetti.ts";
+import { celebrateOnPopup } from "../../effects/Confetti/Confetti.ts";
 import { createDancingFrog } from "../Frogsworth/DancingFrog.ts";
 import {
   markCompressDirty,
@@ -436,11 +436,7 @@ export async function runCompression() {
   showResultsModal();
   // Same 150ms beat the Converter and the PDF Editor use, and the same guard:
   // confetti is popup-anchored, so skip it if the user already dismissed.
-  if (celebrate) {
-    setTimeout(() => {
-      if (ui.popupBox.classList.contains("open")) triggerConfetti();
-    }, 150);
-  }
+  if (celebrate) celebrateOnPopup(ui.popupBox);
 }
 
 /** Mirrors the Converter's "Converting your files" heading. */

@@ -27,7 +27,7 @@ import { Icons } from '../icons.ts';
 import { showPopup, hidePopup, replacePopup, createPopupButton, showConfirmPopup, showUploadSummaryPopup, type UploadResult } from '../Popup/Popup.ts';
 import { formatBytes, escapeHTML, shortenFileName, ensureMinDuration, toUserErrorInfo, appendSupportContact, FEEDBACK_CONTACT_TEXT } from '../utils/index.ts';
 import { createDancingFrog } from '../Frogsworth/DancingFrog.ts';
-import { triggerConfetti } from '../../effects/Confetti/Confetti.ts';
+import { celebrateOnPopup } from '../../effects/Confetti/Confetti.ts';
 import { ui, updateScrollLock, pdfQuality } from '../store/store.ts';
 import {
   compressPdfOutputs,
@@ -4001,7 +4001,7 @@ function showPdfSuccessModal(title: string, resultHTML: string) {
 
   replacePopup([h2, frogDiv, p, actions]);
 
-  setTimeout(() => { if (ui.popupBox.classList.contains('open')) triggerConfetti(); }, 150);
+  celebrateOnPopup(ui.popupBox);
   // Deliberately no automatic download - see the note in `actions.ts`. The
   // edit is finished and the file is held; the button is what sends it.
 }

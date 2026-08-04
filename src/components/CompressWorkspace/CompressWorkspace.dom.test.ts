@@ -1,7 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('../Toast/Toast.ts', () => ({ showToast: vi.fn() }));
-vi.mock('../../effects/Confetti/Confetti.ts', () => ({ triggerConfetti: vi.fn() }));
+// The celebration's *timing* is Confetti's own suite; what matters here is
+// only whether this surface decides to celebrate at all. Firing synchronously
+// keeps that decision observable without leaving a 150ms timer behind - one
+// outliving the run is exactly what turned a green suite red in CI.
+vi.mock('../../effects/Confetti/Confetti.ts', () => {
+  const triggerConfetti = vi.fn();
+  return {
+    triggerConfetti,
+    celebrateOnPopup: (popup: Element | null | undefined) => {
+      if (popup?.classList.contains('open')) triggerConfetti();
+    },
+  };
+});
 vi.mock('../../conversion/workerClient.ts', () => ({ runInWorker: vi.fn() }));
 vi.mock('../../conversion/download.ts', () => ({
   downloadFile: vi.fn(),
