@@ -583,9 +583,11 @@ export function initTheme() {
       ui.themeToggleButton.innerHTML = dark ? THEME_ICON_SUN : THEME_ICON_MOON;
     }
     if (transition) {
-      setTimeout(() => {
-        document.documentElement.classList.remove("theme-transition");
-      }, 300);
+      // Held rather than re-read: this fires 300ms later, by which point the
+      // document it would reach for may be gone. Same hazard the confetti
+      // timer shipped with - see `celebrateOnPopup`.
+      const root = document.documentElement;
+      setTimeout(() => root.classList.remove("theme-transition"), 300);
     }
   }
 

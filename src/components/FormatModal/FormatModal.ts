@@ -96,7 +96,11 @@ export function initFormatModal(
 
   ui.formatSearch.addEventListener("input", () => {
     clearTimeout(_searchTimeout);
-    _searchTimeout = setTimeout(() => filterFormats(ui.formatSearch.value), 80);
+    // The input is held, not resolved again inside the debounce, for the same
+    // reason the confetti timer holds its popup: `ui` reaches through to the
+    // document, and a timer can outlive it.
+    const input = ui.formatSearch;
+    _searchTimeout = setTimeout(() => filterFormats(input.value), 80);
   });
 
   ui.formatOptions.addEventListener("click", (e) => {
