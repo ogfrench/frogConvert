@@ -1080,7 +1080,7 @@ function updateMergeSidebarContent(sidebar: HTMLElement) {
   sidebar.innerHTML = '';
 
   const total = files.reduce((s, f) => s + f.pageCount, 0);
-  const countText = `${files.length} file${files.length !== 1 ? 's' : ''} · ${total} pages`;
+  const countText = `${files.length} file${files.length !== 1 ? 's' : ''} · ${total} page${total !== 1 ? 's' : ''}`;
   const countRow = el('div', { className: 'ws-sidebar-count-row' });
   countRow.appendChild(el('p', { className: 'ws-sidebar-count', textContent: countText }));
   countRow.appendChild(makeFileBulkActions());
@@ -1091,7 +1091,7 @@ function updateMergeSidebarContent(sidebar: HTMLElement) {
     const isMulti = files.length > 1;
     fileList.appendChild(makeSidebarFileRow(sf, {
       letter: isMulti ? String.fromCharCode(65 + (files.indexOf(sf) % 26)) : undefined,
-      meta: isMulti ? `${sf.pageCount} pages · ${formatBytes(sf.size)}` : undefined,
+      meta: isMulti ? `${sf.pageCount} page${sf.pageCount !== 1 ? 's' : ''} · ${formatBytes(sf.size)}` : undefined,
       onRemove: () => {
         files = files.filter(f => f.id !== sf.id);
         onFilesMutated();
@@ -1178,7 +1178,7 @@ function createFileCard(sf: SourceFile): HTMLElement {
 
   const info = el('div', { className: 'ws-file-info' });
   info.appendChild(el('span', { className: 'ws-file-name', textContent: sf.name, title: sf.name }));
-  info.appendChild(el('span', { className: 'ws-file-meta', textContent: `${sf.pageCount} pages · ${formatBytes(sf.size)}` }));
+  info.appendChild(el('span', { className: 'ws-file-meta', textContent: `${sf.pageCount} page${sf.pageCount !== 1 ? 's' : ''} · ${formatBytes(sf.size)}` }));
   card.appendChild(info);
 
   const removeBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-remove floating-card-surface', innerHTML: Icons.x(), ariaLabel: 'Remove' });
@@ -1873,7 +1873,7 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
   const isMulti = files.length > 1;
   const totalAcrossFiles = files.reduce((s, f) => s + f.pageCount, 0);
   const countText = isMulti
-    ? `${files.length} files · ${totalAcrossFiles} pages`
+    ? `${files.length} file${files.length !== 1 ? 's' : ''} · ${totalAcrossFiles} page${totalAcrossFiles !== 1 ? 's' : ''}`
     : `${totalAcrossFiles} page${totalAcrossFiles !== 1 ? 's' : ''}`;
   const countRow = el('div', { className: 'ws-sidebar-count-row' });
   countRow.appendChild(el('p', { className: 'ws-sidebar-count', textContent: countText }));
@@ -1884,7 +1884,7 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
   files.forEach((f, idx) => {
     fileList.appendChild(makeSidebarFileRow(f, {
       letter: isMulti ? String.fromCharCode(65 + (idx % 26)) : undefined,
-      meta: isMulti ? `${f.pageCount} pages · ${formatBytes(f.size)}` : undefined,
+      meta: isMulti ? `${f.pageCount} page${f.pageCount !== 1 ? 's' : ''} · ${formatBytes(f.size)}` : undefined,
       onRemove: () => {
         files = files.filter(x => x.id !== f.id);
         onFilesMutated();
@@ -2251,7 +2251,7 @@ async function handleWatermarkExport() {
   }
 
   showExportSplitModal({
-    title: `Export ${files.reduce((s, f) => s + f.pageCount, 0)} pages as`,
+    title: (() => { const n = files.reduce((s, f) => s + f.pageCount, 0); return `Export ${n} page${n !== 1 ? 's' : ''} as`; })(),
     combinedLabel: 'Combined PDF',
     splitLabel: 'One PDF per source file',
     primary: 'split',
@@ -2902,7 +2902,7 @@ function updateSidebarContent(sidebar: HTMLElement) {
   const modified = isPagesModified();
   const originalCount = files.reduce((s, f) => s + f.pageCount, 0);
   const diff = pages.length - originalCount;
-  const countBase = `${files.length} file${files.length !== 1 ? 's' : ''} · ${pages.length} pages`;
+  const countBase = `${files.length} file${files.length !== 1 ? 's' : ''} · ${pages.length} page${pages.length !== 1 ? 's' : ''}`;
   let countHtml = countBase;
   if (modified) {
     countHtml += '<sup>*</sup>';
@@ -2921,7 +2921,7 @@ function updateSidebarContent(sidebar: HTMLElement) {
     const isMulti = uniqueFileIds.length > 1;
     fileList.appendChild(makeSidebarFileRow(sf, {
       letter: isMulti ? String.fromCharCode(65 + (uniqueFileIds.indexOf(fid) % 26)) : undefined,
-      meta: isMulti ? `${sf.pageCount} pages · ${formatBytes(sf.size)}` : undefined,
+      meta: isMulti ? `${sf.pageCount} page${sf.pageCount !== 1 ? 's' : ''} · ${formatBytes(sf.size)}` : undefined,
       onRemove: () => removeFile(fid),
     }));
   }
@@ -3124,7 +3124,7 @@ async function handleSave() {
   const splitState = organizeAllowsPerSourceSplit();
   const realPageCount = pages.filter(p => p.type !== 'blank').length;
   showExportSplitModal({
-    title: `Export ${realPageCount} pages as`,
+    title: `Export ${realPageCount} page${realPageCount !== 1 ? 's' : ''} as`,
     combinedLabel: 'Combined PDF',
     splitLabel: 'One PDF per source file',
     primary: 'combined',
@@ -3257,7 +3257,7 @@ function showExtractModal(indices: number[]) {
   closeBtn.addEventListener('click', () => hidePopup());
   wrap.appendChild(closeBtn);
 
-  wrap.appendChild(el('p', { className: 'ws-sidebar-count', textContent: `Extract ${count} pages as` }));
+  wrap.appendChild(el('p', { className: 'ws-sidebar-count', textContent: `Extract ${count} page${count !== 1 ? 's' : ''} as` }));
 
   const combBtn = el('button', { className: 'btn-primary ws-action-btn ws-action-full', textContent: 'Combined PDF' });
   combBtn.addEventListener('click', () => { hidePopup(); doExtract(indices, true); });
@@ -3614,7 +3614,7 @@ function buildMobileTrayContent(tray: HTMLElement) {
   // ---- BLOCK 1: file context (count + Restore + Add, then file list) ----
   const originalCount = files.reduce((s, f) => s + f.pageCount, 0);
   const diff = pages.length - originalCount;
-  const countBase = `${files.length} file${files.length !== 1 ? 's' : ''} · ${pages.length} pages`;
+  const countBase = `${files.length} file${files.length !== 1 ? 's' : ''} · ${pages.length} page${pages.length !== 1 ? 's' : ''}`;
   let countHtml = countBase;
   if (modified) {
     countHtml += '<sup>*</sup>';
@@ -3633,7 +3633,7 @@ function buildMobileTrayContent(tray: HTMLElement) {
     const isMulti = uniqueFileIds.length > 1;
     fileList.appendChild(makeSidebarFileRow(sf, {
       letter: isMulti ? String.fromCharCode(65 + (uniqueFileIds.indexOf(fid) % 26)) : undefined,
-      meta: isMulti ? `${sf.pageCount} pages · ${formatBytes(sf.size)}` : undefined,
+      meta: isMulti ? `${sf.pageCount} page${sf.pageCount !== 1 ? 's' : ''} · ${formatBytes(sf.size)}` : undefined,
       onRemove: () => removeFile(fid),
     }));
   }
