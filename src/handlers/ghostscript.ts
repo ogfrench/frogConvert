@@ -2,6 +2,7 @@ import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
 import type { FileData, FileFormat, FormatHandler, ProgressEvent } from "../core/FormatHandler/FormatHandler.ts";
 import { extractQualityPreset } from "../core/FormatHandler/FormatHandler.ts";
 import { ghostscriptArgs } from "../core/compression/pdfSettings.ts";
+import { assertPdfPagesPreserved } from "../core/compression/pdfIntegrity.ts";
 import { GS_BASE } from "../core/compression/ghostscriptAssets.ts";
 import {
     GS_INPUT_FORMATS,
@@ -276,6 +277,9 @@ class GhostscriptHandler implements FormatHandler {
             if (bytes.byteLength < 5 || String.fromCharCode(...bytes.slice(0, 5)) !== "%PDF-") {
                 throw new Error(`Couldn't compress ${file.name}. The result wasn't a readable PDF.`);
             }
+            // ...and a *readable* PDF can still be the wrong document: a damaged
+            // input comes back as one blank page, which every check above passes.
+            await assertPdfPagesPreserved(file.bytes, bytes, file.name);
 
             outputs.push({ ...file, name: file.name, bytes });
         }
