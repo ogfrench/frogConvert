@@ -8,7 +8,7 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
-## [3.0.0] - 2026-08-03
+## [3.0.0] - 2026-08-05
 
 Compression becomes a first-class feature. It was previously invisible - every conversion quietly applied a `medium` preset, and the only user-facing compression was a same-format easter egg in the Convert card. There is now a dedicated **Compress** mode, PDFs can actually be compressed, and the setting that was always being applied is now something you can see and change.
 
@@ -33,6 +33,8 @@ Adding a real PDF engine paid for two things beyond compression: **PostScript, E
 - **Bulk file actions in the PDF Editor.** Files were the only collection in the app without them - a per-row `x`, one file at a time, and no way to start over short of reloading. Merge, Organize and Watermark now carry **Replace all** and **Clear** in the same count row, with `+ Add` on its own row beneath the list, matching the Converter's and Compress's shared Files modal rather than inventing a third vocabulary.
 
 ### Changed
+- **Line endings are settled, once.** 8 of 335 tracked text files had drifted to CRLF; normalising 5 of them accounted for roughly 2,200 lines of this release's diff, and they would have flipped back the next time anyone edited them on Windows. A `.gitattributes` (`* text=auto eol=lf`) pins it, with the remaining three renormalised in the same commit and verified content-identical. Read this release with `git diff --ignore-all-space`.
+- **The test suite fails a file that leaves a long-lived timer running.** A timer outliving its test fires into an environment with no document and throws where nothing can catch it, so the run reports every test passing and still exits 1 - which happened twice while cutting this release. The check watches only timers our own code arms, judged by the frame that called `setTimeout` rather than the nearest frame belonging to us: the MCP SDK arms one inside `client.close()` and puppeteer inside `browser.disconnect()`, and blaming those on our call site names a line with no timer in it.
 - **Video and audio now compress over REST and MCP.** `ffmpeg.wasm` throws on
   construction under Node, so those formats came back `unsupported` from the
   agent surfaces - true about the process, not about the file. `compress_file`
@@ -129,6 +131,10 @@ Adding a real PDF engine paid for two things beyond compression: **PostScript, E
   | Smallest file | 28% | 60% |
 
   No level exceeds its input at either bitrate, which is the constraint that ruled out fixed targets. On the lean source the two lowest levels converge, because libvpx will not go below roughly 900 kbps at this resolution - the encoder's floor, not a bug.
+- **Removing a file in the PDF Editor is announced to screen readers.** Nothing about a removal reads as text: the row disappears and the count beside it is rebuilt rather than edited, so a sighted user watched the list get shorter while a screen-reader user got silence. The obvious markup does not work - `aria-live` on the count is inert, because that element is recreated on every update and a region that arrives already holding its message is not a change to anything the reader was watching. The app now carries one static live region and only its text moves. Identical text is not a change either, so two removals producing the same sentence would announce once; a trailing no-break space alternates, making the second textually distinct without altering a word that is read out.
+- **A status handle survives its own run no longer.** `resetAll()` on Compress abandoned an in-flight run's handle instead of cancelling it, leaving a 1s interval repainting a modal for a batch that no longer existed. Found by counting timers rather than reasoning about them: 7 of 51 armed by one suite were still ticking at the end.
+- **Frogsworth can be torn down.** `initFrogsworth` constructed the widget and dropped the reference, which made `destroy()` unreachable and left a 15s idle timer and three window listeners with no owner. `destroyFrogsworth()` now exists.
+- **Deferred callbacks no longer reach for globals that have gone.** Every repeating and long-lived timer was swept - four intervals and six timeouts of 100ms or more - and the three that read a global from a timer nobody owns were guarded: a 200ms poll that only stops once the format graph loads, the dancing frog's hover animation, and a five-second object-URL revoke. The rest either capture their element or are cleared in a `finally`, and were left alone.
 - **The success confetti no longer reaches for a document that may be gone.** All three success paths - Convert, Compress and the PDF Editor - scheduled the celebration on a 150ms timer and read the popup *inside* it, through an accessor that resolves against `document`. A timer outlives whatever scheduled it, so under load that read could land after the surrounding page had been torn down. It surfaced in CI as a run with 1,110 passing tests and nothing failing that still went red on an uncaught `ReferenceError: document is not defined`. The three copies are now one helper that captures the popup up front and dereferences nothing global, and `triggerConfetti` checks for a document before drawing on one.
 
 ### Known limits
