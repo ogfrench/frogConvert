@@ -397,7 +397,7 @@ window.addEventListener("frog:set-mode", (e) => {
 // things, and each carries its own default:
 //
 //   Converter    "how much quality to give up while changing format" → Automatic
-//   Compress     "how hard to squeeze"                               → Automatic
+//   Compress     "how hard to compress"                              → Automatic
 //   PDF Editor   "should editing this also shrink it"                → Original
 //
 // The PDF editor defaults to Original quality because merging and watermarking

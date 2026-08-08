@@ -98,7 +98,7 @@ describe("compressPdfOutput", () => {
         expect(autoMock).not.toHaveBeenCalled();
     });
 
-    it("keeps the original when the squeeze saves too little to be worth it", async () => {
+    it("keeps the original when the compression saves too little to be worth it", async () => {
         // Same 98% rule compressBatch uses: a file that came back the same size
         // has traded image quality for nothing.
         const input = bytes(1000);

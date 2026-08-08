@@ -19,7 +19,7 @@ describe("tierDown", () => {
         expect(tierDown("medium")).toEqual({ kind: "compress", tier: "medium" });
     });
 
-    it("an already-lean input gets the gentlest preset, not another squeeze", () => {
+    it("an already-lean input gets the gentlest preset, not another compression", () => {
         // Web-optimised already. Re-compressing trades visible quality for
         // almost no bytes; the keep-threshold then discards it.
         expect(tierDown("low")).toEqual({ kind: "compress", tier: "high" });

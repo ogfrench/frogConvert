@@ -61,7 +61,7 @@ if (typeof window !== "undefined") {
  * the fact that each surface happens to put a blocking modal on screen.
  *
  * There are three callers now (Convert, Compress, and the PDF editor's save-time
- * squeeze) and a playbook telling the next person to add a fourth. Serialising
+ * compression) and a playbook telling the next person to add a fourth. Serialising
  * here makes the single slots correct **by construction** instead of by
  * convention, and costs nothing real: the worker resolves one handler and calls
  * `doConvert`, and the WASM engines behind it are not re-entrant anyway, so
@@ -79,7 +79,7 @@ let queueTail: Promise<unknown> = Promise.resolve();
  * Separate from the `cancellation.ts` singleton on purpose. That one is the
  * *convert flow's* cancel: it flips the global `isCancelled`, swaps the popup
  * for the cancelling UI, and arms a watchdog. A caller that only wants to abandon
- * its own engine run - the PDF editor's optional squeeze, which has its own
+ * its own engine run - the PDF editor's optional compression, which has its own
  * popup and must not disturb the finished edit behind it - needs the terminate
  * without the ceremony.
  */

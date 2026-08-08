@@ -212,7 +212,7 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
     ensureCancelButton();
 
     // "Automatic" reads the sources and picks a tier once for the whole route,
-    // so an already-low-quality input isn't squeezed a second time.
+    // so an already-low-quality input isn't compressed a second time.
     const requestedQuality: QualityPreset = convertQuality.value === "auto"
         ? await resolveAutoQuality(
             files.map(f => ({ bytes: f.bytes, mime: path[0]?.format.mime ?? "" })),

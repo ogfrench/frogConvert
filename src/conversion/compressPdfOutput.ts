@@ -18,7 +18,7 @@ import type { ProgressEvent } from "../core/FormatHandler/FormatHandler.ts";
  *
  *  - **It never throws.** This step is a bonus on top of work the user already
  *    asked for and already succeeded at. Losing a completed merge because the
- *    optional squeeze failed would be a far worse outcome than a larger file,
+ *    optional compression failed would be a far worse outcome than a larger file,
  *    so every failure returns the original bytes.
  *  - **It honours the 98% keep-threshold**, the same one `compressBatch` uses.
  *    A "compressed" PDF that came back the same size has traded image quality
@@ -28,7 +28,7 @@ import type { ProgressEvent } from "../core/FormatHandler/FormatHandler.ts";
 const PDF_FORMAT = CommonFormats.PDF.supported("pdf", true, true);
 
 /**
- * Set while the user has asked to skip the squeeze for the current save.
+ * Set while the user has asked to skip the compression for the current save.
  *
  * The edit itself finished before this step began, so cancelling is safe by
  * construction: abandoning the engine run leaves a completed, uncompressed

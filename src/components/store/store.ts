@@ -254,7 +254,7 @@ export const formatMode: { value: FormatMode } = {
  *
  * Every mode compresses something, so the control appears in all three - but
  * they mean different things ("how much quality to give up while changing
- * format" vs "how hard to squeeze" vs "should editing this PDF also shrink
+ * format" vs "how hard to compress" vs "should editing this PDF also shrink
  * it"), and an earlier build that shared one value was surprising in use:
  * dialling Compress up silently changed what your next conversion encoded at.
  * Each surface owns its own value and its own default.

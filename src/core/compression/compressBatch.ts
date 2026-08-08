@@ -127,7 +127,7 @@ export type CompressBatchOptions = {
 /**
  * Keeping a compressed result only when it saves at least 2% avoids handing
  * back a re-encoded file that is the same size but has lost quality. Exported
- * so the PDF editor's optional output squeeze applies the identical rule
+ * so the PDF editor's optional output compression applies the identical rule
  * rather than inventing a second, slightly different one.
  */
 export const KEEP_THRESHOLD = 0.98;
