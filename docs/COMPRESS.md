@@ -30,7 +30,7 @@ The drop-zone filter is deliberately *not* the final word. It can only look at t
 
 ## Levels
 
-One control, four choices. The vocabulary is quality-forward - it names what the output looks like, not how hard the squeeze is:
+One control, four choices. The vocabulary is quality-forward - it names what the output looks like, not how hard the compression is:
 
 | Level | Meaning |
 |---|---|
@@ -58,7 +58,7 @@ There is deliberately **no "lossless" level here**. As a compression level it ca
 Automatic doesn't apply a fixed tier. It runs three steps per file:
 
 1. **Probe.** Read cheap container metadata - bytes per megapixel for images, bytes per page for PDFs, container bitrate for audio and video - and place the file in a quality band from *uncompressed* down to *minimal*. This measures how densely the file is **already** compressed. It never decodes the whole file, so it costs milliseconds.
-2. **Pick a level from the band.** Raw and high-quality inputs get **Balanced**; a file that is already web-optimised gets **High quality**, since squeezing it again trades visible quality for almost nothing; a file in the bottom band is left alone entirely and reported as *already compressed*. Automatic never selects **Smallest file** - that one resizes, and resizing is not something to do to someone who expressed no preference.
+2. **Pick a level from the band.** Raw and high-quality inputs get **Balanced**; a file that is already web-optimised gets **High quality**, since compressing it again trades visible quality for almost nothing; a file in the bottom band is left alone entirely and reported as *already compressed*. Automatic never selects **Smallest file** - that one resizes, and resizing is not something to do to someone who expressed no preference.
 3. **Apply the format's rule.** "One band down" is not safe everywhere. PDFs are the standing exception and resolve to a conservative target instead; see [PDF compression, honestly](#pdf-compression-honestly).
 
 This is why two files dropped together can come out at different levels, and why Automatic is the default: it's the right answer when the user has no opinion.
@@ -190,11 +190,11 @@ to make the file smaller. Below `high` the plan applies a long-edge cap, so an
 Automatic default on the Converter could return a 4032x3024 photo at 2560 px -
 unrecoverable, on the only copy the user keeps.
 
-The three settings are **independent and separately persisted**. "How much quality to give up while changing format", "how hard to squeeze" and "should editing this also shrink it" are different questions, and an earlier build that shared one value meant changing it in one place silently moved the others.
+The three settings are **independent and separately persisted**. "How much quality to give up while changing format", "how hard to compress" and "should editing this also shrink it" are different questions, and an earlier build that shared one value meant changing it in one place silently moved the others.
 
 Two defaults are worth explaining:
 
-- **The PDF Editor defaults to Original quality** because merging, organizing and watermarking are *edits, not exports*: you expect the same document back. Pick any other level and the finished PDF is run through the same Ghostscript engine, with the same 98% keep-threshold, on its way to the download. If that step fails for any reason it is skipped and you get your uncompressed result - losing a completed merge to an optional squeeze would be a much worse outcome than a large file.
+- **The PDF Editor defaults to Original quality** because merging, organizing and watermarking are *edits, not exports*: you expect the same document back. Pick any other level and the finished PDF is run through the same Ghostscript engine, with the same 98% keep-threshold, on its way to the download. If that step fails for any reason it is skipped and you get your uncompressed result - losing a completed merge to an optional compression would be a much worse outcome than a large file.
 - **The PDF Editor offers no Automatic.** Automatic means "read the file and decide", which is a good answer for a file handed over to be shrunk and a surprising one for a file handed over to be edited.
 
 The engine is fetched ahead of time whenever a PDF becomes likely - a PDF dropped on Compress, PDF chosen as a conversion target, or a PDF-editor level set to anything but Original quality. It's a `<link rel="prefetch">`, so the browser downloads it at idle priority into the HTTP cache and can abandon it under memory pressure; nothing is wasted if you don't follow through.

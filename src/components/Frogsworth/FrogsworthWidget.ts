@@ -103,7 +103,7 @@ const CAPABILITY_QUIPS: Quip[] = [
   q("pdf editor's in the mode menu. no adobe required.", "smug"),
   q("dark mode lives in the settings menu. your eyes will thank you.", "happy"),
   q("light, dark, or whatever your system says. settings menu.", "idle"),
-  q("you can pick how hard i squeeze. settings menu, compression.", "smug"),
+  q("you can pick how hard i compress. settings menu, compression.", "smug"),
   q("automatic compression reads your file first, then decides. clever, right?", "excited"),
   q("smallest file isn't always smallest. sometimes high quality wins. try both.", "smug"),
   q("every mode has its own url. bookmark the one you live in.", "smug"),
@@ -159,7 +159,7 @@ const COMPRESS_QUIPS: Quip[] = [
   q("three levels, three real steps. no cliff between them.", "smug"),
   q("video takes a while. it's one core and a lot of frames. go make tea.", "idle"),
   q("i only hand back what actually got smaller. the rest you already have.", "idle"),
-  q("a png is already lossless. squeezing it just makes us both tired.", "smug"),
+  q("a png is already lossless. compressing it just makes us both tired.", "smug"),
   q("stop whenever. the files i finished are still yours.", "happy"),
 ];
 

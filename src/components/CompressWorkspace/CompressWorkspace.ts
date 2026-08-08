@@ -147,8 +147,8 @@ export function handleFiles(incoming: File[], replaceExisting = false) {
   if (rejected > 0) {
     showToast(
       rejected === incoming.length
-        ? "Nothing there i can compress. Images, audio, video and PDFs."
-        : `Skipped ${rejected} file${rejected === 1 ? "" : "s"} i can't compress yet.`,
+        ? "Nothing there to compress. Images, audio, video and PDFs work."
+        : `Skipped ${rejected} file${rejected === 1 ? "" : "s"} that can't be compressed yet.`,
       "warn",
       8000,
     );
@@ -702,7 +702,7 @@ function resultsMarkup(): string {
       // title carries the *what*; this line owes the reader the outcome.
       ? `Nothing got smaller`
       : noneSupported
-        ? `Nothing i can compress here`
+        ? `Nothing to compress here`
         // Says what happened, in a sentence rather than a verdict. The old
         // "No smaller at this level" read as a fragment of a spec sheet, and
         // still had to avoid claiming the file cannot be compressed at all -
@@ -718,8 +718,8 @@ function resultsMarkup(): string {
       ? many ? `Your files are untouched.` : `Your file is untouched.`
       : noneSupported
         ? many
-          ? `These formats aren't ones i can compress. Images, audio, video and PDFs are.`
-          : `That format isn't one i can compress. Images, audio, video and PDFs are.`
+          ? `These formats can't be compressed. Images, audio, video and PDFs can.`
+          : `That format can't be compressed. Images, audio, video and PDFs can.`
         : many
           // Names the count, because the list below is capped and the rows
           // can no longer be counted by eye.

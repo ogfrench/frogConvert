@@ -652,7 +652,7 @@ describe('CompressWorkspace - batch edge cases', () => {
 
     const head = document.querySelector('.cw-results-head')!.textContent!;
     expect(head).not.toMatch(/already as small/i);
-    expect(head).toMatch(/aren't ones i can compress/i);
+    expect(head).toMatch(/these formats can't be compressed/i);
   });
 
   it('reports a genuine no-gain without overclaiming, and in the singular', async () => {
@@ -972,7 +972,7 @@ describe('CompressWorkspace - singular and plural', () => {
     ws.handleFiles([fakeFile('a.heic', 'image/heic')]);
     await ws.runCompression();
     const head = document.querySelector('.cw-results-head')!.textContent!;
-    expect(head).toMatch(/That format isn't one i can compress/);
+    expect(head).toMatch(/That format can't be compressed/);
   });
 });
 

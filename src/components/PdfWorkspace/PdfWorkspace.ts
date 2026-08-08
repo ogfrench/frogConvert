@@ -540,8 +540,8 @@ async function setPdfResult(
   const paint = () => {
     if (!note) return;
     const live = liveLine(formatProgress(latest), Date.now() - startedAt);
-    const line = live ? `${live} — ${reassuranceLine()}` : reassuranceLine();
-    note.textContent = position ? `${position} — ${line}` : line;
+    const line = live ? `${live} · ${reassuranceLine()}` : reassuranceLine();
+    note.textContent = position ? `${position} · ${line}` : line;
   };
   if (note) ticker = setInterval(paint, 1000);
   try {

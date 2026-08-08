@@ -112,7 +112,7 @@ function surfaceUnhandled(kind: string, reason: unknown) {
   try {
     recoveryPopupOpen = true;
     const h2 = document.createElement("h2");
-    h2.textContent = "Something went wrong";
+    h2.textContent = "frogConvert hit an error";
     const p = document.createElement("p");
     p.textContent = "The app ran into an unexpected error. Reload to try again.";
     const actions = document.createElement("div");

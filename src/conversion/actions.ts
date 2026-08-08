@@ -826,7 +826,7 @@ export function initConvertButton() {
             const detail = toUserErrorInfo(e).message || "Something went wrong while converting this file.";
             const detailHTML = `<span class="muted-text error-detail">${escapeHTML(SUPPORT_CONTACT_TEXT)}</span>`;
             showAlertPopup(
-                "Something went wrong",
+                "Conversion failed",
                 `${escapeHTML(detail)}${detailHTML}`,
             );
         } finally {

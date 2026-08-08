@@ -46,7 +46,7 @@ export function registerCompressFileTool(server: McpServer, initPromise: Promise
             outputFilePath: z.string().optional()
                 .describe("Absolute path to write the result to. If omitted, bytes come back as base64. Ignored when compressing a batch, which writes beside each source."),
             level: z.enum(LEVELS).optional()
-                .describe("How hard to squeeze. 'auto' (default) probes each file and picks a level for it, matching the web UI. 'high' keeps original dimensions, 'medium' is the balanced default, 'low' resizes and visibly reduces quality. There is no 'lossless': as a compression level it would mean doing nothing."),
+                .describe("How hard to compress. 'auto' (default) probes each file and picks a level for it, matching the web UI. 'high' keeps original dimensions, 'medium' is the balanced default, 'low' resizes and visibly reduces quality. There is no 'lossless': as a compression level it would mean doing nothing."),
         },
         async ({ fileName, base64Bytes, filePath, filePaths, outputFilePath, level }) => {
             const { handlers } = await initPromise;
