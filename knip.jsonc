@@ -14,6 +14,10 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "entry": [
+    // Loaded by the browser via a <script src> that the `async-css` plugin
+    // injects into the HTML, so the only reference to it is a string inside
+    // vite.config.js and knip cannot see it.
+    "public/async-css.js",
     "src/docs/docs.ts",
     "src/headless/index.ts",
     "src/workers/conversion.worker.ts",

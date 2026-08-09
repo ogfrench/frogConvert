@@ -23,19 +23,22 @@
 # trap: this policy grants no `unsafe-inline` either, so fixing the eval alone
 # would not be enough. Both have to go together.
 #
-#   DONE. The two `script-src-attr` violations were the async-CSS
-#   `onload="this.onload=null;this.rel='stylesheet'"` attributes the build
-#   injected. They now carry `data-async-css` and are flipped by
-#   /async-css.js, and the measurement dropped from 8 violations to 6.
+#   DONE - inline event handlers. The two `script-src-attr` violations were the
+#   async-CSS `onload="this.onload=null;this.rel='stylesheet'"` attributes the
+#   build injected. They now carry `data-async-css` and are flipped by
+#   /async-css.js. 8 violations -> 6.
 #
-#   1. The two remaining `script-src-elem` violations are the inline <script>
-#      blocks in index.html (~line 7 and ~416) and the one in docs/index.html.
-#      **Do not simply move them to files.** The first exists to set `.dark`
-#      before the first paint, so an external script adds a round trip and can
-#      reintroduce exactly the white flash it prevents. The right fix is a
-#      build-time sha256 of each block, emitted into this header - nonces need
-#      a server this project does not have.
-#   2. Then enforce with `unsafe-eval` added.
+#   DONE - inline scripts. The `script-src_elem` pair is covered by the
+#   `__CSP_SCRIPT_HASHES__` placeholder below, which the `csp-hashes` plugin in
+#   vite.config.js replaces at build time with a sha256 per inline script,
+#   computed from the final files in dist/ so a hash can never disagree with the
+#   bytes that ship. Moving those blocks to files was considered and rejected:
+#   the first sets `.dark` before the first paint, so an external script adds a
+#   round trip and can reintroduce the white flash it exists to prevent.
+#   6 violations -> 4.
+#
+#   REMAINING - one decision. All four survivors are `eval`. Enforcing needs
+#   `unsafe-eval` added, or those three libraries dropped or replaced.
 #
 # The eval is three ordinary JS libraries rather than the WASM engines:
 # flptojson (ts-flp), font, and turbowarp. Measured at
@@ -51,4 +54,4 @@
 # https://cdn.sheetjs.com, which nothing ever called - xlsx is bundled at
 # install time - so the allowance was granting reach the app does not use.
 /*
-  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' __CSP_SCRIPT_HASHES__; worker-src 'self' blob:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
