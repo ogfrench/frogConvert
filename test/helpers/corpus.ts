@@ -22,10 +22,10 @@ import path from "node:path";
  *     FROG_CORPUS=1 bun x vitest run test/e2e/corpus-compress.test.ts
  */
 
-export const CORPUS_DIR = path.resolve(__dirname, "..", "corpus");
+const CORPUS_DIR = path.resolve(__dirname, "..", "corpus");
 
 /** Opt-in. Absent means "not asked for", not "broken". */
-export const corpusRequested = process.env.FROG_CORPUS === "1";
+const corpusRequested = process.env.FROG_CORPUS === "1";
 
 const missing = new Set<string>();
 

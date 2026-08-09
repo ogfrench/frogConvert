@@ -130,6 +130,23 @@ In dev, the cache is optional; the app falls back to initializing all handlers a
 - **`bun run test:watch`** runs tests in watch mode.
 - **E2E** tests live in `test/e2e/` (Puppeteer) and verify that workers mount and the UI flow works.
 
+### The corpus suites (opt-in, and the ones that find real bugs)
+
+Four suites in `test/e2e/` drive the **built** app in a real browser against real files: `corpus-compress`, `corpus-convert`, `corpus-pdf` and `corpus-combined`. They exist because every serious defect in v3 lived in a seam between mocked units and was invisible to a green unit run - an encrypted PDF emptied and reported as an 83% saving, a truncated PDF returned as a blank page called a 99% win, a `.webm` not recognised as input at all.
+
+They need ~49 MB of other people's files, so they are opt-in and skip loudly (`test/helpers/corpus.ts` prints a manifest of exactly what did not run and why - the inverse of `optionalDeps.ts`, which throws, because CI genuinely does have those dependencies and genuinely does not have this corpus):
+
+```bash
+bun run scripts/fetch-corpus.ts      # ~31 files from public repos
+bun run scripts/make-adversarial.ts  # 12 generated edge cases
+bun run build                        # they drive dist/, not the dev server
+bun run test:corpus                  # sets FROG_CORPUS=1 for you
+```
+
+Deliberately **not** part of the default CI run: it needs a production build, a browser, and ~49 MB of downloads. `bun run test` skips all four suites, and says so.
+
+Shared plumbing is in `test/helpers/corpusBrowser.ts` - static server, browser, downloads, and re-opening PDF output with pdf-lib and pdfjs. Add to it rather than starting a fifth copy. Two things it encodes that cost a debugging round each: `.mjs` must be in the server's MIME map (Ghostscript ships `gs.mjs`, and a module script with the wrong type is refused, which looks exactly like a compression failure), and every suite waits for the handler registry rather than a fixed delay.
+
 ### Writing a handler test
 
 Handler tests are **colocated** with the handler under `src/handlers/` (e.g. `src/handlers/myHandler.test.ts`). `test/` is reserved for e2e, fixtures, and shared mocks. Minimal:
