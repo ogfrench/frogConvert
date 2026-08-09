@@ -1,57 +1,61 @@
-# Content Security Policy.
+# Content Security Policy. Enforced.
 #
-# Report-Only is deliberate, and removing it would break the app. Measured by
-# serving this exact policy as enforcing and driving the real surfaces:
+# It shipped Report-Only with no report-uri for most of its life, which enforces
+# nothing and reports nowhere. Making it real took three steps, each measured by
+# serving this exact policy as enforcing and driving Convert, Compress, the PDF
+# Editor and the docs page with real files:
 #
-#   script-src | eval          x4  <- image compression dies here
-#   script-src-elem | inline   x2
-#   script-src-attr | inline   x2
+#   8 violations  starting point; compressing a JPEG never completed at all
+#   -> 6          inline `onload` handlers replaced by /async-css.js
+#   -> 4          inline <script> blocks covered by build-time sha256
+#   -> 0          `unsafe-eval` granted
 #
-# The `eval` is not ours. There is no `eval(` or `new Function(` anywhere in
-# src/; it comes from the Emscripten glue shipped with the WASM engines
-# (ImageMagick, FFmpeg and friends), which build functions from strings at
-# init. `wasm-unsafe-eval` permits compiling WebAssembly but not that, so an
-# enforcing policy leaves a compression run hanging forever rather than failing
-# visibly. Enforcing it would need `unsafe-eval`, which gives away most of what
-# the policy is for.
+# ## Why `unsafe-eval` is here
 #
-# So this documents an intent the app does not yet meet, and a strict policy is
-# not reachable while these engines ship. Do not flip it to
-# `Content-Security-Policy` expecting it to hold as written.
+# Four violations were `eval`, from three ordinary JS libraries - ts-flp,
+# font and turbowarp - not from the WASM engines. `wasm-unsafe-eval` permits
+# compiling WebAssembly but not building functions from strings, which those
+# libraries do at init.
 #
-# There is still a worthwhile version, if anyone wants it. Note the ordering
-# trap: this policy grants no `unsafe-inline` either, so fixing the eval alone
-# would not be enough. Both have to go together.
+# Refusing it would have meant dropping those handlers. Granting it costs the
+# defence against injected code that evaluates strings; this app has no server,
+# no accounts, no cookies and no session to steal, so that is a small loss.
+# What it buys is `connect-src 'self'` **actually enforced** - the browser now
+# refuses to send anything anywhere but this origin, which is the mechanical
+# backing for "your files never leave your device", plus real object-src,
+# frame-ancestors and base-uri. Four enforced directives beat five imaginary
+# ones.
 #
-#   DONE - inline event handlers. The two `script-src-attr` violations were the
-#   async-CSS `onload="this.onload=null;this.rel='stylesheet'"` attributes the
-#   build injected. They now carry `data-async-css` and are flipped by
-#   /async-css.js. 8 violations -> 6.
+# ## The hashes
 #
-#   DONE - inline scripts. The `script-src_elem` pair is covered by the
-#   `__CSP_SCRIPT_HASHES__` placeholder below, which the `csp-hashes` plugin in
-#   vite.config.js replaces at build time with a sha256 per inline script,
-#   computed from the final files in dist/ so a hash can never disagree with the
-#   bytes that ship. Moving those blocks to files was considered and rejected:
-#   the first sets `.dark` before the first paint, so an external script adds a
-#   round trip and can reintroduce the white flash it exists to prevent.
-#   6 violations -> 4.
+# `__CSP_SCRIPT_HASHES__` is replaced at build time by the `csp-hashes` plugin
+# in vite.config.js, with one sha256 per inline script, computed from the final
+# files in dist/. Two consequences worth knowing:
 #
-#   REMAINING - one decision. All four survivors are `eval`. Enforcing needs
-#   `unsafe-eval` added, or those three libraries dropped or replaced.
+#   - Editing an inline <script> changes its hash. The build handles that; do
+#     not hand-write one.
+#   - A wrong hash does not fail loudly. It looks correct and blocks the script.
+#     This bit once already: the placeholder is also named in this comment, and
+#     a plain string replace took the *first* match, rewriting the prose and
+#     leaving the header untouched while the build reported success. The plugin
+#     now substitutes on the policy line only and errors unless it matches
+#     exactly once.
 #
-# The eval is three ordinary JS libraries rather than the WASM engines:
-# flptojson (ts-flp), font, and turbowarp. Measured at
-# assets/flptojson-*.js, assets/font-*.js and assets/turbowarp-*.js.
+# Moving those blocks to files was considered and rejected: the first sets
+# `.dark` before the first paint, so an external script adds a round trip and
+# can reintroduce the white flash it exists to prevent. Nonces are the other
+# option and need per-request server generation, which a static host does not do.
 #
-# That trades an accurate description for actual enforcement of the four
-# directives that can hold - connect-src, object-src, frame-ancestors and
-# base-uri - none of which enforce anything today.
+# ## connect-src
 #
-# `connect-src 'self'` is exact and worth keeping exact: nothing in the shipped
-# bundle contacts any external host, which is what makes "your files never
-# leave your device" checkable rather than a promise. It previously allowed
-# https://cdn.sheetjs.com, which nothing ever called - xlsx is bundled at
-# install time - so the allowance was granting reach the app does not use.
+# Kept exactly `'self'`. It previously allowed https://cdn.sheetjs.com, which
+# nothing in the shipped bundle ever called - xlsx is bundled at install time -
+# so the allowance was granting reach the app does not use.
+#
+# ## If you change this
+#
+# A CSP failure here hangs rather than errors: the original measurement had a
+# JPEG compression sitting forever with no message. Re-run the enforcing
+# measurement across all three surfaces before trusting an edit.
 /*
-  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' __CSP_SCRIPT_HASHES__; worker-src 'self' blob:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' __CSP_SCRIPT_HASHES__; worker-src 'self' blob:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'

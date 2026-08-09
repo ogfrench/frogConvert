@@ -296,12 +296,25 @@ export default defineConfig({
         walk(outDir);
 
         const list = [...hashes].join(' ');
-        const before = fs.readFileSync(headers, 'utf8');
-        if (!before.includes('__CSP_SCRIPT_HASHES__')) {
-          this.warn('csp-hashes: no __CSP_SCRIPT_HASHES__ placeholder in _headers; leaving it alone');
+        // Substitute on the policy line only. The comment block above it names
+        // the placeholder too, and a plain string replace takes the *first*
+        // occurrence - which silently rewrote the prose and left the real
+        // header untouched, so every inline script was blocked while the build
+        // log cheerfully reported success.
+        let substituted = 0;
+        const out = fs.readFileSync(headers, 'utf8').split('\n').map((line) => {
+          if (line.trimStart().startsWith('#')) return line;
+          if (!/Content-Security-Policy/.test(line)) return line;
+          if (!line.includes('__CSP_SCRIPT_HASHES__')) return line;
+          substituted++;
+          return line.replace('__CSP_SCRIPT_HASHES__', list);
+        }).join('\n');
+
+        if (substituted !== 1) {
+          this.error(`csp-hashes: expected exactly one policy line with the placeholder, found ${substituted}`);
           return;
         }
-        fs.writeFileSync(headers, before.replace('__CSP_SCRIPT_HASHES__', list));
+        fs.writeFileSync(headers, out);
         this.info(`csp-hashes: wrote ${hashes.size} inline-script hash(es)`);
       }
     },

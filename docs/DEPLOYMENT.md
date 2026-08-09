@@ -127,6 +127,17 @@ The web build emits a service worker (`sw.js`) and a Web App Manifest (`manifest
 
 If you're self-hosting behind a different reverse proxy or CDN, mirror these. The desktop (Electron) build skips the SW entirely (`!isDesktopBuild` gate in `vite.config.js`) so packaged binaries are unaffected.
 
+## Content Security Policy
+
+`public/_headers` carries an **enforced** CSP. It is worth understanding before you self-host, because a CSP failure in this app **hangs rather than errors** - the original measurement had a JPEG compression sitting forever with no message on screen.
+
+Two things are not obvious:
+
+- **`script-src` includes per-script sha256 hashes**, substituted at build time by the `csp-hashes` plugin in `vite.config.js` in place of a `__CSP_SCRIPT_HASHES__` placeholder. Two inline `<script>` blocks have to stay inline - the first applies `.dark` before the first paint, so making it an external file adds a round trip and reintroduces the white flash it exists to prevent. **Serving `public/_headers` verbatim will not work**; serve the built `dist/_headers`, or the inline scripts are blocked.
+- **`'unsafe-eval'` is granted deliberately.** Three bundled libraries (`ts-flp`, `font`, `turbowarp`) build functions from strings at init, and `'wasm-unsafe-eval'` does not permit that. The trade was made to get `connect-src 'self'` genuinely enforced, which is what mechanically backs the claim that files never leave the device. The reasoning is recorded in full at the top of `public/_headers`.
+
+Verified by serving the built policy as enforcing and driving Convert, Compress, the PDF Editor and this docs site with real files: **zero violations**. If you change the policy or an inline script, re-run that check rather than trusting the build log - a wrong hash looks correct and silently blocks the script it was meant to allow.
+
 ## Environment variables
 
 | Variable | Default | Applies to | Description |
