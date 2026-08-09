@@ -1,2 +1,28 @@
+# Content Security Policy.
+#
+# Report-Only is deliberate, and removing it would break the app. Measured by
+# serving this exact policy as enforcing and driving the real surfaces:
+#
+#   script-src | eval          x4  <- image compression dies here
+#   script-src-elem | inline   x2
+#   script-src-attr | inline   x2
+#
+# The `eval` is not ours. There is no `eval(` or `new Function(` anywhere in
+# src/; it comes from the Emscripten glue shipped with the WASM engines
+# (ImageMagick, FFmpeg and friends), which build functions from strings at
+# init. `wasm-unsafe-eval` permits compiling WebAssembly but not that, so an
+# enforcing policy leaves a compression run hanging forever rather than failing
+# visibly. Enforcing it would need `unsafe-eval`, which gives away most of what
+# the policy is for.
+#
+# So this documents an intent the app does not yet meet. Do not flip it to
+# `Content-Security-Policy` without re-running that measurement. Tracked with
+# the full findings in the repo issues.
+#
+# `connect-src 'self'` is exact and worth keeping exact: nothing in the shipped
+# bundle contacts any external host, which is what makes "your files never
+# leave your device" checkable rather than a promise. It previously allowed
+# https://cdn.sheetjs.com, which nothing ever called - xlsx is bundled at
+# install time - so the allowance was granting reach the app does not use.
 /*
-  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https://cdn.sheetjs.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
