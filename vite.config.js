@@ -231,11 +231,19 @@ export default defineConfig({
           if (filename.includes('/docs/') || filename.includes('/headless/')) return html;
           // Convert render-blocking <link rel="stylesheet"> for built assets to async pattern.
           // The FOUC prevention script polls for --background via rAF, so async CSS is safe.
-          return html.replace(
+          // The flip to rel="stylesheet" is done by /async-css.js rather than an
+          // inline `onload` attribute. An inline handler cannot be allowed by any
+          // CSP without `unsafe-inline`, and it accounted for two of the eight
+          // violations measured when the shipped policy was tested as enforcing.
+          const out = html.replace(
             /<link rel="stylesheet" crossorigin href="(\/assets\/[^"]+\.css)">/g,
-            '<link rel="preload" href="$1" as="style" onload="this.onload=null;this.rel=\'stylesheet\'">' +
+            '<link rel="preload" href="$1" as="style" data-async-css>' +
             '<noscript><link rel="stylesheet" href="$1"></noscript>'
           );
+          // Only pay for the script on pages that actually got a preload.
+          return out.includes('data-async-css')
+            ? out.replace('</head>', '  <script src="/async-css.js" defer></script>\n</head>')
+            : out;
         }
       }
     },

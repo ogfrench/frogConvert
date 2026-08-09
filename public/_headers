@@ -15,9 +15,35 @@
 # visibly. Enforcing it would need `unsafe-eval`, which gives away most of what
 # the policy is for.
 #
-# So this documents an intent the app does not yet meet. Do not flip it to
-# `Content-Security-Policy` without re-running that measurement. Tracked with
-# the full findings in the repo issues.
+# So this documents an intent the app does not yet meet, and a strict policy is
+# not reachable while these engines ship. Do not flip it to
+# `Content-Security-Policy` expecting it to hold as written.
+#
+# There is still a worthwhile version, if anyone wants it. Note the ordering
+# trap: this policy grants no `unsafe-inline` either, so fixing the eval alone
+# would not be enough. Both have to go together.
+#
+#   DONE. The two `script-src-attr` violations were the async-CSS
+#   `onload="this.onload=null;this.rel='stylesheet'"` attributes the build
+#   injected. They now carry `data-async-css` and are flipped by
+#   /async-css.js, and the measurement dropped from 8 violations to 6.
+#
+#   1. The two remaining `script-src-elem` violations are the inline <script>
+#      blocks in index.html (~line 7 and ~416) and the one in docs/index.html.
+#      **Do not simply move them to files.** The first exists to set `.dark`
+#      before the first paint, so an external script adds a round trip and can
+#      reintroduce exactly the white flash it prevents. The right fix is a
+#      build-time sha256 of each block, emitted into this header - nonces need
+#      a server this project does not have.
+#   2. Then enforce with `unsafe-eval` added.
+#
+# The eval is three ordinary JS libraries rather than the WASM engines:
+# flptojson (ts-flp), font, and turbowarp. Measured at
+# assets/flptojson-*.js, assets/font-*.js and assets/turbowarp-*.js.
+#
+# That trades an accurate description for actual enforcement of the four
+# directives that can hold - connect-src, object-src, frame-ancestors and
+# base-uri - none of which enforce anything today.
 #
 # `connect-src 'self'` is exact and worth keeping exact: nothing in the shipped
 # bundle contacts any external host, which is what makes "your files never
