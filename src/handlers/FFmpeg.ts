@@ -606,6 +606,24 @@ class FFmpegHandler implements FormatHandler {
           extension = format;
           mimeType = mime.getType(format) || ("video/" + format);
         }
+
+        // One ffmpeg line can name several containers ("matroska,webm"), and
+        // the details above describe only the first of them. Every alias
+        // therefore inherited the primary's extension, which is wrong by
+        // construction: an alias is a *different* container with a different
+        // extension. Nothing in the app claimed `.webm` for reading, so
+        // findMatchingFormat could not recognise a .webm file on any surface -
+        // Compress answered "can't compress this" for a format the Converter
+        // will happily produce.
+        //
+        // The alias name is the extension in ffmpeg's own convention
+        // (matroska,webm -> .mkv, .webm), so take it. Only the extension is
+        // corrected; the mime is left as the demuxer family reported it, since
+        // that is genuinely shared and the resolver already pairs halves that
+        // disagree about it.
+        if (format !== primaryFormat) {
+          extension = format;
+        }
         mimeType = normalizeMimeType(mimeType);
 
         let category = mimeType.split("/")[0];

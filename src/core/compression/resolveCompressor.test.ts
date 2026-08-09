@@ -166,6 +166,53 @@ describe("handlerSupportsFormat", () => {
             expect(resolved!.mime).toBe("video/mp4");
         });
 
+        /**
+         * WebM is the case where the two halves disagree about their mime, and
+         * matching both on mime silently dropped the readable one.
+         *
+         * ffmpeg's webm *demuxer* is the matroska demuxer, so it enumerates as
+         * `{format: "webm", mime: "video/x-matroska", from: true}` while the
+         * muxer is `{format: "webm", mime: "video/webm", to: true}`. Read from
+         * the live app's `supportedFormatCache`, not invented for this test.
+         *
+         * Measured before the fix: every .webm dropped on Compress came back
+         * "can't compress this", while .mp4 worked - because ffmpeg happens to
+         * file both MP4 halves under `video/mp4`.
+         */
+        it("pairs the halves even when the demuxer carries a different mime", () => {
+            const WEBM_IN = fmt("video/x-matroska", "webm", { to: false });
+            const WEBM_OUT = fmt("video/webm", "webm", { from: false });
+            const ffmpeg = handler("FFmpeg", [WEBM_IN, WEBM_OUT]);
+            window.supportedFormatCache = new Map([["FFmpeg", [WEBM_IN, WEBM_OUT]]]);
+
+            const resolved = handlerSupportsFormat(ffmpeg, WEBM_OUT);
+            expect(resolved).not.toBeNull();
+            expect(resolved!.from).toBe(true);
+            expect(resolved!.to).toBe(true);
+            // Built on the muxer, which is what picks the encoder downstream.
+            expect(resolved!.mime).toBe("video/webm");
+        });
+
+        /**
+         * The same pair, asked about from the other side. A dropped file is
+         * detected as the entry that can *read* it, so a .webm arrives as the
+         * matroska-mimed demuxer and it is the muxer that the mime filter
+         * discards. Fixing only one direction left the surface still refusing
+         * real files, which is how this was caught: the unit test passed and
+         * the built app went on saying "can't compress this".
+         */
+        it("pairs the halves when asked about the demuxer entry", () => {
+            const WEBM_IN = fmt("video/x-matroska", "webm", { to: false });
+            const WEBM_OUT = fmt("video/webm", "webm", { from: false });
+            const ffmpeg = handler("FFmpeg", [WEBM_IN, WEBM_OUT]);
+            window.supportedFormatCache = new Map([["FFmpeg", [WEBM_IN, WEBM_OUT]]]);
+
+            const resolved = handlerSupportsFormat(ffmpeg, WEBM_IN);
+            expect(resolved).not.toBeNull();
+            expect(resolved!.from).toBe(true);
+            expect(resolved!.to).toBe(true);
+        });
+
         it("still refuses a format it can only read", () => {
             const ffmpeg = handler("FFmpeg", [MP4_IN]);
             window.supportedFormatCache = new Map([["FFmpeg", [MP4_IN]]]);

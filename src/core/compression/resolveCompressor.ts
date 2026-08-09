@@ -72,8 +72,21 @@ export function handlerSupportsFormat(handler: FormatHandler, format: FileFormat
     const both = matches.find(f => f.from && f.to);
     if (both) return both;
 
-    const readable = matches.find(f => f.from);
-    const writable = matches.find(f => f.to);
+    // The two halves may be filed under different mimes. FFmpeg's webm
+    // *demuxer* is the matroska demuxer, so it enumerates as
+    // `{format: "webm", mime: "video/x-matroska", from: true}` while the muxer
+    // is `{format: "webm", mime: "video/webm", to: true}`. Matching both halves
+    // on mime therefore discarded one of them, and which one depended on which
+    // entry the file was detected as: Compress answered "can't compress this"
+    // for every .webm, while .mp4 worked only because ffmpeg happens to file
+    // both of its halves under `video/mp4`.
+    //
+    // So the fallback has to be symmetric. The container name is the identity
+    // being matched; the mime is a label the demuxer family brought with it.
+    const readable = matches.find(f => f.from)
+        ?? formats.find(f => f.format === format.format && f.from);
+    const writable = matches.find(f => f.to)
+        ?? formats.find(f => f.format === format.format && f.to);
     if (!readable || !writable) return null;
     // Built on the writable entry on purpose: downstream this object is passed
     // as the *output* format, and that is what picks the encoder and the
