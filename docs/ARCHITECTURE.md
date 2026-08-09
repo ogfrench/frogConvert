@@ -137,7 +137,7 @@ frogConvert ships a second workspace alongside the converter: an in-browser **PD
 
 **App-mode toggle.** [src/main.ts](../src/main.ts) and [src/router.ts](../src/router.ts) maintain an "app mode" state (`converter` vs `pdf`) that swaps which workspace section is visible in [index.html](../index.html). The converter workspace is `#convert-card`; the editor is `#pdf-workspace`.
 
-**Four operations**, each isolated in `src/tools/`:
+**Four operations**, each isolated in `src/tools/`, plus two shared helpers:
 
 | File | Operation | Library |
 |------|-----------|---------|
@@ -145,7 +145,10 @@ frogConvert ships a second workspace alongside the converter: an in-browser **PD
 | [src/tools/pdfOrganize.ts](../src/tools/pdfOrganize.ts) | Reorder, rotate (±90°), insert blank pages | `pdf-lib` |
 | [src/tools/pdfExtract.ts](../src/tools/pdfExtract.ts) | Extract a page range as a new PDF | `pdf-lib` |
 | [src/tools/pdfWatermark.ts](../src/tools/pdfWatermark.ts) | Stamp text watermark across selected pages, single or tiled | `pdf-lib` |
-| [src/tools/pdfThumbnails.ts](../src/tools/pdfThumbnails.ts) | Render page previews (lazy, cached) | `pdfjs-dist` |
+| [src/tools/pdfSource.ts](../src/tools/pdfSource.ts) | *(helper)* Load a source for editing, refusing an encrypted one | `pdf-lib` |
+| [src/tools/pdfThumbnails.ts](../src/tools/pdfThumbnails.ts) | *(helper)* Render page previews (lazy, cached) | `pdfjs-dist` |
+
+**Every operation loads its source through `loadEditablePdf`, not `PDFDocument.load`.** The flag the tools used to pass, `ignoreEncryption: true`, suppresses the error on an encrypted PDF without supplying a password: the document loads, reports a correct page count, and its content streams stay encrypted. Copy those pages into a new document and what lands is a page of the right size with nothing on it. Measured on a merge of a password-protected file with a 4-page document: all 5 pages present, pages 2-5 carrying 3,930 / 3,953 / 3,953 / 2,635 characters, page 1 carrying **zero**, with no error anywhere. Measuring a PDF is a different job and still uses the flag deliberately, since page count reads fine through encryption and `core/compression/pdfIntegrity.ts` needs exactly that to catch the compression side of the same defect.
 
 **Orchestrator.** [src/components/PdfWorkspace/PdfWorkspace.ts](../src/components/PdfWorkspace/PdfWorkspace.ts) owns the editor UI: tab switching (Merge / Organize / Watermark), drag-and-drop reorder via `sortablejs`, rotation accumulation, watermark live-preview, and download wiring.
 
