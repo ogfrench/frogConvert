@@ -97,7 +97,26 @@ frogConvert uses a pre-computed format cache (`public/cache.json`) to skip calli
 
 - After adding, removing, or renaming a handler.
 - After changing a handler's `supportedFormats`.
-- After a production build: `bun run build && bun run cache:build`.
+
+**Use `bun run cache:refresh`, not `cache:build`.** The two write to different
+places and only one of them lasts:
+
+| Script | Writes to | Survives? |
+|---|---|---|
+| `cache:refresh` | `public/cache.json` | **Yes** - this is the tracked file that ships |
+| `cache:build` | `dist/cache.json` | No - `dist/` is gitignored, and the next build overwrites it with the copy from `public/` |
+
+`cache:build` exists for `desktop:build`, which packages `dist/` directly and
+never reads `public/`. Reaching for it to refresh the shipped cache is a no-op
+that looks like it worked, which is how the committed cache silently fell three
+handlers behind: through the whole v3 cycle it carried no `Ghostscript`,
+`PdfCanvasCompress` or `imageToPdf` entries at all.
+
+Both need a production build first, since they drive the built site:
+
+```bash
+bun run build && bun run cache:refresh
+```
 
 In dev, the cache is optional; the app falls back to initializing all handlers at startup with a loading screen.
 
@@ -152,7 +171,7 @@ test('myHandler converts X to Y', async () => {
 1. **Fork and branch.** One topic per branch. Branch names are descriptive (`add-webp-handler`, `fix-safari-pdf-fallback`).
 2. **Commit style.** Imperative, specific. Don't bundle unrelated changes.
 3. **Run locally.** `bun run test` must be green. Run `bun run build` once before opening the PR.
-4. **Docs.** If you change a handler, update `public/cache.json` via `bun run cache:build`. If you change user-visible behaviour, touch the relevant doc ([CONVERTER.md](CONVERTER.md), [PDF_EDITOR.md](PDF_EDITOR.md), [INTEGRATIONS.md](INTEGRATIONS.md)) and add a [CHANGELOG.md](../CHANGELOG.md) bullet.
+4. **Docs.** If you change a handler, update `public/cache.json` via `bun run build && bun run cache:refresh` (see [Cache system](#4-cache-system) for why `cache:build` is the wrong one). If you change user-visible behaviour, touch the relevant doc ([CONVERTER.md](CONVERTER.md), [PDF_EDITOR.md](PDF_EDITOR.md), [INTEGRATIONS.md](INTEGRATIONS.md)) and add a [CHANGELOG.md](../CHANGELOG.md) bullet.
 5. **Link-check.** `bun run docs:verify` catches broken cross-links before review.
 
 ---

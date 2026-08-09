@@ -67,7 +67,7 @@ When you first open the page, frogConvert generates the list of supported format
 Automated equivalent:
 
 ```bash
-bun run build && bun run cache:build
+bun run build && bun run cache:refresh
 ```
 
 Regenerate the cache after adding, removing, or renaming a handler, or after changing a handler's `supportedFormats`. Manual capture (open the page, wait for `Built initial format list`, then call `printSupportedFormatCache()`) is supported but rarely needed.

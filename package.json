@@ -30,6 +30,7 @@
     "test:watch": "bun x vitest",
     "cache:build": "bun run scripts/buildCache.js dist/cache.json --minify",
     "cache:build:dev": "bun run scripts/buildCache.js dist/cache.json",
+    "cache:refresh": "bun run scripts/buildCache.js public/cache.json --minify",
     "preview": "bun x vite preview",
     "docker": "bun run docker:build && bun run docker:up",
     "docker:build": "docker compose -f docker/docker-compose.yml -f docker/docker-compose.override.yml build --build-arg VITE_COMMIT_SHA=$(git rev-parse HEAD)",
