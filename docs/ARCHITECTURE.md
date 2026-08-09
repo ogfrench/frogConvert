@@ -380,7 +380,7 @@ Both run 100% locally. The MCP server exposes 7 tools (`list_formats`, `find_con
 
 Two properties are load-bearing rather than cosmetic:
 
-- **The volatile line is `aria-hidden`.** `#popup` is `role="status" aria-live="polite" aria-atomic="true"`, so every write re-announces the whole modal. The elapsed clock ticks once a second and a percentage faster still; announcing those would make a screen reader unusable. The phase line and file name — the parts that carry meaning — stay announced.
+- **The volatile line is `aria-hidden`.** `#popup` is `role="status" aria-live="polite" aria-atomic="true"`, so every write re-announces the whole modal. The elapsed clock ticks once a second and a percentage faster still; announcing those would make a screen reader unusable. The phase line and file name - the parts that carry meaning - stay announced.
 - **Progress callbacks must not be able to break the work.** They run inside the conversion loop, so a label lookup that throws would abort the conversion over a missing word. Treat anything read inside one as optional.
 
 This is also the seam where progress is most easily lost: a surface that forgets to pass `onProgress` down silences every engine at once without any type error, because the parameter is optional at every level. `compressBatch`'s `onEngineProgress` exists for exactly this reason and is covered by tests that fail if the callback stops being forwarded.
