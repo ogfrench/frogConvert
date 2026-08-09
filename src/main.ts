@@ -219,7 +219,7 @@ const MODE_ICONS: Record<AppMode, HTMLElement> = {
 const bgEmojis = {
   converter: ["🖼️", "📝", "🎵", "🎥", "📖", "📊", "🎨", "💻", "📦"],
   "pdf-editor": ["📄", "✂️", "💧", "🔗", "🗂️", "📑", "🔖", "👁️", "📓"],
-  compress: ["🗜️", "📉", "🤏", "📦", "⚡", "🫙", "🎈", "🪄", "🐸"],
+  compress: ["🗜️", "📉", "🤏", "🧳", "🥫", "🫙", "🍃", "🪄", "🧽"],
 };
 const bgEmojiSpans = document.querySelectorAll<HTMLSpanElement>("#bg-visuals .bg-pop span");
 

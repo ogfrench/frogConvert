@@ -686,6 +686,85 @@ describe('sidebar file management', () => {
   });
 });
 
+describe('watermark Reset style', () => {
+  const resetRows = () => [...document.querySelectorAll<HTMLElement>('.ws-wm-reset-row')];
+  const resetBtns = () => [...document.querySelectorAll<HTMLButtonElement>('.ws-wm-reset-row button')];
+
+  it('stays hidden while the style is untouched', () => {
+    __testing.setupForTest('watermark', [sf(1, 2)]);
+    expect(resetRows().length).toBeGreaterThan(0);
+    expect(resetRows().every(r => r.hidden)).toBe(true);
+  });
+
+  it('appears once a style control moves off its default', () => {
+    __testing.setupForTest('watermark', [sf(1, 2)]);
+    const opacity = document.querySelector<HTMLInputElement>('[data-wm="opacity"] .ws-wm-slider')!;
+    opacity.value = '20';
+    opacity.dispatchEvent(new Event('input'));
+
+    expect(resetRows().some(r => !r.hidden)).toBe(true);
+  });
+
+  it('restores every style field, in state and in the inputs', () => {
+    __testing.setWmSettings({
+      fontSize: 24, colorHex: '#ff0000', opacity: 0.9, rotation: 15, repeat: true,
+    });
+    __testing.setupForTest('watermark', [sf(1, 2)]);
+    expect(resetRows().some(r => !r.hidden)).toBe(true);
+
+    resetBtns()[0].click();
+
+    const s = __testing.getWmSettings();
+    expect(s.fontSize).toBe(80);
+    expect(s.colorHex).toBe('#808080');
+    expect(s.opacity).toBe(0.5);
+    expect(s.rotation).toBe(-45);
+    expect(s.repeat).toBe(false);
+
+    // The controls have no reactive binding, so state alone is not enough:
+    // a stale input would silently write the old value back on the next nudge.
+    expect(document.querySelector<HTMLInputElement>('[data-wm="size"] .ws-wm-slider')!.value).toBe('80');
+    expect(document.querySelector<HTMLInputElement>('[data-wm="opacity"] .ws-wm-slider')!.value).toBe('50');
+    expect(document.querySelector<HTMLInputElement>('[data-wm="rotation"] .ws-wm-slider')!.value).toBe('-45');
+    expect(document.querySelector<HTMLInputElement>('.ws-wm-color-hex')!.value).toBe('#808080');
+    expect(document.querySelector<HTMLInputElement>('.ws-wm-repeat-checkbox')!.checked).toBe(false);
+  });
+
+  it('leaves the watermark text alone', () => {
+    __testing.setWmSettings({ text: 'DRAFT COPY', opacity: 0.9 });
+    __testing.setupForTest('watermark', [sf(1, 2)]);
+
+    resetBtns()[0].click();
+
+    expect(__testing.getWmSettings().text).toBe('DRAFT COPY');
+  });
+
+  it('hides itself again, and hands focus on rather than stranding it', () => {
+    __testing.setWmSettings({ rotation: 15 });
+    __testing.setupForTest('watermark', [sf(1, 2)]);
+
+    resetBtns()[0].click();
+
+    expect(resetRows().every(r => r.hidden)).toBe(true);
+    expect(document.activeElement).not.toBe(document.body);
+    expect(document.activeElement?.classList.contains('ws-wm-repeat-checkbox')).toBe(true);
+  });
+
+  it('syncs every mounted panel, not just the one clicked', () => {
+    __testing.setWmSettings({ opacity: 0.9 });
+    __testing.setupForTest('watermark', [sf(1, 2)]);
+    // Open the phone tray so a second copy of the style controls is mounted.
+    document.querySelector<HTMLButtonElement>('.ws-toolbar-icon')!.click();
+    const sliders = () => [...document.querySelectorAll<HTMLInputElement>('[data-wm="opacity"] .ws-wm-slider')];
+    expect(sliders().length).toBeGreaterThan(1);
+
+    resetBtns()[0].click();
+
+    expect(sliders().every(s => s.value === '50')).toBe(true);
+    expect(resetRows().every(r => r.hidden)).toBe(true);
+  });
+});
+
 describe('removing a file from the mobile tray', () => {
   it('leaves the tray open instead of destroying it mid-interaction', () => {
     __testing.setupForTest('watermark', [sf(1, 2), sf(2, 2)]);

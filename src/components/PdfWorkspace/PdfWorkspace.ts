@@ -1261,6 +1261,49 @@ const WM_DEFAULTS: WmSettings = {
   repeat: WATERMARK_DEFAULTS.repeat,
 };
 
+/**
+ * The style half of WmSettings. `text` is deliberately absent: it is the
+ * user's own words, and a reset that wiped it mid-edit would cost more than
+ * it saved.
+ */
+const WM_STYLE_KEYS = ['fontSize', 'colorHex', 'opacity', 'rotation', 'repeat'] as const;
+
+const wmStyleIsDefault = () => WM_STYLE_KEYS.every(k => wmSettings[k] === WM_DEFAULTS[k]);
+
+/**
+ * Push wmSettings back into every mounted style control.
+ *
+ * Queries the document rather than one panel because the desktop sidebar and
+ * the phone tray can both be mounted at once - the same reason the repeat
+ * checkbox already syncs its siblings.
+ */
+function wmSyncStyleInputs() {
+  const set = (selector: string, value: string) =>
+    document.querySelectorAll<HTMLInputElement>(selector).forEach(i => { i.value = value; });
+  // Each slider row carries data-wm; its slider and numeric twin take the same string.
+  set('[data-wm="size"] input', String(wmSettings.fontSize));
+  set('[data-wm="opacity"] input', String(Math.round(wmSettings.opacity * 100)));
+  set('[data-wm="rotation"] input', String(wmSettings.rotation));
+  set('.ws-wm-color-hex, .ws-wm-color-swatch', wmSettings.colorHex);
+  document.querySelectorAll<HTMLInputElement>('.ws-wm-color-hex').forEach(i => {
+    i.classList.remove('ws-input-error');
+    i.removeAttribute('aria-invalid');
+  });
+  document.querySelectorAll<HTMLInputElement>('.ws-wm-repeat-checkbox')
+    .forEach(c => { c.checked = wmSettings.repeat; });
+}
+
+/**
+ * Every style edit does the same three things. Doing them in one place is what
+ * stops a sixth control from forgetting to update the Reset button.
+ */
+function wmStyleChanged() {
+  markDirty('manifest');
+  wmKickVisible();
+  document.querySelectorAll<HTMLElement>('.ws-wm-reset-row')
+    .forEach(row => { row.hidden = wmStyleIsDefault(); });
+}
+
 interface WmPageEntry { fileId: number; pageNum: number; }
 
 let wmSettings: WmSettings = { ...WM_DEFAULTS };
@@ -2023,30 +2066,29 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
   }
 
   styleBody.appendChild(makeWmSlider({
-    label: 'Size',
+    label: 'Size', key: 'size',
     min: 8, max: 256, step: 1, value: wmSettings.fontSize,
     unit: 'pt',
-    onChange: v => { wmSettings.fontSize = v; markDirty('manifest'); wmKickVisible(); },
+    onChange: v => { wmSettings.fontSize = v; wmStyleChanged(); },
   }));
 
   styleBody.appendChild(makeWmColorRow(wmSettings.colorHex, hex => {
     wmSettings.colorHex = hex;
-    markDirty('manifest');
-    wmKickVisible();
+    wmStyleChanged();
   }, colorLblId));
 
   styleBody.appendChild(makeWmSlider({
-    label: 'Opacity',
+    label: 'Opacity', key: 'opacity',
     min: 0, max: 100, step: 1, value: Math.round(wmSettings.opacity * 100),
     unit: '%',
-    onChange: v => { wmSettings.opacity = Math.max(0, Math.min(1, v / 100)); markDirty('manifest'); wmKickVisible(); },
+    onChange: v => { wmSettings.opacity = Math.max(0, Math.min(1, v / 100)); wmStyleChanged(); },
   }));
 
   styleBody.appendChild(makeWmSlider({
-    label: 'Rotation',
+    label: 'Rotation', key: 'rotation',
     min: -90, max: 90, step: 1, value: wmSettings.rotation,
     unit: '°',
-    onChange: v => { wmSettings.rotation = v; markDirty('manifest'); wmKickVisible(); },
+    onChange: v => { wmSettings.rotation = v; wmStyleChanged(); },
   }));
 
   // Repeat toggle, single zero-config switch.
@@ -2061,12 +2103,33 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
     document.querySelectorAll<HTMLInputElement>('.ws-wm-repeat-checkbox').forEach(c => {
       if (c !== repeatChk) c.checked = wmSettings.repeat;
     });
-    markDirty('manifest');
-    wmKickVisible();
+    wmStyleChanged();
   });
   repeatRow.appendChild(repeatChk);
   repeatRow.appendChild(el('span', { textContent: 'Repeat across page' }));
   styleBody.appendChild(repeatRow);
+
+  // Shown only while the style is off-default, so it doubles as the signal
+  // that you *are* off-default - nothing else in the panel gives you one, and
+  // these settings persist across sessions, so "off-default" can be weeks old.
+  const resetRow = el('div', { className: 'ws-sidebar-btn-row ws-wm-reset-row' });
+  const resetBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Reset style' });
+  resetBtn.addEventListener('click', () => {
+    wmSettings.fontSize = WM_DEFAULTS.fontSize;
+    wmSettings.colorHex = WM_DEFAULTS.colorHex;
+    wmSettings.opacity = WM_DEFAULTS.opacity;
+    wmSettings.rotation = WM_DEFAULTS.rotation;
+    wmSettings.repeat = WM_DEFAULTS.repeat;
+    wmSyncStyleInputs();
+    // The row is about to hide itself, which would strand focus on <body>.
+    // Hand it to the control above rather than dumping the user at the top
+    // of the document.
+    repeatChk.focus();
+    wmStyleChanged();
+  });
+  resetRow.appendChild(resetBtn);
+  resetRow.hidden = wmStyleIsDefault();
+  styleBody.appendChild(resetRow);
 
   // ---- Action ----
   const actions = el('div', { className: 'ws-sidebar-bottom ws-wm-actions' });
@@ -2108,6 +2171,8 @@ function rebuildWatermarkPanelDownloadState() {
 
 interface SliderArgs {
   label: string;
+  /** Written to `data-wm` so wmSyncStyleInputs can find this row's two inputs. */
+  key: string;
   min: number; max: number; step: number; value: number;
   unit: string;
   onChange: (v: number) => void;
@@ -2116,6 +2181,7 @@ interface SliderArgs {
 /** Slider + editable numeric input + unit label. Two-way bound. */
 function makeWmSlider(args: SliderArgs): HTMLElement {
   const row = el('div', { className: 'ws-wm-slider-row' });
+  row.dataset.wm = args.key;
   const labelId = `wm-slider-lbl-${++wmPanelSeq}`;
   row.appendChild(el('span', { className: 'ws-wm-row-label', textContent: args.label, id: labelId }));
 

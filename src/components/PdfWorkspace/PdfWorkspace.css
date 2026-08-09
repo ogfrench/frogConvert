@@ -1520,6 +1520,13 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   cursor: pointer;
 }
 
+/* Reset style: only rendered while the style is off-default. The UA sheet's
+   [hidden] { display: none } loses to .ws-sidebar-btn-row's display: flex,
+   so the hidden state needs saying here. */
+.ws-wm-reset-row[hidden] {
+  display: none;
+}
+
 .ws-wm-actions {
   margin-top: var(--space-3);
 }
