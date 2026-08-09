@@ -104,7 +104,7 @@ Note that this only resamples **images**. A PDF that is mostly text won't shrink
 
 - **Safari**: Safari's JS engine has trouble with `pdfjs-dist` rendering for PDF input. A fallback path is in place so the editor still works, but thumbnail generation may be slower than in Chrome or Firefox.
 - **Forms and annotations**: not yet supported. Form-fill, digital signatures, and annotations are out of scope for the current editor; the focus is structural edits (merge, reorder, rotate, extract).
-- **Encrypted PDFs**: password-protected PDFs are not supported. Remove the password first using another tool.
+- **Encrypted PDFs**: password-protected PDFs are not supported. Merge, Organize, Watermark and Extract each decline one with a message naming the file; remove the password with another tool first. The refusal is explicit on purpose. Until v3.0.0 the editor loaded these files with encryption ignored, which suppresses the error without supplying a password, so the pages copied across structurally intact and completely blank - measured on a merge of a protected file with a 4-page document, the output had all 5 pages and page 1 carried zero characters, with nothing on screen to say so.
 
 ## Privacy
 

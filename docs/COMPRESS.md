@@ -59,6 +59,8 @@ Automatic doesn't apply a fixed tier. It runs three steps per file:
 
 1. **Probe.** Read cheap container metadata - bytes per megapixel for images, bytes per page for PDFs, container bitrate for audio and video - and place the file in a quality band from *uncompressed* down to *minimal*. This measures how densely the file is **already** compressed. It never decodes the whole file, so it costs milliseconds.
 2. **Pick a level from the band.** Raw and high-quality inputs get **Balanced**; a file that is already web-optimised gets **High quality**, since compressing it again trades visible quality for almost nothing; a file in the bottom band is left alone entirely and reported as *already compressed*. Automatic never selects **Smallest file** - that one resizes, and resizing is not something to do to someone who expressed no preference.
+
+   **PDFs are the exception to the bottom band.** A PDF's band is read from bytes per page, which barely relates to what Ghostscript can do: a long document is thin per page however heavy its images are. A 5.1 MB, 100+ page thesis landed in the bottom band and was handed straight back as *already compressed*, while `/printer` took it to 1.8 MB - a 65% saving withheld from the users least likely to go looking for another level, since Automatic is the default. PDFs are therefore always tried. Nothing is risked by that: the keep-threshold discards a result gaining under 2%, so a genuinely minimal PDF still comes back untouched, having been measured rather than predicted.
 3. **Apply the format's rule.** "One band down" is not safe everywhere. PDFs are the standing exception and resolve to a conservative target instead; see [PDF compression, honestly](#pdf-compression-honestly).
 
 This is why two files dropped together can come out at different levels, and why Automatic is the default: it's the right answer when the user has no opinion.
@@ -138,6 +140,15 @@ PDFs use Ghostscript's `pdfwrite` device, mapped from the level:
 - A **scanned** PDF (mostly embedded raster) can drop 70–85%.
 - A **text** PDF is fonts and vector glyphs. There is almost nothing to resample, so it will report *no gain*. That is the feature working correctly, not failing.
 
+### Two PDFs that are refused rather than compressed
+
+Both refusals hand your original back untouched, and both exist because the alternative was silently returning a file that looked fine and was not.
+
+- **A damaged PDF.** Ghostscript treats a corrupt PDF as something to *recover*: handed a truncated file it repairs what it can, exits 0, and writes a valid PDF containing one blank page. The return code, the `%PDF-` header and the keep-threshold all pass that, so it used to be reported as a saving of up to 99.9%. Compression is now rejected unless the output still has every page the input had, and a file that cannot be checked against its original is refused rather than reported as a win.
+- **A password-protected PDF.** Ghostscript has no password, so it reads the page tree, fails to decrypt the content streams, and writes out that many *empty* pages. The page count matches exactly, which is why the page-count guard could not see it. Measured on a real one: 12,783 bytes and a page of text came back as 2,188 bytes, one blank page, zero extractable text, announced as an 83% saving. An encrypted PDF is now declined outright, and your file stays encrypted.
+
+The same applies in the **PDF Editor**: Merge, Organize, Watermark and Extract all decline a password-protected source rather than copying blank pages out of it. Decrypt the file first and every tool works normally.
+
 ### Why Automatic picks High quality for PDFs
 
 For every other format, a lower preset means a smaller file. **PDFs do not behave that way**, so Automatic does not step them down the ladder - it targets `/printer` regardless of the probed band.
@@ -195,7 +206,7 @@ The three settings are **independent and separately persisted**. "How much quali
 Two defaults are worth explaining:
 
 - **The PDF Editor defaults to Original quality** because merging, organizing and watermarking are *edits, not exports*: you expect the same document back. Pick any other level and the finished PDF is run through the same Ghostscript engine, with the same 98% keep-threshold, on its way to the download. If that step fails for any reason it is skipped and you get your uncompressed result - losing a completed merge to an optional compression would be a much worse outcome than a large file.
-- **The PDF Editor offers no Automatic.** Automatic means "read the file and decide", which is a good answer for a file handed over to be shrunk and a surprising one for a file handed over to be edited.
+- **The PDF Editor does offer Automatic, but does not default to it.** Automatic means "read the file and decide", which is a good answer for a file handed over to be shrunk and a surprising default for a file handed over to be edited. It is offered because someone who has just merged forty scans has a real reason to want it; it is not the default because most edits are expected back unchanged.
 
 The engine is fetched ahead of time whenever a PDF becomes likely - a PDF dropped on Compress, PDF chosen as a conversion target, or a PDF-editor level set to anything but Original quality. It's a `<link rel="prefetch">`, so the browser downloads it at idle priority into the HTTP cache and can abandon it under memory pressure; nothing is wasted if you don't follow through.
 

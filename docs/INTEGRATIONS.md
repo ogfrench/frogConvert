@@ -323,7 +323,9 @@ A PDF sent to `POST /compress` or `compress_file` is compressed through Ghostscr
 
 There is no `lossless` here - see the levels note above. `/prepress` is reachable only through a *conversion* that produces a PDF, where the parameter is `quality`.
 
-Three things to expect, so a correct result isn't mistaken for a broken one:
+Four things to expect, so a correct result isn't mistaken for a broken one:
+
+- **A password-protected PDF is declined, not compressed.** Ghostscript has no password, so it reads the page tree, fails to decrypt the content streams, and writes that many *empty* pages - with the page count preserved exactly, which is why a page-count check cannot catch it. Measured before this was guarded: 12,783 bytes and a page of text became 2,188 bytes of blank page, reported as an 83% saving. You now get `shrunk: false` and your original bytes back, still encrypted. This matters more for an agent than for a person: a script compressing a folder has nothing on screen to notice the difference.
 
 - **A text or vector PDF barely shrinks, and that is right.** Ghostscript's presets bound *image* resampling; text and vector art are left alone because there is nothing to throw away. Scans and image-heavy decks are where the 30–80% savings live. If the result saves less than 2%, the size-guard returns the original.
 - **The first PDF in a process is slower.** The 16 MB WASM engine is compiled on first use and then reused, so subsequent files in the same process are markedly faster (measured: 718 ms then 248 ms). It is never loaded at startup - a session that touches no PDFs never pays for it.
