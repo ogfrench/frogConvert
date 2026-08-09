@@ -1,0 +1,42 @@
+// knip config. JSONC so this warning can live next to the thing it warns about.
+//
+// DO NOT act on knip's "Remove from ignore" hint for a path under
+// src/handlers/ that is a git submodule. That hint is environment-dependent:
+// a submodule which is not checked out looks like an empty directory, so knip
+// sees nothing to ignore and calls the entry redundant. CI checks submodules
+// out recursively (`submodules: recursive`), where the real tree appears and
+// every file in it is unimported - which fails the enforced `--include files`
+// step.
+//
+// This already happened once: acting on that hint for image-to-txt turned CI
+// red, because the submodule is unreachable from a sandboxed environment and
+// present in CI. Cross-check `.gitmodules` before removing any ignore here.
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/docs/docs.ts",
+    "src/headless/index.ts",
+    "src/workers/conversion.worker.ts",
+    "scripts/*.{ts,js,mjs}"
+  ],
+  "ignore": [
+    "src/handlers/envelope/**",
+    "src/handlers/espeakng.js/**",
+    "src/handlers/gimper/**",
+    "src/handlers/image-to-txt/**",
+    "src/handlers/libopenmpt/**",
+    "src/handlers/qoa-fu/**",
+    "src/handlers/qoi-fu/**",
+    "src/handlers/rpgmvp-decrypter/**",
+    "src/handlers/sppd/**",
+    "src/handlers/terraria-wld-parser/**"
+  ],
+  "ignoreDependencies": [
+    "@jspawn/ghostscript-wasm",
+    "@bokuweb/zstd-wasm",
+    "@ffmpeg/util",
+    "@fontsource-variable/inter",
+    "js-synthesizer",
+    "verovio"
+  ]
+}
