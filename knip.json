@@ -1,9 +1,28 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/docs/docs.ts",
+    "src/headless/index.ts",
+    "src/workers/conversion.worker.ts",
+    "scripts/*.{ts,js,mjs}"
+  ],
   "ignore": [
-    "scripts/ghostscript-smoke.mjs"
+    "src/handlers/envelope/**",
+    "src/handlers/espeakng.js/**",
+    "src/handlers/gimper/**",
+    "src/handlers/qoa-fu/**",
+    "src/handlers/qoi-fu/**",
+    "src/handlers/rpgmvp-decrypter/**",
+    "src/handlers/sppd/**",
+    "src/handlers/terraria-wld-parser/**",
+    "src/handlers/libopenmpt/**"
   ],
   "ignoreDependencies": [
-    "@jspawn/ghostscript-wasm"
+    "@jspawn/ghostscript-wasm",
+    "@bokuweb/zstd-wasm",
+    "@ffmpeg/util",
+    "@fontsource-variable/inter",
+    "js-synthesizer",
+    "verovio"
   ]
 }

@@ -42,7 +42,20 @@ jobs:
       - name: Generate cache
         run: bun run cache:build
 
-      - name: Unused exports & dependencies
+      # Enforced: a file nothing imports is dead weight, and the check is
+      # unambiguous, so this one fails the build. It was advisory for its whole
+      # life, which is how `src/core/index.ts` and `tarCompressed/xz.ts` sat
+      # unreferenced, and how four pieces of dead code accumulated in a single
+      # 1,000-line component without anyone hearing about it.
+      - name: Dead files
+        run: bun x knip --include files
+
+      # Advisory, for now. The remaining categories are real but noisy - 30
+      # unused exports, and dependencies that resolve transitively rather than
+      # being declared. Clearing them means touching package.json and the
+      # lockfile, which is not a thing to do next to a release. Tracked, with
+      # the full list, rather than left invisible.
+      - name: Unused exports & dependencies (advisory)
         run: bun x knip --no-exit-code
 
       - name: Run tests
