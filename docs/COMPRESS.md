@@ -98,11 +98,11 @@ A compression run moves through phases, and the modal names each one rather than
 | `Reading your file...` | The file's bytes are coming off disk. Files are read one at a time, however large the batch, so only one is ever resident. |
 | `Compressing your file...` | The engine is working. This is where the live detail appears. |
 
-Underneath, a live line reports whatever the engine is willing to say — `Encoded 12.4s of 47.0s of media. · 34%`, `Fetching the compressor (52%)`, `Rasterising page 12 of 50 · 24%`. It alternates with `feel free to switch tabs` on a 9-seconds-on, 3-seconds-off rhythm, and gains a `· MM:SS` elapsed clock once a run passes ten seconds, so something is always moving.
+Underneath, a live line reports whatever the engine is willing to say: `Encoded 12.4s of 47.0s of media. · 34%`, `Fetching the compressor (52%)`, `Rasterising page 12 of 50 · 24%`. It alternates with `feel free to switch tabs` on a 9-seconds-on, 3-seconds-off rhythm, and gains a `· MM:SS` elapsed clock once a run passes ten seconds, so something is always moving.
 
 The spinner distinguishes the two kinds of wait: a thin ring while nothing is being processed yet (engine download, file read), the gooey one while an engine is actually working.
 
-**Not every engine reports progress.** Six do — FFmpeg, Ghostscript, comics, pdfCanvasCompress, pdftoimg, pdftotxt — which covers video, PDF and comic archives, the slow cases. Image compression through ImageMagick shows the phase, the file name and the elapsed clock, but no percentage, because the engine does not provide one. The batch position (`Compressing file 2 of 5...`) always works, since it is counted here rather than reported by the engine.
+**Not every engine reports progress.** Six do (FFmpeg, Ghostscript, comics, pdfCanvasCompress, pdftoimg, pdftotxt), which covers video, PDF and comic archives, the slow cases. Image compression through ImageMagick shows the phase, the file name and the elapsed clock, but no percentage, because the engine does not provide one. The batch position (`Compressing file 2 of 5...`) always works, since it is counted here rather than reported by the engine.
 
 The same status line, from the same module (`src/conversion/progressStatus.ts`), is what the Converter and the PDF editor show. A video that reports `Encoded 3.2s of 8.7s` while being converted reports it identically while being compressed.
 
