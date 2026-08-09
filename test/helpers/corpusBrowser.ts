@@ -226,6 +226,41 @@ export async function takeModalDownload(
     return { files: await waitForDownload(dir, 240_000), modalText };
 }
 
+/**
+ * Put files on an input by building them in the page, rather than by handing
+ * Puppeteer a path.
+ *
+ * Needed for exactly one thing, and it is a limitation of the harness rather
+ * than of the app: `uploadFile` sends the path over CDP, and a path containing
+ * an astral-plane character - 🐸 is U+1F438 - fails silently. No file arrives,
+ * no error is raised, and the app correctly says nothing because nothing
+ * happened. Measured: the same document, with the same emoji name, constructed
+ * here instead, is accepted normally ("1 file ready · 24.0 KB").
+ *
+ * Prefer `uploadFile` everywhere else. This skips the real file picker, so it
+ * is a slightly weaker test of the same intake path.
+ */
+async function uploadInPage(page: Page, selector: string, paths: string[]): Promise<void> {
+    const payload = paths.map(p => ({
+        name: path.basename(p),
+        type: path.extname(p).toLowerCase() === ".pdf" ? "application/pdf" : "",
+        b64: fs.readFileSync(p).toString("base64"),
+    }));
+    await page.evaluate((sel, files) => {
+        const dt = new DataTransfer();
+        for (const f of files) {
+            const bin = atob(f.b64);
+            const arr = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+            dt.items.add(new File([arr], f.name, { type: f.type }));
+        }
+        const input = document.querySelector<HTMLInputElement>(sel);
+        if (!input) throw new Error(`no input matching ${sel}`);
+        input.files = dt.files;
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+    }, selector, payload);
+}
+
 /** Click the first visible button with exactly this label. */
 export async function clickByText(page: Page, text: string): Promise<void> {
     const ok = await page.evaluate((t) => {
@@ -261,12 +296,18 @@ export async function runCompress(
     files: string[],
     level: string,
     downloadDir?: string,
+    /** Build the files in the page instead of uploading paths. See uploadInPage. */
+    inPage = false,
 ): Promise<CompressRun> {
     const { page, violations } = await newTrackedPage(browser, downloadDir);
     await page.goto(`${base}/compress`, { waitUntil: "networkidle2", timeout: 90_000 });
     await page.waitForSelector("#compress-file-input", { timeout: 30_000 });
-    const input = await page.$("#compress-file-input");
-    await input!.uploadFile(...files);
+    if (inPage) {
+        await uploadInPage(page, "#compress-file-input", files);
+    } else {
+        const input = await page.$("#compress-file-input");
+        await input!.uploadFile(...files);
+    }
     await page.waitForSelector(".cw-compress", { timeout: 30_000 });
     await page.waitForFunction(
         () => document.querySelector(".cw-compress")?.textContent?.includes("Compress"),

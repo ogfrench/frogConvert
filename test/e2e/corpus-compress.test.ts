@@ -1,6 +1,9 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Browser } from "puppeteer";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 import { corpusFile, hasCorpus, reportCorpusSkips, CORPUS_REASON } from "../helpers/corpus.ts";
 import {
     distBuilt, serveDist, launchBrowser, runCompress, type DistServer,
@@ -23,6 +26,8 @@ import {
  * seam between mocked units.
  */
 
+const LONG_NAME = "long".repeat(50) + ".pdf";
+
 const NEEDED = [
     "pdf/paper.pdf",
     "pdf/large-text.pdf",
@@ -30,9 +35,15 @@ const NEEDED = [
     "image/photo-mobile.jpg",
     "adversarial/truncated.pdf",
     "adversarial/zero.pdf",
+    "adversarial/UPPERCASE.PDF",
+    "adversarial/🐸 emoji ✅ name.pdf",
+    "adversarial/spaces and (parens) [brackets].pdf",
+    `adversarial/${LONG_NAME}`,
+    "av/video.webm",
 ];
 
 const ready = hasCorpus(...NEEDED) && distBuilt();
+const TMP = path.join(os.tmpdir(), "frog-corpus-compress");
 
 describe.skipIf(!ready)(`Compress against the real corpus [${CORPUS_REASON}]`, () => {
     let server: DistServer;
@@ -47,6 +58,7 @@ describe.skipIf(!ready)(`Compress against the real corpus [${CORPUS_REASON}]`, (
     afterAll(async () => {
         try { await browser?.close(); } catch { /* slow teardown */ }
         await server?.close();
+        fs.rmSync(TMP, { recursive: true, force: true });
         reportCorpusSkips();
     }, 60_000);
 
@@ -91,6 +103,71 @@ describe.skipIf(!ready)(`Compress against the real corpus [${CORPUS_REASON}]`, (
         const img = r.row("photo-mobile.jpg")!;
         expect(img.shrunk).toBe(true);
         expect(parseInt(img.pct.replace(/\D/g, ""), 10)).toBeGreaterThan(50);
+    }, 900_000);
+
+    it("recognises a .webm as input and compresses it", async () => {
+        // The bug this replaces was not in any engine: ffmpeg enumerates the
+        // matroska demuxer as "matroska,webm", the app asked about only the
+        // first name, and the shipped format cache inherited `.mkv` for the
+        // webm entry. Nothing claimed `.webm` for reading, so `findMatchingFormat`
+        // refused every WebM before an engine was consulted. `formatCache.test.ts`
+        // guards the artifact; this guards the journey, which is what the user
+        // actually reported.
+        const r = await run([corpusFile("av/video.webm")!], "auto");
+        const clip = r.row("video.webm");
+        expect(clip, "a .webm was not recognised as input at all").toBeDefined();
+        expect(clip!.note).not.toMatch(/can't compress|not supported/i);
+        expect(clip!.shrunk, "measured -34% on this clip").toBe(true);
+    }, 900_000);
+
+    it("never returns a larger file, at any level", async () => {
+        // The promise is absolute and stated that way in the docs, so it is
+        // worth one test that actually weighs the output rather than reading
+        // the percentage the app printed. A level that inflates is the single
+        // worst outcome this surface has: the user asked for smaller and the
+        // app's own report is the only thing that would tell them otherwise.
+        const source = corpusFile("image/photo-mobile.jpg")!;
+        const input = fs.statSync(source).size;
+
+        for (const level of ["auto", "high", "medium", "low"]) {
+            const dir = path.join(TMP, `never-worse-${level}`);
+            const r = await runCompress(browser, server.base, [source], level, dir);
+            expect(r.download, `${level}: no download offered`).not.toBeNull();
+            const out = r.download!.reduce((n, f) => n + f.size, 0);
+            expect(out, `${level} returned ${out} B for a ${input} B input`)
+                .toBeLessThanOrEqual(input);
+        }
+    }, 900_000);
+
+    it("handles awkward file names without mangling or losing them", async () => {
+        // Four shapes that have each broken a file pipeline somewhere: an
+        // uppercase extension, emoji outside the BMP, shell-significant
+        // punctuation, and a 200-character name. The result rows are keyed by
+        // name, so a mangled one shows up as a missing row rather than as a
+        // wrong string - which is why this asserts presence first.
+        //
+        // Built in the page rather than uploaded by path, because Puppeteer
+        // silently drops a path containing an astral-plane character and the
+        // 🐸 is U+1F438. That cost a round: three of four files arrived, which
+        // looked exactly like the app rejecting one. It does not - the same
+        // document with the same name, constructed in-page, is accepted.
+        const names = [
+            "adversarial/UPPERCASE.PDF",
+            "adversarial/🐸 emoji ✅ name.pdf",
+            "adversarial/spaces and (parens) [brackets].pdf",
+            `adversarial/${LONG_NAME}`,
+        ];
+        const r = await runCompress(
+            browser, server.base, names.map(n => corpusFile(n)!), "auto", undefined, true);
+        violations = r.csp;
+        // Under the 8-row cap, so every file has its own row.
+        expect(r.rows.length).toBe(names.length);
+        for (const n of names) {
+            const base = n.split("/")[1];
+            const found = r.row(base);
+            expect(found, `${base} has no result row`).toBeDefined();
+            expect(found!.note, `${base} was refused`).not.toMatch(/failed/i);
+        }
     }, 900_000);
 
     it("raises no CSP violations, which would hang rather than error", () => {
