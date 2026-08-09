@@ -37,9 +37,28 @@ describe("decideAutoQuality", () => {
         expect(await decideAutoQuality(bytes, "application/pdf")).toEqual({ kind: "compress", tier: "high" });
     });
 
-    it("still leaves a genuinely minimal PDF alone", async () => {
+    /**
+     * The mirror of the tierDown change, and this assertion was wrong too.
+     *
+     * A PDF reaches the `minimal` tier on bytes per page, which for a PDF is
+     * close to meaningless: a long document is thin per page however heavy its
+     * images are. Measured on a 5.1 MB, 100+ page LaTeX thesis, Automatic
+     * reported "already compressed" and saved nothing, while /printer took it
+     * to 1.8 MB. Automatic is the default, so this was withheld from the users
+     * least equipped to go looking for another level.
+     *
+     * The keep-threshold still discards a result gaining under 2%, so a truly
+     * minimal PDF comes back untouched either way - by measurement now, not by
+     * a prediction that was reliably wrong.
+     */
+    it("tries a minimal-tier PDF anyway, because bytes-per-page cannot tell", async () => {
         asTier("minimal");
-        expect(await decideAutoQuality(bytes, "application/pdf")).toEqual({ kind: "already-minimal" });
+        expect(await decideAutoQuality(bytes, "application/pdf")).toEqual({ kind: "compress", tier: "high" });
+    });
+
+    it("still leaves a genuinely minimal file of any other type alone", async () => {
+        asTier("minimal");
+        expect(await decideAutoQuality(bytes, "image/jpeg")).toEqual({ kind: "already-minimal" });
     });
 });
 

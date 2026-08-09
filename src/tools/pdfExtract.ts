@@ -1,4 +1,5 @@
 import { PDFDocument } from 'pdf-lib';
+import { loadEditablePdf } from './pdfSource.ts';
 import type { FileData } from '../core/FormatHandler/FormatHandler.ts';
 import { checkpoint } from './cancellation.ts';
 
@@ -20,7 +21,7 @@ export async function extract(
   groupAsOne = false,
   signal?: AbortSignal
 ): Promise<FileData[]> {
-  const source = await PDFDocument.load(bytes, { ignoreEncryption: true });
+  const source = await loadEditablePdf(bytes);
 
   if (groupAsOne) {
     const output = await PDFDocument.create();

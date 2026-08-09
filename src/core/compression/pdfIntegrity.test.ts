@@ -1,11 +1,32 @@
 import { describe, it, expect } from "vitest";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFHexString } from "pdf-lib";
 import { pdfPageCount, assertPdfPagesPreserved } from "./pdfIntegrity.ts";
 
 /** A real PDF with `n` blank pages. */
 async function pdfWithPages(n: number): Promise<Uint8Array> {
     const doc = await PDFDocument.create();
     for (let i = 0; i < n; i++) doc.addPage([612, 792]);
+    return doc.save();
+}
+
+/**
+ * A real PDF carrying a standard-security `/Encrypt` dictionary, which is the
+ * one thing `isEncrypted` consults. Built rather than committed as a binary so
+ * the fixture is readable, and so the test cannot quietly start passing against
+ * a file nobody can inspect.
+ */
+async function encryptedPdfWithPages(n: number): Promise<Uint8Array> {
+    const doc = await PDFDocument.create();
+    for (let i = 0; i < n; i++) doc.addPage([612, 792]);
+    const ctx = doc.context;
+    ctx.trailerInfo.Encrypt = ctx.register(ctx.obj({
+        Filter: "Standard",
+        V: 1,
+        R: 2,
+        O: PDFHexString.of("00".repeat(32)),
+        U: PDFHexString.of("00".repeat(32)),
+        P: -1,
+    }));
     return doc.save();
 }
 
@@ -72,5 +93,43 @@ describe("assertPdfPagesPreserved", () => {
     it("does not reject an output with more pages than the input", async () => {
         await expect(assertPdfPagesPreserved(await pdfWithPages(2), await pdfWithPages(3), "x.pdf"))
             .resolves.toBeUndefined();
+    });
+
+    /**
+     * The blank-page substitution in the one disguise page count cannot see.
+     *
+     * Ghostscript has no password, so on an encrypted document it reads the
+     * page tree, fails to decrypt the content streams, and writes out that many
+     * *empty* pages. Page count is preserved exactly, so every other check here
+     * passes it - and the output is no longer encrypted.
+     *
+     * Measured in the built app on a LibreOffice password-protected file:
+     * 12,783 bytes and one page of text became 2,188 bytes, one blank page,
+     * zero extractable characters and `isEncrypted` false, reported to the user
+     * as an 83% saving and offered for download.
+     */
+    describe("encrypted input", () => {
+        it("is refused even when the page count matches perfectly", async () => {
+            const encrypted = await encryptedPdfWithPages(2);
+            const blankButSameShape = await pdfWithPages(2);
+
+            // The point of the case: page count alone sees nothing wrong here.
+            expect(await pdfPageCount(encrypted)).toBe(2);
+            expect(await pdfPageCount(blankButSameShape)).toBe(2);
+
+            await expect(assertPdfPagesPreserved(encrypted, blankButSameShape, "secret.pdf"))
+                .rejects.toThrow(/password-protected/);
+        });
+
+        it("names the file, and says the original was kept encrypted", async () => {
+            await expect(assertPdfPagesPreserved(
+                await encryptedPdfWithPages(1), await pdfWithPages(1), "payslip.pdf",
+            )).rejects.toThrow(/payslip\.pdf.*still encrypted/s);
+        });
+
+        it("leaves an ordinary unencrypted PDF alone", async () => {
+            await expect(assertPdfPagesPreserved(await pdfWithPages(3), await pdfWithPages(3), "ok.pdf"))
+                .resolves.toBeUndefined();
+        });
     });
 });

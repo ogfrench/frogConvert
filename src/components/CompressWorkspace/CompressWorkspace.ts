@@ -512,8 +512,10 @@ function downloadableCount(): number {
 
 export async function downloadResults() {
   if (!results.length) return;
+  // Every entry `downloadable()` returns is `shrunk` by definition, so the
+  // name is always the compressed one.
   const out = downloadable()
-    .map(r => ({ name: r.shrunk ? compressedName(r.name) : r.name, bytes: r.bytes }));
+    .map(r => ({ name: compressedName(r.name), bytes: r.bytes }));
   if (!out.length) {
     showToast("Nothing to download. None of these files changed.", "warn", 6000);
     return;
@@ -651,24 +653,6 @@ function openLevelPopup(): void {
   // Land focus on the current choice so a keyboard or screen-reader user
   // arrives at where they are, not at the top of an unlabelled list.
   wrap.querySelector<HTMLElement>('[aria-checked="true"]')?.focus();
-}
-
-/**
- * The download control, or nothing at all.
- *
- * With no downloadable results there is nothing to offer: every file either
- * came back unchanged or was never opened, and both are already on disk exactly
- * as they are here. Offering "Download 0 files" is worse than offering nothing -
- * it is a button whose only outcome is a toast explaining why it did nothing.
- * Stopping a batch before the first file finishes is the ordinary way to reach
- * this, so it is not a rare state.
- */
-function downloadButtonMarkup(): string {
-  const n = downloadableCount();
-  if (n === 0) return "";
-  return `<button class="cw-download btn-primary" type="button">${
-    n === 1 ? "Download" : `Download ${n} files (.zip)`
-  }</button>`;
 }
 
 function resultsMarkup(): string {
@@ -943,17 +927,14 @@ function wireRendered() {
     ?.addEventListener("click", () => openLevelPopup());
 
   rootEl.querySelector<HTMLElement>(".cw-compress")?.addEventListener("click", () => { void runCompression(); });
-  // The same celebration the Converter puts on its success popup. Compress
-  // keeps its numbers in the card rather than a modal - the per-file table and
-  // "try another level" are the point, and a popup would cover them - so the
-  // frog comes to the card instead of the card moving into a popup.
-  const frogSlot = rootEl.querySelector<HTMLElement>(".cw-results-frog");
-  if (frogSlot && !frogSlot.firstChild) frogSlot.appendChild(createDancingFrog());
-
-  rootEl.querySelector<HTMLElement>(".cw-download")?.addEventListener("click", () => { void downloadResults(); });
-  rootEl.querySelector<HTMLElement>(".cw-back")?.addEventListener("click", backToFiles);
-  // Stop lives on the progress modal now (ensureCancelButton), which also
-  // binds Escape to it, so there is no cancel control to wire here.
+  // Nothing to wire for the finished batch: results moved into the shared
+  // modal (showResultsModal), which builds its own Download and Done through
+  // createPopupButton and brings its own celebration. The card no longer
+  // renders .cw-download, .cw-back or .cw-results-frog, so the handlers that
+  // used to sit here bound to nothing.
+  //
+  // Stop lives on the progress modal too (ensureCancelButton), which also
+  // binds Escape to it.
 }
 
 // --- Lifecycle (mirrors PdfWorkspace) ---

@@ -40,8 +40,26 @@ describe("tierDown", () => {
             }
         });
 
-        it("still skips a genuinely minimal PDF rather than promoting it to high", () => {
-            expect(tierDown("minimal", PDF)).toEqual({ kind: "skip", reason: "already-minimal" });
+        /**
+         * This used to assert the opposite, and the assertion was wrong.
+         *
+         * A PDF's tier is read from bytes per page, which for a PDF barely
+         * relates to what Ghostscript can do: a long document is thin per page
+         * however heavy its images are. Measured on a 5.1 MB, 100+ page LaTeX
+         * thesis, Automatic reported "already compressed" and saved nothing,
+         * while /printer took it to 1.8 MB - a 65% saving withheld from exactly
+         * the users who expressed no preference, since Automatic is the default.
+         *
+         * Trying is free: KEEP_THRESHOLD discards any result gaining under 2%,
+         * so a genuinely minimal PDF still comes back untouched - it just gets
+         * there by measuring the output rather than predicting it.
+         */
+        it("tries a minimal-tier PDF anyway, because bytes-per-page cannot tell", () => {
+            expect(tierDown("minimal", PDF)).toEqual({ kind: "compress", tier: "high" });
+        });
+
+        it("still skips a genuinely minimal file of any other type", () => {
+            expect(tierDown("minimal", "image/jpeg")).toEqual({ kind: "skip", reason: "already-minimal" });
         });
 
         it("leaves every other mime on the normal ladder", () => {

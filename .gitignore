@@ -26,3 +26,6 @@ coverage/
 __*.mjs
 .verify-tmp/
 .e2e-fixture.pdf
+
+# Empirical corpus: fetched by scripts/fetch-corpus.ts, never committed (large, upstream-owned).
+test/corpus/

@@ -24,14 +24,13 @@ import { PDFDocument } from "pdf-lib";
  * blank-page substitution without touching a single case that works.
  */
 
-/**
- * Pages in a PDF, or `null` when the bytes cannot be read as one.
- *
- * `null` is a real answer rather than an error: the caller has to distinguish
- * "this document has no pages" from "this is not a document I can check", and
- * those lead to different decisions.
- */
-export async function pdfPageCount(bytes: Uint8Array): Promise<number | null> {
+/** What we can learn about a PDF cheaply, or `null` if it is not readable. */
+interface PdfShape {
+    pages: number;
+    encrypted: boolean;
+}
+
+async function readPdfShape(bytes: Uint8Array): Promise<PdfShape | null> {
     try {
         const doc = await PDFDocument.load(bytes, {
             // A file we are only measuring does not need decrypting, and an
@@ -42,10 +41,21 @@ export async function pdfPageCount(bytes: Uint8Array): Promise<number | null> {
             throwOnInvalidObject: false,
             updateMetadata: false,
         });
-        return doc.getPageCount();
+        return { pages: doc.getPageCount(), encrypted: doc.isEncrypted };
     } catch {
         return null;
     }
+}
+
+/**
+ * Pages in a PDF, or `null` when the bytes cannot be read as one.
+ *
+ * `null` is a real answer rather than an error: the caller has to distinguish
+ * "this document has no pages" from "this is not a document I can check", and
+ * those lead to different decisions.
+ */
+export async function pdfPageCount(bytes: Uint8Array): Promise<number | null> {
+    return (await readPdfShape(bytes))?.pages ?? null;
 }
 
 /**
@@ -62,7 +72,7 @@ export async function assertPdfPagesPreserved(
     output: Uint8Array,
     fileName: string,
 ): Promise<void> {
-    const [before, after] = await Promise.all([pdfPageCount(input), pdfPageCount(output)]);
+    const [before, after] = await Promise.all([readPdfShape(input), readPdfShape(output)]);
 
     if (before === null) {
         throw new Error(
@@ -70,13 +80,33 @@ export async function assertPdfPagesPreserved(
             "result couldn't be checked against the original.",
         );
     }
+    // Page count cannot see this one, which is why it gets its own check.
+    //
+    // Ghostscript has no password, so it reads an encrypted document's page
+    // tree, fails to decrypt the content streams, and writes out that many
+    // *empty* pages. The result is a structurally valid, no-longer-encrypted
+    // PDF with exactly the right page count - so `after < before` is false and
+    // every other guard here passes it.
+    //
+    // Measured on a LibreOffice password-protected file: 12,783 bytes and one
+    // page of text became 2,188 bytes, one blank page, `isEncrypted` false and
+    // zero extractable characters, reported to the user as an 83% saving. That
+    // is the blank-page substitution this module exists to stop, wearing the
+    // one disguise page count cannot see through - and it strips the document's
+    // encryption on the way past, which no one asked for.
+    if (before.encrypted) {
+        throw new Error(
+            `Couldn't compress ${fileName}. It's password-protected, so its contents ` +
+            "can't be read - the original was kept, still encrypted.",
+        );
+    }
     if (after === null) {
         throw new Error(`Couldn't compress ${fileName}. The result wasn't a readable PDF.`);
     }
-    if (after < before) {
+    if (after.pages < before.pages) {
         throw new Error(
             `Couldn't compress ${fileName}. The result lost pages ` +
-            `(${before} -> ${after}), so the original was kept.`,
+            `(${before.pages} -> ${after.pages}), so the original was kept.`,
         );
     }
 }

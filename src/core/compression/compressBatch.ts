@@ -249,7 +249,11 @@ export async function compressBatch(
             // Decided from the declared size, before any read: a file this
             // small cannot claw back the 2% the keep-threshold wants.
             if (input.size < MIN_COMPRESSIBLE_BYTES) {
-                passthrough(index, input, "already-minimal");
+                // An empty file is not "already compressed", which is what
+                // `already-minimal` reads as on the surface. There is nothing
+                // in it to compress and nothing we can stand behind, so it
+                // takes the same answer as any other file we could not process.
+                passthrough(index, input, input.size === 0 ? "failed" : "already-minimal");
                 done++;
                 continue;
             }

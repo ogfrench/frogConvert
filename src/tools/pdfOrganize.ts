@@ -1,4 +1,5 @@
 import { PDFDocument, degrees } from 'pdf-lib';
+import { loadEditablePdf } from './pdfSource.ts';
 import type { FileData } from '../core/FormatHandler/FormatHandler.ts';
 import type { CorePageEntry, CoreSourceFile } from './types.ts';
 import { checkpoint } from './cancellation.ts';
@@ -24,7 +25,7 @@ export async function organize(
   for (const sf of sourceFiles) {
     if (!loaded.has(sf.id)) {
       await checkpoint(signal);
-      loaded.set(sf.id, await PDFDocument.load(sf.bytes, { ignoreEncryption: true }));
+      loaded.set(sf.id, await loadEditablePdf(sf.bytes, sf.name));
     }
   }
 

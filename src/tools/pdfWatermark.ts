@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
+import { loadEditablePdf } from './pdfSource.ts';
 import type { FileData } from '../core/FormatHandler/FormatHandler.ts';
 import { checkpoint } from './cancellation.ts';
 import { timestampForFilename } from '../conversion/download.ts';
@@ -369,7 +370,7 @@ export async function watermark(
   signal?: AbortSignal
 ): Promise<FileData> {
   validateOptionsShape(opts);
-  const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+  const doc = await loadEditablePdf(bytes);
   const total = doc.getPageCount();
 
   const pageNums = opts.pageNums && opts.pageNums.length > 0

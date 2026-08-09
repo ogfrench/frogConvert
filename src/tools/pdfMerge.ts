@@ -1,4 +1,5 @@
 import { PDFDocument } from 'pdf-lib';
+import { loadEditablePdf } from './pdfSource.ts';
 import type { FileData } from '../core/FormatHandler/FormatHandler.ts';
 import type { CoreSourceFile } from './types.ts';
 import { checkpoint } from './cancellation.ts';
@@ -12,7 +13,7 @@ export async function merge(files: CoreSourceFile[], signal?: AbortSignal): Prom
 
   for (const file of files) {
     await checkpoint(signal);
-    const source = await PDFDocument.load(file.bytes, { ignoreEncryption: true });
+    const source = await loadEditablePdf(file.bytes, file.name);
     const indices = source.getPageIndices();
     const copied = await output.copyPages(source, indices);
     for (const page of copied) {

@@ -44,7 +44,16 @@ export function tierDown(inputTier: InputTier, mime = ""): TierDownResult {
   // Automatic therefore aims for the reliable win rather than the largest one:
   // 300 dpi still downsamples any real scan, which is where the big savings
   // are, and anyone who wants to push further can pick a level by hand.
-  if (stepped.kind === "compress" && mime === "application/pdf") {
+  //
+  // PDFs also never reach `skip`. The tier is read from bytes per page, which
+  // for a PDF says almost nothing about what Ghostscript can do: a long
+  // document is thin per page whatever its images cost, so a thesis lands in
+  // `minimal` and Automatic used to hand it straight back as "already
+  // compressed". Measured on a 5.1 MB, 100+ page LaTeX thesis: Automatic saved
+  // nothing while every other level shrank it, /printer by 65% to 1.8 MB. The
+  // keep-threshold already discards a result that gains less than 2%, so
+  // trying costs the user nothing and refusing costs them 3.3 MB.
+  if (mime === "application/pdf") {
     return { kind: "compress", tier: "high" };
   }
   return stepped;
