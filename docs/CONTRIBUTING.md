@@ -173,6 +173,8 @@ test('myHandler converts X to Y', async () => {
 3. **Run locally.** `bun run test` must be green. Run `bun run build` once before opening the PR.
 4. **Docs.** If you change a handler, update `public/cache.json` via `bun run build && bun run cache:refresh` (see [Cache system](#4-cache-system) for why `cache:build` is the wrong one). If you change user-visible behaviour, touch the relevant doc ([CONVERTER.md](CONVERTER.md), [PDF_EDITOR.md](PDF_EDITOR.md), [INTEGRATIONS.md](INTEGRATIONS.md)) and add a [CHANGELOG.md](../CHANGELOG.md) bullet.
 5. **Link-check.** `bun run docs:verify` catches broken cross-links before review.
+6. **Declare what you import.** A package that happens to be installed as somebody else's transitive dependency will import fine on your machine and keep working until that somebody bumps a version and drops it. If you `import` it, it belongs in `package.json`, and both `package.json` and `bun.lock` go in the commit - CI runs `bun i --frozen-lockfile` and fails if they disagree.
+7. **Dead-file check.** `bun x knip --include files` is **enforced in CI**: a file nothing imports fails the build. Run the full `bun x knip` too - the other categories are advisory but real. If it flags a file that *is* used, the reference is probably invisible to it (a path inside a string, say), and the fix is to declare it in `knip.jsonc` as an entry rather than to ignore the finding. Read the warning at the top of that file before removing any ignore.
 
 ---
 
