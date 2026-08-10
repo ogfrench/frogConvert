@@ -283,11 +283,11 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
    the host (.ws-page-card / .ws-file-card) plus compound-class
    layout rules where needed.
 
-   `+ zones` — click-to-insert.
-     .ws-page-plus      selection-edge `+` (touch / narrow) — solid filled button
-     .ws-page-insert    between-cards `+` (desktop hover) — transparent dashed
+   `+ zones` - click-to-insert.
+     .ws-page-plus      selection-edge `+` (touch / narrow) - solid filled button
+     .ws-page-insert    between-cards `+` (desktop hover) - transparent dashed
 
-   Drop zones — drag-and-drop targets. Filled dashed.
+   Drop zones - drag-and-drop targets. Filled dashed.
      .ws-dropzone       empty-state hero, all `Drop more PDFs` cards
    ────────────────────────────────────────────────────────────────── */
 
@@ -486,7 +486,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   padding: var(--space-3);
   aspect-ratio: 0.65;
 }
-/* Disable the page/file-card hover lift on the dropzone variant — the
+/* Disable the page/file-card hover lift on the dropzone variant - the
    in-grid drop target is meant to read as a static slot, not a card. */
 .ws-page-card.ws-dropzone:hover,
 .ws-file-card.ws-dropzone:hover {
@@ -706,7 +706,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   z-index: var(--z-elevated);
 }
 
-/* Parent-hover reveals the pill at slightly reduced opacity — present
+/* Parent-hover reveals the pill at slightly reduced opacity - present
    but quiet, signals "this is here" without competing with the cards.
    Direct hover bumps to full opacity. */
 .ws-page-cards:hover .ws-page-insert {
@@ -717,7 +717,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 }
 
 /* In-grid Drop more PDFs cards (Merge / Organize / Watermark) use compact
-   typography — text-xs to match the surrounding card density. The empty-
+   typography - text-xs to match the surrounding card density. The empty-
    state .ws-dropzone (no host card) keeps the larger default at .ws-dropzone
    .upload-text below. */
 .ws-page-card.ws-dropzone .upload-text,
@@ -744,7 +744,7 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   min-height: auto;
 }
 
-/* Hidden insertion target — used as a click-delegation hook for "insert
+/* Hidden insertion target - used as a click-delegation hook for "insert
    at end" via [data-insert-at] attribute, no visible affordance. */
 .ws-page-insert-trailing {
   display: none;
@@ -1146,7 +1146,24 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 }
 
 @media (max-width: 600px) {
-  .ws-file-cards { grid-template-columns: 1fr; }
+  /* Deliberately not `1fr`.
+   *
+   * Collapsing to a single column is the right reflex for cards made of text,
+   * and the wrong one here: the bulk of this card is an aspect-locked page
+   * preview, so one column makes it full-width and the thumbnail grows to
+   * ~260x368 - over half a phone screen for one entry in what is meant to be a
+   * file *list*. On a 360px handset a single merge input filled the viewport
+   * and ran under the sticky action bar.
+   *
+   * Measured with both a US-Letter document and a PDF built from phone
+   * screenshots (1080pt-wide pages): identical 260x368, because the thumb is
+   * locked to A4 and letterboxes with object-fit. The page geometry never
+   * mattered - the column count did.
+   *
+   * auto-fill keeps two up on any normal handset and still degrades to one on
+   * something genuinely tiny, without ever handing a single card the full width.
+   */
+  .ws-file-cards { grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); }
 }
 
 @media (max-width: 400px) {
@@ -1501,6 +1518,13 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
 }
 .ws-wm-repeat-checkbox {
   cursor: pointer;
+}
+
+/* Reset style: only rendered while the style is off-default. The UA sheet's
+   [hidden] { display: none } loses to .ws-sidebar-btn-row's display: flex,
+   so the hidden state needs saying here. */
+.ws-wm-reset-row[hidden] {
+  display: none;
 }
 
 .ws-wm-actions {

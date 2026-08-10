@@ -28,16 +28,37 @@ function tierScale(preset: QualityPreset): number {
 
 const MB = 1_000_000;
 
+/**
+ * Base x264 CRF per preset. Roughly ±3 CRF halves or doubles the bitrate, so
+ * this is the knob that makes the levels mean something.
+ *
+ * Video used to have no such knob: the preset only moved the size thresholds
+ * below, and every video under 75 MB fell past all of them to a hardcoded
+ * CRF 23. That made "Smallest file", "Balanced" and "High quality" produce
+ * byte-identical output for the overwhelming majority of real clips - a
+ * 17 MB screen recording hit the same branch at all three. Images and audio
+ * always scaled their quality by preset (see `planImage`/`planAudio`); this
+ * brings video in line.
+ *
+ * `medium` keeps 23 so the default output is unchanged.
+ */
+function videoCrf(preset: QualityPreset): number {
+  return preset === "low" ? 28 : preset === "high" ? 20 : 23;
+}
+
 export function planVideo(inputBytes: number, preset: QualityPreset): CompressionPlan {
   if (preset === "lossless") return { videoCrf: 0, imgQuality: 100 };
   const s = tierScale(preset);
+  const crf = videoCrf(preset);
+  // The huge-file tier leans two steps harder still: at this size the file is
+  // unusable as-is and a little more loss is the lesser cost.
   if (inputBytes > 1000 * MB / s) {
-    return { videoCrf: 25, videoScaleFilter: "scale=-2:'min(1080,ih)'", videoMaxrate: "6M", imgQuality: 82 };
+    return { videoCrf: crf + 2, videoScaleFilter: "scale=-2:'min(1080,ih)'", videoMaxrate: "6M", imgQuality: 82 };
   }
   if (inputBytes > 150 * MB / s) {
-    return { videoCrf: 23, videoScaleFilter: "scale=-2:'min(1440,ih)'", videoMaxrate: "10M", imgQuality: 82 };
+    return { videoCrf: crf, videoScaleFilter: "scale=-2:'min(1440,ih)'", videoMaxrate: "10M", imgQuality: 82 };
   }
-  return { videoCrf: 23, imgQuality: 82 };
+  return { videoCrf: crf, imgQuality: 82 };
 }
 
 export function planGif(inputBytes: number, preset: QualityPreset): CompressionPlan {
@@ -75,35 +96,94 @@ export type ImageContext = {
   archetype: ImageArchetype;
 };
 
+/**
+ * Long-edge cap per preset, in pixels.
+ *
+ * This is where image compression actually lives, and it used to be missing:
+ * a resize only happened above 30 megapixels, which no phone or camera photo
+ * reaches, so every ordinary picture kept its full dimensions at every level.
+ * Quality alone then had to carry the whole ladder, and it could not - a 12 MP
+ * photo re-encoded at the same size is a modest saving however far the quality
+ * number drops, because the pixel count is the file.
+ *
+ * Halving the long edge quarters the pixels. That is the lever.
+ */
+const PRESET_MAX_EDGE: Record<Exclude<QualityPreset, "lossless">, number | null> = {
+  // 1920 is still a full-screen image on almost any display, and 4032x3024
+  // (a stock phone photo) drops to 1920x1440 - 77% fewer pixels before
+  // quality is even considered.
+  low: 1920,
+  // Comfortably past 1440p, so a retina display still has pixels to spare.
+  medium: 2560,
+  // 4K long edge. This used to be `null` - "High quality means keep what you
+  // have" - and that one null was the whole reason the ladder had a cliff in
+  // it rather than three rungs.
+  //
+  // Measured on a 6000px wallpaper (deep-field.jpg): High quality reported
+  // *nothing to compress*, Balanced took 83% off, Smallest file 93%. The step
+  // from "no" to "most of the file" sat entirely between the first two
+  // settings, because only they resized. Re-encoding an already-compressed
+  // JPEG at q93 and full size reliably produces a *larger* file, which the
+  // 98% keep-threshold then discards - so High quality had no effect that
+  // could ever be seen, on exactly the images where a user most wants a
+  // gentle one.
+  //
+  // With a cap here the rungs are 3840 / 2560 / 1920 against 93 / 80 / 65,
+  // and each is a real, visible step down from the one above it.
+  high: 3840,
+};
+
 export function planImage(ctx: ImageContext): CompressionPlan {
   const { pixelCount, preset, outputLossless, archetype } = ctx;
   if (preset === "lossless") return { imgQuality: 100, imgMaxEdge: null };
 
-  const qBase =
-    archetype === "singleton"      ? 90 :
-    archetype === "document-page"  ? 87 :
-    archetype === "animated-frame" ? 82 :
-    /* video-frame */                78;
+  // Archetype is now an offset rather than the base, so the preset is what
+  // decides the ballpark and the archetype nudges it. A single hand-picked
+  // photo is worth more than one of six hundred video frames, but not so much
+  // more that "Smallest file" on a photo lands where other tools put "high".
+  const archetypeOffset =
+    archetype === "singleton"      ? 0 :
+    archetype === "document-page"  ? -3 :
+    archetype === "animated-frame" ? -8 :
+    /* video-frame */                -12;
+
+  // The band used to be 82 / 90 / 93 - all three inside what every other tool
+  // calls high quality, and only 11 points wide. Squoosh ships at 75 by
+  // default; iLoveIMG and TinyPNG's aggressive presets sit near 65 and resize
+  // as well. A setting labelled "Visible quality loss" has to be able to
+  // deliver some.
+  const byPreset =
+    preset === "low"  ? 65 :
+    preset === "high" ? 93 :
+    /* medium */        80;
 
   const q = outputLossless ? 100
-    : Math.min(95, Math.max(60,
-        preset === "low"  ? qBase - 8 :
-        preset === "high" ? qBase + 3 :
-        qBase));
+    : Math.min(95, Math.max(45, byPreset + archetypeOffset));
 
-  // Video frames respect preset so a 4K source under `high` keeps its detail,
-  // while the web default (`medium`) still clamps to 1080p for ZIP sanity.
+  // Frame dumps carry their own ceiling on top of the preset's: a 4K source
+  // under `high` keeps its detail, everything else clamps for ZIP sanity.
   const hardEdge =
     archetype === "video-frame"
       ? (preset === "high" ? 3840 : 1920)
       : archetype === "animated-frame" ? 1920
       : null;
 
+  // Whichever cap is tighter wins.
+  const presetEdge = PRESET_MAX_EDGE[preset];
+  const edge = hardEdge != null && presetEdge != null
+    ? Math.min(hardEdge, presetEdge)
+    : hardEdge ?? presetEdge;
+
+  // A genuinely enormous source gets clamped harder still, and gives up a
+  // couple more quality points on top.
   const s = tierScale(preset);
   if (pixelCount > 60 * MB / s) {
-    return { imgMaxEdge: Math.min(hardEdge ?? 2800, 2800), imgQuality: Math.max(q - 2, 70) };
+    return {
+      imgMaxEdge: Math.min(edge ?? 2800, 2800),
+      imgQuality: Math.max(q - 2, 45),
+    };
   }
-  return { imgMaxEdge: hardEdge, imgQuality: q };
+  return { imgMaxEdge: edge, imgQuality: q };
 }
 
 /**

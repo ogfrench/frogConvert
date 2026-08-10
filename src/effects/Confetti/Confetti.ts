@@ -1,8 +1,37 @@
 /**
+ * Fire the confetti a beat after a success modal's contents are swapped in.
+ *
+ * The delay lets the results render before anything is thrown over them; the
+ * guard skips the celebration if the user dismissed the popup inside that
+ * beat. All three success paths - Convert, Compress and the PDF Editor - want
+ * exactly this, and each had its own copy.
+ *
+ * **The popup element is captured now and its state read later, deliberately.**
+ * The copies resolved `ui.popupBox` *inside* the timer, which reaches through a
+ * lazy accessor into `document`. A 150ms timer outlives whatever scheduled it,
+ * so under load that read landed after the surrounding environment had been
+ * torn down: a CI run with 1,110 passing tests and nothing failing still went
+ * red on an uncaught `ReferenceError: document is not defined`. Holding the
+ * element means this callback touches no globals at all.
+ */
+export function celebrateOnPopup(popup: Element | null | undefined, delayMs = 150): void {
+    if (!popup) return;
+    setTimeout(() => {
+        if (popup.classList.contains("open")) triggerConfetti();
+    }, delayMs);
+}
+
+/**
  * Lightweight confetti animation - pure JS, no dependencies.
  * Spawns colourful particles over the popup for ~2.5 seconds.
  */
 export function triggerConfetti() {
+    // Every caller reaches this through a timer (see `celebrateOnPopup`), so
+    // it can arrive after the document it was going to draw on has gone -
+    // during a page teardown, or in a test run that ended first. There is
+    // nothing to celebrate on at that point.
+    if (typeof document === "undefined") return;
+
     const canvas = document.createElement("canvas");
     canvas.id = "confetti-canvas";
     // Performance: contain: strict isolates the canvas from layout/paint of the rest of the page.

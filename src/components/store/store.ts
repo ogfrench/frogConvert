@@ -249,6 +249,188 @@ export const formatMode: { value: FormatMode } = {
   })()
 };
 
+/**
+ * Compression: one control, three independent settings.
+ *
+ * Every mode compresses something, so the control appears in all three - but
+ * they mean different things ("how much quality to give up while changing
+ * format" vs "how hard to compress" vs "should editing this PDF also shrink
+ * it"), and an earlier build that shared one value was surprising in use:
+ * dialling Compress up silently changed what your next conversion encoded at.
+ * Each surface owns its own value and its own default.
+ *
+ * Note the inversion throughout: the engine's `low` preset means "low quality
+ * target", i.e. the *most* compression, while `high` compresses least.
+ */
+
+/** The whole vocabulary. Each surface offers an ordered subset. */
+export type QualityLevel = "auto" | "lossless" | "high" | "medium" | "low";
+
+/**
+ * Labels live here once so a level cannot be called "Balanced" in one menu and
+ * "Recommended" in another. Naming follows the quality-forward convention
+ * Acrobat and the OS export dialogs use ("High Quality", "Smallest File Size")
+ * rather than the compression-amount wording of the online PDF tools: it puts
+ * every option on one axis (how good does the output look), and it avoids the
+ * incoherence of listing "No compression" beside "Extreme compression", which
+ * read as opposite ends of two different scales.
+ */
+const QUALITY_LABELS: Record<QualityLevel, string> = {
+  auto: "Automatic",
+  lossless: "Original quality",
+  high: "High quality",
+  medium: "Balanced",
+  low: "Smallest file",
+};
+
+export type QualityChoice<T extends QualityLevel = QualityLevel> =
+  { value: T; label: string; blurb: string };
+
+/** Build a surface's menu: pick the levels it can honour, in order, and say
+ *  what each one means *there*. Labels come from the shared map. */
+function choices<T extends QualityLevel>(
+  order: readonly T[],
+  blurbs: Record<T, string>,
+): ReadonlyArray<QualityChoice<T>> {
+  return order.map(value => ({ value, label: QUALITY_LABELS[value], blurb: blurbs[value] }));
+}
+
+/** Reads a persisted level, falling back to the surface's default when the
+ *  stored value isn't one this surface offers (or storage is unavailable). */
+function persisted<T extends QualityLevel>(
+  key: string,
+  allowed: readonly T[],
+  fallback: T,
+): { value: T } {
+  const saved = safeGetLocalStorage(key);
+  return { value: (allowed as readonly string[]).includes(saved ?? "") ? saved as T : fallback };
+}
+
+function persist(key: string, value: string) {
+  try { localStorage.setItem(key, value); } catch { /* private mode */ }
+}
+
+// --- Converter -------------------------------------------------------------
+// Includes lossless: "convert but don't compress" is a meaningful request when
+// you're changing format.
+
+export type ConvertQuality = QualityLevel;
+
+export const CONVERT_QUALITY_CHOICES = choices(
+  ["lossless", "auto", "high", "medium", "low"] as const,
+  {
+    lossless: "No compression, just the format change",
+    auto: "Reads each file and picks a level",
+    high: "Slightly smaller files",
+    medium: "Recommended for most files",
+    low: "Visible quality loss",
+  },
+);
+
+/**
+ * Original quality: a conversion changes the *format*, and nothing else.
+ *
+ * This used to default to Automatic, which reads each file and steps it down a
+ * tier. That is the right instinct on the Compress surface, where making the
+ * file smaller is the entire request. It is the wrong one here. Somebody who
+ * asks for JPG has asked for JPG - not for a smaller JPG - and Automatic
+ * answers a question they did not put. The cost is not theoretical: below
+ * "high" the plan applies a long-edge cap, so a 4032x3024 photo comes back at
+ * 2560 or 1920 px. Resolution does not come back, the conversion is the only
+ * copy the user keeps, and nothing on screen said it happened.
+ *
+ * So the default matches what each surface is *for*: Convert hands back your
+ * file in a new format, the PDF editor hands back the document you edited, and
+ * Compress - where shrinking is the point - still defaults to Automatic.
+ * Anyone who wants the conversion to shrink says so, and Automatic is one item
+ * away.
+ *
+ * It also keeps the promise cheap. At Original quality no probe reads the
+ * file and no compression engine is fetched, so the common path costs nothing
+ * it does not use.
+ */
+export const CONVERT_QUALITY_DEFAULT: ConvertQuality = "lossless";
+
+export const convertQuality = persisted(
+  "convertQuality", CONVERT_QUALITY_CHOICES.map(c => c.value), CONVERT_QUALITY_DEFAULT);
+
+export function setConvertQuality(next: ConvertQuality) {
+  convertQuality.value = next;
+  persist("convertQuality", next);
+}
+
+// --- Compress surface ------------------------------------------------------
+// No lossless: as a compression level it can only ever mean "do nothing", and
+// the keep-threshold would discard every result.
+
+export type CompressLevel = Exclude<QualityLevel, "lossless">;
+
+export const COMPRESS_LEVEL_CHOICES = choices(
+  ["auto", "high", "medium", "low"] as const,
+  {
+    // Fragments without trailing full stops, matching the Converter's set.
+    // These sat side by side in one menu and were punctuated differently.
+    auto: "Reads each file and picks a level",
+    high: "Smaller, at close to full quality",
+    // Promising the user won't notice is a promise about their eyes and their
+    // file, and this surface cannot make it: the same level is imperceptible
+    // on a photo and obvious on a screenshot of text.
+    medium: "Much smaller, some quality given up",
+    low: "Smallest, with visible quality loss",
+  },
+);
+
+/** Automatic: it's what the app did before compression had a visible control,
+ *  and it's the right answer when the user has no opinion. */
+export const COMPRESS_LEVEL_DEFAULT: CompressLevel = "auto";
+
+export const compressLevel = persisted(
+  "compressLevel", COMPRESS_LEVEL_CHOICES.map(c => c.value), COMPRESS_LEVEL_DEFAULT);
+
+export function setCompressLevel(next: CompressLevel) {
+  compressLevel.value = next;
+  persist("compressLevel", next);
+}
+
+// --- PDF editor ------------------------------------------------------------
+// Merging, organizing and watermarking are edits, not exports: the output is
+// expected to be the same document. So the default is Original quality and the
+// editor touches nothing. Pick any other level and the finished PDF is run
+// through Ghostscript on the way out.
+//
+// Automatic is offered but is *not* the default, which is the whole point.
+// "Read the file and decide" is a good answer for someone who wants a smaller
+// PDF and a surprising one applied silently to an edit, so it is available to
+// anyone who goes looking and never happens to anyone who doesn't. It resolves
+// through the same `decideAutoQuality` the other two surfaces use, including
+// the PDF-specific rule that a lower preset can produce a *larger* file.
+
+export type PdfQuality = QualityLevel;
+
+export const PDF_QUALITY_CHOICES = choices(
+  ["lossless", "auto", "high", "medium", "low"] as const,
+  {
+    // A blurb that opens by repeating its own label ("Balanced. Good for...")
+    // spends the reader's attention saying nothing.
+    lossless: "No compression, your pages untouched",
+    auto: "Reads your PDF and picks a level",
+    high: "Print-quality images",
+    medium: "Good for sharing and email",
+    low: "Visible quality loss on images",
+  },
+);
+
+/** Original quality: an edit hands back the document you edited, untouched. */
+export const PDF_QUALITY_DEFAULT: PdfQuality = "lossless";
+
+export const pdfQuality = persisted(
+  "pdfQuality", PDF_QUALITY_CHOICES.map(c => c.value), PDF_QUALITY_DEFAULT);
+
+export function setPdfQuality(next: PdfQuality) {
+  pdfQuality.value = next;
+  persist("pdfQuality", next);
+}
+
 // Lightweight reactive state: plain { value: T } wrappers shared across components.
 export const currentFiles: { value: File[] } = { value: [] };
 export const onFilesChanged: { value: ((files: File[]) => void) | null } = { value: null };
@@ -401,9 +583,11 @@ export function initTheme() {
       ui.themeToggleButton.innerHTML = dark ? THEME_ICON_SUN : THEME_ICON_MOON;
     }
     if (transition) {
-      setTimeout(() => {
-        document.documentElement.classList.remove("theme-transition");
-      }, 300);
+      // Held rather than re-read: this fires 300ms later, by which point the
+      // document it would reach for may be gone. Same hazard the confetti
+      // timer shipped with - see `celebrateOnPopup`.
+      const root = document.documentElement;
+      setTimeout(() => root.classList.remove("theme-transition"), 300);
     }
   }
 

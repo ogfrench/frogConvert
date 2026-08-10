@@ -64,5 +64,13 @@
 }
 
 @media (any-pointer: coarse) {
-  .cat-tab { padding: var(--space-3) var(--space-4); }
+  /* Padding alone left these at 42px measured - close enough to look right and
+     still under the 44px target Apple and Google both specify. An explicit
+     floor does not depend on the font metrics happening to add up. These are
+     the primary navigation on the PDF editor (Merge / Organize / Watermark)
+     and the format filter on the Converter, so they are worth the two pixels. */
+  .cat-tab {
+    padding: var(--space-3) var(--space-4);
+    min-height: 44px;
+  }
 }

@@ -110,12 +110,12 @@
   align-items: center;
   /* 2px bars on a 6px pitch (2 + 4 gap). 6 x any quarter-step
      devicePixelRatio (1, 1.25, 1.5, ...) has a fractional part of 0 or
-     exactly .5 — its own mirror — so the outer bars always rasterize
+     exactly .5 - its own mirror - so the outer bars always rasterize
      identically and the menu-open X strokes snap symmetrically. The old
      7px pitch put bars on unrelated subpixel phases at 125%/150% OS
      scaling, rendering one bar visibly thinner and drifting the X
      crossing off its middle. Pitch 6 also keeps the glyph wide-format
-     (18x14) like a canonical hamburger — an 8px pitch made it taller
+     (18x14) like a canonical hamburger - an 8px pitch made it taller
      than wide and read as oversized, especially on the 44px mobile
      control. */
   gap: 4px;
@@ -132,7 +132,7 @@
 }
 
 #hamburger-btn span {
-  /* Fixed integer width — a % of the padded content box resolved to a
+  /* Fixed integer width - a % of the padded content box resolved to a
      fractional width at a fractional x, blurring the bar ends. */
   width: 18px;
   height: 2px;
@@ -148,7 +148,7 @@
 /* When the menu opens, converge lines to center and rotate.
    With gap: 4px and height: 2px, the center of the first bar is 6px away
    from the second. scaleX(1.4) stretches each arm from 18px to 25.2px so
-   the rotated X spans ~17.8px — optically matching the 18px-wide
+   the rotated X spans ~17.8px - optically matching the 18px-wide
    hamburger instead of shrinking to 70% of it. */
 #top-controls.menu-open #hamburger-btn span:nth-child(1) {
   transform: translateY(6px) rotate(45deg) scaleX(1.4);
@@ -195,8 +195,12 @@
   background-color: var(--accent);
 }
 
-/* --- Theme Toggle --- */
-#theme-toggle {
+/* --- Square icon controls (theme, app mode, compression) ---
+   One rule rather than three copies: these are the same control in three
+   places, and drifting apart is the only thing separate rules would buy. */
+#theme-toggle,
+#app-mode-toggle,
+#quality-toggle {
   width: var(--control-size);
   height: var(--control-size);
   display: flex;
@@ -212,12 +216,16 @@
   transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
-#theme-toggle:hover {
+#theme-toggle:hover,
+#app-mode-toggle:hover,
+#quality-toggle:hover {
   background-color: var(--accent);
 }
 
-/* Hide filter controls in PDF mode (both desktop and mobile) */
-#top-controls-menu.pdf-mode #mode-toggle {
+/* The format filter is Converter-only - there is no target format to filter
+   anywhere else. The compression control, by contrast, is present in every
+   mode; it rebinds rather than disappearing. */
+#top-controls-menu.not-converter #mode-toggle {
   opacity: 0;
   transform: scale(0.95);
   pointer-events: none;
@@ -228,27 +236,6 @@
 .menu-list-label,
 .menu-divider {
   display: none;
-}
-
-/* App mode toggle, single button, matches theme-toggle */
-#app-mode-toggle {
-  width: var(--control-size);
-  height: var(--control-size);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  line-height: var(--leading-none);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background-color: var(--card);
-  color: var(--foreground);
-  cursor: pointer;
-  transition: background-color var(--transition-fast), border-color var(--transition-fast);
-}
-
-#app-mode-toggle:hover {
-  background-color: var(--accent);
 }
 
 .menu-list-label {
@@ -360,6 +347,24 @@
     transition: opacity var(--transition-normal), visibility var(--transition-normal), transform var(--transition-normal);
     min-width: 240px;
     gap: 12px;
+    /* The menu stacks three pill groups (mode, theme, compression - the last
+       two vertical), which on a short viewport runs past the bottom of the
+       screen. Without a bound it is simply fixed in place and the items below
+       the fold cannot be reached at all. Both dropdown popups inside are
+       display:none at this width, so nothing here is position:absolute and
+       clipping is not a concern. */
+    max-height: calc(100dvh - (var(--space-4) * 2 + var(--control-size) + var(--space-3)) - var(--space-4));
+    overflow-y: auto;
+    /* Don't hand the scroll to the page when the menu hits its end. */
+    overscroll-behavior: contain;
+  }
+
+  /* Older engines without dvh: fall back to vh, which is only wrong by the
+     browser-chrome height and still beats being unreachable. */
+  @supports not (height: 100dvh) {
+    #top-controls-menu {
+      max-height: calc(100vh - (var(--space-4) * 2 + var(--control-size) + var(--space-3)) - var(--space-4));
+    }
   }
 
   #top-controls.menu-open #top-controls-menu {
@@ -380,58 +385,32 @@
     transform: translateY(0);
   }
 
-  #top-controls.menu-open #top-controls-menu>*:nth-child(1) {
-    transition-delay: 0.03s;
-  }
+  /* Staggered reveal, one step per child. This ladder has to reach the end of
+     the menu: a child past its last rung gets no delay at all and so animates
+     in *first*, ahead of everything above it. The trailing `n+16` rung is the
+     safety net - anything added later lands last rather than jumping the
+     queue. Keep the explicit rungs in step with the child count in index.html. */
+  #top-controls.menu-open #top-controls-menu>*:nth-child(1) { transition-delay: 0.03s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(2) { transition-delay: 0.06s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(3) { transition-delay: 0.09s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(4) { transition-delay: 0.12s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(5) { transition-delay: 0.15s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(6) { transition-delay: 0.18s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(7) { transition-delay: 0.21s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(8) { transition-delay: 0.24s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(9) { transition-delay: 0.27s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(10) { transition-delay: 0.30s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(11) { transition-delay: 0.33s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(12) { transition-delay: 0.36s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(13) { transition-delay: 0.39s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(14) { transition-delay: 0.42s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(15) { transition-delay: 0.45s; }
+  #top-controls.menu-open #top-controls-menu>*:nth-child(n+16) { transition-delay: 0.48s; }
 
-  #top-controls.menu-open #top-controls-menu>*:nth-child(2) {
-    transition-delay: 0.06s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(3) {
-    transition-delay: 0.09s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(4) {
-    transition-delay: 0.12s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(5) {
-    transition-delay: 0.15s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(6) {
-    transition-delay: 0.18s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(7) {
-    transition-delay: 0.21s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(8) {
-    transition-delay: 0.24s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(9) {
-    transition-delay: 0.27s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(10) {
-    transition-delay: 0.30s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(11) {
-    transition-delay: 0.33s;
-  }
-
-  #top-controls.menu-open #top-controls-menu>*:nth-child(12) {
-    transition-delay: 0.36s;
-  }
-
-  /* Hide formats section in PDF mode */
-  #top-controls-menu.pdf-mode #formats-divider,
-  #top-controls-menu.pdf-mode #formats-label,
-  #top-controls-menu.pdf-mode #formats-section {
+  /* Formats is Converter-only; Compression stays in every mode. */
+  #top-controls-menu.not-converter #formats-divider,
+  #top-controls-menu.not-converter #formats-label,
+  #top-controls-menu.not-converter #formats-section {
     display: none;
   }
 
@@ -445,4 +424,131 @@
 
 @media (any-pointer: coarse) {
   .pill-option { min-height: var(--space-12); }
+}
+
+/* --- App mode picker (desktop dropdown) ---------------------------------
+   A single icon button can't express three modes: cycling hides where you
+   are going and gives no hint a third mode exists. The button opens a menu
+   instead; the mobile pill group (below 800px) stays the mobile answer. */
+#app-mode-picker,
+#quality-picker,
+#format-mode-picker {
+  position: relative;
+  display: flex;
+}
+
+#app-mode-menu,
+#format-mode-menu,
+#quality-menu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: var(--z-floating);
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--card);
+  box-shadow: var(--shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.15));
+}
+
+/* The quality menu is wider: its rows carry a blurb under the label, and at
+   13rem the longer ones wrapped onto a third line, which is what made the list
+   read as cramped. */
+#app-mode-menu { min-width: 12rem; }
+#quality-menu,
+#format-mode-menu { min-width: 17.5rem; }
+
+#app-mode-menu[hidden],
+#format-mode-menu[hidden],
+#quality-menu[hidden] { display: none; }
+
+.app-mode-item,
+.quality-item {
+  display: flex;
+  width: 100%;
+  padding: var(--space-2-5) var(--space-3);
+  border: none;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+/* Mode rows are icon + label on one line; quality rows stack label over blurb. */
+.app-mode-item {
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.quality-item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  line-height: var(--leading-snug, 1.35);
+}
+
+/* Rows sat flush against each other, so four of them read as one block of
+   text rather than four choices. */
+.quality-item + .quality-item,
+.app-mode-item + .app-mode-item {
+  margin-top: var(--space-0-5, 2px);
+}
+
+.app-mode-item:hover,
+.app-mode-item:focus-visible,
+.quality-item:hover,
+.quality-item:focus-visible {
+  background-color: var(--accent);
+  color: var(--foreground);
+}
+
+.app-mode-item[aria-current="true"],
+/* The active choice is marked three ways - tick, weight, colour - so it never
+   depends on colour alone to be identifiable (WCAG 1.4.1). Weight shifts are
+   easy to miss in a list where every row is short. The tick is generated
+   content rather than markup so it is decoration to a screen reader, which
+   already hears the row's aria-current. */
+.quality-item[aria-current="true"] {
+  color: var(--foreground);
+  font-weight: var(--font-medium);
+}
+
+.quality-item[aria-current="true"] .quality-item-label::after {
+  content: " ✓";
+}
+
+@media only screen and (max-width: 800px) {
+  /* The mobile pill groups replace both pickers entirely down here. */
+  #app-mode-picker,
+  #quality-picker { display: none; }
+}
+
+/* --- Compression picker -------------------------------------------------
+   One control, two backing values: it edits the Converter's encode quality or
+   the Compress surface's level depending on the mode you are in. Same dropdown
+   mechanics as the mode picker, which is why they share the rules above. */
+
+/* Names the axis the options sit on, so "Balanced" and "Smallest file" read as
+   compression settings rather than an unlabelled list of adjectives. */
+.quality-menu-title {
+  margin: 0 0 var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.quality-item-blurb {
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+  font-weight: var(--font-normal, 400);
 }

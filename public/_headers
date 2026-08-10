@@ -1,2 +1,61 @@
+# Content Security Policy. Enforced.
+#
+# It shipped Report-Only with no report-uri for most of its life, which enforces
+# nothing and reports nowhere. Making it real took three steps, each measured by
+# serving this exact policy as enforcing and driving Convert, Compress, the PDF
+# Editor and the docs page with real files:
+#
+#   8 violations  starting point; compressing a JPEG never completed at all
+#   -> 6          inline `onload` handlers replaced by /async-css.js
+#   -> 4          inline <script> blocks covered by build-time sha256
+#   -> 0          `unsafe-eval` granted
+#
+# ## Why `unsafe-eval` is here
+#
+# Four violations were `eval`, from three ordinary JS libraries - ts-flp,
+# font and turbowarp - not from the WASM engines. `wasm-unsafe-eval` permits
+# compiling WebAssembly but not building functions from strings, which those
+# libraries do at init.
+#
+# Refusing it would have meant dropping those handlers. Granting it costs the
+# defence against injected code that evaluates strings; this app has no server,
+# no accounts, no cookies and no session to steal, so that is a small loss.
+# What it buys is `connect-src 'self'` **actually enforced** - the browser now
+# refuses to send anything anywhere but this origin, which is the mechanical
+# backing for "your files never leave your device", plus real object-src,
+# frame-ancestors and base-uri. Four enforced directives beat five imaginary
+# ones.
+#
+# ## The hashes
+#
+# `__CSP_SCRIPT_HASHES__` is replaced at build time by the `csp-hashes` plugin
+# in vite.config.js, with one sha256 per inline script, computed from the final
+# files in dist/. Two consequences worth knowing:
+#
+#   - Editing an inline <script> changes its hash. The build handles that; do
+#     not hand-write one.
+#   - A wrong hash does not fail loudly. It looks correct and blocks the script.
+#     This bit once already: the placeholder is also named in this comment, and
+#     a plain string replace took the *first* match, rewriting the prose and
+#     leaving the header untouched while the build reported success. The plugin
+#     now substitutes on the policy line only and errors unless it matches
+#     exactly once.
+#
+# Moving those blocks to files was considered and rejected: the first sets
+# `.dark` before the first paint, so an external script adds a round trip and
+# can reintroduce the white flash it exists to prevent. Nonces are the other
+# option and need per-request server generation, which a static host does not do.
+#
+# ## connect-src
+#
+# Kept exactly `'self'`. It previously allowed https://cdn.sheetjs.com, which
+# nothing in the shipped bundle ever called - xlsx is bundled at install time -
+# so the allowance was granting reach the app does not use.
+#
+# ## If you change this
+#
+# A CSP failure here hangs rather than errors: the original measurement had a
+# JPEG compression sitting forever with no message. Re-run the enforcing
+# measurement across all three surfaces before trusting an edit.
 /*
-  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https://cdn.sheetjs.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' __CSP_SCRIPT_HASHES__; worker-src 'self' blob:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'

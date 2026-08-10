@@ -1,14 +1,30 @@
 import "./TopBar.css";
+import { registerExclusiveMenu } from "./exclusiveMenus.ts";
 import { ui, formatMode, updateScrollLock, isCategoryVisible, type FormatMode } from "../store/store.ts";
 import { safeLocalStorageSet } from "../utils/index.ts";
 
 
+/** Single source for the labels, so the button, the menu and the aria text
+ *  cannot drift apart the way three separate literals would. */
+export const FORMAT_MODE_LABELS: Record<FormatMode, string> = {
+  core: "Core Formats",
+  plus: "Core+ Formats",
+  all: "All Formats",
+};
+
 export function applyMode(mode: FormatMode) {
   formatMode.value = mode;
-  const label = mode === "core" ? "Core Formats" : mode === "plus" ? "Core+ Formats" : "All Formats";
+  const label = FORMAT_MODE_LABELS[mode];
   const textEl = ui.modeToggleButton.querySelector('#mode-toggle-text');
   if (textEl) textEl.textContent = label;
   else ui.modeToggleButton.textContent = label;
+  ui.modeToggleButton.setAttribute("aria-label", `Format filter: ${label}. Change`);
+  ui.modeToggleButton.title = `Formats offered: ${label}`;
+  // Mark the chosen row wherever the menu exists. Same contract as the
+  // compression menu, so both read identically to assistive tech.
+  for (const item of document.querySelectorAll<HTMLElement>("#format-mode-menu .quality-item")) {
+    item.setAttribute("aria-current", String(item.dataset.value === mode));
+  }
   safeLocalStorageSet("formatMode", mode);
 
   // Show/hide category tabs with animation
@@ -36,12 +52,29 @@ export function initModeToggle(onModeChanged: () => void) {
     });
   }, { passive: true });
 
-  ui.modeToggleButton.addEventListener("click", () => {
-    let nextMode: FormatMode;
-    if (formatMode.value === "core") nextMode = "plus";
-    else if (formatMode.value === "plus") nextMode = "all";
-    else nextMode = "core";
+  // A dropdown, not a three-state cycle. Cycling hid the options entirely:
+  // you could not see what was on offer, could not jump to one, and had to
+  // press twice to go back a step - all to reach a setting that changes what
+  // the whole format list contains.
+  const menu = document.getElementById("format-mode-menu");
 
+  const closeOtherMenus = registerExclusiveMenu(() => {
+    if (menu) setMenuOpen(false);
+  });
+
+  const setMenuOpen = (open: boolean) => {
+    if (!menu) return;
+    if (open) closeOtherMenus();
+    menu.hidden = !open;
+    ui.modeToggleButton.setAttribute("aria-expanded", String(open));
+    if (open) menu.querySelector<HTMLElement>('[aria-current="true"], .quality-item')?.focus();
+  };
+
+  const choose = (nextMode: FormatMode) => {
+    setMenuOpen(false);
+    if (nextMode === formatMode.value) return;
+    // The active category tab may not exist in the mode being moved to; leave
+    // the user on a tab that shows nothing and the page looks broken.
     const activeTab = ui.categoryTabs.querySelector(".cat-tab.active") as HTMLElement | null;
     const activeCat = activeTab?.getAttribute("data-category") || "";
     if (!isCategoryVisible(activeCat, nextMode)) {
@@ -52,6 +85,34 @@ export function initModeToggle(onModeChanged: () => void) {
     }
     applyMode(nextMode);
     onModeChanged();
+  };
+
+  ui.modeToggleButton.addEventListener("click", (e) => {
+    e.stopPropagation();
+    // No menu in the DOM (older markup, or a test harness stub): fall back to
+    // the cycle so the control still does something rather than nothing.
+    if (!menu) {
+      choose(formatMode.value === "core" ? "plus" : formatMode.value === "plus" ? "all" : "core");
+      return;
+    }
+    setMenuOpen(menu.hidden);
+  });
+
+  menu?.addEventListener("click", (e) => {
+    const item = (e.target as HTMLElement).closest<HTMLElement>(".quality-item");
+    if (item?.dataset.value) choose(item.dataset.value as FormatMode);
+  });
+
+  // Escape and click-away, matching what the compression menu does.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !menu || menu.hidden) return;
+    setMenuOpen(false);
+    ui.modeToggleButton.focus();
+  });
+  document.addEventListener("click", (e) => {
+    if (!menu || menu.hidden) return;
+    if ((e.target as HTMLElement).closest("#format-mode-picker")) return;
+    setMenuOpen(false);
   });
 }
 

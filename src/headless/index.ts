@@ -14,6 +14,7 @@
  * in parallel in the background so WASM is compiled before the first conversion.
  */
 
+import { hopQualityArgs } from "../core/compression/hopQuality.ts";
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 import { TraversionGraph } from "../core/TraversionGraph/TraversionGraph.ts";
 import handlers, { loadBackgroundHandlers } from "../handlers/index.ts";
@@ -167,7 +168,6 @@ async function ensureHandlerReady(handler: FormatHandler): Promise<void> {
     const validQuality = quality === "low" || quality === "high" || quality === "lossless"
       ? quality
       : "medium";
-    const hopArgs = ["--quality", validQuality];
 
     const conversionPromise = (async () => {
         for (let i = 1; i < path.length; i++) {
@@ -179,7 +179,8 @@ async function ensureHandlerReady(handler: FormatHandler): Promise<void> {
             // Throws clearly if init fails rather than silently continuing.
             await ensureHandlerReady(stepHandler);
 
-            currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat, hopArgs);
+            currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat,
+                                hopQualityArgs({ target: nextFormat, isLastHop: i === path.length - 1, requested: validQuality }));
         }
 
         const allWarnings = Array.from(new Set(currentFiles.flatMap(f => f.warnings ?? [])));
@@ -195,6 +196,73 @@ async function ensureHandlerReady(handler: FormatHandler): Promise<void> {
     );
 
     return Promise.race([conversionPromise, timeoutPromise]);
+};
+
+/**
+ * Compress a file, in the browser, on behalf of an agent.
+ *
+ * Not a conversion, and deliberately not routed through
+ * `__frogConvertHeadless`: a same-format request resolves to a **zero-hop
+ * path**, so the conversion loop above never executes a step and hands the
+ * input straight back. That is the exact defect `compress_file` was created to
+ * fix, and calling the converter here would reintroduce it one layer down.
+ *
+ * This exists because `ffmpeg.wasm` refuses to run under Node - its Node entry
+ * point throws "ffmpeg.wasm does not support nodejs" on construction - so
+ * video and audio were the one gap in the agent surfaces: honestly reported as
+ * `unsupported`, but only because of where the code was running. The bridge
+ * already ran a real browser for exactly this reason on the conversion side.
+ *
+ * Uses `compressBatch` itself, so the engine choice, the `auto` probe, the 98%
+ * keep-threshold and the per-file reasons are the same ones the web UI and the
+ * native agent path use. Only the *location* differs.
+ */
+(window as any).__frogConvertCompressHeadless = async (
+    fileName: string,
+    base64: string,
+    mimeType: string,
+    extension: string,
+    level: string,
+): Promise<{ fileName: string; base64Bytes: string; originalSize: number; shrunk: boolean; reason?: string; warning?: string }> => {
+    if (!graph) {
+        const initErr = (window as any).__headlessInitError;
+        throw new Error(initErr ? `Headless initialization failed: ${initErr}` : "Headless not yet initialized");
+    }
+
+    let binaryStr: string;
+    try {
+        binaryStr = atob(base64);
+    } catch {
+        throw new Error("Invalid base64 input");
+    }
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+    const [{ compressForAgents }] = await Promise.all([
+        import("../core/compression/compressForAgents.ts"),
+    ]);
+
+    const work = (async () => {
+        // Every handler the page knows about, initialised on demand by
+        // compressBatch through the runner below.
+        const [outcome] = await compressForAgents(
+            [{ name: fileName, bytes, mime: mimeType, extension }],
+            { handlers, level: (level as any) || "auto" },
+        );
+        return {
+            fileName: outcome.name,
+            base64Bytes: uint8ToBase64(outcome.bytes),
+            originalSize: outcome.originalSize,
+            shrunk: outcome.shrunk,
+            ...(outcome.reason ? { reason: outcome.reason } : {}),
+            ...(outcome.warning ? { warning: outcome.warning } : {}),
+        };
+    })();
+
+    const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Headless compression timed out")), HEADLESS_TIMEOUT_MS)
+    );
+    return Promise.race([work, timeoutPromise]);
 };
 
 (window as any).__frogConvertCanConvert = async (

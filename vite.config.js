@@ -1,5 +1,6 @@
 import { resolve, relative } from "path";
 import fs from "fs";
+import { createHash } from "crypto";
 import { defineConfig } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import { VitePWA } from "vite-plugin-pwa";
@@ -231,12 +232,90 @@ export default defineConfig({
           if (filename.includes('/docs/') || filename.includes('/headless/')) return html;
           // Convert render-blocking <link rel="stylesheet"> for built assets to async pattern.
           // The FOUC prevention script polls for --background via rAF, so async CSS is safe.
-          return html.replace(
+          // The flip to rel="stylesheet" is done by /async-css.js rather than an
+          // inline `onload` attribute. An inline handler cannot be allowed by any
+          // CSP without `unsafe-inline`, and it accounted for two of the eight
+          // violations measured when the shipped policy was tested as enforcing.
+          const out = html.replace(
             /<link rel="stylesheet" crossorigin href="(\/assets\/[^"]+\.css)">/g,
-            '<link rel="preload" href="$1" as="style" onload="this.onload=null;this.rel=\'stylesheet\'">' +
+            '<link rel="preload" href="$1" as="style" data-async-css>' +
             '<noscript><link rel="stylesheet" href="$1"></noscript>'
           );
+          // Only pay for the script on pages that actually got a preload.
+          return out.includes('data-async-css')
+            ? out.replace('</head>', '  <script src="/async-css.js" defer></script>\n</head>')
+            : out;
         }
+      }
+    },
+    {
+      /**
+       * Write a sha256 for every inline <script> that ships into the CSP.
+       *
+       * The two inline blocks in index.html cannot simply become files: the
+       * first applies `.dark` before the first paint, so an external script
+       * adds a round trip and can reintroduce the white flash it exists to
+       * prevent. Hashes keep them inline and still let the policy name them.
+       * Nonces are the other option and need per-request server generation,
+       * which a static host does not do.
+       *
+       * Hashes are computed from the FINAL files in dist/ rather than during
+       * transformIndexHtml, because a hash that does not match the shipped
+       * bytes is worse than no hash: it looks correct and blocks the script.
+       */
+      name: 'csp-hashes',
+      apply: 'build',
+      closeBundle() {
+        const outDir = resolve(__dirname, 'dist');
+        const headers = resolve(outDir, '_headers');
+        if (!fs.existsSync(headers)) return;
+
+        const hashes = new Set();
+        const walk = (dir) => {
+          for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = resolve(dir, entry.name);
+            if (entry.isDirectory()) walk(full);
+            else if (entry.name.endsWith('.html')) collect(full);
+          }
+        };
+        const collect = (file) => {
+          const html = fs.readFileSync(file, 'utf8');
+          const re = /<script([^>]*)>([\s\S]*?)<\/script>/g;
+          let m;
+          while ((m = re.exec(html))) {
+            const attrs = m[1];
+            // Only inline, executable scripts are hashable. A `src` script is
+            // covered by 'self'; ld+json is data and is never executed.
+            if (/\bsrc\s*=/.test(attrs)) continue;
+            if (/type\s*=\s*["'](?!module|text\/javascript)/.test(attrs)) continue;
+            const body = m[2];
+            if (!body.trim()) continue;
+            hashes.add(`'sha256-${createHash('sha256').update(body, 'utf8').digest('base64')}'`);
+          }
+        };
+        walk(outDir);
+
+        const list = [...hashes].join(' ');
+        // Substitute on the policy line only. The comment block above it names
+        // the placeholder too, and a plain string replace takes the *first*
+        // occurrence - which silently rewrote the prose and left the real
+        // header untouched, so every inline script was blocked while the build
+        // log cheerfully reported success.
+        let substituted = 0;
+        const out = fs.readFileSync(headers, 'utf8').split('\n').map((line) => {
+          if (line.trimStart().startsWith('#')) return line;
+          if (!/Content-Security-Policy/.test(line)) return line;
+          if (!line.includes('__CSP_SCRIPT_HASHES__')) return line;
+          substituted++;
+          return line.replace('__CSP_SCRIPT_HASHES__', list);
+        }).join('\n');
+
+        if (substituted !== 1) {
+          this.error(`csp-hashes: expected exactly one policy line with the placeholder, found ${substituted}`);
+          return;
+        }
+        fs.writeFileSync(headers, out);
+        this.info(`csp-hashes: wrote ${hashes.size} inline-script hash(es)`);
       }
     },
     {
@@ -300,6 +379,32 @@ export default defineConfig({
         {
           src: "src/handlers/pandoc/pandoc.wasm",
           dest: "wasm"
+        },
+        // Ghostscript ships as a directory, not a single wasm: gs.mjs imports
+        // ./browser.js and ./gs.js by relative path at runtime. Copying the set
+        // verbatim (rather than bundling) keeps those relative imports working
+        // and is the only loading path verified to initialise - see
+        // scripts/ghostscript-smoke.mjs. LICENSE travels with it because
+        // Ghostscript is AGPL-3.0.
+        {
+          src: "node_modules/@jspawn/ghostscript-wasm/gs.mjs",
+          dest: "wasm/gs"
+        },
+        {
+          src: "node_modules/@jspawn/ghostscript-wasm/gs.js",
+          dest: "wasm/gs"
+        },
+        {
+          src: "node_modules/@jspawn/ghostscript-wasm/browser.js",
+          dest: "wasm/gs"
+        },
+        {
+          src: "node_modules/@jspawn/ghostscript-wasm/gs.wasm",
+          dest: "wasm/gs"
+        },
+        {
+          src: "node_modules/@jspawn/ghostscript-wasm/LICENSE",
+          dest: "wasm/gs"
         },
         {
           src: "src/handlers/libopenmpt/libopenmpt.wasm",
@@ -369,7 +474,7 @@ export default defineConfig({
       manifest: {
         name: 'frogConvert - convert files privately in your browser',
         short_name: 'frogConvert',
-        description: 'Convert 70+ file formats and edit PDFs right in your browser. No uploads, no servers, everything stays on your device.',
+        description: 'Convert 70+ file formats, compress images, audio and video, and edit or shrink PDFs, all in your browser. Nothing is uploaded.',
         start_url: '/',
         scope: '/',
         id: '/',

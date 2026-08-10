@@ -1,0 +1,136 @@
+import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
+import { KEEP_THRESHOLD } from "../core/compression/compressBatch.ts";
+import { runInWorker, cancelActiveWorkerJob } from "./workerClient.ts";
+import { decideAutoQuality } from "../core/compression/automatic.ts";
+import type { PdfQuality } from "../components/store/store.ts";
+import type { ProgressEvent } from "../core/FormatHandler/FormatHandler.ts";
+
+/**
+ * Run a finished PDF through Ghostscript on its way out.
+ *
+ * The PDF editor's jobs - merge, organize, watermark, extract - are edits, not
+ * exports, so by default they hand back exactly the document they built. When
+ * the user sets the Compression control to anything but Original quality, the
+ * result goes through the same engine and the same rules the Compress surface
+ * uses, rather than a second, subtly different implementation.
+ *
+ * Two deliberate properties:
+ *
+ *  - **It never throws.** This step is a bonus on top of work the user already
+ *    asked for and already succeeded at. Losing a completed merge because the
+ *    optional compression failed would be a far worse outcome than a larger file,
+ *    so every failure returns the original bytes.
+ *  - **It honours the 98% keep-threshold**, the same one `compressBatch` uses.
+ *    A "compressed" PDF that came back the same size has traded image quality
+ *    for nothing, so the original wins.
+ */
+
+const PDF_FORMAT = CommonFormats.PDF.supported("pdf", true, true);
+
+/**
+ * Set while the user has asked to skip the compression for the current save.
+ *
+ * The edit itself finished before this step began, so cancelling is safe by
+ * construction: abandoning the engine run leaves a completed, uncompressed
+ * document, which is exactly what "Original quality" would have produced. The
+ * flag exists so a multi-file save skips the *remaining* files too rather than
+ * making the user press cancel once per document.
+ */
+let cancelled = false;
+
+/** Called by the surface when the user cancels the compression step. */
+export function cancelPdfOutputCompression(): void {
+    cancelled = true;
+    cancelActiveWorkerJob();
+}
+
+/** Reset before each save. */
+export function resetPdfOutputCompression(): void {
+    cancelled = false;
+}
+
+/** Whether the last batch was cut short, so the surface can say so. */
+export function wasPdfOutputCompressionCancelled(): boolean {
+    return cancelled;
+}
+
+export async function compressPdfOutput(
+    bytes: Uint8Array,
+    level: PdfQuality,
+    name = "document.pdf",
+    /**
+     * Live progress from Ghostscript. It reports both a ratio and, on first
+     * use, a real download percentage for its own ~16 MB engine - and until
+     * this parameter existed the PDF editor threw all of it away and sat behind
+     * a static spinner instead.
+     */
+    onProgress?: (p: ProgressEvent) => void,
+): Promise<Uint8Array> {
+    if (level === "lossless" || cancelled) return bytes;
+
+    // Automatic has to become a real preset before the engine sees it -
+    // "--quality auto" is not something Ghostscript understands. Resolved
+    // through the shared definition rather than a fourth private copy, so the
+    // PDF rule (a lower preset can produce a *larger* file, so aim at the
+    // reliable win) applies here exactly as it does on the Compress surface.
+    let effective: Exclude<PdfQuality, "auto">;
+    if (level !== "auto") {
+        effective = level;
+    } else {
+        try {
+            const decision = await decideAutoQuality(bytes, PDF_FORMAT.mime);
+            // Nothing left to give. Returning the input is the honest answer
+            // and skips an engine pass that could only make it bigger.
+            if (decision.kind === "already-minimal") return bytes;
+            effective = decision.tier;
+        } catch (e) {
+            // The probe is an optimisation, not a gate. If it cannot read the
+            // document, fall back to the preset Automatic aims at for PDFs
+            // rather than abandoning a compression the user asked for.
+            console.warn("[pdf] automatic level probe failed, using high", e);
+            effective = "high";
+        }
+    }
+
+    try {
+        const out = await runInWorker(
+            "Ghostscript",
+            [{ name, bytes }],
+            PDF_FORMAT,
+            PDF_FORMAT,
+            ["--quality", effective],
+            onProgress,
+        );
+        const produced = out?.[0]?.bytes;
+        if (!produced?.byteLength) return bytes;
+        return produced.byteLength < bytes.byteLength * KEEP_THRESHOLD ? produced : bytes;
+    } catch (e) {
+        console.warn("[pdf] optional output compression failed, keeping the original", e);
+        return bytes;
+    }
+}
+
+/** Apply {@link compressPdfOutput} across a batch, in order. */
+export async function compressPdfOutputs(
+    results: readonly { bytes: Uint8Array; name: string }[],
+    level: PdfQuality,
+    /**
+     * Progress for the batch. Receives the engine's own event plus the batch
+     * position, so a multi-document save can say which one it is on rather than
+     * restarting an anonymous percentage for each.
+     */
+    onProgress?: (p: ProgressEvent, index: number, total: number) => void,
+): Promise<{ bytes: Uint8Array; name: string }[]> {
+    if (level === "lossless") return results.map(r => ({ ...r }));
+    const out: { bytes: Uint8Array; name: string }[] = [];
+    for (const [i, r] of results.entries()) {
+        out.push({
+            name: r.name,
+            bytes: await compressPdfOutput(
+                r.bytes, level, r.name,
+                onProgress ? (p) => onProgress(p, i, results.length) : undefined,
+            ),
+        });
+    }
+    return out;
+}

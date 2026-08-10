@@ -66,6 +66,8 @@ export type UserErrorKind =
     | "input_issue"
     | "runtime_failure"
     | "cancelled"
+    /** The engine itself could not be downloaded. Nothing to do with the file. */
+    | "engine_download"
     | "unknown";
 
 export interface UserErrorInfo {
@@ -101,12 +103,60 @@ function cleanErrorText(err: unknown): string {
  * "Error:" prefix; maps a few known error shapes to friendlier copy; and
  * truncates to ~200 chars. Returns "" if nothing meaningful remains.
  */
+/**
+ * Whether the browser is certain there is no network.
+ *
+ * `navigator.onLine === false` is trustworthy: the machine has no usable
+ * interface. `true` is not - it means "there is an interface", which a captive
+ * portal or a dead uplink also satisfies. So this is only ever asked in the
+ * negative direction, to explain a failure that has already happened rather
+ * than to predict one.
+ *
+ * It matters here because the app is offline-first in an unusual way: the
+ * page itself is cached by the service worker, but the converters are not.
+ * They are tens of megabytes of WebAssembly fetched the first time each one is
+ * needed. So "the app opened" and "this conversion can run" are different
+ * questions offline, and a failure that says nothing about the network sends
+ * people looking for a problem with their file.
+ */
+/**
+ * Said when the converter could not be fetched.
+ *
+ * This is not the offline case: the browser has a connection, it just did not
+ * survive a 16 MB download. Diagnosed as "unknown" it produced "didn't
+ * complete this time - try a different target format or another file", which
+ * is advice that cannot possibly work, aimed at a file that was never the
+ * problem. Reported on a real EPS to PDF over a weak connection.
+ */
+export const ENGINE_DOWNLOAD_FAILED_TEXT =
+    "The converter for this format couldn't finish downloading. It's a one-time ~16 MB file and a weak connection will drop it. Your file is fine - try again, ideally on a steadier network.";
+
+export function isOffline(): boolean {
+    return typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
+/** The one sentence said whenever something failed and there is no network. */
+export const OFFLINE_MESSAGE =
+    "You're offline. frogConvert keeps working without a connection, but each converter downloads once the first time you use it, and this one hasn't been downloaded yet. Reconnect and try again.";
+
 export function toUserErrorInfo(err: unknown): UserErrorInfo {
     let text = cleanErrorText(err);
 
     if (!text) return { message: "", kind: "unknown" };
 
-    if (/^cancell?ed\b/i.test(text)) return { message: "Cancelled.", kind: "cancelled" };
+    // The pattern still matches the internal sentinel (`new Error("Cancelled")`
+    // from workerClient), but what the user reads says stop, like everything
+    // else that reports abandoned work. `kind` stays "cancelled" - it is an
+    // identifier, and callers branch on it.
+    if (/^cancell?ed\b/i.test(text)) return { message: "Stopped.", kind: "cancelled" };
+
+    // A download that died, not a file that cannot be read. Checked before the
+    // capability patterns below, because "Couldn't fetch the converter" also
+    // matches the Ghostscript rule and would otherwise be reported as a format
+    // we do not support.
+    if (/failed to fetch|networkerror|network error|load failed|dynamically imported module|couldn'?t fetch the|err_(internet|network|connection)|net::/i.test(text)) {
+        return { message: ENGINE_DOWNLOAD_FAILED_TEXT, kind: "engine_download" };
+    }
     if (/password/i.test(text)) {
         return {
             message: "This file looks password-protected. Remove the password and upload it again.",
@@ -118,7 +168,7 @@ export function toUserErrorInfo(err: unknown): UserErrorInfo {
         // WASM-handler delegate / missing-module errors are capability gaps, not
         // file-content issues. ImageMagick without Ghostscript on EPS/PS, policy
         // denials on PDF, etc. all surface here.
-        || /no\s*decode\s*delegate|no\s*encode\s*delegate|delegate failed|missing delegate|ghostscript|unable to load module|imagemagick is not configured|not authoriz(ed|ation)|policy denies|not allowed by .*polic|security polic/i.test(text)) {
+        || /no\s*decode\s*delegate|no\s*encode\s*delegate|delegate failed|missing delegate|failedtoexecutecommand|ghostscript|unable to load module|imagemagick is not configured|not authoriz(ed|ation)|policy denies|not allowed by .*polic|security polic/i.test(text)) {
         return { message: CONVERSION_NOT_AVAILABLE_TEXT, kind: "not_available" };
     }
     if (/not ready after init|headless not yet initialized|headless initialization failed|browser bridge requires/i.test(text)) {
@@ -154,4 +204,50 @@ export function appendSupportContact(message: string, contactText: string = SUPP
     if (!message) return contactText;
     if (message.includes(SUPPORT_CONTACT_EMAIL)) return message;
     return `${message} ${contactText}`;
+}
+
+/** The id of the always-present live region in `index.html`. */
+const ANNOUNCER_ID = "a11y-announcer";
+
+/**
+ * Say something to a screen reader that the screen does not already say.
+ *
+ * For changes with no visible text to carry them. Removing a file from the PDF
+ * Editor is the case this was built for: the row disappears, the count beside
+ * it is rebuilt from scratch, and a sighted user sees the list get shorter
+ * while a screen reader user gets silence.
+ *
+ * Two things make this less trivial than it looks.
+ *
+ * The region has to **pre-exist the change**. Putting `aria-live` on the count
+ * itself would be dead markup, because that element is recreated on every
+ * update - and a region that appears already holding its message is not a
+ * change to anything the screen reader was watching. So the region is static
+ * markup in `index.html` and only its text content moves.
+ *
+ * And the same message twice is **not a change**, so removing two files in a
+ * row would announce once. Alternating a trailing no-break space makes the
+ * second one textually different without altering a word of what is read out.
+ * Done this way rather than with the usual clear-then-set-on-a-timer, because
+ * a deferred callback that reaches for the DOM is precisely the thing that
+ * took CI red twice on this branch.
+ */
+export function announce(message: string): void {
+    if (typeof document === "undefined" || !message) return;
+    let region = document.getElementById(ANNOUNCER_ID);
+    if (!region) {
+        // Entry points that do not ship index.html's markup (the docs page, a
+        // test mounting one component) still get working announcements rather
+        // than a silent no-op that only shows up in an audit.
+        region = document.createElement("div");
+        region.id = ANNOUNCER_ID;
+        region.className = "sr-only";
+        region.setAttribute("role", "status");
+        region.setAttribute("aria-live", "polite");
+        region.setAttribute("aria-atomic", "true");
+        document.body.appendChild(region);
+    }
+    const NBSP = " ";
+    const previous = region.textContent ?? "";
+    region.textContent = previous.endsWith(NBSP) ? message : message + NBSP;
 }

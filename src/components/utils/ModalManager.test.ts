@@ -301,3 +301,107 @@ describe("Escape key listener", () => {
         expect(ModalManager.isOpen(modal)).toBe(true);
     });
 });
+
+// ---------------------------------------------------------------------------
+// backdrop dismissal
+// ---------------------------------------------------------------------------
+
+describe("ModalManager backdrop dismissal", () => {
+    it("closes when the backdrop itself is clicked", () => {
+        // Escape alone is a keyboard affordance, so on a phone it is no
+        // affordance at all. The compress level dialog had no close button
+        // either, which left picking an option as the only way out.
+        const modal = makeModal("m"); const bg = makeBg("bg");
+        ModalManager.open(modal, bg);
+        expect(modal.classList.contains("open")).toBe(true);
+
+        bg.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        expect(modal.classList.contains("open")).toBe(false);
+    });
+
+    it("ignores clicks on modal content that bubble through the backdrop", () => {
+        // Callers lay these out both ways. When the backdrop is an *ancestor*
+        // of the modal, a click on the content bubbles to it, and closing there
+        // would dismiss the dialog the moment someone tried to use it.
+        const bg = makeBg("bg");
+        const modal = document.createElement("div");
+        bg.appendChild(modal);
+        const button = document.createElement("button");
+        modal.appendChild(button);
+
+        ModalManager.open(modal, bg);
+        button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        expect(modal.classList.contains("open")).toBe(true);
+    });
+
+    it("leaves a persistent modal open", () => {
+        const modal = makeModal("m"); const bg = makeBg("bg");
+        ModalManager.open(modal, bg, undefined, true);
+        bg.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        expect(modal.classList.contains("open")).toBe(true);
+    });
+
+    it("defers to onEscape so backdrop and Escape cannot drift apart", () => {
+        const modal = makeModal("m"); const bg = makeBg("bg");
+        const onEscape = vi.fn();
+        ModalManager.open(modal, bg, undefined, false, onEscape);
+
+        bg.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        expect(onEscape).toHaveBeenCalledTimes(1);
+        // The handler owns the decision; the modal is not torn down behind it.
+        expect(modal.classList.contains("open")).toBe(true);
+    });
+
+    it("does not cancel a job in flight when the backdrop is tapped", () => {
+        // The shape every progress modal uses: persistent, with `onEscape`
+        // wired to the cancel. Routing the backdrop to `onEscape` as well made
+        // a stray tap beside the dialog abandon a running merge or a long
+        // convert - the largest target on a phone, silently destroying work.
+        const modal = makeModal("m"); const bg = makeBg("bg");
+        const cancel = vi.fn();
+        ModalManager.open(modal, bg, undefined, true, cancel);
+
+        bg.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        expect(cancel).not.toHaveBeenCalled();
+        expect(modal.classList.contains("open")).toBe(true);
+    });
+
+    it("still lets Escape cancel that same job", () => {
+        // Escape has to keep winning over `persistent`, or the key does
+        // nothing and the only way to stop is the button.
+        const modal = makeModal("m"); const bg = makeBg("bg");
+        const cancel = vi.fn();
+        ModalManager.open(modal, bg, undefined, true, cancel);
+
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+        expect(cancel).toHaveBeenCalledTimes(1);
+    });
+
+    it("honours a persistent flag set after the modal opened", () => {
+        // `updateTop` flips this while the modal is on screen - the cancel
+        // button arrives after the progress popup has already opened - so the
+        // check has to read the live entry, not the opening call.
+        const modal = makeModal("m"); const bg = makeBg("bg");
+        const cancel = vi.fn();
+        ModalManager.open(modal, bg);
+        ModalManager.updateTop({ onEscape: cancel, persistent: true });
+
+        bg.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        expect(cancel).not.toHaveBeenCalled();
+        expect(modal.classList.contains("open")).toBe(true);
+    });
+
+    it("stops listening once closed, so a shared backdrop cannot close a stale modal", () => {
+        const modal = makeModal("m"); const bg = makeBg("bg");
+        ModalManager.open(modal, bg);
+        ModalManager.close(modal, bg);
+
+        const onClose = vi.fn();
+        const second = makeModal("m2");
+        ModalManager.open(second, bg, onClose);
+        bg.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        // Exactly one close, from the modal that is actually open.
+        expect(onClose).toHaveBeenCalledTimes(1);
+        expect(second.classList.contains("open")).toBe(false);
+    });
+});

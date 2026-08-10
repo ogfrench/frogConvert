@@ -522,8 +522,8 @@
         <div class="feat-desc">Mobile-first, fully responsive</div>
       </div>
       <div class="feat">
-        <div class="feat-title">Smart compression</div>
-        <div class="feat-desc">Shrink files without losing quality (v2.1)</div>
+        <div class="feat-title">Compress anything</div>
+        <div class="feat-desc">Its own surface for images, audio, video and PDFs (v3)</div>
       </div>
       <div class="feat">
         <div class="feat-title">PDF: merge & organize</div>
@@ -623,14 +623,14 @@
       Hooks into the OS share sheet and "Open with…" menu.
     </p>
     <p style="margin-top:0.8em;">
-      Close a tab mid-conversion and your work waits for you next time —
+      Close a tab mid-conversion and your work waits for you next time -
       files, target format, watermark settings, undo / redo, all of it.
     </p>
   </div>
   <div style="display:grid; gap:0.8em;">
     <div class="feat">
       <div class="feat-title">Installable PWA</div>
-      <div class="feat-desc">Windows, macOS, iOS, Android, ChromeOS. Standalone window. Maskable icons. Update banner — never silent.</div>
+      <div class="feat-desc">Windows, macOS, iOS, Android, ChromeOS. Standalone window. Maskable icons. Update banner - never silent.</div>
     </div>
     <div class="feat">
       <div class="feat-title">Share-target & "Open with…"</div>
@@ -647,7 +647,45 @@
   </div>
 </div>
 
-<!-- ─── Slide 12: Three ways to use it ─── -->
+<!-- ─── Slide 12: Compression + PostScript (v3.0) ─── -->
+<div class="slide layout-split">
+  <div class="glow glow-1" style="top:-15%;left:-10%;"></div>
+  <div class="glow glow-2" style="bottom:-20%;right:-10%;"></div>
+  <div>
+    <div class="tag">v3.0</div>
+    <h2 style="margin-top:0.8em;">Make it <span class="green">smaller.</span></h2>
+    <p style="margin-top:0.8em;">
+      Compression was always running - every conversion quietly applied a middling
+      preset - but you could not see it or change it. It is now its own surface,
+      with a level you pick, for images, audio, video and PDFs.
+    </p>
+    <p style="margin-top:0.8em;">
+      Compressing a PDF properly meant shipping a real PDF engine. That engine
+      also reads PostScript, so a format family the app never supported came
+      along with it.
+    </p>
+  </div>
+  <div style="display:grid; gap:0.8em;">
+    <div class="feat">
+      <div class="feat-title">A Compress surface</div>
+      <div class="feat-desc">Drop a mixed batch. Each format goes to the engine that suits it. A re-encode that saves under 2% is thrown away and you keep the original.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-title">PDFs that actually shrink</div>
+      <div class="feat-desc">Ghostscript resamples the images and leaves text as text, so it stays selectable and searchable. Rasterising would have saved 0% on a vector PDF.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-title">PostScript, EPS, Illustrator</div>
+      <div class="feat-desc">To PDF and back out again, vectors intact. Plus archival PDF/A and multi-page TIFF from the same engine.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-title">Nothing traps you</div>
+      <div class="feat-desc">Every long operation - convert, compress, PDF edit - now has a Cancel that works. Whatever already finished stays downloadable.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Slide 13: Three ways to use it ─── -->
 <!-- NOTE: was slide 10 before v2.1 smart-conversion slide was inserted -->
 <div class="slide layout-left">
   <div class="glow glow-3" style="top:-10%;right:-15%;"></div>
@@ -673,12 +711,12 @@
       </div>
     </div>
     <p style="margin-top:1.2em;">
-      Seven tools total: three for conversion, four for PDF editing.
+      Eight tools total: three for conversion, one for compression, four for PDF editing.
     </p>
   </div>
 </div>
 
-<!-- ─── Slide 12: Demo ─── -->
+<!-- ─── Slide 14: Demo ─── -->
 <div class="slide layout-center">
   <div class="glow glow-1" style="top:-10%;left:20%;"></div>
   <div class="glow glow-2" style="bottom:-20%;right:15%;"></div>
@@ -699,7 +737,7 @@
   </div>
 </div>
 
-<!-- ─── Slide 13: Takeaway ─── -->
+<!-- ─── Slide 15: Takeaway ─── -->
 <div class="slide layout-center">
   <div class="glow glow-1" style="top:-15%;right:-10%;"></div>
   <div class="glow glow-2" style="bottom:-15%;left:-10%;"></div>
@@ -739,6 +777,12 @@
     document.getElementById('slideCount').textContent = (current + 1) + '/' + total;
     document.getElementById('progress').style.width = ((current + 1) / total * 100) + '%';
   }
+
+  // Render once on load. Without this the counter and progress bar keep
+  // whatever the markup happened to say until the first navigation, which is
+  // how the deck came to greet everyone with a hardcoded "1/13" while holding
+  // a different number of slides.
+  show(0);
 
   document.getElementById('prev').addEventListener('click', () => show(current - 1));
   document.getElementById('next').addEventListener('click', () => show(current + 1));

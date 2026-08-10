@@ -28,7 +28,12 @@ describe("FrogsworthWidget - slot placement", () => {
         document.body.appendChild(slot);
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+        // The widget arms a 15s idle timer and three window listeners in its
+        // constructor. Emptying the body drops the element but leaves both
+        // running, so tear it down through its own teardown path.
+        const { destroyFrogsworth } = await import("./FrogsworthWidget.ts");
+        destroyFrogsworth();
         document.body.innerHTML = "";
         vi.restoreAllMocks();
     });

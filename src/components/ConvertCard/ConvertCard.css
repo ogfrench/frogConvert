@@ -16,7 +16,25 @@
   border-radius: var(--radius-full);
 }
 
-/* --- Convert Hint (shown under format picker when same-format compression is available) --- */
+/* Breathing, for the wait before the converters have arrived.
+   Opacity only - no transform, no colour change - so it reads as "busy"
+   without competing with anything on the card. The disabled state alone is
+   indistinguishable from a broken button, which is what it looked like on a
+   slow connection where this can last a minute. */
+@keyframes convert-button-breathe {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.62; }
+}
+
+#convert-button.is-waiting {
+  animation: convert-button-breathe 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #convert-button.is-waiting { animation: none; }
+}
+
+/* --- Convert Hint (signpost shown under the format picker) --- */
 .convert-hint {
   display: block;
   max-width: 28rem;
@@ -31,13 +49,22 @@
   display: none;
 }
 
-/* --- Compress mode: strike-through "Convert" next to "Compress" --- */
-.convert-strike {
-  text-decoration: line-through;
-  text-decoration-thickness: 2px;
-  opacity: 0.55;
-  margin-right: var(--space-1);
-  font-weight: inherit;
+/* The signpost's one action: reads as a link inside the sentence, because a
+   full button inside a hint this quiet would shout over the card. */
+.convert-hint-action {
+  display: inline;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.convert-hint-action:hover {
+  color: var(--primary, var(--foreground));
 }
 
 /* --- Convert Notice (quality warning when a better handler isn't available) --- */
@@ -144,6 +171,10 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
+  /* Padding alone landed this at 43px - one short of the 44 the rest of the
+     touch targets use, and this is the control that opens them. Shared with
+     the Compress card's level selector, which is the same kind of target. */
+  min-height: 44px;
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);

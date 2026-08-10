@@ -41,7 +41,11 @@ class pdftotxtHandler implements FormatHandler {
 
     for (const inputFile of inputFiles) {
       const loadingTask = pdfjsLib.getDocument({
-        data: inputFile.bytes,
+        // A copy, because pdf.js detaches whatever buffer it is given. The
+        // caller's bytes may still be needed - a multi-hop route reuses them,
+        // and a failure here should leave the original intact to fall back on.
+        // The other three getDocument sites in this codebase already do this.
+        data: inputFile.bytes.slice(),
         isEvalSupported: false,
       });
       let pdfDocument;

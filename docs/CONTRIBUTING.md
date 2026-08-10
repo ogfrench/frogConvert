@@ -32,16 +32,17 @@ Same address for security reports. See [../SECURITY.md](../SECURITY.md).
 The codebase is a vanilla TypeScript Vite project. Full responsibilities are in [ARCHITECTURE.md § Code Structure at a Glance](ARCHITECTURE.md#code-structure-at-a-glance). Day-to-day, these are the directories you will touch most:
 
 - [src/handlers/](../src/handlers/) - one file per conversion tool (FFmpeg, ImageMagick, Pandoc, etc.). New format support lives here.
-- [src/core/](../src/core/) - `FormatHandler` interface, base classes, `CommonFormats` registry, `TraversionGraph`, quality planners.
-- [src/components/](../src/components/) - UI (vanilla TS + DOM), including `store/store.ts` for state and `PdfWorkspace/` for the PDF editor.
+- [src/core/](../src/core/) - `FormatHandler` interface, base classes, `CommonFormats` registry, `TraversionGraph`, quality planners, and [src/core/compression/](../src/core/compression/) (the UI-free compression engine).
+- [src/components/](../src/components/) - UI (vanilla TS + DOM), including `store/store.ts` for state, `PdfWorkspace/` for the PDF editor and `CompressWorkspace/` for the Compress surface.
 - [src/tools/](../src/tools/) - PDF editor primitives (`pdfMerge.ts`, `pdfOrganize.ts`, `pdfExtract.ts`, `pdfWatermark.ts`, `pdfThumbnails.ts`).
 - [src/mcp/](../src/mcp/) and [src/api/](../src/api/) - MCP server and REST API. Must stay in sync per [../AGENTS.md](../AGENTS.md).
 - [src/workers/](../src/workers/) - `conversion.worker.ts` and `route-search.worker.ts`. Most heavy work runs here, not on the main thread.
 
-**Two parallel subsystems.** Before adding code, know which one you are touching:
+**Three parallel subsystems.** Before adding code, know which one you are touching:
 
 - **Conversion pipeline** routes through TraversionGraph and FormatHandlers. Any format-to-format transformation lives here. This is the piece that originates from the [Convert to it!](https://github.com/p2r3/convert) fork; see the Credits section of [../README.md](../README.md).
 - **PDF Workspace** (editor mode) is a separate, **frogConvert-original** subsystem in [../src/components/PdfWorkspace/](../src/components/PdfWorkspace/) plus tool files in [../src/tools/](../src/tools/). **Not part of the fork.** The handler authoring guide in [HANDLERS.md](HANDLERS.md) does not apply here. See [ARCHITECTURE.md § PDF Workspace](ARCHITECTURE.md#pdf-workspace-editor-mode).
+- **Compression engine** ([../src/core/compression/](../src/core/compression/) + [../src/components/CompressWorkspace/](../src/components/CompressWorkspace/)) makes a file smaller *without changing its format*. **frogConvert-original.** It borrows FormatHandlers as engines but does not use the conversion graph - dispatch happens in `resolveCompressor.ts`. The engine half is deliberately UI-free: it takes a `run` callback instead of importing the worker client, so `src/core/` never imports `src/components/`. Keep it that way. See [COMPRESS.md](COMPRESS.md).
 
 ---
 
@@ -66,7 +67,7 @@ Avoid `document.querySelector` inside components. Use the centralized `ui` objec
 - **`utils/ModalManager.ts`** owns modal lifecycle: stacks open modals, toggles the `open` class, sets `aria-hidden`, handles keyboard escape (non-persistent modals), traps focus, and calls `updateScrollLock()`. Managed modals are `#format-modal`, `#files-modal`, `#popup`.
 - **Visibility contract.** Modals are shown/hidden via the `open` CSS class, never `style.display`. A modal is open iff it has `classList.contains("open")`.
 - **Spinners.** Active conversions use the gooey spinner (`loader-gooey`); short blocking operations like cancellation use `loader-spinner`.
-- **Cancellation and partial downloads.** `isCancelled` and related state machine live in `src/conversion/cancellation.ts`. If a batch is cancelled, `showPartialDownloadPopup()` offers a download of finished files.
+- **Stopping and partial downloads.** `isCancelled` and related state machine live in `src/conversion/cancellation.ts`. If a batch is stopped, `showPartialDownloadPopup()` offers a download of finished files. User-facing copy says **stop / stopping / stopped** everywhere - the button, the interstitial, the finished state and the per-file row labels. The internal identifiers still say `cancel` (`isCancelled`, `cancelButton`, `reason: "cancelled"`); only the strings changed. Don't reintroduce "Cancel" in visible copy - it reads as *dismiss this dialog*, which is the opposite of abandoning work in flight.
 - **Scroll locking.** `updateScrollLock()` in `store.ts` checks all three modal elements for the `open` class and toggles `.scroll-lock` on `<html>`. Called automatically by `ModalManager`.
 
 ---
@@ -96,7 +97,26 @@ frogConvert uses a pre-computed format cache (`public/cache.json`) to skip calli
 
 - After adding, removing, or renaming a handler.
 - After changing a handler's `supportedFormats`.
-- After a production build: `bun run build && bun run cache:build`.
+
+**Use `bun run cache:refresh`, not `cache:build`.** The two write to different
+places and only one of them lasts:
+
+| Script | Writes to | Survives? |
+|---|---|---|
+| `cache:refresh` | `public/cache.json` | **Yes** - this is the tracked file that ships |
+| `cache:build` | `dist/cache.json` | No - `dist/` is gitignored, and the next build overwrites it with the copy from `public/` |
+
+`cache:build` exists for `desktop:build`, which packages `dist/` directly and
+never reads `public/`. Reaching for it to refresh the shipped cache is a no-op
+that looks like it worked, which is how the committed cache silently fell three
+handlers behind: through the whole v3 cycle it carried no `Ghostscript`,
+`PdfCanvasCompress` or `imageToPdf` entries at all.
+
+Both need a production build first, since they drive the built site:
+
+```bash
+bun run build && bun run cache:refresh
+```
 
 In dev, the cache is optional; the app falls back to initializing all handlers at startup with a loading screen.
 
@@ -109,6 +129,23 @@ In dev, the cache is optional; the app falls back to initializing all handlers a
 - **`bun run test`** runs unit and integration tests (Vitest + jsdom). **Do not use bare `bun test`**; that invokes Bun's native runner which lacks jsdom.
 - **`bun run test:watch`** runs tests in watch mode.
 - **E2E** tests live in `test/e2e/` (Puppeteer) and verify that workers mount and the UI flow works.
+
+### The corpus suites (opt-in, and the ones that find real bugs)
+
+Four suites in `test/e2e/` drive the **built** app in a real browser against real files: `corpus-compress`, `corpus-convert`, `corpus-pdf` and `corpus-combined`. They exist because every serious defect in v3 lived in a seam between mocked units and was invisible to a green unit run - an encrypted PDF emptied and reported as an 83% saving, a truncated PDF returned as a blank page called a 99% win, a `.webm` not recognised as input at all.
+
+They need ~49 MB of other people's files, so they are opt-in and skip loudly (`test/helpers/corpus.ts` prints a manifest of exactly what did not run and why - the inverse of `optionalDeps.ts`, which throws, because CI genuinely does have those dependencies and genuinely does not have this corpus):
+
+```bash
+bun run scripts/fetch-corpus.ts      # ~31 files from public repos
+bun run scripts/make-adversarial.ts  # 12 generated edge cases
+bun run build                        # they drive dist/, not the dev server
+bun run test:corpus                  # sets FROG_CORPUS=1 for you
+```
+
+Deliberately **not** part of the default CI run: it needs a production build, a browser, and ~49 MB of downloads. `bun run test` skips all four suites, and says so.
+
+Shared plumbing is in `test/helpers/corpusBrowser.ts` - static server, browser, downloads, and re-opening PDF output with pdf-lib and pdfjs. Add to it rather than starting a fifth copy. Two things it encodes that cost a debugging round each: `.mjs` must be in the server's MIME map (Ghostscript ships `gs.mjs`, and a module script with the wrong type is refused, which looks exactly like a compression failure), and every suite waits for the handler registry rather than a fixed delay.
 
 ### Writing a handler test
 
@@ -151,8 +188,10 @@ test('myHandler converts X to Y', async () => {
 1. **Fork and branch.** One topic per branch. Branch names are descriptive (`add-webp-handler`, `fix-safari-pdf-fallback`).
 2. **Commit style.** Imperative, specific. Don't bundle unrelated changes.
 3. **Run locally.** `bun run test` must be green. Run `bun run build` once before opening the PR.
-4. **Docs.** If you change a handler, update `public/cache.json` via `bun run cache:build`. If you change user-visible behaviour, touch the relevant doc ([CONVERTER.md](CONVERTER.md), [PDF_EDITOR.md](PDF_EDITOR.md), [INTEGRATIONS.md](INTEGRATIONS.md)) and add a [CHANGELOG.md](../CHANGELOG.md) bullet.
+4. **Docs.** If you change a handler, update `public/cache.json` via `bun run build && bun run cache:refresh` (see [Cache system](#4-cache-system) for why `cache:build` is the wrong one). If you change user-visible behaviour, touch the relevant doc ([CONVERTER.md](CONVERTER.md), [PDF_EDITOR.md](PDF_EDITOR.md), [INTEGRATIONS.md](INTEGRATIONS.md)) and add a [CHANGELOG.md](../CHANGELOG.md) bullet.
 5. **Link-check.** `bun run docs:verify` catches broken cross-links before review.
+6. **Declare what you import.** A package that happens to be installed as somebody else's transitive dependency will import fine on your machine and keep working until that somebody bumps a version and drops it. If you `import` it, it belongs in `package.json`, and both `package.json` and `bun.lock` go in the commit - CI runs `bun i --frozen-lockfile` and fails if they disagree.
+7. **Dead-file check.** `bun x knip --include files` is **enforced in CI**: a file nothing imports fails the build. Run the full `bun x knip` too - the other categories are advisory but real. If it flags a file that *is* used, the reference is probably invisible to it (a path inside a string, say), and the fix is to declare it in `knip.jsonc` as an entry rather than to ignore the finding. Read the warning at the top of that file before removing any ignore.
 
 ---
 

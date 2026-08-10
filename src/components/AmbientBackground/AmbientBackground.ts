@@ -13,11 +13,42 @@ export function initParallax() {
   const bgSpans = Array.from(document.querySelectorAll("#bg-visuals span")) as HTMLElement[];
   if (bgSpans.length === 0) return;
 
-  // Store original positions for parallax
-  const originalPositions = bgSpans.map((span) => {
-    const rect = span.getBoundingClientRect();
-    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  // Rest positions, used as the anchor for both the parallax push and the
+  // proximity unblur below.
+  //
+  // Measured on the `.bg-pop` wrapper rather than the span: the span runs the
+  // infinite 20s `float` keyframe (translateY 0 -> -30px), so its rect is a
+  // frame of a permanent oscillation, not a rest position. The wrapper is not
+  // float-animated and shrink-wraps the span, so it is the same box at rest.
+  const bgWrappers = bgSpans.map(span => span.parentElement as HTMLElement);
+  let originalPositions: { x: number; y: number }[] = [];
+
+  function measurePositions() {
+    originalPositions = bgWrappers.map((wrapper) => {
+      const rect = wrapper.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    });
+  }
+  measurePositions();
+
+  // The wrappers are positioned in viewport percentages (see #bg-visuals in
+  // index.html), so every one of them moves when the window resizes while a
+  // single init-time snapshot does not. Left stale, the halo lights up an
+  // emoji that is no longer there and the one under the cursor stays blurred -
+  // the drift grows with the size of the resize. Coalesced through rAF so a
+  // drag-resize measures once a frame instead of once an event.
+  let resizePending = false;
+  window.addEventListener("resize", () => {
+    if (resizePending) return;
+    resizePending = true;
+    requestAnimationFrame(() => { resizePending = false; measurePositions(); });
   });
+
+  // initParallax() runs while `bgVisualEntrance` is still playing (its delays
+  // run out to 1.8s), which holds the wrappers at translateY(20px) - so the
+  // first measurement lands ~20px low. Re-measure once each has settled.
+  for (const wrapper of bgWrappers)
+    wrapper.addEventListener("animationend", measurePositions, { once: true });
 
   let mouseX = -500;
   let mouseY = -500;

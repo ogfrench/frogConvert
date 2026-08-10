@@ -128,7 +128,7 @@ describe("cancellation DOM bindings", () => {
         expect(actions).not.toBeNull();
         const cancelBtn = ui.popupBox.querySelector("#cancel-conversion-btn");
         expect(cancelBtn).not.toBeNull();
-        expect(cancelBtn?.textContent).toBe("Cancel conversion");
+        expect(cancelBtn?.textContent).toBe("Stop conversion");
     });
 
     describe("triggerCancellation (hard-cancellable path)", () => {
@@ -143,7 +143,7 @@ describe("cancellation DOM bindings", () => {
 
             expect(isCancelled).toBe(true);
             expect(cb).toHaveBeenCalledOnce();
-            expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Cancelling conversion");
+            expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Stopping conversion");
             expect(ui.popupBox.querySelector("p")?.textContent).toBe("Stopping now...");
             expect(ui.popupBox.querySelector("#cancel-conversion-btn")).toBeNull();
             resetCancellation();
@@ -174,7 +174,7 @@ describe("cancellation DOM bindings", () => {
             triggerCancellation();
 
             expect(isCancelled).toBe(true);
-            expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Cancelling conversion");
+            expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Stopping conversion");
             const pHtml = ui.popupBox.querySelector("p")?.innerHTML ?? "";
             expect(pHtml).toContain("Finishing file 2 of 3, then stopping.");
             expect(pHtml).toContain("this step can't be interrupted mid-file -");
@@ -286,7 +286,7 @@ describe("cancellation DOM bindings", () => {
             const onDownload = vi.fn();
             showPartialDownloadPopup(5, onDownload);
 
-            expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Conversion cancelled");
+            expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Conversion stopped");
             expect(ui.popupBox.querySelector("p")?.textContent).toBe("5 files were successfully converted before stopping.");
 
             const downloadBtn = ui.popupBox.querySelector("#partial-download-btn") as HTMLButtonElement;

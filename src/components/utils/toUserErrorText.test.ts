@@ -36,8 +36,8 @@ describe("toUserErrorText", () => {
     });
 
     it("maps cancellation", () => {
-        expect(toUserErrorText(new Error("Cancelled"))).toBe("Cancelled.");
-        expect(toUserErrorText(new Error("Cancelled (forced)"))).toBe("Cancelled.");
+        expect(toUserErrorText(new Error("Cancelled"))).toBe("Stopped.");
+        expect(toUserErrorText(new Error("Cancelled (forced)"))).toBe("Stopped.");
     });
 
     it("maps handler-not-ready errors", () => {

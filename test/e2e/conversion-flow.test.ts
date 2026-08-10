@@ -4,14 +4,18 @@ import puppeteer, { Browser, Page } from "puppeteer";
 import { createServer, ViteDevServer } from "vite";
 import path from "path";
 import fs from "fs";
+import { hasFullRegistry, MISSING_DEPS_REASON } from "../helpers/optionalDeps.ts";
 
 /** Navigate with a single retry to handle transient ERR_ABORTED from Vite dep re-optimization. */
 async function safeGoto(page: Page, url: string, options?: Parameters<Page["goto"]>[1]) {
     try {
         await page.goto(url, options);
     } catch (err: any) {
-        if (err.message?.includes("ERR_ABORTED")) {
-            // Vite likely triggered a page reload — wait briefly and retry once
+        // Both symptoms of the same cause: Vite answered with a full reload
+        // mid-navigation, either aborting the request or tearing down the
+        // execution context Puppeteer was mid-call on.
+        if (err.message?.includes("ERR_ABORTED")
+            || err.message?.includes("Execution context was destroyed")) {
             await new Promise(r => setTimeout(r, 1000));
             await page.goto(url, options);
         } else {
@@ -20,7 +24,9 @@ async function safeGoto(page: Page, url: string, options?: Parameters<Page["goto
     }
 }
 
-describe("E2E Conversion Flow", () => {
+// Boots the real app from source, so it needs every handler import to
+// resolve - including the ones this environment cannot install.
+describe.skipIf(!hasFullRegistry)(`E2E Conversion Flow [${MISSING_DEPS_REASON}]`, () => {
     let server: ViteDevServer;
     let browser: Browser;
     let page: Page;
@@ -46,10 +52,26 @@ describe("E2E Conversion Flow", () => {
             });
             page = await browser.newPage();
             browserAvailable = true;
+
+            // Warm-up load, result discarded. On the first request after a
+            // lockfile change Vite re-optimizes dependencies and answers with a
+            // full page reload. Landing inside a test destroys the execution
+            // context Puppeteer is mid-call on ("Execution context was
+            // destroyed, most likely because of a navigation"), which fails the
+            // run for a reason that has nothing to do with the assertion. Two
+            // loads with a settle window in between absorb that here, where it
+            // is harmless. Failures are swallowed on purpose: if the app is
+            // genuinely broken the first real test says so with a useful
+            // message, and a warm-up that throws would mask it.
+            try {
+                await safeGoto(page, url, { waitUntil: "networkidle0", timeout: 45000 });
+                await new Promise(r => setTimeout(r, 1500));
+                await safeGoto(page, url, { waitUntil: "networkidle0", timeout: 45000 });
+            } catch { /* see above */ }
         } catch (err: any) {
             console.warn(`Puppeteer unavailable, E2E tests will be skipped: ${err.message}`);
         }
-    }, 30000); // Server and chromium startup may take time
+    }, 150000); // Server, chromium startup and the warm-up loads all take time
 
     afterAll(async () => {
         try { if (browser) await browser.close(); } catch { /* slow chromium teardown under full-suite load */ }
@@ -193,7 +215,7 @@ describe("E2E Conversion Flow", () => {
     it("hamburger menu is visible when opened on mobile viewport", async () => {
         await page.setViewport({ width: 375, height: 667 });
         // Use networkidle0 to wait for Vite dependency re-optimization to finish
-        // before interacting — otherwise a mid-test page reload loses the click state.
+        // before interacting - otherwise a mid-test page reload loses the click state.
         await safeGoto(page, url, { waitUntil: "networkidle0", timeout: 30000 });
         await page.waitForSelector("#hamburger-btn", { visible: true });
 

@@ -1,5 +1,12 @@
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
+import { loadEditablePdf } from './pdfSource.ts';
 import type { FileData } from '../core/FormatHandler/FormatHandler.ts';
+import { checkpoint } from './cancellation.ts';
+import { timestampForFilename } from '../conversion/download.ts';
+
+// See src/tools/cancellation.ts - checked every Nth stamped page (including
+// the first) so a cancel is caught quickly without yielding on every page.
+const CHECKPOINT_INTERVAL = 10;
 
 export type WatermarkPlacement =
   | 'center'
@@ -359,10 +366,11 @@ export async function applyWatermarkToPage(
 export async function watermark(
   bytes: Uint8Array,
   baseName: string,
-  opts: PdfWatermarkOptions
+  opts: PdfWatermarkOptions,
+  signal?: AbortSignal
 ): Promise<FileData> {
   validateOptionsShape(opts);
-  const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+  const doc = await loadEditablePdf(bytes);
   const total = doc.getPageCount();
 
   const pageNums = opts.pageNums && opts.pageNums.length > 0
@@ -384,8 +392,11 @@ export async function watermark(
 
   const targets = new Set(pageNums.map(n => n - 1));
   const pages = doc.getPages();
+  let processed = 0;
   for (let i = 0; i < pages.length; i++) {
     if (!targets.has(i)) continue;
+    if (processed % CHECKPOINT_INTERVAL === 0) await checkpoint(signal);
+    processed++;
     if (font) {
       applyTextWatermark(
         pages[i], font, opts.source as Extract<WatermarkSource, { type: 'text' }>,
@@ -401,7 +412,9 @@ export async function watermark(
 
   const out = await doc.save();
   return {
-    name: `${stripExt(baseName)}_watermarked.pdf`,
+    // Timestamped: watermarking the same document twice used to produce
+    // two files with one name.
+    name: `${stripExt(baseName)}_watermarked-${timestampForFilename()}.pdf`,
     bytes: new Uint8Array(out),
   };
 }

@@ -39,10 +39,13 @@ const lazy = (name: string, importer: () => Promise<{ default: new () => FormatH
 export async function loadBackgroundHandlers() {
   const loaders: Array<() => Promise<void>> = [
     lazy('pdftoimg', () => import("./pdftoimg.ts")),
+    lazy('ghostscript', () => import("./ghostscript.ts")),
+    lazy('pdfCanvasCompress', () => import("./pdfCanvasCompress.ts")),
     lazy('pdftotxt', () => import("./pdftotxt.ts")),
     lazy('font', () => import("./font.ts")),
     lazy('FFmpeg', () => import("./FFmpeg.ts")),
     lazy('ImageMagick', () => import("./ImageMagick.ts")),
+    lazy('imageToPdf', () => import("./imageToPdf.ts")),
     lazy('libreoffice', () => import("./libreoffice.ts")),
     lazy('pandoc', () => import("./pandoc.ts")),
     lazy('meyda', () => import("./meyda.ts")),

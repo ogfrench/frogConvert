@@ -1,0 +1,1055 @@
+import "./CompressWorkspace.css";
+import { showToast } from "../Toast/Toast.ts";
+import { escapeHTML, formatBytes, shortenFileName, isOffline, OFFLINE_MESSAGE } from "../utils/index.ts";
+import { isTouchUi } from "../../core/utils/touchUi.ts";
+import {
+  ABSOLUTE_MAX_FILES,
+  MAX_SINGLE_FILE_SIZE,
+  LARGE_FILE_WARN_SIZE,
+  compressBatchBudget,
+} from "../../constants/ui.ts";
+import { ui, allOptionsRef, compressLevel, setCompressLevel, COMPRESS_LEVEL_CHOICES, CATEGORY_LABELS, type CompressLevel } from "../store/store.ts";
+import { findMatchingFormat } from "../../core/FormatHandler/detectFormat.ts";
+import {
+  compressBatch,
+  totalSaved,
+  type CompressInput,
+  type CompressOutcome,
+  type SkipReason,
+} from "../../core/compression/compressBatch.ts";
+import { runInWorker } from "../../conversion/workerClient.ts";
+import { startConversionStatus, type StatusHandle } from "../../conversion/progressStatus.ts";
+import {
+  ensureCancelButton,
+  setActiveConversionMode,
+  setCanHardCancel,
+  setCurrentFileProgress,
+  resetCancellation,
+  completeCancellation,
+  isCancelled,
+  modeCopy,
+} from "../../conversion/cancellation.ts";
+import { hidePopup, showPopup, replacePopup, createPopupButton } from "../Popup/Popup.ts";
+import { openFilesModal, type FilesModalSource } from "../FilesModal/FilesModal.ts";
+import { preloadGhostscript } from "../../tools/ghostscriptPreload.ts";
+import { downloadFile, downloadAsZip, timestampForFilename } from "../../conversion/download.ts";
+import { celebrateOnPopup } from "../../effects/Confetti/Confetti.ts";
+import { createDancingFrog } from "../Frogsworth/DancingFrog.ts";
+import {
+  markCompressDirty,
+  flushCompressOnHide,
+  clearCompressSession,
+  tryRestoreCompressSession,
+} from "../persistence/compressPersist.ts";
+
+/**
+ * Compress workspace - the dedicated "make my files smaller" surface, a peer
+ * of the Converter and the PDF Editor.
+ *
+ * Module-singleton like PdfWorkspace: state lives at module scope so switching
+ * app modes preserves the user's batch. `cleanup()` tears down DOM only;
+ * `resetAll()` is the destructive cousin.
+ */
+
+/**
+ * This surface's own level, independent of the Converter's setting so neither
+ * moves the other. Definition lives in the store so it can persist.
+ *
+ * NOTE the deliberate inversion: the engine's `low` preset means "low quality
+ * target", i.e. the *most* aggressive compression, while `high` compresses the
+ * least. So the shipped labels map:
+ *   High quality -> high, Balanced -> medium, Smallest file -> low.
+ */
+export const COMPRESS_LEVELS = COMPRESS_LEVEL_CHOICES;
+
+/** Matches the store's own default. Anything else and "reset" would quietly
+ *  move the user somewhere a fresh install never puts them. */
+export const DEFAULT_LEVEL: CompressLevel = "auto";
+
+type Entry = { id: number; file: File };
+type Phase = "idle" | "running" | "done";
+
+let files: Entry[] = [];
+let nextId = 1;
+let initialized = false;
+
+let phase: Phase = "idle";
+let results: CompressOutcome[] = [];
+let progress = { done: 0, total: 0, current: "" };
+/**
+ * The live status handle for the run in flight, so the `finally` block can stop
+ * its timer however the batch ends. Leaking one leaves a 1s interval repainting
+ * a modal that is no longer on screen.
+ */
+let statusHandle: StatusHandle | null = null;
+
+let rootEl: HTMLElement | null = null;
+let fileInput: HTMLInputElement | null = null;
+
+/**
+ * How the shared files modal reads and writes this surface's batch.
+ *
+ * The Converter's file manager is a modal with paging, per-row replace, drop
+ * more and remove all. This surface had an inline list with none of that, for
+ * no reason other than that it was written separately - so "Manage files" here
+ * opened a dead end while the same button one mode over opened a real manager.
+ * Same modal now; only the two genuinely different answers are configured.
+ */
+const filesModalSource: FilesModalSource = {
+  get: () => files.map(e => e.file),
+  set: (next) => {
+    // Ids are the list's identity for removal, so rebuild rather than mutate.
+    files = next.map(file => ({ id: nextId++, file }));
+  },
+  changed: () => { markCompressDirty("files"); render(); },
+  emptied: () => { clearCompressSession(); render(); },
+  // A folder of mixed media is exactly what this surface is for.
+  sameTypeOnly: false,
+  openPicker: () => openPicker(),
+  backLabel: "Go back to compress",
+};
+
+/** Test seam + share-target entry point. */
+export function getFiles(): readonly Entry[] { return files; }
+export function getLevel(): CompressLevel { return compressLevel.value; }
+export function getPhase(): Phase { return phase; }
+export function getResults(): readonly CompressOutcome[] { return results; }
+
+/**
+ * Cheap intake filter. The authoritative "can this actually be compressed?"
+ * check needs the loaded handler list and happens at compress time; here we
+ * only keep obviously-wrong drops out of the batch.
+ */
+/** Some browsers hand over an empty type for a PDF picked from disk, so the
+ *  name is the fallback. Shared by the intake filter and the engine preload. */
+function isPdf(file: File): boolean {
+  const mime = (file.type || "").toLowerCase();
+  return mime === "application/pdf" || (!mime && /\.pdf$/i.test(file.name));
+}
+
+export function isLikelyCompressible(file: File): boolean {
+  const mime = (file.type || "").toLowerCase();
+  if (isPdf(file)) return true;
+  // SVG is the one image type we know up front we will never compress - it's
+  // vector text, and the only thing a raster compressor could do to it is
+  // rasterise it. Better to say so on the drop than after a batch. Anything
+  // else images-ish is let through and gets an honest per-file answer, because
+  // over-rejecting here would turn files we *can* handle away at the door.
+  if (mime === "image/svg+xml" || (!mime && /\.svgz?$/i.test(file.name))) return false;
+  return mime.startsWith("image/") || mime.startsWith("audio/") || mime.startsWith("video/");
+}
+
+export function handleFiles(incoming: File[], replaceExisting = false) {
+  if (!incoming.length) return;
+
+  const accepted = incoming.filter(isLikelyCompressible);
+  const rejected = incoming.length - accepted.length;
+  if (rejected > 0) {
+    showToast(
+      rejected === incoming.length
+        ? "Nothing there to compress. Images, audio, video and PDFs work."
+        : `Skipped ${rejected} file${rejected === 1 ? "" : "s"} that can't be compressed yet.`,
+      "warn",
+      8000,
+    );
+  }
+  if (!accepted.length) return;
+
+  // A replace measures its room and its budget against an empty batch, since
+  // the incoming files are about to become the whole of it. Nothing is dropped
+  // yet - the swap happens below, once something has actually been accepted -
+  // so a pick that is entirely oversized leaves the existing batch alone rather
+  // than emptying the surface for nothing.
+  const replacing = replaceExisting;
+  const base = replacing ? [] : files;
+
+  const roomLeft = ABSOLUTE_MAX_FILES - base.length;
+  if (roomLeft <= 0) {
+    showToast(`That's the ${ABSOLUTE_MAX_FILES}-file ceiling. Compress these first.`, "warn", 8000);
+    return;
+  }
+  const withinCount = accepted.slice(0, roomLeft);
+  if (withinCount.length < accepted.length) {
+    showToast(`Only took the first ${withinCount.length}. That's the ${ABSOLUTE_MAX_FILES}-file ceiling.`, "warn", 8000);
+  }
+
+  // Two separate questions, and they used to be conflated into one 500 MB
+  // batch cap. "Is this one file bigger than an engine can hold?" is a hard
+  // technical limit. "Is this batch bigger than the tab can carry?" is about
+  // accumulated *output*, and is far more generous now that inputs are read one
+  // at a time. Someone arriving with a single large video is the common case,
+  // and the old cap refused them in order to guard against the rare one.
+  const budget = compressBatchBudget();
+  let total = base.reduce((sum, e) => sum + e.file.size, 0);
+  const withinBudget: File[] = [];
+  let oversized = 0;
+  let batchFull = false;
+  for (const f of withinCount) {
+    if (f.size > MAX_SINGLE_FILE_SIZE) {
+      oversized++;
+      continue;
+    }
+    if (total + f.size > budget) {
+      batchFull = true;
+      break;
+    }
+    total += f.size;
+    withinBudget.push(f);
+  }
+  if (oversized > 0) {
+    showToast(
+      oversized === 1
+        ? `That file is over ${formatBytes(MAX_SINGLE_FILE_SIZE)}, which is more than the compression engines can hold at once.`
+        : `${oversized} files are over ${formatBytes(MAX_SINGLE_FILE_SIZE)}, which is more than the compression engines can hold at once.`,
+      "warn", 8000,
+    );
+  }
+  if (batchFull) {
+    showToast(`This batch is as big as this device can take (${formatBytes(budget)}). Compress these first, then add more.`, "warn", 8000);
+  }
+  if (!withinBudget.length) return;
+
+  // Allowed, but worth setting expectations: a file this size is minutes of
+  // engine time, not seconds, and saying nothing reads as a hang.
+  const huge = withinBudget.filter(f => f.size >= LARGE_FILE_WARN_SIZE).length;
+  if (huge > 0) {
+    showToast(
+      huge === 1
+        ? "That's a big one. It'll take a few minutes, and you can stop any time."
+        : `${huge} big files there. This'll take a few minutes, and you can stop any time.`,
+      "info", 7000,
+    );
+  }
+
+  // The results modal describes a batch that is being replaced.
+  if (phase === "done") hidePopup();
+  // Dropping onto a finished batch means starting a new one; without this the
+  // results view stays up and the added files are invisible.
+  if (phase === "done") {
+    phase = "idle";
+    results = [];
+  }
+
+  if (replacing) files = [];
+  for (const file of withinBudget) files.push({ id: nextId++, file });
+  // A PDF in the batch means the 16 MB engine is on the critical path of the
+  // Compress button. Start fetching it while the user is still adding files.
+  if (withinBudget.some(isPdf)) preloadGhostscript();
+  markCompressDirty("files");
+  render();
+}
+
+function removeFile(id: number) {
+  files = files.filter(e => e.id !== id);
+  markCompressDirty("files");
+  render();
+}
+
+// --- Running a batch ---
+
+/** Typed against SkipReason so a new reason can't be added without copy. */
+const REASON_COPY: Record<SkipReason, string> = {
+  "already-minimal": "already compressed",
+  "no-gain": "no gain",
+  "unsupported": "can't compress this",
+  "failed": "failed",
+  "cancelled": "stopped",
+};
+
+export async function runCompression() {
+  if (phase === "running" || !files.length) return;
+
+  // Landing straight on /compress can beat the handler registry loading. With
+  // an empty option list every file fails format detection and would be
+  // reported "can't compress this", which is a lie about the file.
+  if (!allOptionsRef.value.length) {
+    showToast("Still warming up the engines. Give me a second.", "info", 5000);
+    return;
+  }
+
+  // Progress belongs in the same modal the Converter and the PDF editor use.
+  // Compress used to paint its own bar inside the card, which meant the one
+  // surface whose work takes longest was the one that looked like nothing was
+  // happening. The shared modal already knows how to say all of this in
+  // compress vocabulary - see `modeCopy()` - and it brings the cancel button,
+  // the escape-key binding and the "finishing this file" copy with it.
+  resetCancellation();
+  setActiveConversionMode("compress");
+  // Stop means stop. Every engine Compress dispatches to runs in the shared
+  // worker, so cancelling terminates it and the in-flight file is abandoned
+  // rather than finished. Waiting was only ever an implementation detail of
+  // the batch loop, and "finishing this file" can be many minutes on a large
+  // video - the one case where someone is most likely to want out.
+  //
+  // One narrow exception, stated honestly rather than papered over: the canvas
+  // PDF fallback is a main-thread handler, so terminate() has nothing to kill.
+  // Cancelling during one shows "Stopping now..." while that single file
+  // actually finishes, then the batch stops. The shared hard-cancel watchdog
+  // does *not* rescue this - it fires `forceCleanupCallback`, which only
+  // `runInWorker` ever registers - so the copy briefly overpromises in a case
+  // that needs Ghostscript to have been unreachable in the first place.
+  //
+  // Files never reached are reported *stopped*, never *failed*.
+  setCanHardCancel(true);
+  setCurrentFileProgress(0, files.length);
+
+  phase = "running";
+  progress = { done: 0, total: files.length, current: "" };
+  render();
+
+  // One status handle owns the modal for the whole batch. It carries the
+  // elapsed clock and the alternating reassurance that Convert has had since it
+  // grew long waits, and that this surface - the one with the longest waits of
+  // all - never had, because the helper used to be private to actions.ts.
+  const status = startConversionStatus({
+    main: "Getting things ready...",
+    subtitle: `checking your ${files.length > 1 ? "files" : "file"}`,
+    title: progressTitle(),
+    phase: "idle",
+  });
+  statusHandle = status;
+  ensureCancelButton();
+
+  const options = allOptionsRef.value;
+  const outcomes: (CompressOutcome | null)[] = files.map(() => null);
+  const recognized: CompressInput[] = [];
+  const recognizedAt: number[] = [];
+  let celebrate = false;
+
+  // Anything from here on has to leave `phase` somewhere the user can act
+  // from. Without this the surface can strand itself on "Compressing…" with no
+  // way back but a reload - and `file.arrayBuffer()` really does reject when
+  // a picked file is moved or deleted before the batch runs.
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i].file;
+      // Detection reads the name and MIME only, so nothing is loaded here.
+      // The bytes are fetched inside `compressBatch`, one file at a time, which
+      // is what lets a batch be far larger than memory would otherwise allow.
+      const idx = findMatchingFormat([file], options);
+      if (idx < 0) {
+        // Handlers may still be loading, or it's genuinely a format we don't know.
+        outcomes[i] = {
+          name: file.name, bytes: new Uint8Array(0), originalSize: file.size,
+          shrunk: false, reason: "unsupported",
+        };
+        continue;
+      }
+      recognizedAt.push(i);
+      recognized.push({
+        name: file.name,
+        format: options[idx].format,
+        size: file.size,
+        read: async () => new Uint8Array(await file.arrayBuffer()),
+      });
+    }
+
+    const alreadyDone = files.length - recognized.length;
+    const batch = await compressBatch(recognized, {
+      options,
+      level: compressLevel.value,
+      run: runInWorker,
+      onProgress: (done, _total, current) => {
+        // Position only. The wording is owned by the phase callbacks below, so
+        // that the modal never claims to be compressing a file it has not read.
+        progress = { done: alreadyDone + done, total: files.length, current };
+        setCurrentFileProgress(Math.min(progress.done + 1, progress.total), progress.total);
+      },
+      // The engine has to be fetched and compiled before it can do anything.
+      // Naming it is the difference between a 32 MB download and a hang.
+      onEngineInit: (_handlerName, format) => {
+        const cat = Array.isArray(format?.category) ? format.category[0] : format?.category;
+        // Optional chaining throughout, deliberately. This runs inside a
+        // progress callback: a missing label is a cosmetic problem, but a throw
+        // here would abort the compression itself over one word.
+        const label = (cat && CATEGORY_LABELS?.[cat])
+          ? CATEGORY_LABELS[cat].toLowerCase()
+          : "file";
+        status.setPhase(
+          `Downloading the ${label} ${modeCopy().toolLabel}...`,
+          { subtitle: "this happens once and may take a moment", phase: "idle" },
+        );
+      },
+      // Always singular: files are read one at a time, however big the batch.
+      onFileRead: (name) => status.setPhase(
+        "Reading your file...",
+        { subtitle: shortenFileName(name, 32), phase: "idle" },
+      ),
+      onFileCompress: (name) => status.setPhase(
+        progressLine(),
+        { subtitle: shortenFileName(name, 32), phase: "converting" },
+      ),
+      // The whole point: frame counts, page counts and encoder ratios, from the
+      // six handlers that report them, finally reaching the screen.
+      onEngineProgress: (p) => status.update(p),
+      isCancelled: () => isCancelled,
+    });
+
+    batch.forEach((outcome, k) => { outcomes[recognizedAt[k]] = outcome; });
+    results = outcomes.filter((o): o is CompressOutcome => o !== null);
+    // Any real saving is worth the confetti. The only silent result is the
+    // one where nothing got smaller at all.
+    celebrate = results.some(r => r.shrunk);
+  } catch (e) {
+    console.error("[compress] batch threw", e);
+    // Offline outranks the generic message: PDFs here need a ~16 MB engine
+    // fetched on first use, so with no network the failure is the download.
+    showToast(
+      isOffline() ? OFFLINE_MESSAGE : "Something went wrong while compressing. Your files are untouched.",
+      "error",
+      isOffline() ? 12000 : 8000,
+    );
+    // Back to the file list rather than an empty results view: the batch is
+    // still there and re-running it is the obvious next move.
+    //
+    // This path closes the popup itself. The success path deliberately does
+    // not - it replaces the progress modal's contents with the results in
+    // place - and there are no results to put here, so leaving it up would
+    // strand the progress spinner over a toast explaining the failure.
+    phase = "idle";
+    results = [];
+    hidePopup();
+    render();
+    return;
+  } finally {
+    // Before anything else: the status handle owns a 1s interval, and an
+    // orphaned one would keep repainting a modal that has moved on.
+    //
+    // Cancel *this* run's handle, not whatever the module variable happens to
+    // hold. Reading the variable meant an overlapping run - one that reassigned
+    // it between this one arming its timer and reaching here - left the first
+    // interval ticking with nothing able to reach it again. Measured: 7 of 51
+    // intervals armed by this suite were never cleared.
+    status.cancel();
+    if (statusHandle === status) statusHandle = null;
+    if (phase === "running") phase = "done";
+    // Whatever happened, the modal comes down. Split from the state reset the
+    // same way the conversion flow splits it: `completeCancellation` awaits a
+    // minimum on-screen time for the cancel copy and can therefore throw or
+    // stall, and the popup must close regardless.
+    try {
+      await completeCancellation(true);
+    } catch (err) {
+      console.error("[compress] cancel cleanup failed:", err);
+    }
+    // Deliberately no `hidePopup()` here: `showResultsModal` replaces the
+    // progress modal's contents in place, the way the Converter's success
+    // popup replaces its own. Closing first flashes the card between the two.
+    resetCancellation();
+  }
+
+  render();
+  showResultsModal();
+  // Same 150ms beat the Converter and the PDF Editor use, and the same guard:
+  // confetti is popup-anchored, so skip it if the user already dismissed.
+  if (celebrate) celebrateOnPopup(ui.popupBox);
+}
+
+/** Mirrors the Converter's "Converting your files" heading. */
+function progressTitle(): string {
+  return `Compressing your ${progress.total > 1 ? "files" : "file"}`;
+}
+
+/**
+ * The main line while an engine is actually working.
+ *
+ * A single video can hold this modal for minutes - ffmpeg.wasm runs
+ * single-threaded in a worker, so a clip that takes seconds in a desktop
+ * encoder takes considerably longer here. The batch position lives here; the
+ * live detail underneath it comes from the engine via `status.update`.
+ */
+function progressLine(): string {
+  // `done` counts finished files; the one being worked on is the next one up.
+  const current = Math.min(progress.done + 1, progress.total);
+  return progress.total > 1
+    ? `Compressing file ${current} of ${progress.total}...`
+    : "Compressing your file...";
+}
+
+/**
+ * "photo.png" -> "photo-compressed.png".
+ *
+ * Downloading a compressed copy under its original name lands next to the
+ * original as "photo (1).png", and now nothing says which of the two is the
+ * small one. The suffix makes the download self-describing, the same answer
+ * iLoveIMG and friends settled on. Only *shrunk* files get it: a file that
+ * passed through untouched is the original, and labelling original bytes
+ * "-compressed" would be a lie. Applied at download time, not in the results
+ * list, so the on-screen rows still match the names the user dropped.
+ */
+export function compressedName(name: string): string {
+  const dot = name.lastIndexOf(".");
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const ext = dot > 0 ? name.slice(dot) : "";
+  // Re-compressing an already-suffixed download must not stack suffixes.
+  if (stem.endsWith("-compressed")) return name;
+  return `${stem}-compressed${ext}`;
+}
+
+/**
+ * Results that have bytes worth downloading.
+ *
+ * A file we never opened has none, and that is now the normal case rather than
+ * an error one: a format with no compressor, or a file the user stopped us
+ * before reaching, is never read off disk at all. Shipping a 0-byte entry under
+ * the original name would read as "the compressor destroyed it", and shipping
+ * a byte-identical copy of a file the user already has is not worth the read.
+ */
+function downloadable() {
+  // Only the files that changed.
+  //
+  // This used to be "anything with bytes", which quietly included whatever
+  // happened to be mid-flight when a batch was stopped - so a run reporting
+  // "1 file got smaller" offered a button reading "Download 2 files (.zip)".
+  // The count on the button and the count in the headline have to be the same
+  // number, and an untouched file is already on disk exactly as it is here.
+  return results.filter(r => r.shrunk && r.bytes.byteLength > 0);
+}
+
+function downloadableCount(): number {
+  return downloadable().length;
+}
+
+export async function downloadResults() {
+  if (!results.length) return;
+  // Every entry `downloadable()` returns is `shrunk` by definition, so the
+  // name is always the compressed one.
+  const out = downloadable()
+    .map(r => ({ name: compressedName(r.name), bytes: r.bytes }));
+  if (!out.length) {
+    showToast("Nothing to download. None of these files changed.", "warn", 6000);
+    return;
+  }
+  if (out.length === 1) downloadFile(out[0].bytes, out[0].name);
+  else await downloadAsZip(out, `compressed-${timestampForFilename()}.zip`);
+}
+
+/**
+ * Back to the batch view, keeping the files.
+ *
+ * This is what the Converter's "Done" does on its success modal: dismiss the
+ * result and return you to where you started. Here that place is the file list
+ * with the level picker on it, so the button that used to be labelled "Try
+ * another level" and this one are the same gesture - there was never a reason
+ * for this surface to invent its own word for it, or to sit two primary-weight
+ * buttons side by side where every other surface has one and a quiet second.
+ */
+export function backToFiles() {
+  phase = "idle";
+  results = [];
+  render();
+}
+
+// --- Rendering ---
+
+/**
+ * The whole idle view, deliberately mirroring the convert card: same
+ * `.convert-field` wrappers, the same `.upload-zone` drop target with its
+ * file-info row and action buttons, and `.format-selector` for the level.
+ * Reusing those classes means this surface inherits the Converter's look and
+ * every future tweak to it, instead of drifting into a lookalike.
+ */
+function uploadFieldMarkup(): string {
+  const hint = isTouchUi() ? "or tap to browse" : "or click to browse";
+  const total = files.reduce((sum, e) => sum + e.file.size, 0);
+  const hasFiles = files.length > 0;
+  const label = hasFiles
+    ? `${files.length} file${files.length === 1 ? "" : "s"} ready · ${formatBytes(total)}`
+    : "";
+  const displayName = files.length === 1
+    ? shortenFileName(files[0].file.name, 32)
+    : `${files.length} files selected`;
+
+  return `
+    <div class="convert-field">
+      <span class="field-label">${escapeHTML(label)}</span>
+      <div class="upload-zone ${hasFiles ? "has-file" : ""}" role="button" tabindex="0"
+        aria-label="Drop files to compress">
+        <p class="upload-text" ${hasFiles ? 'style="display:none"' : ""}>Drop your files</p>
+        <p class="upload-hint" ${hasFiles ? 'style="display:none"' : ""}>${hint}</p>
+        <div class="upload-file-info ${hasFiles ? "visible" : ""}" aria-live="polite" aria-atomic="true">
+          <span class="upload-file-name truncate">${escapeHTML(displayName)}</span>
+          <div class="upload-file-actions">
+            <button class="upload-action-btn icon-btn floating-card-surface cw-manage" type="button"
+              title="Manage files" aria-label="Manage files">&#9776;</button>
+            <button class="upload-action-btn icon-btn floating-card-surface cw-replace" type="button"
+              title="Replace all files" aria-label="Replace all files">&#8635;</button>
+            <button class="upload-action-btn icon-btn floating-card-surface cw-clear" type="button"
+              title="Clear all files" aria-label="Clear all files">&times;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function levelFieldMarkup(): string {
+  const active = COMPRESS_LEVELS.find(l => l.value === compressLevel.value);
+
+  // A trigger only. The choices live in a modal rather than an absolutely
+  // positioned dropdown, which is what the Converter does for its format
+  // picker and what this used to get wrong: the open menu overlaid the
+  // Compress button, so a tap aimed at the button landed on the menu instead.
+  // A modal is centred, scroll-locked and dismissable, so it cannot cover the
+  // control that opened it or run off the bottom of a short screen.
+  return `
+    <div class="convert-field cw-level-field">
+      <span class="convert-to-label">Compression level</span>
+      <button class="format-selector has-value cw-level-selector" type="button"
+        aria-haspopup="dialog" aria-expanded="false">
+        <span class="selector-text truncate">${escapeHTML(active?.label ?? "Automatic")}</span>
+        <span class="selector-chevron" aria-hidden="true">&#9662;</span>
+      </button>
+    </div>
+  `;
+}
+
+/**
+ * The compression-level chooser, as a modal.
+ *
+ * Built from nodes rather than an HTML string so the labels and blurbs never
+ * pass through innerHTML, and routed through `showPopup` so it inherits the
+ * app's modal contract for free: Escape, backdrop dismissal, focus restore and
+ * scroll lock, all from `ModalManager` instead of three bespoke listeners.
+ */
+function openLevelPopup(): void {
+  const current = compressLevel.value;
+  const make = (tag: string, className?: string, text?: string) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+
+  const wrap = make("div", "cw-level-dialog");
+  wrap.appendChild(make("h2", undefined, "Compression level"));
+
+  const list = make("div", "cw-level-list");
+  list.setAttribute("role", "radiogroup");
+  list.setAttribute("aria-label", "Compression level");
+
+  for (const level of COMPRESS_LEVELS) {
+    const option = make("button", "cw-level-option") as HTMLButtonElement;
+    option.type = "button";
+    option.setAttribute("role", "radio");
+    option.setAttribute("aria-checked", String(level.value === current));
+    option.dataset.level = level.value;
+    option.appendChild(make("span", undefined, level.label));
+    option.appendChild(make("span", "cw-level-blurb", level.blurb));
+    option.addEventListener("click", () => {
+      hidePopup();
+      if (level.value === compressLevel.value) return;
+      setCompressLevel(level.value);
+      markCompressDirty("manifest");
+      render();
+      // Mirror into the settings menu, which shows this same setting.
+      window.dispatchEvent(new CustomEvent("frog:compress-level", { detail: { from: "card" } }));
+    });
+    list.appendChild(option);
+  }
+
+  wrap.appendChild(list);
+  showPopup(wrap);
+  // Land focus on the current choice so a keyboard or screen-reader user
+  // arrives at where they are, not at the top of an unlabelled list.
+  wrap.querySelector<HTMLElement>('[aria-checked="true"]')?.focus();
+}
+
+function resultsMarkup(): string {
+  const saved = totalSaved(results);
+  const originalTotal = results.reduce((sum, r) => sum + r.originalSize, 0);
+  const pct = originalTotal ? Math.round((saved / originalTotal) * 100) : 0;
+  const shrunkCount = results.filter(r => r.shrunk).length;
+
+  // "Already as small as they get" is only true when we actually tried. If
+  // every file was a format we cannot compress, saying that is a lie about
+  // the files - the honest answer is that we could not help.
+  const noneSupported = results.length > 0 && results.every(r => r.reason === "unsupported");
+  // Stopping early leaves files untouched by request, not by failure. Saying
+  // "nothing left to shave off" about files we never opened is just untrue.
+  const stoppedCount = results.filter(r => r.reason === "cancelled").length;
+
+  // A real saving that rounds to 0% ("saved 60 KB of 400 MB") reads as a bug.
+  const pctText = pct > 0 ? `${pct}% smaller` : "under 1% smaller";
+
+  // Singular and plural are different sentences here, and a batch of one is
+  // the common case. "These were already as small as they usefully get" over a
+  // single row reads as though the app cannot count.
+  const many = results.length !== 1;
+
+  const headline = saved > 0
+    ? `Saved ${formatBytes(saved)} <span class="cw-pct">(${pctText})</span>`
+    : stoppedCount > 0
+      // Not "Stopped" again. The modal's own title already says that, and this
+      // line sits directly beneath it - the two together read as a stutter,
+      // with the sentence under them opening on the word a third time. The
+      // title carries the *what*; this line owes the reader the outcome.
+      ? `Nothing got smaller`
+      : noneSupported
+        ? `Nothing to compress here`
+        // Says what happened, in a sentence rather than a verdict. The old
+        // "No smaller at this level" read as a fragment of a spec sheet, and
+        // still had to avoid claiming the file cannot be compressed at all -
+        // the note underneath goes on to suggest another level.
+        : many ? `These didn't get any smaller` : `This one didn't get any smaller`;
+  const sub = saved > 0
+    ? stoppedCount > 0
+      ? `${shrunkCount} file${shrunkCount === 1 ? "" : "s"} got smaller before you stopped. The rest are untouched.`
+      : `${shrunkCount} of ${results.length} file${results.length === 1 ? "" : "s"} got smaller.`
+    : stoppedCount > 0
+      // The title said "Stopped" and the headline said what that cost. All
+      // this line still owes is the reassurance.
+      ? many ? `Your files are untouched.` : `Your file is untouched.`
+      : noneSupported
+        ? many
+          ? `These formats can't be compressed. Images, audio, video and PDFs can.`
+          : `That format can't be compressed. Images, audio, video and PDFs can.`
+        : many
+          // Names the count, because the list below is capped and the rows
+          // can no longer be counted by eye.
+          ? `All ${results.length} are untouched, and still yours to keep.`
+          : `Your original is untouched, and still yours to keep.`;
+
+  // A results list is a summary, not a manifest.
+  //
+  // 300 files is a legal batch, and every one of them used to become a row -
+  // a scroll container holding thousands of pixels of near-identical lines,
+  // with the headline and the buttons pushed to either end of it. The rows
+  // that carry information are the ones that *did* something, so those come
+  // first and the rest are counted rather than listed.
+  //
+  // The cap is per-run, not persisted: pressing "Try another level" rebuilds
+  // this from the new results.
+  const ROW_CAP = 8;
+  const ordered = [...results].sort((a, b) => Number(b.shrunk) - Number(a.shrunk));
+  const shown = ordered.slice(0, ROW_CAP);
+  const hidden = ordered.length - shown.length;
+
+  const rows = shown.map(r => {
+    const detail = r.shrunk
+      ? `<span class="cw-res-from">${formatBytes(r.originalSize)}</span>
+         <span class="cw-res-arrow" aria-hidden="true">→</span>
+         <span class="cw-res-to">${formatBytes(r.bytes.byteLength)}</span>
+         <span class="cw-res-pct">−${Math.round((1 - r.bytes.byteLength / r.originalSize) * 100)}%</span>`
+      : `<span class="cw-res-from">${formatBytes(r.originalSize)}</span>
+         <span class="cw-res-note">${escapeHTML(REASON_COPY[r.reason ?? "no-gain"] ?? "unchanged")}</span>`;
+    return `
+      <li class="cw-res-row ${r.shrunk ? "shrunk" : "kept"}">
+        <span class="cw-row-name" title="${escapeHTML(r.name)}">${escapeHTML(shortenFileName(r.name, 36))}</span>
+        <span class="cw-res-detail">${detail}</span>
+      </li>
+    `;
+  }).join("") + (hidden > 0
+    // Not a row: it names no file and must not read as one. It closes the
+    // list rather than hiding a scrollbar's worth of content behind a
+    // gesture nobody is told about.
+    ? `<li class="cw-res-more">and ${hidden} more file${hidden === 1 ? "" : "s"}</li>`
+    : "");
+
+  // A PDF that came back no smaller has two quite different explanations and
+  // we cannot tell them apart from here, so the note names both rather than
+  // asserting the one that happens to be wrong. Measured: a 71-page,
+  // image-heavy research brief *grew* 42% at "Smallest file" because its
+  // JPEG2000 images get decoded and re-encoded, then shrank 18% at
+  // "High quality" - the opposite of what the old copy would have told that
+  // user, which was that their document must be mostly text.
+  const stubbornPdf = results.some(r =>
+    !r.shrunk && r.reason === "no-gain" && /\.pdf$/i.test(r.name));
+  const pdfNote = stubbornPdf
+    ? `<p class="cw-results-note">That PDF didn't get smaller. Either it's mostly text, which is fonts and vector shapes rather than images, or its images are already stored in a format this level would have had to make bigger. Trying a different level is worth a go: on some documents <b>High quality</b> saves more than <b>Smallest file</b>.</p>`
+    : "";
+
+  // A degraded route ran because the real engine was unreachable. This is a
+  // saving the user did not ask for the cost of, so it is stated plainly
+  // rather than folded into the cheerful savings headline. De-duplicated: one
+  // warning per distinct cause, not one per file.
+  const warnings = [...new Set(results.map(r => r.warning).filter(Boolean) as string[])];
+  const warningNotes = warnings
+    .map(w => `<p class="cw-results-warning">${escapeHTML(w)}</p>`)
+    .join("");
+
+  return `
+    <div class="cw-results-card">
+      <div class="cw-results-head" role="status" aria-live="polite" aria-atomic="true">
+        <p class="cw-results-headline">${headline}</p>
+        <p class="cw-results-sub">${escapeHTML(sub)}</p>
+        ${warningNotes}
+        ${pdfNote}
+      </div>
+      <ul class="cw-results-list">${rows}</ul>
+    </div>
+  `;
+}
+
+/**
+ * Show the finished batch, in the modal the Converter and the PDF Editor both
+ * use for exactly this moment.
+ *
+ * It used to render into the card instead - the same information, a bespoke
+ * footer, and a different shape for the same event on the third surface. There
+ * was never a reason for it: the per-file table is a few rows of markup and
+ * sits inside a popup as happily as inside a card, and everything the modal
+ * brings (Escape, backdrop, focus restore, scroll lock, the primary/secondary
+ * footer) had to be either re-implemented here or done without.
+ */
+function showResultsModal() {
+  const h2 = document.createElement("h2");
+  h2.textContent = results.some(r => r.reason === "cancelled")
+    ? "Stopped"
+    : results.length > 1 ? "Files compressed! \u{1F389}" : "File compressed! \u{1F389}";
+
+  const body = document.createElement("div");
+  body.innerHTML = resultsMarkup();
+
+  const actions = document.createElement("div");
+  actions.className = "popup-actions-footer";
+  const n = downloadableCount();
+  if (n > 0) {
+    actions.appendChild(createPopupButton(
+      n === 1 ? "Download" : `Download ${n} files (.zip)`,
+      "btn-primary",
+      () => { void downloadResults(); },
+    ));
+  }
+  actions.appendChild(createPopupButton("Done", "btn-secondary", () => {
+    hidePopup();
+    backToFiles();
+  }));
+
+  replacePopup([h2, createDancingFrog(), body, actions]);
+}
+
+// The privacy promise deliberately lives in #compress-description, the page
+// line below the card, and not here as well. This surface used to state it
+// twice in a row - "Nothing leaves your device" immediately above "without
+// sending them anywhere" - which reads as padding rather than reassurance.
+// One line, in the same place the Converter and PDF Editor put theirs.
+
+function actionMarkup(): string {
+  return `
+    <button class="cw-compress btn-primary" type="button">
+      Compress ${files.length} file${files.length === 1 ? "" : "s"}
+    </button>
+  `;
+}
+
+function render() {
+  if (!rootEl) return;
+  // Neither "running" nor "done" has a view of its own: both are modals over
+  // the card, so the batch is exactly where it was when either closes.
+  rootEl.innerHTML = files.length
+    ? `${uploadFieldMarkup()}${levelFieldMarkup()}${actionMarkup()}`
+    : uploadFieldMarkup();
+  wireRendered();
+}
+
+/** Everything this surface takes, and the picker filter for each. Empty accept
+ *  means "all of the above", which is the input's own markup default. */
+const ALL_ACCEPT = "image/*,audio/*,video/*,application/pdf,.pdf";
+
+/**
+ * Whether the next successful pick replaces the batch instead of adding to it.
+ *
+ * One input serves the drop zone, the category pills and the replace button, and
+ * a cancelled picker fires no event at all - so a flag set at click time would
+ * survive the cancel and turn the next drop-zone pick into a replace. Every
+ * caller goes through `openPicker`, which rewrites the flag on each open, so the
+ * last control pressed is always the one that decides.
+ */
+let replaceOnPick = false;
+
+function openPicker(accept = "", replace = false) {
+  if (!fileInput) return;
+  replaceOnPick = replace;
+  fileInput.multiple = true;
+  fileInput.accept = accept || ALL_ACCEPT;
+  fileInput.click();
+}
+
+function wireRendered() {
+  if (!rootEl) return;
+
+  const zone = rootEl.querySelector<HTMLElement>(".upload-zone");
+  if (zone) {
+    zone.addEventListener("click", (e) => {
+      // The action buttons sit inside the zone; don't let them open the picker.
+      if ((e.target as HTMLElement).closest(".upload-file-actions")) return;
+      openPicker();
+    });
+    zone.addEventListener("keydown", (e) => {
+      if (e.key !== " " && e.key !== "Enter") return;
+      e.preventDefault();
+      openPicker();
+    });
+    zone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      zone.classList.add("drag-over");
+    });
+    zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
+    zone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      zone.classList.remove("drag-over");
+      handleFiles(Array.from(e.dataTransfer?.files ?? []));
+    });
+  }
+
+  rootEl.querySelector<HTMLElement>(".cw-manage")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openFilesModal(filesModalSource);
+  });
+  rootEl.querySelector<HTMLElement>(".cw-replace")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    // Replaces, like the Converter's identical-looking button. This used to
+    // append, so the same glyph on the two surfaces did opposite things:
+    // three files in, pick one, and the Converter left you with one while
+    // Compress left you with four. Adding has its own large, labelled home in
+    // the Files modal's "Drop more files" zone, so the icon does not need to
+    // duplicate it.
+    openPicker("", true);
+  });
+  rootEl.querySelector<HTMLElement>(".cw-clear")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    files = [];
+    markCompressDirty("files");
+    render();
+  });
+
+  for (const btn of rootEl.querySelectorAll<HTMLElement>("[data-remove]")) {
+    btn.addEventListener("click", () => removeFile(Number(btn.dataset.remove)));
+  }
+
+  // Level selector: opens the modal. Escape, backdrop dismissal, focus restore
+  // and scroll lock all come from ModalManager via showPopup, which is why
+  // there is no document-level keydown listener or click-away handler here any
+  // more - three bespoke behaviours replaced by the one the rest of the app
+  // already uses.
+  rootEl.querySelector<HTMLElement>(".cw-level-selector")
+    ?.addEventListener("click", () => openLevelPopup());
+
+  rootEl.querySelector<HTMLElement>(".cw-compress")?.addEventListener("click", () => { void runCompression(); });
+  // Nothing to wire for the finished batch: results moved into the shared
+  // modal (showResultsModal), which builds its own Download and Done through
+  // createPopupButton and brings its own celebration. The card no longer
+  // renders .cw-download, .cw-back or .cw-results-frog, so the handlers that
+  // used to sit here bound to nothing.
+  //
+  // Stop lives on the progress modal too (ensureCancelButton), which also
+  // binds Escape to it.
+}
+
+// --- Lifecycle (mirrors PdfWorkspace) ---
+
+export function initCompressWorkspace() {
+  if (initialized) {
+    resolveRefs();
+    wireCategoryTabs();
+    render();
+    return;
+  }
+  initialized = true;
+  resolveRefs();
+  wireCategoryTabs();
+
+  // Async and non-blocking: the empty state paints first when no session exists.
+  void tryRestoreCompressSession({
+    getFiles: () => files.map(e => e.file),
+    getLevel: () => compressLevel.value,
+    applyRestored: (restored, restoredLevel) => {
+      files = restored.map(file => ({ id: nextId++, file }));
+      // "auto" belongs in this list: it is the default, so leaving it out meant
+      // the one level most sessions are saved with was never restored.
+      if (restoredLevel === "auto" || restoredLevel === "high"
+        || restoredLevel === "medium" || restoredLevel === "low") {
+        setCompressLevel(restoredLevel);
+      }
+      phase = "idle";
+      results = [];
+      render();
+    },
+  });
+
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") void flushCompressOnHide();
+    });
+  }
+  // pagehide covers the mobile / OS-killed-tab cases visibilitychange misses.
+  if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", () => { void flushCompressOnHide(); });
+    // The settings menu shows the same level as the card's own picker. Repaint
+    // when it changes there, so the two views never disagree. Events the card
+    // raised itself are ignored - it has already rendered.
+    window.addEventListener("frog:compress-level", (e) => {
+      if ((e as CustomEvent).detail?.from === "card") return;
+      if (rootEl) render();
+    });
+  }
+
+  fileInput?.addEventListener("change", () => {
+    const replacing = replaceOnPick;
+    replaceOnPick = false;
+    if (!fileInput?.files) return;
+    handleFiles(Array.from(fileInput.files), replacing);
+    fileInput.value = "";
+  });
+
+  wireCategoryTabs();
+  render();
+}
+
+function resolveRefs() {
+  rootEl = document.getElementById("compress-content");
+  fileInput = document.getElementById("compress-file-input") as HTMLInputElement | null;
+}
+
+/**
+ * The category pills above the card. On the Converter they filter a format
+ * list; there is no such list here, so they do the job the user actually came
+ * for - they state what this surface accepts, and tapping one opens the picker
+ * already narrowed to that kind of file. Wired once at init: they live outside
+ * `#compress-content` and so survive every re-render.
+ */
+function wireCategoryTabs() {
+  const tabs = document.getElementById("compress-category-tabs");
+  // The guard lives on the element, not in a module flag: a module flag would
+  // skip re-wiring if the markup were ever replaced, and would still
+  // double-wire a fresh element. This is idempotent either way.
+  if (!tabs || tabs.dataset.wired === "1") return;
+  tabs.dataset.wired = "1";
+  tabs.addEventListener("click", (e) => {
+    const tab = (e.target as HTMLElement).closest<HTMLElement>(".cat-tab");
+    if (!tab) return;
+    for (const t of tabs.querySelectorAll<HTMLElement>(".cat-tab")) {
+      const active = t === tab;
+      t.classList.toggle("active", active);
+      t.setAttribute("aria-pressed", String(active));
+    }
+    openPicker(tab.dataset.accept ?? "");
+  });
+}
+
+/** Tear down DOM refs but keep the user's batch, so mode switches don't lose work. */
+export function cleanup() {
+  rootEl = null;
+}
+
+/** Destructive reset - clears the batch and the chosen level. */
+export function resetAll() {
+  files = [];
+  setCompressLevel(DEFAULT_LEVEL);
+  // A reset abandons whatever was in flight, and the status handle owns a 1s
+  // interval pointed at a modal for a batch that no longer exists. Dropping
+  // the reference without cancelling left it repainting into nothing.
+  statusHandle?.cancel();
+  statusHandle = null;
+  phase = "idle";
+  results = [];
+  void clearCompressSession();
+  if (rootEl) render();
+}
+
+/** Share-target / launch-queue entry point. */
+export function ingestExternalFiles(incoming: File[]) {
+  if (!initialized) initCompressWorkspace();
+  handleFiles(incoming);
+}

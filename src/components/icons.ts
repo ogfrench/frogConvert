@@ -1,9 +1,9 @@
-// Lucide subset (ISC license — github.com/lucide-icons/lucide), inlined
+// Lucide subset (ISC license - github.com/lucide-icons/lucide), inlined
 // as SVG strings so we don't pull in a runtime dep. One visual language:
-// stroke-width 2, round caps + joins, 24×24 viewBox, currentColor — so a
+// stroke-width 2, round caps + joins, 24×24 viewBox, currentColor - so a
 // single CSS color rule on the host button drives every icon.
 //
-// Default size 1em — the icon inherits its parent's font-size, which keeps
+// Default size 1em - the icon inherits its parent's font-size, which keeps
 // it visually paired with adjacent text. Pass an explicit size (px or rem)
 // for standalone affordances where parent font-size is wrong (e.g. badges).
 

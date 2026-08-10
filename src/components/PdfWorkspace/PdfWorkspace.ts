@@ -8,6 +8,7 @@ import { clearSession, type StoredSession, type PdfWorkspacePayload } from '../p
 import { merge } from '../../tools/pdfMerge.ts';
 import { extract } from '../../tools/pdfExtract.ts';
 import { organize } from '../../tools/pdfOrganize.ts';
+import { PdfEditCancelled, checkpoint } from '../../tools/cancellation.ts';
 import {
   watermark,
   hexToRgb,
@@ -24,10 +25,18 @@ import { isTouchUi } from '../../core/utils/touchUi.ts';
 import { showToast } from '../Toast/Toast.ts';
 import { Icons } from '../icons.ts';
 import { showPopup, hidePopup, replacePopup, createPopupButton, showConfirmPopup, showUploadSummaryPopup, type UploadResult } from '../Popup/Popup.ts';
-import { formatBytes, escapeHTML, shortenFileName, ensureMinDuration, toUserErrorInfo, appendSupportContact, FEEDBACK_CONTACT_TEXT } from '../utils/index.ts';
+import { formatBytes, escapeHTML, shortenFileName, ensureMinDuration, toUserErrorInfo, appendSupportContact, FEEDBACK_CONTACT_TEXT, announce } from '../utils/index.ts';
 import { createDancingFrog } from '../Frogsworth/DancingFrog.ts';
-import { triggerConfetti } from '../../effects/Confetti/Confetti.ts';
-import { ui, updateScrollLock } from '../store/store.ts';
+import { celebrateOnPopup } from '../../effects/Confetti/Confetti.ts';
+import { ui, updateScrollLock, pdfQuality } from '../store/store.ts';
+import {
+  compressPdfOutputs,
+  cancelPdfOutputCompression,
+  resetPdfOutputCompression,
+  wasPdfOutputCompressionCancelled,
+} from '../../conversion/compressPdfOutput.ts';
+import { formatProgress, liveLine, reassuranceLine } from '../../conversion/progressStatus.ts';
+import type { ProgressEvent } from '../../core/FormatHandler/FormatHandler.ts';
 import { MAX_TOTAL_FILE_SIZE, ABSOLUTE_MAX_FILES } from '../../constants/ui.ts';
 
 // ---------------------------------------------------------------------------
@@ -458,9 +467,166 @@ function shouldEnter(sig: string): boolean {
 let lastPdfResult: { bytes: Uint8Array; name: string }[] = [];
 let lastPdfZipName: string | null = null;
 
+/**
+ * What the optional compression pass did to the save that just finished, or
+ * null when it had nothing to report.
+ *
+ * The setting is sticky (`pdfQuality` persists), the default is Original
+ * quality, and the success modal used to read identically either way. So
+ * someone who picked Smallest file once, for one scan, kept re-compressing
+ * every document they edited afterwards with nothing on screen to say so.
+ * Three quite different outcomes - shrank by half, came back no smaller and
+ * was discarded by the keep-threshold, failed and was swallowed by the
+ * never-throws rule - all produced the same sentence.
+ */
+let lastPdfCompression: { before: number; after: number; skipped: boolean } | null = null;
+
+/**
+ * The one place a finished job hands its output over.
+ *
+ * Every tool used to assign `lastPdfResult` and `lastPdfZipName` itself, which
+ * meant nine copies of the same two lines and nine places to remember when
+ * something has to happen to every result. The optional output compression is
+ * exactly that something: routing it through here means merge, organize,
+ * watermark and extract all honour the Compression setting without any of them
+ * knowing it exists.
+ *
+ * At Original quality (the default) this is the same two assignments as before.
+ */
+async function setPdfResult(
+  results: { bytes: Uint8Array; name: string }[],
+  zipName: string | null,
+): Promise<{ bytes: Uint8Array; name: string }[]> {
+  const level = pdfQuality.value;
+  resetPdfOutputCompression();
+  let skipButton: HTMLElement | null = null;
+  if (level !== 'lossless' && results.length > 0) {
+    // The popup still reads "Stitching your pages..." from whichever job called
+    // us. Compressing a big scan takes seconds, and a message describing work
+    // that already finished reads as a hang. Best-effort: no popup, no update.
+    const note = document.querySelector<HTMLElement>('.ws-processing p');
+    if (note) {
+      note.textContent = results.length > 1
+        ? `Compressing ${results.length} PDFs. The first one takes a little longer.`
+        : 'Compressing your PDF. The first one takes a little longer.';
+    }
+    // The heading moves with it. Left saying "Merging..." over a body about
+    // compression, the two lines describe different jobs and the one that has
+    // already finished is the one shouted in bold.
+    const heading = document.querySelector<HTMLElement>('.ws-processing h2');
+    if (heading) heading.textContent = 'Compressing...';
+    // A way out. Worst case here is the first-ever use on a large scan over a
+    // slow line: a 16 MB engine fetch, a WASM compile and the pass itself,
+    // behind a spinner whose only other exit was the 10-minute worker timeout.
+    //
+    // Safe by construction: the edit finished before this step started, so
+    // skipping hands back the finished document uncompressed - precisely what
+    // Original quality would have produced. Nothing the user asked for is lost.
+    skipButton = addSkipCompressionButton();
+  }
+  // Both totals are to hand right here - the documents going in, and the ones
+  // coming out - so nothing has to be threaded through the engine to report
+  // them. Measured across the batch, because that is what the user saved.
+  const before = results.reduce((n, r) => n + r.bytes.byteLength, 0);
+  // Live status in the popup's own subtext, using the same formatter and the
+  // same 9s/3s rhythm as Convert and Compress. Ghostscript reports a real
+  // percentage - including, on first use, the download of its own ~16 MB engine
+  // - and all of it used to be discarded here.
+  const startedAt = Date.now();
+  const note = document.querySelector<HTMLElement>('.ws-processing p');
+  let ticker: ReturnType<typeof setInterval> | null = null;
+  let latest: ProgressEvent | undefined;
+  let position = '';
+  const paint = () => {
+    if (!note) return;
+    const live = liveLine(formatProgress(latest), Date.now() - startedAt);
+    const line = live ? `${live} · ${reassuranceLine()}` : reassuranceLine();
+    note.textContent = position ? `${position} · ${line}` : line;
+  };
+  if (note) ticker = setInterval(paint, 1000);
+  try {
+    lastPdfResult = await compressPdfOutputs(results, level, (p, index, total) => {
+      latest = p;
+      position = total > 1 ? `PDF ${index + 1} of ${total}` : '';
+      paint();
+    });
+  } finally {
+    if (ticker) clearInterval(ticker);
+    skipButton?.remove();
+  }
+  const after = lastPdfResult.reduce((n, r) => n + r.bytes.byteLength, 0);
+  const skipped = level !== 'lossless' && wasPdfOutputCompressionCancelled();
+  // Nothing to say at Original quality, and nothing to say when the pass ran
+  // and kept the original: "compressed, 0% smaller" is worse than silence.
+  lastPdfCompression =
+    level === 'lossless' || (after >= before && !skipped)
+      ? null
+      : { before, after, skipped };
+  lastPdfZipName = zipName;
+  return lastPdfResult;
+}
+
+/**
+ * The one clause the success modal adds about compression, or "".
+ *
+ * Deliberately a clause on the existing sentence rather than a card or a
+ * second modal: this is a footnote to a save that already succeeded, and the
+ * Compress surface is where a full report belongs.
+ */
+function compressionNote(c = lastPdfCompression): string {
+  if (!c) return '';
+  const saved = c.before - c.after;
+  if (c.skipped) {
+    // Skipping is safe by construction - the edit finished first - so this
+    // says what the user has rather than dressing it up as a failure. A batch
+    // stopped part-way still saved something, and that is worth stating.
+    return saved > 0
+      ? ` Compression stopped early, after ${escapeHTML(formatBytes(saved))}.`
+      : ' Compression skipped, your pages are untouched.';
+  }
+  return ` Compressed ${escapeHTML(formatBytes(c.before))} → ${escapeHTML(formatBytes(c.after))}.`;
+}
+
+/** Cancel control for the optional compression step, added to the live popup. */
+function addSkipCompressionButton(): HTMLElement | null {
+  const wrap = document.querySelector<HTMLElement>('.ws-processing');
+  if (!wrap) return null;
+  const actions = el('div', { className: 'popup-actions-footer' });
+  const btn = el('button', {
+    className: 'btn-secondary',
+    textContent: 'Skip compression',
+    type: 'button',
+  }) as HTMLButtonElement;
+  btn.addEventListener('click', () => {
+    btn.disabled = true;
+    btn.textContent = 'Finishing up...';
+    cancelPdfOutputCompression();
+  });
+  actions.appendChild(btn);
+  wrap.appendChild(actions);
+  return actions;
+}
+
 let toolContent: HTMLElement;
 let fileInput: HTMLInputElement;
 let errorEl: HTMLElement;
+
+/**
+ * Whether the next successful pick replaces the file list instead of appending.
+ *
+ * One `<input type=file>` serves + Add, every dropzone and Replace all, and a
+ * cancelled picker fires no event at all - so a flag set at click time would
+ * survive a cancel and silently turn the next + Add into a replace. Routing
+ * every caller through `openPicker` means the flag is rewritten on each open,
+ * so the last button pressed is always the one that decides.
+ */
+let replaceOnPick = false;
+
+function openPicker(multiple: boolean, replace = false): void {
+  replaceOnPick = replace;
+  fileInput.multiple = multiple;
+  fileInput.click();
+}
 
 const EAGER_LIMIT = 50;
 
@@ -573,7 +739,9 @@ export function initPdfWorkspace() {
   });
 
   fileInput.addEventListener('change', () => {
-    if (fileInput.files?.length) handleFiles(Array.from(fileInput.files));
+    const replacing = replaceOnPick;
+    replaceOnPick = false;
+    if (fileInput.files?.length) handleFiles(Array.from(fileInput.files), replacing);
     fileInput.value = '';
   });
 
@@ -663,8 +831,115 @@ function makeSidebarFileRow(sf: SourceFile, opts: SidebarFileRowOpts = {}): HTML
   }
   if (opts.onRemove) {
     const delBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-list-remove', innerHTML: Icons.x(), ariaLabel: `Remove ${sf.name}` });
-    delBtn.addEventListener('click', (e) => { e.stopPropagation(); opts.onRemove!(); });
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const panel = row.closest<HTMLElement>('.ws-tray-scroll, .ws-sidebar-card, .ws-wm-panel-card');
+      const idx = panel
+        ? [...panel.querySelectorAll('.ws-file-list-remove')].indexOf(delBtn)
+        : -1;
+      const hadFocus = document.activeElement === delBtn;
+      opts.onRemove!();
+      // Nothing on screen says a file went: the row is gone and the count
+      // beside it is rebuilt rather than edited, so there is no text change
+      // for a screen reader to notice. Announced here rather than at each of
+      // the four call sites, because they all remove a file the same way and
+      // only differ in what they repaint afterwards.
+      announce(files.length
+        ? `Removed ${sf.name}. ${files.length} ${files.length === 1 ? 'file' : 'files'} remaining.`
+        : `Removed ${sf.name}. No files left.`);
+      // This button is gone with its row, so focus has to be placed somewhere
+      // deliberate or it falls to <body> and the user is dumped at the top of
+      // the document.
+      if (!hadFocus) return;
+      if (panel?.isConnected) {
+        // Merge repaints its list in place, so the panel outlives the row:
+        // step to the neighbouring ×, or to the button row if that was the
+        // last file.
+        const remaining = panel.querySelectorAll<HTMLElement>('.ws-file-list-remove');
+        if (remaining.length) remaining[Math.min(idx, remaining.length - 1)].focus();
+        else panel.querySelector<HTMLElement>('.ws-sidebar-btn-row button')?.focus();
+        return;
+      }
+      // The panel was rebuilt. A reopened tray has already claimed focus.
+      const tray = document.querySelector('.ws-tray.ws-tray-open');
+      if (tray?.contains(document.activeElement)) return;
+      // Otherwise that was the last file and the whole view is now the empty
+      // dropzone, which is the only thing left worth focusing.
+      document.querySelector<HTMLElement>('.ws-dropzone')?.focus();
+    });
     row.appendChild(delBtn);
+  }
+  return row;
+}
+
+/**
+ * Replace all / Clear, for the count row at the top of a file block.
+ *
+ * Files were the only collection in the app without bulk actions - the
+ * Converter and Compress have had them in the shared Files modal all along
+ * (`index.html:588-590`), which is where this wording comes from. "Clear"
+ * rather than "Remove all" is not only shorter: at the sidebar's real width
+ * two long labels wrap onto two lines each, and one long plus one short does
+ * not.
+ *
+ * `+ Add` moves out of this row and onto its own below the list, so the three
+ * actions are not competing for the ~130px left over beside the count.
+ */
+function makeFileBulkActions(): HTMLElement {
+  const group = el('div', { className: 'ws-count-btn-group' });
+
+  // Both labels are terse enough to be ambiguous read out of context - "Clear"
+  // on its own says nothing about what - so each names its object. The visible
+  // text is a prefix of the accessible name, which is what speech control
+  // needs to be able to act on what it can see (WCAG 2.5.3).
+  const replaceBtn = el('button', {
+    className: 'ws-btn ws-btn-small',
+    textContent: 'Replace all',
+    ariaLabel: 'Replace all files',
+  });
+  // No confirm: the picker opens first and the list is only swapped once files
+  // come back, so cancelling the picker costs nothing. Same contract as the
+  // Files modal's own Replace all.
+  replaceBtn.addEventListener('click', () => openPicker(true, true));
+  group.appendChild(replaceBtn);
+
+  const clearBtn = el('button', {
+    className: 'ws-btn ws-btn-small',
+    textContent: 'Clear',
+    ariaLabel: 'Clear all files',
+  });
+  clearBtn.addEventListener('click', () => {
+    showConfirmPopup(
+      'Clear all files?',
+      'Page order, rotations and watermark settings go with them.',
+      {
+        label: 'Clear',
+        onClick: () => {
+          // Said before the reset, while there is still a count to report.
+          const n = files.length;
+          resetAll();
+          announce(`Cleared ${n} ${n === 1 ? 'file' : 'files'}.`);
+        },
+      },
+      { label: 'Keep them' },
+    );
+  });
+  group.appendChild(clearBtn);
+
+  return group;
+}
+
+/**
+ * `+ Add`, on its own row under a file list, optionally with Organize's
+ * Restore beside it.
+ */
+function makeAddFileRow(opts: { restore?: boolean } = {}): HTMLElement {
+  const row = el('div', { className: 'ws-sidebar-btn-row' });
+  row.appendChild(createAddFileButton());
+  if (opts.restore) {
+    const restoreBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Restore' });
+    restoreBtn.addEventListener('click', resetPages);
+    row.appendChild(restoreBtn);
   }
   return row;
 }
@@ -805,12 +1080,10 @@ function updateMergeSidebarContent(sidebar: HTMLElement) {
   sidebar.innerHTML = '';
 
   const total = files.reduce((s, f) => s + f.pageCount, 0);
-  const countText = `${files.length} file${files.length !== 1 ? 's' : ''} · ${total} pages`;
+  const countText = `${files.length} file${files.length !== 1 ? 's' : ''} · ${total} page${total !== 1 ? 's' : ''}`;
   const countRow = el('div', { className: 'ws-sidebar-count-row' });
   countRow.appendChild(el('p', { className: 'ws-sidebar-count', textContent: countText }));
-  const mergeBtnGroup = el('div', { className: 'ws-count-btn-group' });
-  mergeBtnGroup.appendChild(createAddFileButton());
-  countRow.appendChild(mergeBtnGroup);
+  countRow.appendChild(makeFileBulkActions());
   sidebar.appendChild(countRow);
 
   const fileList = el('div', { className: 'ws-sidebar-files' });
@@ -818,7 +1091,7 @@ function updateMergeSidebarContent(sidebar: HTMLElement) {
     const isMulti = files.length > 1;
     fileList.appendChild(makeSidebarFileRow(sf, {
       letter: isMulti ? String.fromCharCode(65 + (files.indexOf(sf) % 26)) : undefined,
-      meta: isMulti ? `${sf.pageCount} pages · ${formatBytes(sf.size)}` : undefined,
+      meta: isMulti ? `${sf.pageCount} page${sf.pageCount !== 1 ? 's' : ''} · ${formatBytes(sf.size)}` : undefined,
       onRemove: () => {
         files = files.filter(f => f.id !== sf.id);
         onFilesMutated();
@@ -828,6 +1101,7 @@ function updateMergeSidebarContent(sidebar: HTMLElement) {
     }));
   }
   sidebar.appendChild(fileList);
+  sidebar.appendChild(makeAddFileRow());
 
   const bottom = el('div', { className: 'ws-sidebar-bottom' });
 
@@ -857,15 +1131,14 @@ function handleRemoveSelectedFiles(): void {
 
 async function handleMerge() {
   if (files.length < 2) return;
-  await runWithPopup('Merging', 'Stitching your pages into one PDF. This only takes a moment.', 'Merge failed. Try removing a file and re-adding it.', async () => {
-    const r = await merge(files);
-    lastPdfResult = [{ bytes: r.bytes, name: r.name }];
-    lastPdfZipName = null;
+  await runWithPopup('Merging', 'Stitching your pages into one PDF. This only takes a moment.', 'Merge failed. Try removing a file and re-adding it.', async (signal) => {
+    const r = await merge(files, signal);
+    await setPdfResult([{ bytes: r.bytes, name: r.name }], null);
     return r;
   }, (r) => {
     showPdfSuccessModal(
       'PDF merged! \u{1F389}',
-      `<b>${escapeHTML(shortenFileName(r.name, 32))}</b> is downloading now.`,
+      `<b>${escapeHTML(shortenFileName(r.name, 32))}</b> is ready to download.`,
     );
   });
 }
@@ -905,7 +1178,7 @@ function createFileCard(sf: SourceFile): HTMLElement {
 
   const info = el('div', { className: 'ws-file-info' });
   info.appendChild(el('span', { className: 'ws-file-name', textContent: sf.name, title: sf.name }));
-  info.appendChild(el('span', { className: 'ws-file-meta', textContent: `${sf.pageCount} pages · ${formatBytes(sf.size)}` }));
+  info.appendChild(el('span', { className: 'ws-file-meta', textContent: `${sf.pageCount} page${sf.pageCount !== 1 ? 's' : ''} · ${formatBytes(sf.size)}` }));
   card.appendChild(info);
 
   const removeBtn = el('button', { className: 'icon-btn ws-hover-reveal ws-file-remove floating-card-surface', innerHTML: Icons.x(), ariaLabel: 'Remove' });
@@ -987,6 +1260,49 @@ const WM_DEFAULTS: WmSettings = {
   rotation: WATERMARK_DEFAULTS.rotationDegrees,
   repeat: WATERMARK_DEFAULTS.repeat,
 };
+
+/**
+ * The style half of WmSettings. `text` is deliberately absent: it is the
+ * user's own words, and a reset that wiped it mid-edit would cost more than
+ * it saved.
+ */
+const WM_STYLE_KEYS = ['fontSize', 'colorHex', 'opacity', 'rotation', 'repeat'] as const;
+
+const wmStyleIsDefault = () => WM_STYLE_KEYS.every(k => wmSettings[k] === WM_DEFAULTS[k]);
+
+/**
+ * Push wmSettings back into every mounted style control.
+ *
+ * Queries the document rather than one panel because the desktop sidebar and
+ * the phone tray can both be mounted at once - the same reason the repeat
+ * checkbox already syncs its siblings.
+ */
+function wmSyncStyleInputs() {
+  const set = (selector: string, value: string) =>
+    document.querySelectorAll<HTMLInputElement>(selector).forEach(i => { i.value = value; });
+  // Each slider row carries data-wm; its slider and numeric twin take the same string.
+  set('[data-wm="size"] input', String(wmSettings.fontSize));
+  set('[data-wm="opacity"] input', String(Math.round(wmSettings.opacity * 100)));
+  set('[data-wm="rotation"] input', String(wmSettings.rotation));
+  set('.ws-wm-color-hex, .ws-wm-color-swatch', wmSettings.colorHex);
+  document.querySelectorAll<HTMLInputElement>('.ws-wm-color-hex').forEach(i => {
+    i.classList.remove('ws-input-error');
+    i.removeAttribute('aria-invalid');
+  });
+  document.querySelectorAll<HTMLInputElement>('.ws-wm-repeat-checkbox')
+    .forEach(c => { c.checked = wmSettings.repeat; });
+}
+
+/**
+ * Every style edit does the same three things. Doing them in one place is what
+ * stops a sixth control from forgetting to update the Reset button.
+ */
+function wmStyleChanged() {
+  markDirty('manifest');
+  wmKickVisible();
+  document.querySelectorAll<HTMLElement>('.ws-wm-reset-row')
+    .forEach(row => { row.hidden = wmStyleIsDefault(); });
+}
 
 interface WmPageEntry { fileId: number; pageNum: number; }
 
@@ -1083,7 +1399,7 @@ function wmParseRangeToSelection(text: string): Set<string> | null {
  * - keys for surviving files pass through untouched
  *
  * Idempotent: safe to call multiple times. Driven off `knownFileIds` so the
- * delta is exact — adding a file in any tab triggers the auto-include exactly
+ * delta is exact - adding a file in any tab triggers the auto-include exactly
  * once, on the first call after that file appeared.
  */
 function applyWmFileDelta(addedFiles: SourceFile[], removedFileIds: Set<number>): void {
@@ -1600,137 +1916,34 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
   const isMulti = files.length > 1;
   const totalAcrossFiles = files.reduce((s, f) => s + f.pageCount, 0);
   const countText = isMulti
-    ? `${files.length} files · ${totalAcrossFiles} pages`
+    ? `${files.length} file${files.length !== 1 ? 's' : ''} · ${totalAcrossFiles} page${totalAcrossFiles !== 1 ? 's' : ''}`
     : `${totalAcrossFiles} page${totalAcrossFiles !== 1 ? 's' : ''}`;
   const countRow = el('div', { className: 'ws-sidebar-count-row' });
   countRow.appendChild(el('p', { className: 'ws-sidebar-count', textContent: countText }));
-  const btnGroup = el('div', { className: 'ws-count-btn-group' });
-  btnGroup.appendChild(createAddFileButton());
-  countRow.appendChild(btnGroup);
+  countRow.appendChild(makeFileBulkActions());
   panel.appendChild(countRow);
 
   const fileList = el('div', { className: 'ws-sidebar-files' });
   files.forEach((f, idx) => {
     fileList.appendChild(makeSidebarFileRow(f, {
       letter: isMulti ? String.fromCharCode(65 + (idx % 26)) : undefined,
-      meta: isMulti ? `${f.pageCount} pages · ${formatBytes(f.size)}` : undefined,
+      meta: isMulti ? `${f.pageCount} page${f.pageCount !== 1 ? 's' : ''} · ${formatBytes(f.size)}` : undefined,
       onRemove: () => {
         files = files.filter(x => x.id !== f.id);
         onFilesMutated();
-        renderActiveTool();
+        withTrayPreserved(renderActiveTool);
       },
     }));
   });
   panel.appendChild(fileList);
+  panel.appendChild(makeAddFileRow());
   panel.appendChild(makeSidebarDivider());
 
-  // ---- BLOCK 2: Watermark (config), what to stamp ----
-  panel.appendChild(makeSectionLabel('Watermark'));
-
-  // Text row: shown on desktop sidebar only. On mobile the fixed toolbar
-  // already provides a quick-input, so we skip it in the tray to avoid
-  // duplicate entry points.
-  if (!opts.tray) {
-    const textRow = el('div', { className: 'ws-wm-text-row' });
-    const ti = el('input', {
-      type: 'text',
-      className: 'ws-range-input ws-wm-text-input',
-      value: wmSettings.text,
-      maxLength: 200,
-      placeholder: 'Watermark text',
-      'aria-label': 'Watermark text',
-      'aria-describedby': textErrId,
-    }) as HTMLInputElement;
-    textRow.appendChild(ti);
-    const textErrEl = el('p', { className: 'ws-wm-text-error ws-wm-error-msg', textContent: '', id: textErrId });
-    ti.addEventListener('input', () => handleWmTextInput(ti));
-    panel.appendChild(textRow);
-    panel.appendChild(textErrEl);
-  }
-
-  // Customize controls: desktop uses a collapsible <details> to keep the
-  // panel compact. Mobile tray always shows them expanded - the tray is
-  // already a focused, scrollable surface so the disclosure adds no value.
-  const styleBody = el('div', { className: 'ws-wm-style-body' });
-
-  if (!opts.tray) {
-    // Desktop: wrap in <details> with animated Customize disclosure.
-    const styleDetails = el('details', { className: 'ws-wm-style-details' }) as HTMLDetailsElement;
-    const styleSummary = el('summary', { className: 'ws-wm-style-summary', textContent: 'Customize' });
-    styleDetails.appendChild(styleSummary);
-
-    // <details> unmounts its body instantly on close, so a CSS-only collapse
-    // keyframe never runs. Intercept close, play the fade-out, flip `open` after.
-    styleSummary.addEventListener('click', e => {
-      if (!styleDetails.open) return;
-      if (styleDetails.classList.contains('ws-wm-closing')) return;
-      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-      e.preventDefault();
-      styleDetails.classList.add('ws-wm-closing');
-      styleBody.style.animation = 'ws-wm-style-collapse 0.18s ease-in forwards';
-      styleBody.addEventListener('animationend', () => {
-        styleBody.style.animation = '';
-        styleDetails.classList.remove('ws-wm-closing');
-        styleDetails.open = false;
-      }, { once: true });
-    });
-
-    styleDetails.appendChild(styleBody);
-    panel.appendChild(styleDetails);
-  } else {
-    // Mobile tray: plain div, controls always visible.
-    panel.appendChild(styleBody);
-  }
-
-  styleBody.appendChild(makeWmSlider({
-    label: 'Size',
-    min: 8, max: 256, step: 1, value: wmSettings.fontSize,
-    unit: 'pt',
-    onChange: v => { wmSettings.fontSize = v; markDirty('manifest'); wmKickVisible(); },
-  }));
-
-  styleBody.appendChild(makeWmColorRow(wmSettings.colorHex, hex => {
-    wmSettings.colorHex = hex;
-    markDirty('manifest');
-    wmKickVisible();
-  }, colorLblId));
-
-  styleBody.appendChild(makeWmSlider({
-    label: 'Opacity',
-    min: 0, max: 100, step: 1, value: Math.round(wmSettings.opacity * 100),
-    unit: '%',
-    onChange: v => { wmSettings.opacity = Math.max(0, Math.min(1, v / 100)); markDirty('manifest'); wmKickVisible(); },
-  }));
-
-  styleBody.appendChild(makeWmSlider({
-    label: 'Rotation',
-    min: -90, max: 90, step: 1, value: wmSettings.rotation,
-    unit: '°',
-    onChange: v => { wmSettings.rotation = v; markDirty('manifest'); wmKickVisible(); },
-  }));
-
-  // Repeat toggle, single zero-config switch.
-  // The wrapping <label> implicitly labels the checkbox via the sibling span,
-  // so an explicit aria-label here would shadow that visible text. Keep them
-  // in sync via a single source: the visible <span>.
-  const repeatRow = el('label', { className: 'ws-wm-repeat-row' });
-  const repeatChk = el('input', { type: 'checkbox', className: 'ws-wm-repeat-checkbox' }) as HTMLInputElement;
-  repeatChk.checked = wmSettings.repeat;
-  repeatChk.addEventListener('change', () => {
-    wmSettings.repeat = repeatChk.checked;
-    document.querySelectorAll<HTMLInputElement>('.ws-wm-repeat-checkbox').forEach(c => {
-      if (c !== repeatChk) c.checked = wmSettings.repeat;
-    });
-    markDirty('manifest');
-    wmKickVisible();
-  });
-  repeatRow.appendChild(repeatChk);
-  repeatRow.appendChild(el('span', { textContent: 'Repeat across page' }));
-  styleBody.appendChild(repeatRow);
-
-  panel.appendChild(makeSidebarDivider());
-
-  // ---- BLOCK 3: Pages, scope: which pages get the watermark ----
+  // ---- BLOCK 2: Pages, scope: which pages get the watermark ----
+  // Above the settings, so Watermark reads files -> scope -> what to stamp,
+  // the same shape as Organize and Extract. It used to come last, which put
+  // the range input and its Select all / Deselect all below five controls on a
+  // phone - off-screen exactly when the user is choosing which pages to mark.
   panel.appendChild(makeSectionLabel('Pages'));
   const ri = el('input', {
     type: 'text',
@@ -1792,6 +2005,132 @@ function buildWatermarkPanel(panel: HTMLElement, opts: { tray?: boolean } = {}) 
   btnRow.appendChild(deselectBtn);
   panel.appendChild(btnRow);
 
+  panel.appendChild(makeSidebarDivider());
+
+  // ---- BLOCK 3: Watermark (config), what to stamp ----
+  panel.appendChild(makeSectionLabel('Watermark'));
+
+  // Text row: shown on desktop sidebar only. On mobile the fixed toolbar
+  // already provides a quick-input, so we skip it in the tray to avoid
+  // duplicate entry points.
+  if (!opts.tray) {
+    const textRow = el('div', { className: 'ws-wm-text-row' });
+    const ti = el('input', {
+      type: 'text',
+      className: 'ws-range-input ws-wm-text-input',
+      value: wmSettings.text,
+      maxLength: 200,
+      placeholder: 'Watermark text',
+      'aria-label': 'Watermark text',
+      'aria-describedby': textErrId,
+    }) as HTMLInputElement;
+    textRow.appendChild(ti);
+    const textErrEl = el('p', { className: 'ws-wm-text-error ws-wm-error-msg', textContent: '', id: textErrId });
+    ti.addEventListener('input', () => handleWmTextInput(ti));
+    panel.appendChild(textRow);
+    panel.appendChild(textErrEl);
+  }
+
+  // Customize controls: desktop uses a collapsible <details> to keep the
+  // panel compact. Mobile tray always shows them expanded - the tray is
+  // already a focused, scrollable surface so the disclosure adds no value.
+  const styleBody = el('div', { className: 'ws-wm-style-body' });
+
+  if (!opts.tray) {
+    // Desktop: wrap in <details> with animated Customize disclosure.
+    const styleDetails = el('details', { className: 'ws-wm-style-details' }) as HTMLDetailsElement;
+    const styleSummary = el('summary', { className: 'ws-wm-style-summary', textContent: 'Customize' });
+    styleDetails.appendChild(styleSummary);
+
+    // <details> unmounts its body instantly on close, so a CSS-only collapse
+    // keyframe never runs. Intercept close, play the fade-out, flip `open` after.
+    styleSummary.addEventListener('click', e => {
+      if (!styleDetails.open) return;
+      if (styleDetails.classList.contains('ws-wm-closing')) return;
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      e.preventDefault();
+      styleDetails.classList.add('ws-wm-closing');
+      styleBody.style.animation = 'ws-wm-style-collapse 0.18s ease-in forwards';
+      styleBody.addEventListener('animationend', () => {
+        styleBody.style.animation = '';
+        styleDetails.classList.remove('ws-wm-closing');
+        styleDetails.open = false;
+      }, { once: true });
+    });
+
+    styleDetails.appendChild(styleBody);
+    panel.appendChild(styleDetails);
+  } else {
+    // Mobile tray: plain div, controls always visible.
+    panel.appendChild(styleBody);
+  }
+
+  styleBody.appendChild(makeWmSlider({
+    label: 'Size', key: 'size',
+    min: 8, max: 256, step: 1, value: wmSettings.fontSize,
+    unit: 'pt',
+    onChange: v => { wmSettings.fontSize = v; wmStyleChanged(); },
+  }));
+
+  styleBody.appendChild(makeWmColorRow(wmSettings.colorHex, hex => {
+    wmSettings.colorHex = hex;
+    wmStyleChanged();
+  }, colorLblId));
+
+  styleBody.appendChild(makeWmSlider({
+    label: 'Opacity', key: 'opacity',
+    min: 0, max: 100, step: 1, value: Math.round(wmSettings.opacity * 100),
+    unit: '%',
+    onChange: v => { wmSettings.opacity = Math.max(0, Math.min(1, v / 100)); wmStyleChanged(); },
+  }));
+
+  styleBody.appendChild(makeWmSlider({
+    label: 'Rotation', key: 'rotation',
+    min: -90, max: 90, step: 1, value: wmSettings.rotation,
+    unit: '°',
+    onChange: v => { wmSettings.rotation = v; wmStyleChanged(); },
+  }));
+
+  // Repeat toggle, single zero-config switch.
+  // The wrapping <label> implicitly labels the checkbox via the sibling span,
+  // so an explicit aria-label here would shadow that visible text. Keep them
+  // in sync via a single source: the visible <span>.
+  const repeatRow = el('label', { className: 'ws-wm-repeat-row' });
+  const repeatChk = el('input', { type: 'checkbox', className: 'ws-wm-repeat-checkbox' }) as HTMLInputElement;
+  repeatChk.checked = wmSettings.repeat;
+  repeatChk.addEventListener('change', () => {
+    wmSettings.repeat = repeatChk.checked;
+    document.querySelectorAll<HTMLInputElement>('.ws-wm-repeat-checkbox').forEach(c => {
+      if (c !== repeatChk) c.checked = wmSettings.repeat;
+    });
+    wmStyleChanged();
+  });
+  repeatRow.appendChild(repeatChk);
+  repeatRow.appendChild(el('span', { textContent: 'Repeat across page' }));
+  styleBody.appendChild(repeatRow);
+
+  // Shown only while the style is off-default, so it doubles as the signal
+  // that you *are* off-default - nothing else in the panel gives you one, and
+  // these settings persist across sessions, so "off-default" can be weeks old.
+  const resetRow = el('div', { className: 'ws-sidebar-btn-row ws-wm-reset-row' });
+  const resetBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Reset style' });
+  resetBtn.addEventListener('click', () => {
+    wmSettings.fontSize = WM_DEFAULTS.fontSize;
+    wmSettings.colorHex = WM_DEFAULTS.colorHex;
+    wmSettings.opacity = WM_DEFAULTS.opacity;
+    wmSettings.rotation = WM_DEFAULTS.rotation;
+    wmSettings.repeat = WM_DEFAULTS.repeat;
+    wmSyncStyleInputs();
+    // The row is about to hide itself, which would strand focus on <body>.
+    // Hand it to the control above rather than dumping the user at the top
+    // of the document.
+    repeatChk.focus();
+    wmStyleChanged();
+  });
+  resetRow.appendChild(resetBtn);
+  resetRow.hidden = wmStyleIsDefault();
+  styleBody.appendChild(resetRow);
+
   // ---- Action ----
   const actions = el('div', { className: 'ws-sidebar-bottom ws-wm-actions' });
   const dl = el('button', {
@@ -1832,6 +2171,8 @@ function rebuildWatermarkPanelDownloadState() {
 
 interface SliderArgs {
   label: string;
+  /** Written to `data-wm` so wmSyncStyleInputs can find this row's two inputs. */
+  key: string;
   min: number; max: number; step: number; value: number;
   unit: string;
   onChange: (v: number) => void;
@@ -1840,6 +2181,7 @@ interface SliderArgs {
 /** Slider + editable numeric input + unit label. Two-way bound. */
 function makeWmSlider(args: SliderArgs): HTMLElement {
   const row = el('div', { className: 'ws-wm-slider-row' });
+  row.dataset.wm = args.key;
   const labelId = `wm-slider-lbl-${++wmPanelSeq}`;
   row.appendChild(el('span', { className: 'ws-wm-row-label', textContent: args.label, id: labelId }));
 
@@ -1975,7 +2317,7 @@ async function handleWatermarkExport() {
   }
 
   showExportSplitModal({
-    title: `Export ${files.reduce((s, f) => s + f.pageCount, 0)} pages as`,
+    title: (() => { const n = files.reduce((s, f) => s + f.pageCount, 0); return `Export ${n} page${n !== 1 ? 's' : ''} as`; })(),
     combinedLabel: 'Combined PDF',
     splitLabel: 'One PDF per source file',
     primary: 'split',
@@ -2015,34 +2357,37 @@ async function doWatermarkExportPerSource() {
 
   const isBatch = tasks.length > 1;
   const verb = isBatch ? `Watermarking ${tasks.length} PDFs` : 'Watermarking';
+  // Outside the closure so a cancellation cannot take the finished ones with it.
+  const results: { bytes: Uint8Array; name: string }[] = [];
+  const zipName = `watermarked-pdfs-${timestampForFilename()}.zip`;
 
   await runWithPopup(
     verb,
     'Stamping your pages. This only takes a moment.',
     'Watermark failed. Try simpler text or fewer pages.',
-    async () => {
-      const results: { bytes: Uint8Array; name: string }[] = [];
+    async (signal) => {
       for (const t of tasks) {
-        const r = await watermark(t.file.bytes, t.file.name, t.opts);
+        const r = await watermark(t.file.bytes, t.file.name, t.opts, signal);
         results.push({ bytes: r.bytes, name: r.name });
       }
-      lastPdfResult = results;
-      lastPdfZipName = isBatch ? `watermarked-pdfs-${timestampForFilename()}.zip` : null;
+      await setPdfResult(results, isBatch ? zipName : null);
       return results;
     },
-    (results) => {
+    (out) => {
       if (isBatch) {
         showPdfSuccessModal(
-          `${results.length} PDFs watermarked! \u{1F389}`,
-          `Your <b>${results.length}</b> watermarked PDFs are downloading as a zip.`,
+          `${out.length} PDFs watermarked! \u{1F389}`,
+          `Your <b>${out.length}</b> watermarked PDFs are zipped up and ready to download.`,
         );
       } else {
         showPdfSuccessModal(
           'PDF watermarked! \u{1F389}',
-          `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is downloading now.`,
+          `<b>${escapeHTML(shortenFileName(out[0].name, 32))}</b> is ready to download.`,
         );
       }
     },
+    1200,
+    () => offerPartialPdfResult(results, zipName),
   );
 }
 
@@ -2057,20 +2402,19 @@ async function doWatermarkPassthroughPerSource() {
     'Save failed.',
     async () => {
       const results = files.map(f => ({ bytes: f.bytes, name: f.name }));
-      lastPdfResult = results;
-      lastPdfZipName = isBatch ? `pdfs-${timestampForFilename()}.zip` : null;
+      await setPdfResult(results, isBatch ? `pdfs-${timestampForFilename()}.zip` : null);
       return results;
     },
     (results) => {
       if (isBatch) {
         showPdfSuccessModal(
           `${results.length} PDFs saved! \u{1F389}`,
-          `Your <b>${results.length}</b> source PDFs are downloading as a zip.`,
+          `Your <b>${results.length}</b> source PDFs are zipped up and ready to download.`,
         );
       } else {
         showPdfSuccessModal(
           'PDF saved! \u{1F389}',
-          `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is downloading now.`,
+          `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is ready to download.`,
         );
       }
     },
@@ -2084,16 +2428,14 @@ async function doWatermarkPassthroughCombined() {
     'Saving',
     'Empty watermark - merging your files unchanged.',
     'Save failed.',
-    async () => {
-      const merged = await merge(files);
-      lastPdfResult = [{ bytes: merged.bytes, name: merged.name }];
-      lastPdfZipName = null;
-      return lastPdfResult;
+    async (signal) => {
+      const merged = await merge(files, signal);
+      return await setPdfResult([{ bytes: merged.bytes, name: merged.name }], null);
     },
     (results) => {
       showPdfSuccessModal(
         'PDF saved! \u{1F389}',
-        `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is downloading now.`,
+        `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is ready to download.`,
       );
     },
   );
@@ -2115,8 +2457,8 @@ async function doWatermarkExportCombined() {
     'Watermarking',
     'Merging your files and stamping the selected pages.',
     'Watermark failed. Try simpler text or fewer pages.',
-    async () => {
-      const merged = await merge(files);
+    async (signal) => {
+      const merged = await merge(files, signal);
 
       // Derive 1-indexed page numbers in merge order: walk files, accumulate
       // per-file offsets, emit (offset + pageNum) for every selected key.
@@ -2135,15 +2477,13 @@ async function doWatermarkExportCombined() {
         rotationDegrees: wmSettings.rotation,
         repeat: wmSettings.repeat,
         pageNums,
-      });
-      lastPdfResult = [{ bytes: r.bytes, name: r.name }];
-      lastPdfZipName = null;
-      return lastPdfResult;
+      }, signal);
+      return await setPdfResult([{ bytes: r.bytes, name: r.name }], null);
     },
     (results) => {
       showPdfSuccessModal(
         'PDF watermarked! \u{1F389}',
-        `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is downloading now.`,
+        `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is ready to download.`,
       );
     },
   );
@@ -2396,6 +2736,12 @@ export function cleanup() {
   if (wmRafId !== null) { cancelAnimationFrame(wmRafId); wmRafId = null; }
   // Remove body-appended mobile elements (toolbar, tray, overlay)
   document.querySelectorAll('.ws-toolbar, .ws-tray, .ws-tray-overlay').forEach(e => e.remove());
+  // The lock is derived from `.ws-tray.ws-tray-open` existing, so deleting an
+  // open tray without re-deriving it leaves `html.scroll-lock` - and its
+  // `overflow-y: hidden` - applied with no sheet on screen and nothing left to
+  // dismiss. Re-deriving here makes "the lock follows the tray" true by
+  // construction instead of by every caller remembering.
+  updateScrollLock();
 }
 
 export function resetAll() {
@@ -2422,7 +2768,7 @@ export function resetAll() {
 
 function createAddFileButton(): HTMLButtonElement {
   const btn = el('button', { className: 'ws-btn ws-btn-small', textContent: '+ Add' }) as HTMLButtonElement;
-  btn.addEventListener('click', () => { fileInput.multiple = true; fileInput.click(); });
+  btn.addEventListener('click', () => openPicker(true));
   return btn;
 }
 
@@ -2444,12 +2790,11 @@ function createDropzone(text: string, multi: boolean): HTMLElement {
   zone.innerHTML = `<p class="upload-text">${text}</p><p class="upload-hint">${hint}</p>`;
 
   let dragRejecting: boolean | null = null;
-  zone.addEventListener('click', () => { fileInput.multiple = multi; fileInput.click(); });
+  zone.addEventListener('click', () => openPicker(multi));
   zone.addEventListener('keydown', (e) => {
     if (e.key !== ' ' && e.key !== 'Enter') return;
     e.preventDefault();
-    fileInput.multiple = multi;
-    fileInput.click();
+    openPicker(multi);
   });
   zone.addEventListener('dragover', (e) => {
     e.preventDefault();
@@ -2511,7 +2856,7 @@ function renderEmptyState(text = 'Drop your PDFs here', multi = true) {
 // File handling
 // ---------------------------------------------------------------------------
 
-async function handleFiles(rawFiles: File[]) {
+async function handleFiles(rawFiles: File[], replaceExisting = false) {
   const results: UploadResult[] = [];
   const parsed: SourceFile[] = [];
 
@@ -2529,10 +2874,18 @@ async function handleFiles(rawFiles: File[]) {
     }
   }
 
-  let fileBudget = MAX_FILES - files.length;
+  // Replace all measures its budgets against an empty workspace, since the
+  // incoming set is about to become the whole list. Nothing is discarded yet -
+  // the swap happens below, only once something has actually been accepted, so
+  // a pick of unreadable or oversized PDFs leaves the user's files alone
+  // instead of emptying the editor for nothing.
+  const replacing = replaceExisting && parsed.length > 0;
+  const base = replacing ? [] : files;
+
+  let fileBudget = MAX_FILES - base.length;
   let sizeBudget = MAX_TOTAL_FILE_SIZE;
   let pageBudget = MAX_TOTAL_PAGES;
-  for (const f of files) { sizeBudget -= f.size; pageBudget -= f.pageCount; }
+  for (const f of base) { sizeBudget -= f.size; pageBudget -= f.pageCount; }
 
   const accepted: SourceFile[] = [];
   for (const sf of parsed) {
@@ -2555,6 +2908,18 @@ async function handleFiles(rawFiles: File[]) {
     });
   }
   if (accepted.length === 0) return;
+
+  if (replacing) {
+    files = [];
+    lastClickedIdx = -1;
+    history.length = 0;
+    redoStack.length = 0;
+    clearThumbnailCache();
+    // `pages`, `selected`, `selectedFiles` and the watermark's flat page list
+    // are deliberately left alone: onFilesMutated below diffs against
+    // knownFileIds, sees every old id as removed and every new one as added,
+    // and prunes them in the one place that already knows how.
+  }
 
   files.push(...accepted);
   markDirty('files');
@@ -2603,7 +2968,7 @@ function updateSidebarContent(sidebar: HTMLElement) {
   const modified = isPagesModified();
   const originalCount = files.reduce((s, f) => s + f.pageCount, 0);
   const diff = pages.length - originalCount;
-  const countBase = `${files.length} file${files.length !== 1 ? 's' : ''} · ${pages.length} pages`;
+  const countBase = `${files.length} file${files.length !== 1 ? 's' : ''} · ${pages.length} page${pages.length !== 1 ? 's' : ''}`;
   let countHtml = countBase;
   if (modified) {
     countHtml += '<sup>*</sup>';
@@ -2611,14 +2976,7 @@ function updateSidebarContent(sidebar: HTMLElement) {
   }
   const countRow = el('div', { className: 'ws-sidebar-count-row' });
   countRow.appendChild(el('p', { className: 'ws-sidebar-count', innerHTML: countHtml }));
-  const btnGroup = el('div', { className: 'ws-count-btn-group' });
-  if (modified) {
-    const restoreBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Restore' });
-    restoreBtn.addEventListener('click', resetPages);
-    btnGroup.appendChild(restoreBtn);
-  }
-  btnGroup.appendChild(createAddFileButton());
-  countRow.appendChild(btnGroup);
+  countRow.appendChild(makeFileBulkActions());
   sidebar.appendChild(countRow);
 
   const fileList = el('div', { className: 'ws-sidebar-files' });
@@ -2629,11 +2987,15 @@ function updateSidebarContent(sidebar: HTMLElement) {
     const isMulti = uniqueFileIds.length > 1;
     fileList.appendChild(makeSidebarFileRow(sf, {
       letter: isMulti ? String.fromCharCode(65 + (uniqueFileIds.indexOf(fid) % 26)) : undefined,
-      meta: isMulti ? `${sf.pageCount} pages · ${formatBytes(sf.size)}` : undefined,
+      meta: isMulti ? `${sf.pageCount} page${sf.pageCount !== 1 ? 's' : ''} · ${formatBytes(sf.size)}` : undefined,
       onRemove: () => removeFile(fid),
     }));
   }
   sidebar.appendChild(fileList);
+  // Restore rides with + Add rather than staying in the count row: that row now
+  // carries Replace all / Clear, and a third small button there wraps every
+  // label onto two lines at the sidebar's real width.
+  sidebar.appendChild(makeAddFileRow({ restore: modified }));
 
   sidebar.appendChild(makeSidebarDivider());
 
@@ -2740,7 +3102,7 @@ function removeFile(fid: number) {
   onFilesMutated();
   if (files.length === 0) clearThumbnailCache();
   if (pages.length === 0) organizeInitialized = false;
-  renderActiveTool();
+  withTrayPreserved(renderActiveTool);
   if (activeTool === 'organize' && pages.length > 0) kickPageThumbs(pages);
 }
 
@@ -2828,7 +3190,7 @@ async function handleSave() {
   const splitState = organizeAllowsPerSourceSplit();
   const realPageCount = pages.filter(p => p.type !== 'blank').length;
   showExportSplitModal({
-    title: `Export ${realPageCount} pages as`,
+    title: `Export ${realPageCount} page${realPageCount !== 1 ? 's' : ''} as`,
     combinedLabel: 'Combined PDF',
     splitLabel: 'One PDF per source file',
     primary: 'combined',
@@ -2839,44 +3201,45 @@ async function handleSave() {
 }
 
 async function doOrganizeSaveCombined() {
-  await runWithPopup('Saving', 'Packing up your PDF with the latest page order. Hold tight.', 'Save failed. Try with fewer pages or a smaller file.', async () => {
-    const r = await organize(files, pages);
-    lastPdfResult = [{ bytes: r.bytes, name: r.name }];
-    lastPdfZipName = null;
+  await runWithPopup('Saving', 'Packing up your PDF with the latest page order. Hold tight.', 'Save failed. Try with fewer pages or a smaller file.', async (signal) => {
+    const r = await organize(files, pages, signal);
+    await setPdfResult([{ bytes: r.bytes, name: r.name }], null);
     return r;
   }, (r) => {
     showPdfSuccessModal(
       'PDF saved! \u{1F389}',
-      `<b>${escapeHTML(shortenFileName(r.name, 32))}</b> is downloading now.`,
+      `<b>${escapeHTML(shortenFileName(r.name, 32))}</b> is ready to download.`,
     );
   });
 }
 
 async function doOrganizeSavePerSource() {
-  await runWithPopup('Saving', 'Packing each source file separately. Hold tight.', 'Save failed. Try with fewer pages or a smaller file.', async () => {
-    const out: { bytes: Uint8Array; name: string }[] = [];
+  // Outside the closure: a cancellation throws straight past anything declared
+  // inside it, taking the finished documents with it.
+  const out: { bytes: Uint8Array; name: string }[] = [];
+  const zipName = `organized-pdfs-${timestampForFilename()}.zip`;
+  await runWithPopup('Saving', 'Packing each source file separately. Hold tight.', 'Save failed. Try with fewer pages or a smaller file.', async (signal) => {
     for (const sf of files) {
       const filtered = pages.filter(p => p.type === 'source' && p.sourceFileId === sf.id);
       if (filtered.length === 0) continue;
-      const r = await organize([sf], filtered);
+      const r = await organize([sf], filtered, signal);
       out.push({ bytes: r.bytes, name: r.name });
     }
-    lastPdfResult = out;
-    lastPdfZipName = out.length > 1 ? `organized-pdfs-${timestampForFilename()}.zip` : null;
+    await setPdfResult(out, out.length > 1 ? zipName : null);
     return out;
   }, (results) => {
     if (results.length > 1) {
       showPdfSuccessModal(
         `${results.length} PDFs saved! \u{1F389}`,
-        `Your <b>${results.length}</b> PDFs are downloading as a zip.`,
+        `Your <b>${results.length}</b> PDFs are zipped up and ready to download.`,
       );
     } else if (results.length === 1) {
       showPdfSuccessModal(
         'PDF saved! \u{1F389}',
-        `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is downloading now.`,
+        `<b>${escapeHTML(shortenFileName(results[0].name, 32))}</b> is ready to download.`,
       );
     }
-  });
+  }, 1200, () => offerPartialPdfResult(out, zipName));
 }
 
 /**
@@ -2960,7 +3323,7 @@ function showExtractModal(indices: number[]) {
   closeBtn.addEventListener('click', () => hidePopup());
   wrap.appendChild(closeBtn);
 
-  wrap.appendChild(el('p', { className: 'ws-sidebar-count', textContent: `Extract ${count} pages as` }));
+  wrap.appendChild(el('p', { className: 'ws-sidebar-count', textContent: `Extract ${count} page${count !== 1 ? 's' : ''} as` }));
 
   const combBtn = el('button', { className: 'btn-primary ws-action-btn ws-action-full', textContent: 'Combined PDF' });
   combBtn.addEventListener('click', () => { hidePopup(); doExtract(indices, true); });
@@ -2973,12 +3336,21 @@ function showExtractModal(indices: number[]) {
   showPopup(wrap, false, () => hidePopup());
 }
 
+// See src/tools/cancellation.ts - the groupAsOne branch below builds its
+// output PDF inline rather than delegating to extract(), so it checkpoints
+// directly at the same cadence extract()'s own loop uses.
+const EXTRACT_CHECKPOINT_INTERVAL = 10;
+
 async function doExtract(indices: number[], groupAsOne: boolean) {
   if (files.length === 0 || indices.length === 0) return;
   const extractCount = indices.length;
   const sorted = [...indices].sort((a, b) => a - b);
+  // Only the per-source branch below builds its output incrementally; the
+  // combined branch produces one document and has no partial state to keep.
+  const allResults: { name: string; bytes: Uint8Array }[] = [];
+  const zipName = `extracted-pages-${timestampForFilename()}.zip`;
   await runWithPopup('Extracting', 'Pulling the selected pages into a new file. Almost there.', 'Extract failed. The PDF might be damaged. Try re-exporting it from the source app.',
-    async () => {
+    async (signal) => {
       const byFile = new Map<number, number[]>();
       for (const idx of sorted) {
         const page = pages[idx];
@@ -2992,8 +3364,9 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
       if (groupAsOne) {
         const output = await PDFDocument.create();
         const loadedSources = new Map<number, Awaited<ReturnType<typeof PDFDocument.load>>>();
-        for (const idx of sorted) {
-          const page = pages[idx];
+        for (let i = 0; i < sorted.length; i++) {
+          if (i % EXTRACT_CHECKPOINT_INTERVAL === 0) await checkpoint(signal);
+          const page = pages[sorted[i]];
           if (!loadedSources.has(page.sourceFileId)) {
             const sf = files.find(f => f.id === page.sourceFileId)!;
             loadedSources.set(page.sourceFileId, await PDFDocument.load(sf.bytes, { ignoreEncryption: true }));
@@ -3005,19 +3378,15 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
         const outputBytes = new Uint8Array(await output.save());
         const suffix = extractCount === pages.length ? '' : '_extracted';
         const name = `${firstName}${suffix}.pdf`;
-        lastPdfResult = [{ bytes: outputBytes, name }];
-        lastPdfZipName = null;
-        return lastPdfResult;
+        return await setPdfResult([{ bytes: outputBytes, name }], null);
       } else {
-        const allResults: { name: string; bytes: Uint8Array }[] = [];
         for (const [fid, pageNums] of byFile) {
           const sf = files.find(f => f.id === fid)!;
           const baseName = sf.name.replace(/\.pdf$/i, '');
-          const results = await extract(sf.bytes, pageNums, baseName, false);
+          const results = await extract(sf.bytes, pageNums, baseName, false, signal);
           allResults.push(...results);
         }
-        lastPdfResult = allResults;
-        lastPdfZipName = allResults.length > 1 ? `extracted-pages-${timestampForFilename()}.zip` : null;
+        await setPdfResult(allResults, allResults.length > 1 ? zipName : null);
         return allResults;
       }
     },
@@ -3025,10 +3394,11 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
       const pageWord = extractCount === 1 ? 'page' : 'pages';
       showPdfSuccessModal(
         'Pages extracted! \u{1F389}',
-        `${extractCount} ${pageWord} extracted and downloading now.`,
+        `${extractCount} ${pageWord} extracted, ready to download.`,
       );
     },
     1000,
+    () => offerPartialPdfResult(allResults, zipName),
   );
 }
 
@@ -3137,6 +3507,71 @@ function createInsertBtn(atIdx: number): HTMLElement {
 const MORE_SVG  = Icons.moreVertical(18);
 const COLLAPSE_SVG = Icons.chevronDown(18);
 
+/**
+ * Set while a tool re-render is replacing a tray the user had open, so the
+ * rebuilt one comes back open. See `withTrayPreserved`.
+ */
+let restoreTrayOpen = false;
+/**
+ * Set by `wireTrayToggle` when it builds a replacement for a tray that was
+ * open. Deferred rather than opened on the spot because the tray is wired
+ * before it is appended to the body, and focusing a detached node does
+ * nothing - which is how the reopened sheet ended up open but with focus
+ * still stranded on `<body>`.
+ */
+let pendingTrayOpen: (() => void) | null = null;
+
+/**
+ * Read and clear `pendingTrayOpen` in one step.
+ *
+ * Also the only way to read it without fighting the compiler: assigning `null`
+ * to a module-level `let` narrows it to `null` for the rest of the block, and
+ * the intervening `rerender()` - which is what actually sets it, several
+ * frames deep - does not widen that back. Reading it from a function whose
+ * body never assigns before the read keeps the declared union.
+ */
+function takePendingTrayOpen(): (() => void) | null {
+  const fn = pendingTrayOpen;
+  pendingTrayOpen = null;
+  return fn;
+}
+
+/**
+ * Run a re-render that destroys and rebuilds the mobile tray, and put the user
+ * back where they were.
+ *
+ * `cleanup()` deletes the body-appended toolbar, tray and overlay, so anything
+ * routed through `renderActiveTool()` closes the sheet. That is right when the
+ * user is switching tools and wrong when they are editing the list inside it:
+ * removing three files on Organize or Watermark meant reopening the tray three
+ * times, and the page jumped to the top on the way. Merge never had the
+ * problem because it repaints its sidebar in place.
+ */
+function withTrayPreserved(rerender: () => void): void {
+  const openTray = document.querySelector<HTMLElement>('.ws-tray.ws-tray-open');
+  const scrollTop = openTray ? trayScroll(openTray).scrollTop : 0;
+  const pageScroll = window.scrollY;
+  restoreTrayOpen = !!openTray;
+  takePendingTrayOpen();
+  try {
+    rerender();
+  } finally {
+    restoreTrayOpen = false;
+  }
+  const reopen = takePendingTrayOpen();
+  if (!reopen) return;
+
+  // Open first, then restore the offsets: opening moves focus, and focusing a
+  // control at the top of the sheet would otherwise scroll the tray back up.
+  reopen();
+  const rebuilt = document.querySelector<HTMLElement>('.ws-tray');
+  if (rebuilt) trayScroll(rebuilt).scrollTop = scrollTop;
+  // Removing files shortens the grid, which can clamp the page scroll to 0
+  // behind the sheet. Restore it so dismissing the tray does not reveal a
+  // different part of the document than the one it was opened over.
+  window.scrollTo({ top: pageScroll });
+}
+
 function wireTrayToggle(tray: HTMLElement, overlay: HTMLElement, iconBtn: HTMLElement) {
   // Tray is a non-modal dialog: gives it semantics + ESC + focus return.
   // We do NOT set aria-modal=true because we don't trap focus - claiming
@@ -3163,6 +3598,17 @@ function wireTrayToggle(tray: HTMLElement, overlay: HTMLElement, iconBtn: HTMLEl
       );
       (first ?? tray).focus();
       onKeyDown = (e) => {
+        // `cleanup()` deletes the tray without going through setOpen, so this
+        // listener outlives the sheet it belongs to. Left unguarded it would
+        // accumulate one stale Escape handler per rebuild - and now that a
+        // removal rebuilds an *open* tray, that is once per file removed - each
+        // one still calling setOpen(false) on a detached node. Unregister on
+        // the first keystroke after the tray is gone.
+        if (!tray.isConnected) {
+          document.removeEventListener('keydown', onKeyDown!);
+          onKeyDown = null;
+          return;
+        }
         if (e.key === 'Escape') {
           e.stopPropagation();
           setOpen(false);
@@ -3177,6 +3623,14 @@ function wireTrayToggle(tray: HTMLElement, overlay: HTMLElement, iconBtn: HTMLEl
   };
   iconBtn.addEventListener('click', () => setOpen(!tray.classList.contains('ws-tray-open')));
   overlay.addEventListener('click', () => setOpen(false));
+
+  // This tray replaces one the user had open, so it opens with it - handed
+  // back to `withTrayPreserved` to run once the tray is in the document. Going
+  // through setOpen rather than the class alone keeps the icon, aria-expanded,
+  // the Escape handler, the scroll lock and focus in step; focus lands on the
+  // first control in the sheet instead of on <body>, where the destroyed × row
+  // used to strand it.
+  if (restoreTrayOpen) pendingTrayOpen = () => setOpen(true);
 }
 
 function appendMobileToolbar(_gridCard: HTMLElement) {
@@ -3226,7 +3680,7 @@ function buildMobileTrayContent(tray: HTMLElement) {
   // ---- BLOCK 1: file context (count + Restore + Add, then file list) ----
   const originalCount = files.reduce((s, f) => s + f.pageCount, 0);
   const diff = pages.length - originalCount;
-  const countBase = `${files.length} file${files.length !== 1 ? 's' : ''} · ${pages.length} pages`;
+  const countBase = `${files.length} file${files.length !== 1 ? 's' : ''} · ${pages.length} page${pages.length !== 1 ? 's' : ''}`;
   let countHtml = countBase;
   if (modified) {
     countHtml += '<sup>*</sup>';
@@ -3234,14 +3688,7 @@ function buildMobileTrayContent(tray: HTMLElement) {
   }
   const countRow = el('div', { className: 'ws-sidebar-count-row' });
   countRow.appendChild(el('p', { className: 'ws-sidebar-count', innerHTML: countHtml }));
-  const trayBtnGroup = el('div', { className: 'ws-count-btn-group' });
-  if (modified) {
-    const restoreBtn = el('button', { className: 'ws-btn ws-btn-small', textContent: 'Restore' });
-    restoreBtn.addEventListener('click', resetPages);
-    trayBtnGroup.appendChild(restoreBtn);
-  }
-  trayBtnGroup.appendChild(createAddFileButton());
-  countRow.appendChild(trayBtnGroup);
+  countRow.appendChild(makeFileBulkActions());
   tray.appendChild(countRow);
 
   const fileList = el('div', { className: 'ws-sidebar-files' });
@@ -3252,11 +3699,12 @@ function buildMobileTrayContent(tray: HTMLElement) {
     const isMulti = uniqueFileIds.length > 1;
     fileList.appendChild(makeSidebarFileRow(sf, {
       letter: isMulti ? String.fromCharCode(65 + (uniqueFileIds.indexOf(fid) % 26)) : undefined,
-      meta: isMulti ? `${sf.pageCount} pages · ${formatBytes(sf.size)}` : undefined,
+      meta: isMulti ? `${sf.pageCount} page${sf.pageCount !== 1 ? 's' : ''} · ${formatBytes(sf.size)}` : undefined,
       onRemove: () => removeFile(fid),
     }));
   }
   tray.appendChild(fileList);
+  tray.appendChild(makeAddFileRow({ restore: modified }));
 
   tray.appendChild(makeSidebarDivider());
 
@@ -3520,32 +3968,93 @@ function parseSelectionRange(text: string): Set<number> | null {
 // Utility
 // ---------------------------------------------------------------------------
 
+/**
+ * Run a PDF edit (merge/organize/watermark/extract) behind a progress popup.
+ * The popup carries a Cancel control and Escape wired to the same
+ * AbortController `fn` receives, so a long edit can always be backed out of.
+ * A cancellation (`PdfEditCancelled`) is a neutral outcome, not an error - it
+ * never reaches `showError`/`appendSupportContact`.
+ */
 async function runWithPopup<T>(
   verb: string,
   subtext: string,
   fallback: string,
-  fn: () => Promise<T>,
+  fn: (signal: AbortSignal) => Promise<T>,
   onSuccess?: (result: T) => void,
   minMs: number = 1200,
+  /**
+   * Called instead of a silent close when the user cancels, for the jobs that
+   * build their output one file at a time. Those loops finish whole documents
+   * before they are stopped, and dropping them meant Cancel could only ever be
+   * paid for by redoing the files that had already succeeded. The Converter
+   * has offered its finished files back since it grew a Stop button; this is
+   * the same courtesy. Jobs that produce a single file have no partial state
+   * and pass nothing.
+   */
+  onCancelled?: () => void,
 ): Promise<void> {
+  const controller = new AbortController();
   const wrap = el('div', { className: 'ws-processing' });
   wrap.appendChild(el('h2', { textContent: `${verb}...` }));
   wrap.appendChild(el('div', { className: 'ws-spinner' }));
   wrap.appendChild(el('p', { textContent: subtext }));
-  showPopup(wrap, true);
+  const actions = el('div', { className: 'popup-actions-footer' });
+  // "Stop", not "Cancel": this abandons work already running, and the app says
+  // stop everywhere else it offers that (see modeCopy in cancellation.ts).
+  actions.appendChild(createPopupButton('Stop', 'btn-secondary', () => controller.abort()));
+  wrap.appendChild(actions);
+  showPopup(wrap, true, () => controller.abort());
   const startTime = performance.now();
   try {
-    const result = await fn();
+    const result = await fn(controller.signal);
     await ensureMinDuration(startTime, minMs);
     if (onSuccess) onSuccess(result);
     else hidePopup();
   } catch (e: any) {
+    if (e instanceof PdfEditCancelled) {
+      hidePopup();
+      onCancelled?.();
+      return;
+    }
     console.error(`[pdfWorkspace] ${verb.toLowerCase()} failed:`, e);
     hidePopup();
     const info = toUserErrorInfo(e);
     const message = info.message || fallback;
     showError(appendSupportContact(message, FEEDBACK_CONTACT_TEXT));
   }
+}
+
+/**
+ * Offer the documents a cancelled job had already finished.
+ *
+ * Deliberately does not run the optional compression pass. The user pressed
+ * Stop; spending seconds of Ghostscript on the way out is the opposite of what
+ * was asked, and Original quality is what a cancelled save should hand back.
+ *
+ * Silent when nothing finished - `runWithPopup` has already closed the popup,
+ * and a modal that says "0 files were saved" is worse than the editor simply
+ * reappearing with everything intact.
+ */
+function offerPartialPdfResult(done: { bytes: Uint8Array; name: string }[], zipName: string | null) {
+  if (done.length === 0) return;
+  lastPdfResult = done;
+  lastPdfZipName = done.length > 1 ? zipName : null;
+  lastPdfCompression = null;
+
+  const h2 = el('h2', { textContent: 'Stopped' });
+  const p = el('p', {});
+  p.innerHTML = done.length === 1
+    ? `<b>${escapeHTML(shortenFileName(done[0].name, 32))}</b> was finished before you stopped, and is ready to download.`
+    : `<b>${done.length}</b> files were finished before you stopped, and are ready to download.`;
+
+  const actions = el('div', { className: 'popup-actions-footer' });
+  actions.appendChild(createPopupButton(
+    done.length > 1 ? `Download ${done.length} files (.zip)` : 'Download',
+    'btn-primary',
+    redownloadLastPdfResult,
+  ));
+  actions.appendChild(createPopupButton('Done', 'btn-secondary', hidePopup));
+  replacePopup([h2, p, actions]);
 }
 
 function redownloadLastPdfResult() {
@@ -3558,16 +4067,25 @@ function showPdfSuccessModal(title: string, resultHTML: string) {
   const h2 = el('h2', { textContent: title });
   const frogDiv = createDancingFrog();
   const p = el('p', {});
-  p.innerHTML = resultHTML;
+  // Added here rather than at the eleven call sites: every tool routes its
+  // result through `setPdfResult` and its modal through here, which is the
+  // whole reason both funnels exist.
+  p.innerHTML = resultHTML + compressionNote();
 
   const actions = el('div', { className: 'popup-actions-footer' });
-  actions.appendChild(createPopupButton('Download again', 'btn-primary', redownloadLastPdfResult));
+  // Names the result rather than the gesture, matching the Converter and the
+  // Compress card. "Download again" claimed a download had already happened.
+  const dlLabel = lastPdfResult.length > 1
+    ? `Download ${lastPdfResult.length} files (.zip)`
+    : 'Download';
+  actions.appendChild(createPopupButton(dlLabel, 'btn-primary', redownloadLastPdfResult));
   actions.appendChild(createPopupButton('Done', 'btn-secondary', hidePopup));
 
   replacePopup([h2, frogDiv, p, actions]);
 
-  setTimeout(() => { if (ui.popupBox.classList.contains('open')) triggerConfetti(); }, 150);
-  setTimeout(() => { if (ui.popupBox.classList.contains('open')) redownloadLastPdfResult(); }, 400);
+  celebrateOnPopup(ui.popupBox);
+  // Deliberately no automatic download - see the note in `actions.ts`. The
+  // edit is finished and the file is held; the button is what sends it.
 }
 
 let errorTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -3596,6 +4114,7 @@ export const __testing = {
     knownFileIds = new Set();
     wmDisposeBitmaps();
     wmTextEncodeFont = null;
+    lastPdfCompression = null;
     if (wmRafId !== null) { cancelAnimationFrame(wmRafId); wmRafId = null; }
   },
   seed(seedPages: PageEntry[], seedFiles: SourceFile[] = [], seedSelected: number[] = []) {
@@ -3614,6 +4133,9 @@ export const __testing = {
     history.length = 0;
     redoStack.length = 0;
   },
+  compressionNote,
+  offerPartialPdfResult,
+  cleanup,
   getPages: () => pages,
   getFiles: () => files,
   getSelected: () => selected,

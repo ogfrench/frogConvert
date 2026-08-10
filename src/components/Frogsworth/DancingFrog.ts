@@ -34,7 +34,11 @@ export function createDancingFrog(): HTMLElement {
     frogDiv.addEventListener("mouseenter", () => {
         if (frogInterval) return;
         frogInterval = setInterval(() => {
-            if (!document.contains(frogDiv)) { clearInterval(frogInterval!); frogInterval = null; return; }
+            // `document` itself may be gone, not just the frog: this repeats
+            // every 700ms with nothing but a hover to have started it.
+            if (typeof document === "undefined" || !document.contains(frogDiv)) {
+                clearInterval(frogInterval!); frogInterval = null; return;
+            }
             frameIndex = (frameIndex + 1) % FROG_FRAMES.length;
             crossfadeTo(FROG_FRAMES[frameIndex]);
         }, 700);

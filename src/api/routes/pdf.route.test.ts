@@ -202,7 +202,8 @@ describe('POST /pdf/watermark', () => {
         expect(res.status).toBe(200);
         const body = await res.json();
         expect(body.files).toHaveLength(1);
-        expect(body.files[0].name).toBe('doc_watermarked.pdf');
+        // Timestamped so repeated runs never collide; see pdfWatermark.ts.
+        expect(body.files[0].name).toMatch(/^doc_watermarked-\d{8}-\d{6}\.pdf$/);
         const out = await PDFDocument.load(new Uint8Array(Buffer.from(body.files[0].base64Bytes, 'base64')));
         expect(out.getPageCount()).toBe(3);
     });

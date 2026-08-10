@@ -41,9 +41,23 @@ function applyPlan(image: IMagickImage, preset: QualityPreset, outputFormat: Fil
   }
 }
 
+/**
+ * Formats ImageMagick can only reach through an external Ghostscript binary.
+ *
+ * The WASM build has no way to run one, so these are advertised and then fail
+ * at the first attempt. Ghostscript's own handler reads and writes them.
+ */
+export const DELEGATES_TO_GHOSTSCRIPT = new Set([
+  "eps", "eps2", "eps3", "epsf", "epsi", "ept", "ept2", "ept3",
+  "ps", "ps2", "ps3",
+  "ai", "pdf", "pdfa",
+]);
+
 class ImageMagickHandler implements FormatHandler {
 
   public name: string = "ImageMagick";
+  /** Reads `--quality`: this engine is one of the few that actually does. */
+  public usesQuality = true;
 
   public supportedFormats: FileFormat[] = [];
 
@@ -62,6 +76,21 @@ class ImageMagickHandler implements FormatHandler {
       if (formatName === "svg") return;
       if (formatName === "ttf") return;
       if (formatName === "otf") return;
+      // ImageMagick *lists* the PostScript family and PDF, and cannot do any
+      // of them here: it services them by shelling out to a `gs` binary, and
+      // there is no such binary in a browser. Every attempt dies with
+      //
+      //   FailedToExecuteCommand `'gs' ... -sDEVICE=pngalpha ... -dEPSCrop'
+      //
+      // Leaving them declared was not cosmetic. The route search preferred
+      // ImageMagick for `eps → pdf`, so a real EPS failed, the retry picked
+      // another dead ImageMagick route (`eps → pdb`), and the user was told
+      // "EPS to PDF didn't complete this time. Try a different target format
+      // or another file" - about a file that was fine, on a conversion the
+      // app can do. Ghostscript reads all of these natively and is the
+      // handler that should own them; it only ever got the chance once these
+      // stopped shadowing it.
+      if (DELEGATES_TO_GHOSTSCRIPT.has(formatName)) return;
       let mimeType = format.mimeType || mime.getType(formatName);
       if (
         !mimeType

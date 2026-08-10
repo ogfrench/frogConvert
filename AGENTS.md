@@ -14,12 +14,13 @@ This file is the **single source of truth** for agent rules. Do not duplicate th
 
 ## Project summary
 
-**frogConvert** is a browser-based file converter and PDF editor. It runs everything client-side: no server uploads, no network round-trips for conversion. The app has two parallel subsystems:
+**frogConvert** is a browser-based file converter, compressor and PDF editor. It runs everything client-side: no server uploads, no network round-trips for conversion. The app has three parallel subsystems:
 
 1. **Conversion pipeline** - TraversionGraph route finder plus FormatHandlers. Any format-to-format transformation (image to video, docx to pdf, etc.). 70+ formats supported. This subsystem originates from the [Convert to it!](https://github.com/p2r3/convert) fork.
 2. **PDF Workspace** - an in-browser PDF editor (merge, reorder, rotate, extract, watermark). **frogConvert-original, not part of the fork.** Parallel to the conversion pipeline; does **not** use FormatHandlers.
+3. **Compression engine** - [src/core/compression/](src/core/compression/) plus the Compress surface at `/compress`. Shrinks a file *without changing its format* (images, audio, video, PDF). **frogConvert-original.** It reuses FormatHandlers as engines but is not a conversion: same format in, same format out. Read [docs/COMPRESS.md](docs/COMPRESS.md).
 
-The MCP server and local REST API expose **both** subsystems: `list_formats`, `find_conversion_path`, `convert_file` for the conversion pipeline, and `pdf_merge`, `pdf_organize`, `pdf_extract`, `pdf_watermark` for the PDF editor. REST routes mirror each MCP tool.
+The MCP server and local REST API expose **all three**: `list_formats`, `find_conversion_path`, `convert_file` for the conversion pipeline, `pdf_merge`, `pdf_organize`, `pdf_extract`, `pdf_watermark` for the PDF editor, and compression via `convert_file`'s `quality` argument when input and output format match. REST routes mirror each MCP tool.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full picture.
 
@@ -59,6 +60,12 @@ Before writing code, decide which subsystem you are in. Getting this wrong is th
 - **Do not** wrap it as a FormatHandler; it is not a format conversion.
 - Read [docs/ARCHITECTURE.md § PDF Workspace](docs/ARCHITECTURE.md#pdf-workspace-editor-mode) first.
 
+**New code that makes a file smaller without changing its format** (e.g. a new codec, a better PDF route):
+- The engine lives in [src/core/compression/](src/core/compression/) and is deliberately UI-free - it takes a `run` callback rather than importing the worker client, so `src/core/` never depends on `src/components/`.
+- Route the format to an engine in [src/core/compression/resolveCompressor.ts](src/core/compression/resolveCompressor.ts); the batch orchestrator in `compressBatch.ts` handles grouping, tiering and the keep-threshold.
+- **Do not** add a same-format entry to the conversion graph; compression is dispatched separately.
+- Read [docs/COMPRESS.md](docs/COMPRESS.md) first.
+
 **New MCP tool or REST endpoint**:
 - Add in [src/mcp/tools/](src/mcp/tools/) and the matching [src/api/routes/](src/api/routes/). UI, MCP, and REST stay in sync for behavior-shaping fields (see rule 12 below).
 - For PDF ops, follow the pattern in [src/mcp/tools/pdfMerge.ts](src/mcp/tools/pdfMerge.ts) and [src/api/routes/pdf.ts](src/api/routes/pdf.ts).
@@ -95,7 +102,7 @@ These are not suggestions. PRs that violate them will be rejected.
 
 11. **Keep docs MECE.** When editing docs, one topic lives in one file. If you find yourself duplicating content across `docs/`, move it to the single canonical file and link. See the audience/purpose table in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
 
-12. **Surface alignment (UI ↔ MCP ↔ REST).** Behavior-shaping fields stay in sync across the three public surfaces. Adding a control to the UI? Mirror it in [src/mcp/tools/](src/mcp/tools/) and [src/api/routes/](src/api/routes/) in the same PR. Removing one from the UI? Pull it from MCP and REST in the same PR. **Transport-affordance fields** (`filePath`, `base64Bytes`, `outputFilePath`, `outputDir`) are API-only by necessity — the browser UI has no filesystem equivalent. Engine code in [src/tools/](src/tools/) and [src/handlers/](src/handlers/) retains full capability regardless of what the surfaces expose; surface curation is a publication decision, not a deletion. See [docs/ARCHITECTURE.md § Surface vs engine seam](docs/ARCHITECTURE.md#surface-vs-engine-seam).
+12. **Surface alignment (UI ↔ MCP ↔ REST).** Behavior-shaping fields stay in sync across the three public surfaces. Adding a control to the UI? Mirror it in [src/mcp/tools/](src/mcp/tools/) and [src/api/routes/](src/api/routes/) in the same PR. Removing one from the UI? Pull it from MCP and REST in the same PR. **Transport-affordance fields** (`filePath`, `base64Bytes`, `outputFilePath`, `outputDir`) are API-only by necessity - the browser UI has no filesystem equivalent. Engine code in [src/tools/](src/tools/) and [src/handlers/](src/handlers/) retains full capability regardless of what the surfaces expose; surface curation is a publication decision, not a deletion. See [docs/ARCHITECTURE.md § Surface vs engine seam](docs/ARCHITECTURE.md#surface-vs-engine-seam).
 
 ---
 

@@ -19,3 +19,13 @@ linkedin
 .idea/
 *.log
 coverage/
+
+# Local verification scaffolding: throwaway browser-driver scripts and the
+# sample files they run against. Never commit these — the sample files are
+# whatever the person testing happened to have, and can be large or private.
+__*.mjs
+.verify-tmp/
+.e2e-fixture.pdf
+
+# Empirical corpus: fetched by scripts/fetch-corpus.ts, never committed (large, upstream-owned).
+test/corpus/

@@ -111,7 +111,7 @@ describe('registerConvertFileTool', () => {
         const parsed = JSON.parse(result.content[0].text);
         expect(parsed[0].fileName).toBe('bridge.png');
         expect(convertViaBrowser).toHaveBeenCalledWith(
-            'test.jpg', 'aGVsbG8=', 'image/jpeg', 'jpeg', 'image/png', 'png', 'medium'
+            'test.jpg', 'aGVsbG8=', 'image/jpeg', 'jpeg', 'image/png', 'png', 'lossless'
         );
     });
 
@@ -132,7 +132,7 @@ describe('registerConvertFileTool', () => {
 
         expect(result.isError).toBeFalsy();
         expect(convertViaBrowser).toHaveBeenCalledWith(
-            'exotic.bsor', 'aGVsbG8=', 'application/x-bsor', 'bsor', 'image/png', 'png', 'medium'
+            'exotic.bsor', 'aGVsbG8=', 'application/x-bsor', 'bsor', 'image/png', 'png', 'lossless'
         );
     });
 
@@ -262,7 +262,7 @@ describe('registerConvertFileTool', () => {
         });
 
         expect(convertViaBrowser).toHaveBeenCalledWith(
-            'photo.jpg', expect.any(String), 'image/jpeg', 'jpeg', 'image/png', 'png', 'medium'
+            'photo.jpg', expect.any(String), 'image/jpeg', 'jpeg', 'image/png', 'png', 'lossless'
         );
     });
 

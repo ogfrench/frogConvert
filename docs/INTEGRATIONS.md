@@ -39,7 +39,7 @@ For installation and CLI usage, see [DEPLOYMENT.md § CLI](DEPLOYMENT.md#cli-no-
 
 ## MCP Tools Reference
 
-Seven tools, all over `stdio`: one metadata (`list_formats`), two conversion (`find_conversion_path`, `convert_file`), four PDF editing (`pdf_merge`, `pdf_organize`, `pdf_extract`, `pdf_watermark`).
+Eight tools, all over `stdio`: one metadata (`list_formats`), two conversion (`find_conversion_path`, `convert_file`), one compression (`compress_file`), four PDF editing (`pdf_merge`, `pdf_organize`, `pdf_extract`, `pdf_watermark`).
 
 1. **`list_formats`**
    - **Description**: Returns a JSON array of all supported input and output formats available in the Node.js environment.
@@ -62,7 +62,7 @@ Seven tools, all over `stdio`: one metadata (`list_formats`), two conversion (`f
      | `outputMime` | required | Output MIME type. |
      | `outputExtension` | required | Output format extension. |
      | `outputFilePath` | optional | Absolute path where the output file should be saved. **Strongly recommended for large outputs** - avoids returning megabytes of base64 through the context window. |
-     | `quality` | optional | Quality preset: `"low"`, `"medium"`, `"high"`, or `"lossless"`. Defaults to `"medium"` (matches the web UI). See [Quality preset](#quality-preset) for what each tier does. |
+     | `quality` | optional | Quality preset: `"low"`, `"medium"`, `"high"`, or `"lossless"`. Applies to the re-encode a *cross-format* conversion performs; when omitted it is `"lossless"`. To make a file smaller without changing its format, use [`compress_file` / `POST /compress`](#compression) instead. See [Quality preset](#quality-preset). |
    - **Description**: The core execution tool. Routes the file through the handler chain and returns all output files.
    - **Returns**:
      - When `outputFilePath` is omitted - a JSON array of output files:
@@ -184,7 +184,7 @@ curl -X POST http://127.0.0.1:3000/convert \
   -o output.png
 ```
 - Input MIME/extension are auto-detected from the uploaded filename.
-- `quality` is optional (`"low"`, `"medium"`, `"high"`, `"lossless"`) and defaults to `"medium"`.
+- `quality` is optional (`"low"`, `"medium"`, `"high"`, `"lossless"`). See [Quality preset](#quality-preset) for what happens when it is omitted.
 - Response: raw binary of the first output file with `Content-Disposition: attachment; filename*=UTF-8''...` header. If conversion produces multiple files, the remaining filenames are listed in an `X-Extra-Files` JSON header - use the JSON API instead if you need all files.
 
 **Option B - application/json**:
@@ -194,30 +194,154 @@ curl -X POST http://127.0.0.1:3000/convert \
   -d '{"fileName":"input.jpg","base64Bytes":"...","inputMime":"image/jpeg","inputExt":"jpg","outputMime":"image/png","outputExt":"png","quality":"high"}'
 ```
 - Response: `[{ "fileName": "output.png", "base64Bytes": "<base64>" }]` (array supports multi-file outputs)
-- `quality` field is optional; defaults to `"medium"`.
+- `quality` field is optional. See [Quality preset](#quality-preset) for the omitted-value behaviour.
 
 Returns `400` on bad input, `413` if the file exceeds `MAX_UPLOAD_MB`, `415` if Content-Type is unsupported, `422` if no path found or conversion fails.
 
 #### Quality preset
 
-Both `POST /convert` and the MCP `convert_file` tool accept an optional `quality` preset. When omitted, both default to `"medium"` (the same profile the web UI uses).
+Both `POST /convert` and the MCP `convert_file` tool accept an optional `quality` preset, which governs the re-encode a conversion performs. **When omitted it is `"lossless"`**: a conversion changes the format and nothing else. Pass a level explicitly to also shrink the file, or use [`compress_file` / `POST /compress`](#compression) to shrink one without changing its format.
 
-| Preset | JPEG singleton | PDF page render cap | Video-frame cap | Video-to-GIF cap | Audio (stereo lossy) | Auto-adaptation |
-|---|---|---|---|---|---|---|
-| `low` | q82 | 1.2 MP | ~120 frames | 30s | 128 kbps | Fires earliest |
-| `medium` | q90 | 2.5 MP | ~300 frames, 1920 px | 60s | 192 kbps | Default |
-| `high` | q93 | 5.0 MP | ~1000 frames, 3840 px | 180s | 256 kbps | Fires latest |
-| `lossless` | q100 | 25 MP | no cap | no cap | uncompressed | Disabled |
+The preset is a request-level parameter here. The web UI's equivalent settings - **Compression** in the Converter's settings menu and the level picker on the **Compress** surface - are per-surface browser preferences stored in `localStorage`; they do not reach the API or MCP server, which run in a separate process. Pass `quality` explicitly to get a specific tier.
 
-### Same-format compression
+| Preset | JPEG singleton | Image resize cap | PDF page render cap | Video-frame cap | Video-to-GIF cap | Audio (stereo lossy) | Auto-adaptation |
+|---|---|---|---|---|---|---|---|
+| `low` | q65 | 1920 px | 1.2 MP | ~120 frames | 30s | 128 kbps | Fires earliest |
+| `medium` | q80 | 2560 px | 2.5 MP | ~300 frames, 1920 px | 60s | 192 kbps | Fires at the midpoint |
+| `high` | q93 | no cap | 5.0 MP | ~1000 frames, 3840 px | 180s | 256 kbps | Fires latest |
+| `lossless` | q100 | no cap | 25 MP | no cap | no cap | uncompressed | Disabled |
 
-Both `POST /convert` and the MCP `convert_file` tool support **same-format compression**. Passing identical input and output formats (e.g. `inputExt: png`, `outputExt: png`) re-encodes the file using the specified `quality` preset to reduce its size. 
-
-A **smart size-guard** is active: if the "compressed" result is larger than the original or saves less than 2% of the space, once conversion is complete, the original file is returned instead. This ensures you never pay for a re-encode with a larger file.
+> **Changed in v3.0.0.** `low` and `medium` were q82 and q90 with no resize cap -
+> an 11-point band that put all three presets inside what other tools call high
+> quality. `low` is now q65 and `medium` q80, and both **downscale**: a
+> 4032x3024 phone photo comes back 1920x1440 at `low`. If your script depended
+> on a `quality: "low"` conversion preserving pixel dimensions, pass `high` or
+> `lossless` instead. `high` and `lossless` are unchanged.
+>
+> **The omitted-`quality` default also changed, from `medium` to `lossless`.**
+> A request that says nothing about quality now returns the conversion at full
+> fidelity rather than q80 with a 2560 px cap. This matches the web UI, whose
+> Converter defaults to Original quality for the same reason: an agent cannot
+> see the output, the caller may never learn the image was resized, and the
+> conversion is usually the only copy kept. Scripts that relied on the old
+> behaviour should pass `quality: "medium"` explicitly.
 
 Adaptive-cap behavior (frame sampling, GIF trim, PDF auto-shrink) applies at all lossy presets. `lossless` disables all of them, so it can produce very large outputs.
 
 Handlers ignore the preset when it doesn't apply to them (lossless codecs, structural conversions like DOCX→PDF, etc.).
+
+A conversion that *produces* a PDF (`PDF → PDF/A`, `PS → PDF`) passes the preset to Ghostscript's distiller: `low` → `/screen`, `medium` → `/ebook`, `high` → `/printer`, `lossless` → `/prepress`.
+
+#### Quality across multi-step routes
+
+A conversion may take more than one hop (e.g. HEIC → PNG → WebP). Quality is
+reduced **once**, on the final hop that produces the file you receive;
+intermediate hops run at the gentlest practical setting. Re-applying the target
+preset at every step would compound generation loss, and quality discarded on an
+early hop cannot be recovered by a gentler later one.
+
+`quality: "lossless"` is honoured on every hop, so "no compression" means it end
+to end. A hop whose output format is inherently lossless (PNG, FLAC…) always
+runs lossless, since a quality knob can't shrink it.
+
+This rule is shared by every surface - web UI, REST, MCP and CLI - so the same
+file and the same `quality` produce the same result whichever way you convert.
+
+### Compression
+
+Compression has its own endpoint and its own tool: **`POST /compress`** and **`compress_file`**. Use those, not `convert_file` with the same format twice.
+
+> **Changed in v3.0.0.** Earlier documentation described same-format `convert` as the way to compress. It did not work: a same-format request resolves to a zero-hop path through the conversion graph and the runner executes no steps, so the input came straight back. Measured, a 10 MB image-heavy PDF returned byte-identical at every preset while the browser shrank the same file by 89%. Same-format `convert` still returns your file unchanged; it is simply not a compressor, and nothing about the fix changed cross-format conversion.
+
+Both surfaces share the engine selection, the level vocabulary and the 98% keep-threshold with the browser's Compress surface, so a rule added in one place reaches all three.
+
+**What actually compresses here.** These surfaces run in Node, and not every engine does:
+
+| Input | REST / MCP | Browser |
+|---|---|---|
+| Images (JPEG, PNG, WebP…) | yes, ImageMagick | yes |
+| PDF | yes, Ghostscript | yes |
+| Video and audio | **no** - reported `unsupported` | yes, FFmpeg |
+
+`ffmpeg.wasm` does not run under Node, so the handler never initialises in-process. `convert_file`, `POST /convert`, `compress_file` and `POST /compress` all fall back to the same headless-browser bridge, so video and audio compress over the API exactly as they do in the web UI. The first such call pays for starting the browser; afterwards it is warm. If the bridge cannot be reached, the file comes back with `shrunk: false`, `reason: "unsupported"` and its **original bytes** - never an empty file.
+
+**Levels:** `auto` (default), `high`, `medium`, `low`. `auto` probes each file and picks a level for it, exactly as the web UI does. There is deliberately **no `lossless`**: as a compression level it can only mean "do nothing", and the endpoint rejects it rather than silently substituting something else.
+
+**The keep-threshold is real here.** If a re-encode saves less than 2%, the original bytes are returned and the report says `shrunk: false` with a reason. You never pay for a re-encode with a larger file.
+
+#### `POST /compress`
+
+Multipart returns the bytes as a download with the report in an `X-Compress-Report` header:
+
+```bash
+curl -X POST http://localhost:3000/compress \
+  -F "file=@scan.pdf" -F "level=low" \
+  -D headers.txt -o scan-small.pdf
+```
+
+JSON returns the report with the bytes inline, and accepts a batch:
+
+```bash
+curl -X POST http://localhost:3000/compress \
+  -H "Content-Type: application/json" \
+  -d '{"level":"low","files":[{"fileName":"a.pdf","base64Bytes":"..."}]}'
+```
+
+```json
+{
+  "level": "low",
+  "files": [
+    { "name": "a.pdf", "originalSize": 10141096, "compressedSize": 128053,
+      "savedBytes": 10013043, "savedPercent": 98.7, "shrunk": true,
+      "base64Bytes": "..." }
+  ]
+}
+```
+
+#### `compress_file` (MCP)
+
+| Field | Required | Notes |
+|---|---|---|
+| `filePath` | one of | Absolute path. Preferred for large files - base64 in a tool result eats context. |
+| `base64Bytes` + `fileName` | one of | The in-band alternative. The extension identifies the format. |
+| `filePaths` | optional | A batch, compressed in one pass. Each result is written beside its source as `name-compressed.ext`, never over it. |
+| `outputFilePath` | optional | Where to write a single result. Omit to get base64 back. |
+| `level` | optional | `auto` (default), `high`, `medium`, `low`. |
+
+A file that could not be shrunk comes back with `shrunk: false` and a `reason`, not an error - one unsupported file in a batch never costs you the rest.
+
+#### PDF compression
+
+A PDF sent to `POST /compress` or `compress_file` is compressed through Ghostscript, the same engine the web UI's Compress surface uses. The `level` maps onto Ghostscript's distiller presets:
+
+| `level` | `-dPDFSETTINGS` | Image target |
+|---|---|---|
+| `low` | `/screen` | 72 dpi |
+| `medium` | `/ebook` | 150 dpi |
+| `high` | `/printer` | 300 dpi |
+| `auto` | picked per file | probes the PDF and chooses |
+
+There is no `lossless` here - see the levels note above. `/prepress` is reachable only through a *conversion* that produces a PDF, where the parameter is `quality`.
+
+Four things to expect, so a correct result isn't mistaken for a broken one:
+
+- **A password-protected PDF is declined, not compressed.** Ghostscript has no password, so it reads the page tree, fails to decrypt the content streams, and writes that many *empty* pages - with the page count preserved exactly, which is why a page-count check cannot catch it. Measured before this was guarded: 12,783 bytes and a page of text became 2,188 bytes of blank page, reported as an 83% saving. You now get `shrunk: false` and your original bytes back, still encrypted. This matters more for an agent than for a person: a script compressing a folder has nothing on screen to notice the difference.
+
+- **A text or vector PDF barely shrinks, and that is right.** Ghostscript's presets bound *image* resampling; text and vector art are left alone because there is nothing to throw away. Scans and image-heavy decks are where the 30–80% savings live. If the result saves less than 2%, the size-guard returns the original.
+- **The first PDF in a process is slower.** The 16 MB WASM engine is compiled on first use and then reused, so subsequent files in the same process are markedly faster (measured: 718 ms then 248 ms). It is never loaded at startup - a session that touches no PDFs never pays for it.
+- **A lower level can produce a *larger* PDF.** Ghostscript's presets are not monotonic in output size: on one 71-page research brief `/screen` grew the file 42% and `/ebook` 65%, while `/printer` shrank it 18%. The keep-threshold means you never receive the larger file - you get the original with `shrunk: false` - but it does mean `low` is not reliably the smallest answer for PDFs. `auto` exists to pick per file rather than guess.
+
+#### Compressing an edited PDF
+
+The browser's PDF editor has a **PDF compression** setting that shrinks whatever it saves. The PDF tools below deliberately do not take a `quality` parameter - on the agent surfaces the same result is composition, not a flag: chain the edit into `compress_file` / `POST /compress`.
+
+```
+pdf_merge(inputs) -> compress_file(filePath: <merged>, level: "auto")
+```
+
+The second step is the identical Ghostscript pass the browser runs, keep-threshold included, so a merge whose compression would not pay for itself comes back at its edited size rather than degraded.
+
+Do **not** chain into `convert_file(pdf -> pdf)` - that is the same-format no-op described above and returns the merged file untouched.
 
 ### PDF editor endpoints
 

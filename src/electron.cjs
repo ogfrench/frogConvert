@@ -57,8 +57,12 @@ app.whenReady().then(() => {
       if (urlPath.startsWith('/')) {
         urlPath = urlPath.slice(1);
       }
-      // SPA fallback: route paths like convert, convert/image, pdf, pdf/split → index.html
-      if (urlPath === '' || /^(convert|pdf)(\/[^.]*)?$/.test(urlPath)) {
+      // SPA fallback: route paths like convert, convert/image, pdf, pdf/split → index.html.
+      // These must stay in step with MODE_PATHS in src/router.ts - `compress` was
+      // added there in v3 and missed here, which 404s any app://-/compress load.
+      // Unreachable by clicking (navigateTo is a no-op under app:), but the whole
+      // point of this branch is to survive the loads that don't come from a click.
+      if (urlPath === '' || /^(convert|pdf|compress)(\/[^.]*)?$/.test(urlPath)) {
         urlPath = 'index.html';
       }
       if (urlPath.startsWith('convert/')) {

@@ -3,6 +3,9 @@ import {
     isCategoryVisible, isFormatVisible, type FormatMode,
     checkFileSizeLimits, sortFilesByName, formatDisplayName, getFormatCategory,
     isLoadingHandlers, getMaxFiles,
+    convertQuality, setConvertQuality, CONVERT_QUALITY_CHOICES, CONVERT_QUALITY_DEFAULT,
+    compressLevel, setCompressLevel, COMPRESS_LEVEL_CHOICES, COMPRESS_LEVEL_DEFAULT,
+    pdfQuality, setPdfQuality, PDF_QUALITY_CHOICES, PDF_QUALITY_DEFAULT,
 } from "./store.ts";
 import { ABSOLUTE_MAX_FILES } from "../../constants/ui.ts";
 import type { FileFormat } from "../../core/FormatHandler/FormatHandler.ts";
@@ -306,5 +309,153 @@ describe("getMaxFiles", () => {
         const max = getMaxFiles(files);
         // budget 2GB / (100MB * 1.5) = ~13
         expect(max).toBe(13);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Per-surface quality settings
+// ---------------------------------------------------------------------------
+
+describe("convertQuality (Converter)", () => {
+    beforeEach(() => setConvertQuality(CONVERT_QUALITY_DEFAULT));
+
+    it("defaults to Original quality: a conversion changes format, not quality", () => {
+        // Automatic steps each file down a tier, and below "high" that applies
+        // a long-edge cap - so the old default silently resized photos on a
+        // request that only asked for a different format.
+        expect(convertQuality.value).toBe("lossless");
+        expect(CONVERT_QUALITY_DEFAULT).toBe("lossless");
+        expect(CONVERT_QUALITY_CHOICES[0].value).toBe("lossless");
+    });
+
+    it("lists its levels in the same order as the PDF editor, which shares its default", () => {
+        expect(CONVERT_QUALITY_CHOICES.map(c => c.value)).toEqual(["lossless", "auto", "high", "medium", "low"]);
+    });
+
+    it("still offers Automatic, one item from the top", () => {
+        expect(CONVERT_QUALITY_CHOICES.map(c => c.value)).toContain("auto");
+    });
+
+    it("maps labels to the inverted engine presets", () => {
+        // The engine's presets name the quality *target*, so "low" is the most
+        // compression. Labels read the same way round, which is why this
+        // mapping is worth pinning: swapping two of them would be invisible in
+        // review and would quietly invert the whole control.
+        const byLabel = Object.fromEntries(CONVERT_QUALITY_CHOICES.map(c => [c.label, c.value]));
+        expect(byLabel["Original quality"]).toBe("lossless");
+        expect(byLabel["High quality"]).toBe("high");
+        expect(byLabel["Balanced"]).toBe("medium");
+        expect(byLabel["Smallest file"]).toBe("low");
+    });
+
+    it("keeps one vocabulary across both surfaces", () => {
+        // A user who sets "Balanced" in Convert and sees "Recommended" in
+        // Compress has no way to know they are the same level.
+        const convert = new Map(CONVERT_QUALITY_CHOICES.map(c => [c.value as string, c.label]));
+        for (const c of COMPRESS_LEVEL_CHOICES) {
+            expect(convert.get(c.value)).toBe(c.label);
+        }
+    });
+
+    it("persists the choice", () => {
+        setConvertQuality("lossless");
+        expect(localStorage.getItem("convertQuality")).toBe("lossless");
+    });
+});
+
+describe("compressLevel (Compress surface)", () => {
+    beforeEach(() => setCompressLevel("medium"));
+
+    it("offers Automatic, which reads each file instead of applying a fixed tier", () => {
+        expect(COMPRESS_LEVEL_CHOICES[0].value).toBe("auto");
+        expect(COMPRESS_LEVEL_CHOICES[0].label).toBe("Automatic");
+    });
+
+    it("offers three levels and no lossless", () => {
+        expect(COMPRESS_LEVEL_CHOICES.map(c => c.value)).toEqual(["auto", "high", "medium", "low"]);
+        expect(COMPRESS_LEVEL_CHOICES.map(c => c.value)).not.toContain("lossless");
+    });
+
+    it("persists separately from the converter setting", () => {
+        setConvertQuality("lossless");
+        setCompressLevel("low");
+        expect(compressLevel.value).toBe("low");
+        expect(convertQuality.value).toBe("lossless");
+        expect(localStorage.getItem("compressLevel")).toBe("low");
+    });
+
+    it("changing one surface never moves the other", () => {
+        setConvertQuality("high");
+        setCompressLevel("low");
+        expect(convertQuality.value).toBe("high");
+        setConvertQuality("low");
+        expect(compressLevel.value).toBe("low");
+    });
+});
+
+describe("pdfQuality (PDF editor)", () => {
+    beforeEach(() => setPdfQuality(PDF_QUALITY_DEFAULT));
+
+    it("defaults to Original quality", () => {
+        // Merging and watermarking are edits, not exports: you expect the same
+        // document back. Silently recompressing it would be a surprise.
+        expect(PDF_QUALITY_DEFAULT).toBe("lossless");
+        expect(pdfQuality.value).toBe("lossless");
+    });
+
+    it("offers Automatic, but never lands on it by default", () => {
+        // Both halves matter. "Read the file and decide" is a good answer for
+        // someone who went looking for a smaller PDF, and a surprising one
+        // applied silently to an edit - so it is on the menu and is not the
+        // default. A regression either way is a behaviour change, not a tweak.
+        expect(PDF_QUALITY_CHOICES.map(c => c.value)).toContain("auto");
+        expect(PDF_QUALITY_DEFAULT).not.toBe("auto");
+    });
+
+    it("puts Original quality first, ahead of Automatic", () => {
+        // The default should be the first thing read, and the order otherwise
+        // runs gentlest to most aggressive like the other two surfaces.
+        expect(PDF_QUALITY_CHOICES.map(c => c.value))
+            .toEqual(["lossless", "auto", "high", "medium", "low"]);
+    });
+
+    it("persists a chosen level", () => {
+        setPdfQuality("medium");
+        expect(pdfQuality.value).toBe("medium");
+    });
+});
+
+describe("compression vocabulary", () => {
+    it("uses one label per level across all three surfaces", () => {
+        // A level called "Balanced" in one menu and "Recommended" in another is
+        // the kind of drift three hand-written arrays invite.
+        const seen = new Map<string, string>();
+        for (const list of [CONVERT_QUALITY_CHOICES, COMPRESS_LEVEL_CHOICES, PDF_QUALITY_CHOICES]) {
+            for (const c of list) {
+                const prev = seen.get(c.value);
+                if (prev !== undefined) expect(c.label).toBe(prev);
+                seen.set(c.value, c.label);
+            }
+        }
+        expect(seen.get("medium")).toBe("Balanced");
+        expect(seen.get("low")).toBe("Smallest file");
+        expect(seen.get("lossless")).toBe("Original quality");
+    });
+
+    it("gives every surface a default it actually offers", () => {
+        const pairs = [
+            [CONVERT_QUALITY_CHOICES, CONVERT_QUALITY_DEFAULT],
+            [COMPRESS_LEVEL_CHOICES, COMPRESS_LEVEL_DEFAULT],
+            [PDF_QUALITY_CHOICES, PDF_QUALITY_DEFAULT],
+        ] as const;
+        for (const [list, dflt] of pairs) {
+            expect((list as ReadonlyArray<{ value: string }>).map(c => c.value)).toContain(dflt);
+        }
+    });
+
+    it("gives every level a blurb, so no option is an unexplained adjective", () => {
+        for (const list of [CONVERT_QUALITY_CHOICES, COMPRESS_LEVEL_CHOICES, PDF_QUALITY_CHOICES]) {
+            for (const c of list) expect(c.blurb.length).toBeGreaterThan(0);
+        }
     });
 });

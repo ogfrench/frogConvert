@@ -18,12 +18,22 @@ flowchart LR
     C -->|runs tools in sequence| O[Output File]
     O -->|auto-download| U
 
+    B -->|just make it smaller| K[Compression Engine\ncore/compression]
+    K -->|same format in, same format out| C
+
     style U fill:#6ee7b7,stroke:#059669,color:#000
     style O fill:#6ee7b7,stroke:#059669,color:#000
     style B fill:#93c5fd,stroke:#3b82f6,color:#000
     style G fill:#fcd34d,stroke:#d97706,color:#000
     style C fill:#f9a8d4,stroke:#db2777,color:#000
+    style K fill:#c4b5fd,stroke:#7c3aed,color:#000
 ```
+
+Three subsystems share this page: the **conversion pipeline** (route finder +
+handlers), the **PDF Workspace** (structural PDF editing, no handlers), and the
+**compression engine**, which borrows handlers as engines but skips the route
+finder entirely - there is no path to find when the input and output formats are
+the same.
 
 Everything stays inside your browser tab. Nothing leaves your computer.
 
@@ -127,7 +137,7 @@ frogConvert ships a second workspace alongside the converter: an in-browser **PD
 
 **App-mode toggle.** [src/main.ts](../src/main.ts) and [src/router.ts](../src/router.ts) maintain an "app mode" state (`converter` vs `pdf`) that swaps which workspace section is visible in [index.html](../index.html). The converter workspace is `#convert-card`; the editor is `#pdf-workspace`.
 
-**Four operations**, each isolated in `src/tools/`:
+**Four operations**, each isolated in `src/tools/`, plus two shared helpers:
 
 | File | Operation | Library |
 |------|-----------|---------|
@@ -135,7 +145,10 @@ frogConvert ships a second workspace alongside the converter: an in-browser **PD
 | [src/tools/pdfOrganize.ts](../src/tools/pdfOrganize.ts) | Reorder, rotate (±90°), insert blank pages | `pdf-lib` |
 | [src/tools/pdfExtract.ts](../src/tools/pdfExtract.ts) | Extract a page range as a new PDF | `pdf-lib` |
 | [src/tools/pdfWatermark.ts](../src/tools/pdfWatermark.ts) | Stamp text watermark across selected pages, single or tiled | `pdf-lib` |
-| [src/tools/pdfThumbnails.ts](../src/tools/pdfThumbnails.ts) | Render page previews (lazy, cached) | `pdfjs-dist` |
+| [src/tools/pdfSource.ts](../src/tools/pdfSource.ts) | *(helper)* Load a source for editing, refusing an encrypted one | `pdf-lib` |
+| [src/tools/pdfThumbnails.ts](../src/tools/pdfThumbnails.ts) | *(helper)* Render page previews (lazy, cached) | `pdfjs-dist` |
+
+**Every operation loads its source through `loadEditablePdf`, not `PDFDocument.load`.** The flag the tools used to pass, `ignoreEncryption: true`, suppresses the error on an encrypted PDF without supplying a password: the document loads, reports a correct page count, and its content streams stay encrypted. Copy those pages into a new document and what lands is a page of the right size with nothing on it. Measured on a merge of a password-protected file with a 4-page document: all 5 pages present, pages 2-5 carrying 3,930 / 3,953 / 3,953 / 2,635 characters, page 1 carrying **zero**, with no error anywhere. Measuring a PDF is a different job and still uses the flag deliberately, since page count reads fine through encryption and `core/compression/pdfIntegrity.ts` needs exactly that to catch the compression side of the same defect.
 
 **Orchestrator.** [src/components/PdfWorkspace/PdfWorkspace.ts](../src/components/PdfWorkspace/PdfWorkspace.ts) owns the editor UI: tab switching (Merge / Organize / Watermark), drag-and-drop reorder via `sortablejs`, rotation accumulation, watermark live-preview, and download wiring.
 
@@ -187,7 +200,7 @@ flowchart LR
 
 | Path | Strategy | Why |
 |------|----------|-----|
-| `/wasm/`, `*.sf2` | CacheFirst, 30 entries, 7-day TTL, status 200 only | WASM blobs are huge and content-stable. Status 200 only because opaque cross-origin responses can't be introspected — caching them would let a transient CDN error look like success. |
+| `/wasm/`, `*.sf2` | CacheFirst, 30 entries, 7-day TTL, status 200 only | WASM blobs are huge and content-stable. Status 200 only because opaque cross-origin responses can't be introspected - caching them would let a transient CDN error look like success. |
 | `/assets/` | StaleWhileRevalidate, 200 entries, 30-day TTL | Hashed filenames change per build, so the cache fills with versioned copies. |
 | `/js/`, `/docs/*.md` | StaleWhileRevalidate | Lazy chunks and docs serve hot from cache while revalidating. |
 | `/index.html` (NavigationRoute) | Precache | Single SPA entry. Denylisted: `/api`, `/.well-known`, `/docs`, `/headless`. |
@@ -196,8 +209,8 @@ flowchart LR
 
 The PWA registers two OS-level integrations:
 
-- **`share_target`** — POST handler in [src/pwa/sw.ts](../src/pwa/sw.ts) accepts multipart shares, writes the payload to a dedicated CacheStorage entry, and 303-redirects to `/?share-target=ready`.
-- **`file_handlers` / `launchQueue`** — "Open with frogConvert" registers for image / video / audio / PDF / text / ZIP / 7z extensions; files arrive via [`launchQueue.setConsumer`](https://web.dev/articles/launch-handler).
+- **`share_target`** - POST handler in [src/pwa/sw.ts](../src/pwa/sw.ts) accepts multipart shares, writes the payload to a dedicated CacheStorage entry, and 303-redirects to `/?share-target=ready`.
+- **`file_handlers` / `launchQueue`** - "Open with frogConvert" registers for image / video / audio / PDF / text / ZIP / 7z extensions; files arrive via [`launchQueue.setConsumer`](https://web.dev/articles/launch-handler).
 
 Both paths funnel into a single `EXTERNAL_FILES_EVENT` CustomEvent that [src/main.ts](../src/main.ts) listens for. main.ts owns the routing decision (Converter for non-PDF, PDF Editor for `.pdf`) so the SW and `launchQueue` consumer stay agnostic to active app mode.
 
@@ -207,7 +220,7 @@ The custom share-target fetch listener is installed **before** Workbox's `regist
 
 ### Update flow
 
-`registerType: 'prompt'` — the SW never silently `skipWaiting()`. When a new SW is detected, [src/pwa/registerSW.ts](../src/pwa/registerSW.ts) shows a dismissable "New version available — Reload now" banner. The user controls when reload happens.
+`registerType: 'prompt'` - the SW never silently `skipWaiting()`. When a new SW is detected, [src/pwa/registerSW.ts](../src/pwa/registerSW.ts) shows a dismissable "New version available - Reload now" banner. The user controls when reload happens.
 
 ### Desktop carve-out
 
@@ -231,7 +244,7 @@ The factory [src/components/persistence/createPersistor.ts](../src/components/pe
 
 ### Manifest-last write invariant
 
-A flush computes a byte-diff against `lastWrittenIds`, writes byte adds, deletes byte removes, and writes the manifest **last**. A tab kill between byte writes and manifest write leaves a stale manifest pointing only at fileIds whose bytes already landed. There is never a manifest that references unwritten bytes — that would be a broken-session class on next restore. Quota errors pause autosave with a single toast; non-quota errors (missing file, serialization) skip the id and continue.
+A flush computes a byte-diff against `lastWrittenIds`, writes byte adds, deletes byte removes, and writes the manifest **last**. A tab kill between byte writes and manifest write leaves a stale manifest pointing only at fileIds whose bytes already landed. There is never a manifest that references unwritten bytes - that would be a broken-session class on next restore. Quota errors pause autosave with a single toast; non-quota errors (missing file, serialization) skip the id and continue.
 
 ### Resume decision tree
 
@@ -263,6 +276,8 @@ frogConvert/
 │   │   ├── FormatHandler/  ← The FormatHandler interface + base classes
 │   │   ├── TraversionGraph/← Route-finding algorithm (Dijkstra)
 │   │   ├── CommonFormats/  ← Registry of all MIME types and extensions
+│   │   ├── compression/    ← Compression engine: dispatch, batching, tiering
+│   │   │                     (UI-free - takes a `run` callback, never imports components)
 │   │   ├── utils/          ← Shared core helpers
 │   │   └── index.ts        ← Barrel re-export
 │   ├── tools/              ← PDF editor ops (merge, organize, extract, watermark, thumbnails)
@@ -272,6 +287,7 @@ frogConvert/
 │   │   ├── conversion.worker.ts   ← Runs handlers off the main thread
 │   │   └── route-search.worker.ts ← Runs pathfinding off the main thread
 │   ├── components/         ← UI only: FormatModal, FilesModal, PdfWorkspace,
+│   │                         CompressWorkspace,
 │   │                         Toast, TopBar, UploadZone, Frogsworth, store, utils, …
 │   ├── conversion/         ← Conversion-flow orchestration (actions, cancellation, downloads)
 │   ├── constants/          ← UI constants (breakpoints, limits, defaults)
@@ -359,6 +375,15 @@ Both run 100% locally. The MCP server exposes 7 tools (`list_formats`, `find_con
 **Browser bridge.** Conversions that need browser-only APIs (Canvas, WebGL, AudioContext, document) cannot run in pure Node.js. When a request lacks a native path, the server transparently launches headless Chromium via Puppeteer and executes the conversion there. Cold start is on the order of 30 seconds to 8 minutes depending on the handler's WASM size; warm calls are seconds. Full performance table and fallback strategy in [INTEGRATIONS.md § Browser-Assisted Conversions](INTEGRATIONS.md#browser-assisted-conversions---automatic-fallback).
 
 **Cancellation.** Mid-batch cancellation lives in [src/conversion/cancellation.ts](../src/conversion/cancellation.ts) (`isCancelled` flag plus a state machine). On cancel, completed files in the batch are still offered to the user via `showPartialDownloadPopup()`. The cancellation path is the same whether the conversion ran in a worker or on the main thread.
+
+**Progress.** One shared status line, owned by [src/conversion/progressStatus.ts](../src/conversion/progressStatus.ts), serves Convert, Compress and the PDF editor. Handlers emit `ProgressEvent { ratio?, detail? }`; the worker forwards each event to the main thread (`conversion.worker.ts` → `workerClient.ts`), and the surface hands it to `StatusHandle.update()`. `startConversionStatus()` owns the phase line, the alternating reassurance and the elapsed clock, so a surface never formats progress itself.
+
+Two properties are load-bearing rather than cosmetic:
+
+- **The volatile line is `aria-hidden`.** `#popup` is `role="status" aria-live="polite" aria-atomic="true"`, so every write re-announces the whole modal. The elapsed clock ticks once a second and a percentage faster still; announcing those would make a screen reader unusable. The phase line and file name - the parts that carry meaning - stay announced.
+- **Progress callbacks must not be able to break the work.** They run inside the conversion loop, so a label lookup that throws would abort the conversion over a missing word. Treat anything read inside one as optional.
+
+This is also the seam where progress is most easily lost: a surface that forgets to pass `onProgress` down silences every engine at once without any type error, because the parameter is optional at every level. `compressBatch`'s `onEngineProgress` exists for exactly this reason and is covered by tests that fail if the callback stops being forwarded.
 
 ---
 

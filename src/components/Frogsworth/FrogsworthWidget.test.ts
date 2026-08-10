@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { pick } from "./FrogsworthWidget.ts";
+import { pick, FORMAT_QUIPS } from "./FrogsworthWidget.ts";
 
 const VALID_FACES = new Set(["idle", "thinking", "happy", "excited", "smug", "hungry"]);
 
@@ -80,30 +80,34 @@ describe("pick() - known pair -> PAIR_QUIPS", () => {
 
 describe("pick() - single known format -> FORMAT_QUIPS", () => {
     it("picks from FORMAT_QUIPS[pdf] when only from is 'pdf'", () => {
-        const texts = new Set<string>();
-        for (let i = 0; i < 30; i++) texts.add(pick("pdf", null).text);
-        const hasFormatQuip = [...texts].some(t =>
-            t.includes("adobe") || t.includes("padlock") || t.includes("trap") || t.includes("locked")
-        );
-        expect(hasFormatQuip).toBe(true);
+        // A Quip is a bare string or a [text, face] tuple.
+        const pool = new Set(FORMAT_QUIPS["pdf"].map(q => typeof q === "string" ? q : q[0]));
+        expect(pool.size).toBeGreaterThan(0);
+        // Every draw, not "at least one draw in thirty" - the old form sampled
+        // for a keyword only some entries carry and failed at random.
+        for (let i = 0; i < 60; i++) {
+            expect(pool.has(pick("pdf", null).text)).toBe(true);
+        }
     });
 
-    it("picks from FORMAT_QUIPS[mp3] when only to is 'mp3'", () => {
-        const texts = new Set<string>();
-        for (let i = 0; i < 30; i++) texts.add(pick(null, "mp3").text);
-        const hasFormatQuip = [...texts].some(t =>
-            t.includes("128kbps") || t.includes("compressed") || t.includes("psychoacoustic")
-        );
-        expect(hasFormatQuip).toBe(true);
+    it("picks from FORMAT_QUIPS[mp3] when only from is 'mp3'", () => {
+        const pool = new Set(FORMAT_QUIPS["mp3"].map(q => typeof q === "string" ? q : q[0]));
+        expect(pool.size).toBeGreaterThan(0);
+        // Every draw, not "at least one draw in thirty" - the old form sampled
+        // for a keyword only some entries carry and failed at random.
+        for (let i = 0; i < 60; i++) {
+            expect(pool.has(pick(null, "mp3").text)).toBe(true);
+        }
     });
 
     it("picks from FORMAT_QUIPS[png] when only from is 'png'", () => {
-        const texts = new Set<string>();
-        for (let i = 0; i < 30; i++) texts.add(pick("png", null).text);
-        const hasFormatQuip = [...texts].some(t =>
-            t.includes("lossless") || t.includes("grudge") || t.includes("transparent") || t.includes("pixel")
-        );
-        expect(hasFormatQuip).toBe(true);
+        const pool = new Set(FORMAT_QUIPS["png"].map(q => typeof q === "string" ? q : q[0]));
+        expect(pool.size).toBeGreaterThan(0);
+        // Every draw, not "at least one draw in thirty" - the old form sampled
+        // for a keyword only some entries carry and failed at random.
+        for (let i = 0; i < 60; i++) {
+            expect(pool.has(pick("png", null).text)).toBe(true);
+        }
     });
 
     it("case-insensitive: 'PDF' matches FORMAT_QUIPS['pdf']", () => {
@@ -247,6 +251,85 @@ describe("pick() - all results have valid face values", () => {
                 const result = pick(from, to);
                 expect(VALID_FACES.has(result.face), `face "${result.face}" for pick("${from}", "${to}") is invalid`).toBe(true);
             }
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Compress page quips
+// ---------------------------------------------------------------------------
+
+describe("pick() on the compress page", () => {
+    it("returns compression-flavoured chatter when no format is selected", () => {
+        const seen = new Set<string>();
+        for (let i = 0; i < 200; i++) {
+            seen.add(pick(null, null, null, "compress").text);
+        }
+        // The pool is blended with IDLE_QUIPS, so assert the compress pool is
+        // actually reachable rather than that every draw is compression copy.
+        const compressish = [...seen].filter(t =>
+            /squish|smaller|compress|kilobyte|lossless|lossy|jpeg|deflate|diet/i.test(t));
+        expect(compressish.length).toBeGreaterThan(0);
+    });
+
+    // The rule is about *assumed context*, not vocabulary. A quip from the
+    // watermark tool pool ("every page now bears the brand") reads as nonsense
+    // on the compress page, because it assumes you are already in the editor
+    // with a document open. A capability tip that mentions watermarking in
+    // order to point you *at* the editor is the opposite: it is only useful
+    // somewhere else. So this matches the tool quips themselves, not the word.
+    it("never leaks PDF tool quips onto the compress page", () => {
+        for (let i = 0; i < 200; i++) {
+            const t = pick(null, null, null, "compress").text;
+            expect(t).not.toMatch(/every page now bears the brand|rearrange pages now|two pdfs enter|marking your territory/i);
+        }
+    });
+
+    it("still tells the compress page about the other modes", () => {
+        const seen = new Set<string>();
+        for (let i = 0; i < 400; i++) seen.add(pick(null, null, null, "compress").text);
+        expect([...seen].some(t => /pdf editor|i also edit pdfs/i.test(t))).toBe(true);
+    });
+
+    // "core formats" only means anything on the Converter, where the mode
+    // toggle actually lives - Compress and the PDF editor have no such control,
+    // so the tip would be nonsense there.
+    it("never mentions the core/all formats toggle off the converter page", () => {
+        for (const page of ["compress", "pdf-editor"] as const) {
+            for (let i = 0; i < 200; i++) {
+                expect(pick(null, null, null, page).text).not.toMatch(/core formats/i);
+            }
+        }
+    });
+
+    it("still mentions the core/all formats toggle on the converter page", () => {
+        const seen = new Set<string>();
+        for (let i = 0; i < 400; i++) seen.add(pick(null, null, null, "convert").text);
+        expect([...seen].some(t => /core formats/i.test(t))).toBe(true);
+    });
+});
+
+describe("capability quips", () => {
+    // The whole point of the pool: someone who has never left the Converter is
+    // exactly the person who does not know Compress and the PDF editor exist.
+    for (const page of ["convert", "compress", "pdf-editor"] as const) {
+        it(`surface features on the ${page} page`, () => {
+            const seen = new Set<string>();
+            for (let i = 0; i < 600; i++) seen.add(pick(null, null, null, page).text);
+            const texts = [...seen];
+            expect(texts.some(t => /compress mode|smaller, not different/i.test(t))).toBe(true);
+            expect(texts.some(t => /dark mode|light, dark/i.test(t))).toBe(true);
+            expect(texts.some(t => /settings menu/i.test(t))).toBe(true);
+        });
+    }
+
+    it("never claims a feature the app does not have", () => {
+        // Guards against the tempting-but-false tip. Everything the pool
+        // mentions has to be reachable in the shipped UI.
+        const seen = new Set<string>();
+        for (let i = 0; i < 800; i++) seen.add(pick(null, null, null, "convert").text);
+        for (const t of seen) {
+            expect(t).not.toMatch(/sign up|account|cloud|upload to|premium|pro plan/i);
         }
     });
 });

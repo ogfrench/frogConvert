@@ -4,7 +4,7 @@ type PdfTool = "merge" | "organize" | "watermark";
 type Context = {
   from: string | null;
   to: string | null;
-  page?: "convert" | "pdf-editor";
+  page?: "convert" | "pdf-editor" | "compress";
   pdfTool?: PdfTool;
 };
 type Face = "idle" | "thinking" | "happy" | "excited" | "smug" | "hungry";
@@ -65,6 +65,62 @@ const IDLE_QUIPS: Quip[] = [
   q("ribbit (this is a file converter)", "happy"),
 ];
 
+// Tips that only make sense on the Converter itself (e.g. reference UI that
+// only exists there, like the core/plus/all formats toggle). Unlike
+// CAPABILITY_QUIPS these aren't safe to blend into every page's idle chatter.
+const CONVERT_QUIPS: Quip[] = [
+  q("core formats hiding what you need? flip it to all formats in settings.", "idle"),
+  q("converting changes the format. nothing else. that's on purpose.", "smug"),
+  q("i won't shrink your file unless you ask. compression's in the settings menu.", "idle"),
+  q("pick a format from the list. i'll find a route, even a roundabout one.", "happy"),
+  q("some conversions go through two formats to get to yours. you'll never notice.", "smug"),
+  q("heic? avif? drop it and find out. i'm honest when i can't.", "idle"),
+  q("pdf to png gives you one file per page. the format insists.", "idle"),
+  q("drop a folder's worth. you'll get a zip back.", "excited"),
+  q("first time with a format, i fetch the converter. once. then it's yours.", "idle"),
+  q("nothing downloads until you press the button. i'm not presumptuous.", "smug"),
+  q("changed your mind mid-convert? stop. the finished ones are still yours.", "happy"),
+  q("eps, ps, illustrator files. new around here. be gentle.", "excited"),
+];
+
+/**
+ * Things the app can do that a visitor has no way of discovering by looking.
+ *
+ * Deliberately one pool blended into *every* surface's idle chatter rather
+ * than per-page lists: someone on the Converter is exactly the person who does
+ * not know Compress exists, so page-scoped tips would only ever reach people
+ * who had already found the thing. It also keeps the maintenance honest - a
+ * new feature adds one line here and starts advertising itself everywhere,
+ * instead of needing a line per surface that nobody remembers to add.
+ *
+ * Every line must describe something that actually ships. A frog that lies
+ * about features is worse than a frog that only says "ribbit".
+ */
+const CAPABILITY_QUIPS: Quip[] = [
+  q("psst. there's a compress mode. top right, mode menu.", "smug"),
+  q("i also edit pdfs. merge, reorder, watermark. same menu.", "excited"),
+  q("need it smaller, not different? that's compress mode.", "happy"),
+  q("pdf editor's in the mode menu. no adobe required.", "smug"),
+  q("dark mode lives in the settings menu. your eyes will thank you.", "happy"),
+  q("light, dark, or whatever your system says. settings menu.", "idle"),
+  q("you can pick how hard i compress. settings menu, compression.", "smug"),
+  q("automatic compression reads your file first, then decides. clever, right?", "excited"),
+  q("smallest file isn't always smallest. sometimes high quality wins. try both.", "smug"),
+  q("every mode has its own url. bookmark the one you live in.", "smug"),
+  q("nothing uploads. anywhere. ever. it all runs in your browser.", "happy"),
+  q("drag files straight onto the page. no need to click browse.", "happy"),
+  q("drop several files at once. i'll do the lot.", "excited"),
+  q("works offline once you've visited. install it, even.", "smug"),
+  q("escape closes things. arrow keys move around menus. i thought of everything.", "smug"),
+  q("same format in and out? you probably wanted compress. i'll point the way.", "idle"),
+  q("the pdf editor can shrink what it saves too. check the settings menu.", "happy"),
+  q("nothing lands in your downloads until you press the button. every mode.", "smug"),
+  q("converting won't touch your quality unless you tell it to. that's the default now.", "idle"),
+  q("stop any job mid-run. whatever finished is still yours to keep.", "happy"),
+  q("tap outside a dialog to close it. except while i'm working - i'm not losing that.", "smug"),
+  q("i speak rest and mcp too. there's an api if you're that sort of person.", "smug"),
+];
+
 const PDF_GENERIC_QUIPS: Quip[] = [
   "drop a pdf. let's get to work.",
   q("merge, organize, watermark. the pdf trinity.", "happy"),
@@ -76,6 +132,35 @@ const PDF_GENERIC_QUIPS: Quip[] = [
   q("need fewer pages? extract. more pages? merge. same pages but different? organize. need a stamp? watermark.", "excited"),
   q("frogsworth: pdf surgeon", "excited"),
   q("pdfs don't edit themselves. well, not yet.", "smug"),
+];
+
+const COMPRESS_QUIPS: Quip[] = [
+  q("smaller file, same frog", "happy"),
+  q("compress. that's the whole feature.", "smug"),
+  q("drop something chunky. i'll trim it.", "hungry"),
+  q("megabytes in, kilobytes out. ideally.", "excited"),
+  q("i'm about to make this file regret its size", "excited"),
+  q("your file, but on a diet", "happy"),
+  q("lossy forgets, lossless forgives. pick your fighter.", "smug"),
+  q("jpeg throws away what your eyes won't miss. mostly.", "smug"),
+  q("deflate: the algorithm quietly holding the internet together", "happy"),
+  q("the first jpeg spec landed in 1992. we've been dropping pixels ever since.", "smug"),
+  q("70 percent smaller and nobody notices. that's the craft.", "happy"),
+  q("nothing leaves your pond. it all happens right here.", "smug"),
+  q("already tiny? i'll leave it be. some files are just perfect.", "idle"),
+  q("a pdf that's all text won't shrink much. that's physics, not laziness.", "idle"),
+  q("smaller is faster. faster is happier. i've done the research.", "happy"),
+  q("balanced for most. smallest file for the brave.", "smug"),
+  q("compression is just folding up the boring parts of a file", "smug"),
+  q("i compress files now. deeply satisfying work.", "excited"),
+  q("that raw png could lose half its weight and never know", "smug"),
+  q("feed me your biggest file. i dare you.", "hungry"),
+  q("images, audio, video, pdfs. mix them freely, i'll sort it out.", "excited"),
+  q("three levels, three real steps. no cliff between them.", "smug"),
+  q("video takes a while. it's one core and a lot of frames. go make tea.", "idle"),
+  q("i only hand back what actually got smaller. the rest you already have.", "idle"),
+  q("a png is already lossless. compressing it just makes us both tired.", "smug"),
+  q("stop whenever. the files i finished are still yours.", "happy"),
 ];
 
 const PDF_MERGE_QUIPS: Quip[] = [
@@ -340,7 +425,16 @@ const PAIR_QUIPS: Record<string, Quip[]> = {
   ],
 };
 
-const FORMAT_QUIPS: Record<string, Quip[]> = {
+/**
+ * Exported for tests only.
+ *
+ * The suite used to check format-specific selection by drawing 30 quips and
+ * asserting one of them contained a keyword. Every draw does come from this
+ * pool, but only a few entries carry the keywords, so the assertion was a
+ * ~99.6% coin flip - green almost always and red at random in CI. Membership
+ * is both deterministic and the stronger claim.
+ */
+export const FORMAT_QUIPS: Record<string, Quip[]> = {
   // Documents
   pdf: [
     q("adobe's ongoing revenge on humanity", "smug"),
@@ -682,15 +776,22 @@ export function pick(
   const t = to?.toLowerCase();
 
   if (!f && !t) {
+    // CAPABILITY_QUIPS rides along with all three idle pools. See its comment:
+    // the person who needs to hear that Compress exists is by definition not
+    // on the Compress page.
+    if (page === "compress") {
+      // Blended with the idle pool so the frog still has general chatter here.
+      return resolve(pickFrom([...COMPRESS_QUIPS, ...CAPABILITY_QUIPS, ...IDLE_QUIPS], exclude));
+    }
     if (page === "pdf-editor") {
       const toolPool =
         pdfTool === "watermark" ? PDF_WATERMARK_QUIPS :
         pdfTool === "organize" ? PDF_ORGANIZE_QUIPS :
         pdfTool === "merge" ? PDF_MERGE_QUIPS :
         [];
-      return resolve(pickFrom([...toolPool, ...PDF_GENERIC_QUIPS], exclude));
+      return resolve(pickFrom([...toolPool, ...PDF_GENERIC_QUIPS, ...CAPABILITY_QUIPS], exclude));
     }
-    return resolve(pickFrom(IDLE_QUIPS, exclude));
+    return resolve(pickFrom([...IDLE_QUIPS, ...CAPABILITY_QUIPS, ...CONVERT_QUIPS], exclude));
   }
 
   if (f && t) {
@@ -837,8 +938,24 @@ class FrogsworthWidget {
 }
 
 let initialized = false;
+let instance: FrogsworthWidget | null = null;
 export function initFrogsworth(getContext: () => Context): void {
   if (initialized) return;
   initialized = true;
-  new FrogsworthWidget(getContext);
+  instance = new FrogsworthWidget(getContext);
+}
+
+/**
+ * Tear the widget down: its idle timer, its window listeners, its element.
+ *
+ * The page never needs this - Frogsworth lives as long as the tab does - but
+ * the instance used to be constructed and dropped on the floor, which made
+ * `destroy()` unreachable and left a 15-second timer and three window
+ * listeners with no owner. Anything that mounts the widget and then throws the
+ * document away (every test that touches it) had no way to clean up.
+ */
+export function destroyFrogsworth(): void {
+  instance?.destroy();
+  instance = null;
+  initialized = false;
 }

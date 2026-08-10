@@ -1,4 +1,5 @@
 import './styles/global.css';
+import { registerExclusiveMenu } from "./components/TopBar/exclusiveMenus.ts";
 import { initFrogsworth } from "./components/Frogsworth/FrogsworthWidget.ts";
 import type { FormatHandler } from "./core/FormatHandler/FormatHandler.js";
 import handlers, { loadBackgroundHandlers } from "./handlers";
@@ -9,7 +10,14 @@ function getPdfWorkspace(): Promise<PdfWorkspaceModule> {
   _pdfWsPromise ??= import("./components/PdfWorkspace/PdfWorkspace.ts").then(m => { _pdfWsModule = m; return m; });
   return _pdfWsPromise;
 }
-import { initRouter, navigateTo, type RouteState } from "./router.ts";
+type CompressWorkspaceModule = typeof import("./components/CompressWorkspace/CompressWorkspace.ts");
+let _compressWsPromise: Promise<CompressWorkspaceModule> | null = null;
+let _compressWsModule: CompressWorkspaceModule | null = null;
+function getCompressWorkspace(): Promise<CompressWorkspaceModule> {
+  _compressWsPromise ??= import("./components/CompressWorkspace/CompressWorkspace.ts").then(m => { _compressWsModule = m; return m; });
+  return _compressWsPromise;
+}
+import { initRouter, navigateTo, type RouteState, type AppMode } from "./router.ts";
 import { isTouchUi } from "./core/utils/touchUi.ts";
 
 // Kick off TraversionGraph load immediately in the background - does not block paint.
@@ -62,6 +70,21 @@ import {
   buildAcceptString,
 } from "./components/index.ts";
 import {
+  convertQuality,
+  setConvertQuality,
+  CONVERT_QUALITY_CHOICES,
+  type ConvertQuality,
+  compressLevel,
+  setCompressLevel,
+  COMPRESS_LEVEL_CHOICES,
+  type CompressLevel,
+  pdfQuality,
+  setPdfQuality,
+  PDF_QUALITY_CHOICES,
+  type PdfQuality,
+} from "./components/store/store.ts";
+import { preloadGhostscript } from "./tools/ghostscriptPreload.ts";
+import {
   findMatchingFormat,
   initConvertButton,
   getIsConverting,
@@ -73,9 +96,9 @@ import {
   flushConvertOnHide,
   tryRestoreConvertSession,
 } from "./components/persistence/convertPersist.ts";
-import { showConfirmPopup } from "./components/Popup/Popup.ts";
 import CommonFormats from "./core/CommonFormats/CommonFormats.ts";
 import { EXTERNAL_FILES_EVENT, type ExternalFilesDetail } from "./pwa/shareTargetConstants.ts";
+import { COMPRESS_THESE_EVENT } from "./constants/ui.ts";
 
 getPdfWorkspace().catch((e) => console.warn("[main] PDF workspace module load failed:", e));
 
@@ -89,7 +112,7 @@ function surfaceUnhandled(kind: string, reason: unknown) {
   try {
     recoveryPopupOpen = true;
     const h2 = document.createElement("h2");
-    h2.textContent = "Something went wrong";
+    h2.textContent = "frogConvert hit an error";
     const p = document.createElement("p");
     p.textContent = "The app ran into an unexpected error. Reload to try again.";
     const actions = document.createElement("div");
@@ -161,16 +184,42 @@ mobileCategoryMq.addEventListener("change", resetHiddenMobileCategory);
 const modeToggleBtn = document.getElementById("app-mode-toggle")!;
 const modeIconConverter = document.getElementById("mode-icon-converter")!;
 const modeIconPdf = document.getElementById("mode-icon-pdf")!;
+const modeIconCompress = document.getElementById("mode-icon-compress")!;
 const topControlsMenu = document.getElementById("top-controls-menu")!;
 const converterEls = ["hero-title", "category-tabs", "convert-card", "description"].map(id => document.getElementById(id)!);
 const pdfWorkspaceEl = document.getElementById("pdf-workspace")!;
 const pdfDescriptionEl = document.getElementById("pdf-description")!;
+const compressWorkspaceEl = document.getElementById("compress-workspace")!;
+const compressDescriptionEl = document.getElementById("compress-description")!;
 
-let currentAppMode = "converter";
+let currentAppMode: AppMode = "converter";
+
+/** Ordered so the desktop single-button control can cycle predictably. */
+const APP_MODES: AppMode[] = ["converter", "pdf-editor", "compress"];
+
+const MODE_LABELS: Record<AppMode, string> = {
+  converter: "Converter",
+  "pdf-editor": "PDF Editor",
+  compress: "Compress",
+};
+
+/** Elements owned by each mode; everything not in the active list gets hidden. */
+const MODE_SURFACES: Record<AppMode, HTMLElement[]> = {
+  converter: converterEls,
+  "pdf-editor": [pdfWorkspaceEl, pdfDescriptionEl],
+  compress: [compressWorkspaceEl, compressDescriptionEl],
+};
+
+const MODE_ICONS: Record<AppMode, HTMLElement> = {
+  converter: modeIconConverter,
+  "pdf-editor": modeIconPdf,
+  compress: modeIconCompress,
+};
 
 const bgEmojis = {
   converter: ["🖼️", "📝", "🎵", "🎥", "📖", "📊", "🎨", "💻", "📦"],
   "pdf-editor": ["📄", "✂️", "💧", "🔗", "🗂️", "📑", "🔖", "👁️", "📓"],
+  compress: ["🗜️", "📉", "🤏", "🧳", "🥫", "🫙", "🍃", "🪄", "🧽"],
 };
 const bgEmojiSpans = document.querySelectorAll<HTMLSpanElement>("#bg-visuals .bg-pop span");
 
@@ -189,7 +238,7 @@ function replayEntranceAnimations(roots: Element[]) {
   for (const [el, cls] of pairs) el.classList.add(cls);
 }
 
-function setAppMode(mode: string) {
+function setAppMode(mode: AppMode) {
   currentAppMode = mode;
 
   // Swap background emojis with pop animation
@@ -214,12 +263,10 @@ function setAppMode(mode: string) {
     });
   }, 200);
 
-  // Update button icon and tooltip
-  const isConverter = mode === "converter";
-  modeIconConverter.style.display = isConverter ? "" : "none";
-  modeIconPdf.style.display = isConverter ? "none" : "";
-  modeToggleBtn.title = isConverter ? "Converter" : "PDF Editor";
-  modeToggleBtn.setAttribute("aria-label", `Switch app mode: ${isConverter ? "Converter" : "PDF Editor"}`);
+  // The trigger icon shows where you are; the menu shows where you can go.
+  for (const m of APP_MODES) MODE_ICONS[m].style.display = m === mode ? "" : "none";
+  modeToggleBtn.title = MODE_LABELS[mode];
+  modeToggleBtn.setAttribute("aria-label", `App mode: ${MODE_LABELS[mode]}. Change app mode`);
 
   // Update mobile pill group
   const mobilePill = document.getElementById("app-mode-segmented");
@@ -231,35 +278,98 @@ function setAppMode(mode: string) {
     }
   }
 
-  // Toggle pdf-mode class on menu to hide formats section
-  topControlsMenu.classList.toggle("pdf-mode", mode === "pdf-editor");
+  // The format filter only makes sense while picking a target format.
+  topControlsMenu.classList.toggle("not-converter", mode !== "converter");
+  // The compression control is present in every mode - it just rebinds to that
+  // mode's own value and offers the levels that mode can honour.
+  renderQualityOptions();
+  syncQualityUI();
+  // Entering the PDF editor with compression already enabled means the next
+  // save needs Ghostscript; start fetching it now rather than then.
+  if (mode === "pdf-editor" && pdfQuality.value !== "lossless") preloadGhostscript();
 
+  // Show the active mode's elements, hide every other mode's.
+  for (const m of APP_MODES) {
+    const visible = m === mode;
+    for (const el of MODE_SURFACES[m]) el.style.display = visible ? "" : "none";
+  }
+  replayEntranceAnimations(MODE_SURFACES[mode]);
+
+  // Lazy surfaces: init on enter, cleanup on leave. cleanup() preserves
+  // module-level state (loaded files, page order, selections, watermark
+  // settings, the compress batch) so users who toggle modes don't lose their
+  // work. resetAll() is the destructive cousin and is not called here.
+  // Only *entering* a mode pulls its chunk in; leaving cleans up through the
+  // already-resolved module so a user who never opens a surface never
+  // downloads it.
   if (mode === "pdf-editor") {
-    for (const el of converterEls) el.style.display = "none";
-    pdfWorkspaceEl.style.display = "";
-    pdfDescriptionEl.style.display = "";
-    replayEntranceAnimations([pdfWorkspaceEl, pdfDescriptionEl]);
     getPdfWorkspace().then(ws => ws.initPdfWorkspace())
       .catch((e) => console.warn("[main] PDF workspace init failed:", e));
   } else {
-    // cleanup() preserves module-level state (loaded files, page order,
-    // selections, watermark settings) so users who toggle modes don't lose
-    // their work. resetAll() is the destructive cousin and is no longer
-    // called on mode switches.
-    getPdfWorkspace().then(ws => ws.cleanup())
-      .catch((e) => console.warn("[main] PDF workspace cleanup failed:", e));
-    pdfWorkspaceEl.style.display = "none";
-    pdfDescriptionEl.style.display = "none";
-    for (const el of converterEls) el.style.display = "";
-    replayEntranceAnimations(converterEls);
+    _pdfWsModule?.cleanup();
+  }
+
+  if (mode === "compress") {
+    getCompressWorkspace().then(ws => ws.initCompressWorkspace())
+      .catch((e) => console.warn("[main] Compress workspace init failed:", e));
+  } else {
+    _compressWsModule?.cleanup();
   }
 }
 
-// Desktop mode toggle button
-modeToggleBtn.addEventListener("click", () => {
-  const next = currentAppMode === "converter" ? "pdf-editor" : "converter";
-  setAppMode(next);
-  navigateTo(next);
+// Desktop mode picker. A dropdown rather than a cycling button: with three
+// modes, cycling hides the destination and never reveals that a third exists.
+const modeMenu = document.getElementById("app-mode-menu")!;
+
+const closeOtherMenusForAppMode = registerExclusiveMenu(() => setModeMenuOpen(false));
+
+function setModeMenuOpen(open: boolean) {
+  if (open) closeOtherMenusForAppMode();
+  modeMenu.hidden = !open;
+  modeToggleBtn.setAttribute("aria-expanded", String(open));
+  if (open) {
+    for (const item of modeMenu.querySelectorAll<HTMLElement>(".app-mode-item")) {
+      item.setAttribute("aria-current", String(item.dataset.value === currentAppMode));
+      item.tabIndex = -1;
+    }
+    modeMenu.querySelector<HTMLElement>(".app-mode-item")?.focus();
+  }
+}
+
+modeToggleBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  setModeMenuOpen(modeMenu.hidden);
+});
+
+modeMenu.addEventListener("click", (e) => {
+  const item = (e.target as HTMLElement).closest(".app-mode-item") as HTMLElement | null;
+  if (!item) return;
+  const mode = item.dataset.value as AppMode;
+  setModeMenuOpen(false);
+  modeToggleBtn.focus();
+  if (mode === currentAppMode) return;
+  setAppMode(mode);
+  navigateTo(mode);
+});
+
+// Roving arrow-key navigation, matching the PDF tablist's keyboard contract.
+modeMenu.addEventListener("keydown", (e) => {
+  const items = [...modeMenu.querySelectorAll<HTMLElement>(".app-mode-item")];
+  const at = items.indexOf(document.activeElement as HTMLElement);
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    const delta = e.key === "ArrowDown" ? 1 : -1;
+    items[(at + delta + items.length) % items.length]?.focus();
+  } else if (e.key === "Escape") {
+    setModeMenuOpen(false);
+    modeToggleBtn.focus();
+  }
+});
+
+document.addEventListener("click", (e) => {
+  if (modeMenu.hidden) return;
+  if ((e.target as HTMLElement).closest("#app-mode-picker")) return;
+  setModeMenuOpen(false);
 });
 
 // Mobile hamburger pill control
@@ -267,9 +377,234 @@ const mobileModePill = document.getElementById("app-mode-segmented");
 mobileModePill?.addEventListener("click", (e) => {
   const btn = (e.target as HTMLElement).closest(".pill-option") as HTMLButtonElement | null;
   if (!btn || btn.classList.contains("active")) return;
-  setAppMode(btn.dataset.value!);
+  setAppMode(btn.dataset.value as AppMode);
   navigateTo(btn.dataset.value!);
 });
+
+// In-app deep links to another mode come through as an event so components can
+// route without a handle on the shell.
+window.addEventListener("frog:set-mode", (e) => {
+  const mode = (e as CustomEvent<string>).detail as AppMode;
+  if (!APP_MODES.includes(mode) || mode === currentAppMode) return;
+  setAppMode(mode);
+  navigateTo(mode);
+});
+
+// --- Compression setting ---
+// One control, three backing values. Every mode compresses something, so the
+// control is present in all three - hiding it anywhere made the setting look
+// like it only existed where you last saw it. But the three mean different
+// things, and each carries its own default:
+//
+//   Converter    "how much quality to give up while changing format" → Automatic
+//   Compress     "how hard to compress"                              → Automatic
+//   PDF Editor   "should editing this also shrink it"                → Original
+//
+// The PDF editor defaults to Original quality because merging and watermarking
+// are edits, not exports: you expect the same document back. The other two are
+// asked to produce a new file, where reading the input and picking a level is
+// the better default than a fixed tier.
+//
+// Sharing one value across surfaces was tried and reverted - changing it in
+// one place silently moved the others.
+
+const qualityToggle = document.getElementById("quality-toggle")!;
+const qualityMenu = document.getElementById("quality-menu")!;
+const qualitySegmented = document.getElementById("quality-segmented");
+
+/**
+ * The control is a view over whichever setting the active mode owns. One table
+ * rather than a chain of conditionals: adding a fourth surface means adding a
+ * row, and it is impossible for the read and the write to disagree about which
+ * value they are touching.
+ */
+type QualityBinding = {
+  choices: ReadonlyArray<{ value: string; label: string; blurb: string }>;
+  get: () => string;
+  set: (v: string) => void;
+  /**
+   * The heading over the options. "Compression" alone is ambiguous once the
+   * control appears in three places - it never says compression *of what*.
+   * Each mode names the thing the level will actually be applied to.
+   */
+  title: string;
+  /**
+   * One sentence on where the level does and does not bite, shown in the
+   * control's tooltip.
+   *
+   * Only seven of the ~42 handlers read the quality argument - the media and
+   * PDF engines. Convert to a container or a lossless format and the level is
+   * simply not consulted, which used to be discoverable only by weighing the
+   * output. Omitted for a surface where the level always applies.
+   */
+  hint?: string;
+};
+
+const QUALITY_BINDINGS: Record<AppMode, QualityBinding> = {
+  converter: {
+    choices: CONVERT_QUALITY_CHOICES,
+    get: () => convertQuality.value,
+    set: (v) => setConvertQuality(v as ConvertQuality),
+    title: "Conversion compression",
+    hint: "Applies to images, audio, video and PDFs. Other target formats are converted without compression.",
+  },
+  compress: {
+    choices: COMPRESS_LEVEL_CHOICES,
+    get: () => compressLevel.value,
+    set: (v) => setCompressLevel(v as CompressLevel),
+    title: "Compression level",
+    hint: "Applies to images, audio, video and PDFs. Anything else is reported as it is, untouched.",
+  },
+  "pdf-editor": {
+    choices: PDF_QUALITY_CHOICES,
+    get: () => pdfQuality.value,
+    set: (v) => setPdfQuality(v as PdfQuality),
+    title: "PDF compression",
+  },
+};
+
+function qualityContext() {
+  const binding = QUALITY_BINDINGS[currentAppMode];
+  return { ...binding, current: binding.get() };
+}
+
+/** Rebuild the option rows so each mode only offers levels it can honour. */
+function renderQualityOptions() {
+  const { choices, current } = qualityContext();
+  // Only the rows are replaced, so the "Compression" heading keeps its place
+  // at the top without being moved back there.
+  qualityMenu.querySelectorAll(".quality-item").forEach(el => el.remove());
+  for (const c of choices) {
+    const btn = document.createElement("button");
+    btn.className = "quality-item";
+    btn.type = "button";
+    btn.setAttribute("role", "menuitem");
+    btn.tabIndex = -1;
+    btn.dataset.value = c.value;
+    btn.setAttribute("aria-current", String(c.value === current));
+    const label = document.createElement("span");
+    label.className = "quality-item-label";
+    label.textContent = c.label;
+    const blurb = document.createElement("span");
+    blurb.className = "quality-item-blurb";
+    blurb.textContent = c.blurb;
+    btn.append(label, blurb);
+    qualityMenu.appendChild(btn);
+  }
+
+  // The mobile pill list mirrors the same option set.
+  if (qualitySegmented) {
+    qualitySegmented.innerHTML = "";
+    for (const c of choices) {
+      const pill = document.createElement("button");
+      pill.className = "pill-option";
+      pill.type = "button";
+      pill.dataset.value = c.value;
+      pill.textContent = c.label;
+      qualitySegmented.appendChild(pill);
+    }
+  }
+}
+
+function syncQualityUI() {
+  const { choices, current, title, hint } = qualityContext();
+  const label = choices.find(c => c.value === current)?.label ?? "Balanced";
+
+  // The heading is rebuilt with the options, and named for the active mode, so
+  // the same control never reads as the same setting in three places.
+  const heading = qualityMenu.querySelector(".quality-menu-title");
+  if (heading) heading.textContent = title;
+  const mobileLabel = document.getElementById("quality-label");
+  if (mobileLabel) mobileLabel.textContent = title;
+  qualityMenu.setAttribute("aria-label", title);
+
+  // The hint rides the tooltip rather than the aria-label: the label is the
+  // control's name and state, and hearing the caveat on every tab-through
+  // would be tiresome. With an aria-label present, `title` is exposed as the
+  // accessible *description*, which is the right slot for it.
+  //
+  // Known gap: a tooltip cannot be reached by touch. The result modal is what
+  // covers that case, and says the same thing at the point it matters.
+  qualityToggle.title = hint ? `${title}: ${label}\n${hint}` : `${title}: ${label}`;
+  qualityToggle.setAttribute("aria-label", `${title}: ${label}. Change`);
+  for (const item of qualityMenu.querySelectorAll<HTMLElement>(".quality-item")) {
+    item.setAttribute("aria-current", String(item.dataset.value === current));
+  }
+  for (const pill of qualitySegmented?.querySelectorAll<HTMLElement>(".pill-option") ?? []) {
+    const active = pill.dataset.value === current;
+    pill.classList.toggle("active", active);
+    pill.setAttribute("aria-pressed", String(active));
+  }
+}
+
+const closeOtherMenusForQuality = registerExclusiveMenu(() => setQualityMenuOpen(false));
+
+function setQualityMenuOpen(open: boolean) {
+  if (open) closeOtherMenusForQuality();
+  qualityMenu.hidden = !open;
+  qualityToggle.setAttribute("aria-expanded", String(open));
+  if (open) qualityMenu.querySelector<HTMLElement>(".quality-item")?.focus();
+}
+
+function chooseQuality(next: string) {
+  QUALITY_BINDINGS[currentAppMode].set(next);
+
+  if (currentAppMode === "compress") {
+    // The Compress card renders its own copy of this setting, so tell it to
+    // repaint rather than leaving the two views disagreeing.
+    window.dispatchEvent(new CustomEvent("frog:compress-level"));
+  }
+  // Asking the PDF editor to compress means Ghostscript is now on the critical
+  // path of the next save. Start the 16 MB fetch while the user is still
+  // picking pages instead of at the moment they hit Save.
+  if (currentAppMode === "pdf-editor" && next !== "lossless") preloadGhostscript();
+
+  syncQualityUI();
+}
+
+qualityToggle.addEventListener("click", (e) => {
+  e.stopPropagation();
+  setQualityMenuOpen(qualityMenu.hidden);
+});
+
+qualityMenu.addEventListener("click", (e) => {
+  const item = (e.target as HTMLElement).closest(".quality-item") as HTMLElement | null;
+  if (!item) return;
+  setQualityMenuOpen(false);
+  qualityToggle.focus();
+  chooseQuality(item.dataset.value!);
+});
+
+qualityMenu.addEventListener("keydown", (e) => {
+  const items = [...qualityMenu.querySelectorAll<HTMLElement>(".quality-item")];
+  const at = items.indexOf(document.activeElement as HTMLElement);
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+  } else if (e.key === "Escape") {
+    setQualityMenuOpen(false);
+    qualityToggle.focus();
+  }
+});
+
+qualitySegmented?.addEventListener("click", (e) => {
+  const pill = (e.target as HTMLElement).closest(".pill-option") as HTMLElement | null;
+  if (!pill || pill.classList.contains("active")) return;
+  chooseQuality(pill.dataset.value!);
+});
+
+document.addEventListener("click", (e) => {
+  if (qualityMenu.hidden) return;
+  if ((e.target as HTMLElement).closest("#quality-picker")) return;
+  setQualityMenuOpen(false);
+});
+
+// The Compress card carries its own copy of this setting; keep the menu in
+// step when the change originates there.
+window.addEventListener("frog:compress-level", () => syncQualityUI());
+
+renderQualityOptions();
+syncQualityUI();
 
 // --- Router (URL ↔ state sync) ---
 
@@ -320,6 +655,9 @@ function selectToFormat(index: number) {
   setSelectedFormat(index, allOptionsRef.value);
   updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
   markConvertDirty('manifest');
+  // A conversion that ends in a PDF routes through Ghostscript, so start the
+  // 16 MB fetch at format-pick time rather than when Convert is pressed.
+  if (allOptionsRef.value[index]?.format.format?.toLowerCase() === "pdf") preloadGhostscript();
   closeFormatModal();
 }
 
@@ -528,6 +866,17 @@ let convertRestoreAttempted = false;
 
 // --- Conversion logic ---
 
+// Connectivity changes the Convert button's waiting label, and nothing else
+// repaints it - the handler load is already in flight and will not report
+// again until it finishes. Cheap, and it means dropping off wifi mid-download
+// says so instead of breathing forever.
+if (typeof window !== "undefined") {
+  const repaintForConnectivity = () =>
+    updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
+  window.addEventListener("online", repaintForConnectivity);
+  window.addEventListener("offline", repaintForConnectivity);
+}
+
 initConvertButton();
 
 // --- Session persistence: flush on hide, restore on cold start ---
@@ -576,15 +925,26 @@ if (typeof window !== 'undefined') {
 }
 
 initFrogsworth(() => {
-  const onPdf = document.getElementById("pdf-workspace")?.style.display !== "none";
+  // Both read the same source. Asking the DOM for one and the state variable
+  // for the other invites them to disagree, and inline styles are only correct
+  // after the first setAppMode() anyway.
+  const onPdf = currentAppMode === "pdf-editor";
+  const onCompress = currentAppMode === "compress";
+  // The converter's format selection is meaningless on the other surfaces, and
+  // pick() prefers format quips whenever from/to are set - so clear them or the
+  // frog talks about PNG while you're compressing.
+  const from = !onPdf && !onCompress && selectedFromIndex.value !== null
+    ? allOptionsRef.value[selectedFromIndex.value].format.format
+    : null;
+  const to = !onPdf && !onCompress && selectedToIndex.value !== null
+    ? allOptionsRef.value[selectedToIndex.value].format.format
+    : null;
   return {
-    from: selectedFromIndex.value !== null
-      ? allOptionsRef.value[selectedFromIndex.value].format.format
-      : null,
-    to: selectedToIndex.value !== null
-      ? allOptionsRef.value[selectedToIndex.value].format.format
-      : null,
-    page: onPdf ? "pdf-editor" as const : "convert" as const,
+    from,
+    to,
+    page: onCompress ? "compress" as const
+      : onPdf ? "pdf-editor" as const
+      : "convert" as const,
     pdfTool: onPdf ? _pdfWsModule?.getActiveTool() : undefined,
   };
 });
@@ -648,6 +1008,28 @@ function deliverSharedToPdfEditor(files: File[]) {
     .catch(err => console.warn("[main] could not deliver shared files to PDF Editor:", err));
 }
 
+function deliverSharedToCompress(files: File[]) {
+  if (currentAppMode !== "compress") {
+    setAppMode("compress");
+    navigateTo("compress");
+  }
+  void getCompressWorkspace().then(ws => ws.ingestExternalFiles(files))
+    .catch(err => console.warn("[main] could not deliver shared files to Compress:", err));
+}
+
+// "Open Compress" on the Converter's same-format signpost. Same delivery as a
+// shared file, because it is the same job: switch surface, bring the files.
+window.addEventListener(COMPRESS_THESE_EVENT, (e) => {
+  const files = (e as CustomEvent<{ files?: File[] }>).detail?.files ?? [];
+  if (!files.length) {
+    // No files picked yet - the signpost can be reached from a bare format
+    // choice. Still take them to the surface they asked for.
+    if (currentAppMode !== "compress") { setAppMode("compress"); navigateTo("compress"); }
+    return;
+  }
+  deliverSharedToCompress(files);
+});
+
 window.addEventListener(EXTERNAL_FILES_EVENT, (e) => {
   const files = (e as CustomEvent<ExternalFilesDetail>).detail?.files ?? [];
   if (files.length === 0) return;
@@ -657,12 +1039,25 @@ window.addEventListener(EXTERNAL_FILES_EVENT, (e) => {
     return;
   }
 
-  // All PDFs: ambiguous between convert and edit.
-  showConfirmPopup(
-    files.length === 1 ? "Open shared PDF" : `Open ${files.length} shared PDFs`,
-    "Convert to another format, or edit (merge, organize, watermark)?",
-    { label: "Edit", onClick: () => deliverSharedToPdfEditor(files) },
-    { label: "Convert", onClick: () => deliverSharedToConverter(files) },
-  );
+  // All PDFs: three destinations want them. A shared scan is at least as
+  // likely headed for Compress as for either of the others, so it gets a
+  // seat rather than being reachable only by sharing, cancelling, and
+  // switching modes by hand.
+  const h2 = document.createElement("h2");
+  h2.textContent = files.length === 1 ? "Open shared PDF" : `Open ${files.length} shared PDFs`;
+  const p = document.createElement("p");
+  p.textContent = "Edit (merge, organize, watermark), convert to another format, or compress?";
+  const actions = document.createElement("div");
+  actions.className = "popup-actions-footer";
+  actions.appendChild(createPopupButton("Edit", "btn-primary", () => {
+    hidePopup(); deliverSharedToPdfEditor(files);
+  }));
+  actions.appendChild(createPopupButton("Convert", "btn-secondary", () => {
+    hidePopup(); deliverSharedToConverter(files);
+  }));
+  actions.appendChild(createPopupButton("Compress", "btn-secondary", () => {
+    hidePopup(); deliverSharedToCompress(files);
+  }));
+  showPopup([h2, p, actions]);
 });
 

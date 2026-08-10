@@ -1,0 +1,392 @@
+/* ===================================================================
+   Compress workspace - dedicated "make my files smaller" surface.
+   Visual language deliberately mirrors the PDF workspace dropzone/cards
+   so the third mode doesn't read as a bolted-on tool.
+   =================================================================== */
+
+/* The same card as #convert-card, not a lookalike: identical width, margin,
+   padding and radius, carrying .card-base for the surface and border. It used
+   to be a bare flex column with a gap, so the fields floated on the page while
+   the Converter's sat in a card - the two surfaces read as different products.
+   Every value below is copied from ConvertCard.css on purpose; if that card's
+   footprint changes, this one should be changed with it. */
+#compress-card {
+  width: 100%;
+  max-width: var(--card-max-width);
+  margin: var(--space-8) auto 0;
+  padding: var(--space-6);
+  /* Same guard as .ws-empty-layout in the PDF workspace. The entrance
+     animation leaves a transform here, which makes this an atomic stacking
+     context - so the level dropdown's own z-index only orders it *within* this
+     subtree. Without a positive z-index on the subtree itself, #compress-description
+     (a later sibling) painted over the part of the dropdown that overflows
+     this box. */
+  position: relative;
+  z-index: var(--z-content);
+}
+
+/* .card-base sets a 200px floor for the Converter's taller layout. The
+   compress card is shorter in its empty state and would otherwise carry dead
+   space below the drop zone. */
+#compress-card { min-height: 0; }
+
+@media only screen and (max-width: 800px) {
+  #compress-card {
+    margin: var(--space-6) auto 0;
+    width: var(--modal-width);
+    max-width: var(--mobile-content-width);
+  }
+}
+
+/* Spacing between the card's own sections, matching the rhythm the Converter
+   gets from #convert-arrow-wrap sitting between its two fields. */
+#compress-content > * + * {
+  margin-top: var(--space-5);
+}
+
+/* The primary action gets the Converter's larger gap above it, so the button
+   reads as the end of the card rather than another field. */
+#compress-content > .cw-compress {
+  margin-top: var(--space-6);
+}
+
+/* --- Reused from the convert card ---------------------------------------
+   .convert-field, .upload-zone (+ file info and action buttons),
+   .format-selector and .btn-primary all come from the Converter's own
+   stylesheets, so this surface tracks any change made there. Only what is
+   genuinely specific to compressing lives below. */
+
+/* Compress is a drop-first surface - the zone is the whole point of the page,
+   not one field among several as on the Convert card - so it gets the taller
+   PDF-workspace footprint. Scoped to #compress-content so the Convert card
+   keeps its own 5.5rem height.
+
+   The tall footprint is for the *empty* state, where the target being large
+   and obvious is the point. Once files are in, the zone is a summary row, and
+   holding it at 10rem left one line of text floating in a void with the level
+   picker and the button pushed down the page for nothing. With files it sizes
+   to its content, the same way the Convert card's does. */
+/* Once files are in, the zone is a summary row and keeps the Converter's exact
+   5.5rem - the two cards should be measurably the same object, not roughly
+   similar. Only the *empty* state is taller, because on a drop-first surface
+   the target being large is the whole point. */
+#compress-content .upload-zone:not(.has-file) {
+  height: auto;
+  min-height: calc(var(--space-16) * 2.5);
+}
+
+/* --- Level chooser -------------------------------------------------------
+   A modal, not an absolutely positioned dropdown. As a dropdown it opened
+   *over* the Compress button directly beneath it, so on a narrow screen a tap
+   aimed at Compress landed on the menu; and with five options it ran off the
+   bottom of a 640px-tall phone. The modal is centred and scroll-locked, so it
+   can do neither, and Escape / backdrop / focus restore come from
+   ModalManager rather than three hand-rolled listeners. */
+
+.cw-level-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cw-level-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cw-level-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.cw-level-option:hover,
+.cw-level-option:focus-visible {
+  background-color: var(--accent);
+  color: var(--foreground);
+}
+
+/* The chosen level carries a tick as well as weight and colour, so it does not
+   depend on colour alone to be identifiable (WCAG 1.4.1). */
+.cw-level-option[aria-checked="true"] {
+  color: var(--foreground);
+  font-weight: var(--font-medium);
+  background-color: var(--accent);
+}
+
+.cw-level-option[aria-checked="true"] > span:first-child::after {
+  content: " ✓";
+  color: var(--foreground);
+}
+
+/* A comfortable target on a phone: the guideline both Apple and Google give,
+   and above the 24px WCAG 2.5.8 floor with room to spare. */
+.cw-level-option { min-height: 44px; justify-content: center; }
+
+.cw-level-blurb {
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+  font-weight: var(--font-normal, 400);
+}
+
+/* The file list lives in the shared files modal now - see FilesModal.css.
+   This surface used to render its own, which is why these rules were here. */
+
+/* --- Results --- */
+
+.cw-results-head {
+  text-align: center;
+  margin-bottom: var(--space-4);
+}
+
+/* The success celebration, same frog the Converter's popup dances. Sized here
+   rather than in DancingFrog.css so the popup's own sizing is untouched. */
+.cw-results-frog {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-3xl, 1.875rem);
+  line-height: 1;
+}
+
+.cw-results-headline {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-xl);
+  font-weight: var(--font-medium);
+  color: var(--foreground);
+}
+
+.cw-pct { color: var(--muted-foreground); font-weight: var(--font-normal, 400); }
+
+.cw-results-sub {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+}
+
+.cw-results-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  /* The list is capped to a handful of rows in markup now, so this is a
+     backstop for long file names wrapping rather than the thing keeping a
+     300-file batch off the screen. */
+  max-height: 22rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* The "and N more" tail. Deliberately not a `.cw-res-row`: it names no file,
+   so giving it the row's surface would read as one. */
+.cw-res-more {
+  padding: var(--space-2);
+  font-size: var(--text-xs);
+  font-style: italic;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+.cw-res-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: calc(var(--radius) - 2px);
+  background-color: var(--secondary);
+}
+
+.cw-res-row.kept { opacity: 0.72; }
+
+.cw-res-detail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cw-res-to { color: var(--foreground); }
+
+.cw-res-pct {
+  color: var(--primary);
+  font-weight: var(--font-medium);
+}
+
+.cw-res-note { font-style: italic; }
+
+.cw-results-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.cw-download {
+  flex: 1;
+  min-height: 44px;
+  border: none;
+  border-radius: var(--radius);
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+}
+
+.cw-download:hover { opacity: 0.9; }
+
+.cw-back {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.cw-back:hover { color: var(--foreground); border-color: var(--muted-foreground); }
+
+/* --- Responsive / touch --- */
+
+@media (pointer: coarse) {
+  .cw-level,
+  .cw-add-more {
+    min-height: 44px;
+  }
+
+  .cw-row-remove {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+@media (max-width: 800px) {
+  .cw-levels {
+    /* Stay one row of pills; wrap rather than overflow the viewport. */
+    width: 100%;
+  }
+
+  .cw-level {
+    flex: 1 1 auto;
+    padding: var(--space-2);
+  }
+
+  .cw-row {
+    /* Name gets its own line so the size/remove controls never push the
+       row wider than the card on narrow screens. */
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "name name"
+      "size remove";
+    gap: var(--space-1) var(--space-2);
+  }
+
+  .cw-row-name { grid-area: name; white-space: normal; overflow-wrap: anywhere; }
+  .cw-row-size { grid-area: size; }
+  .cw-row-remove { grid-area: remove; justify-self: end; }
+
+  .cw-res-row {
+    /* Stack so the size figures never squeeze the filename off-screen. */
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+  }
+
+  .cw-res-row .cw-row-name { white-space: normal; overflow-wrap: anywhere; }
+
+  .cw-results-actions { flex-direction: column; }
+}
+
+/* File-management affordances, mirroring the convert card's upload-zone
+   actions (manage / replace / remove) in the shape this surface needs. */
+.cw-list-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cw-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--radius-full, 999px);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--text-base);
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.cw-clear:hover {
+  background-color: var(--accent);
+  color: var(--destructive);
+}
+
+@media (pointer: coarse) {
+  .cw-clear { width: 44px; height: 44px; }
+}
+
+/* Explains a "no gain" PDF instead of leaving a correct result looking broken. */
+.cw-results-note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+  line-height: 1.45;
+}
+
+/* A degraded route ran. Reads as a caution, not as part of the good news. */
+.cw-results-warning {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--destructive, #d9534f);
+  border-radius: calc(var(--radius) - 2px);
+  font-size: var(--text-xs);
+  color: var(--foreground);
+  text-align: left;
+  line-height: 1.45;
+}
+
+/* The card's primary action is full-width, like the Converter's Convert button
+   and the PDF Editor's. It was sized to its own text, so on a wide card it sat
+   as a small pill on the left with the rest of the row empty. */
+.cw-compress {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+/* The results live in the shared popup now, not in the card, so the wrapper
+   must not draw a second surface inside one. Only the rows and the head keep
+   their own styling. */
+.cw-results-card {
+  background: none;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+}
+
+/* 44px, not the 43 that padding alone produced - the same one-pixel miss the
+   format selector had, on this card's primary action. */
+.cw-compress { min-height: 44px; }

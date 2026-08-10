@@ -27,6 +27,8 @@ class pdftoimgHandler implements FormatHandler {
 
   public ready: boolean = true;
   public requiresMainThread = true;
+  /** Reads `--quality`: this engine is one of the few that actually does. */
+  public usesQuality = true;
 
   async init () {
     this.ready = true;

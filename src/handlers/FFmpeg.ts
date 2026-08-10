@@ -14,8 +14,125 @@ const NO_STREAM_COPY = "--no-stream-copy";
 const VIDEO_CODEC_FOR_CONTAINER: Record<string, string> = {
   mp4: "libx264", mov: "libx264", mkv: "libx264", m4v: "libx264",
   avi: "libx264", flv: "libx264", ts: "libx264", mts: "libx264",
-  webm: "libvpx-vp9",
+  // VP8, not VP9. See WEBM_VIDEO_CODEC below - VP9 crashes this build.
+  webm: "libvpx",
 };
+
+/**
+ * WebM video is encoded with VP8, overriding the muxer's own default.
+ *
+ * ffmpeg picks `libvpx-vp9` for a .webm output, and in this WASM core that
+ * encoder dies with `RuntimeError: memory access out of bounds` - not on long
+ * or large input, but on a **three-second clip**, which is to say always. Every
+ * MP4-to-WebM conversion failed after a minute and a half of work with
+ * "didn't complete this time", about a conversion the app advertises.
+ *
+ * VP8 through `libvpx` encodes the same clip cleanly. It is the older codec and
+ * compresses less well, but a WebM that exists beats a VP9 file that does not.
+ *
+ * Worth knowing if you re-test this: a bounds error leaves the WASM instance
+ * unusable, so anything run afterwards on the same engine also fails. VP8 first
+ * looked broken for exactly that reason; on a fresh instance it works.
+ */
+const WEBM_VIDEO_CODEC = "libvpx";
+
+/**
+ * WebM audio is encoded with Vorbis, for the same reason.
+ *
+ * Opus is the better codec and the usual pairing for WebM, and `libopus` in
+ * this core dies exactly like `libvpx-vp9` does - "memory access out of
+ * bounds", on two seconds of audio. Isolated on fresh engine instances:
+ *
+ *   vp8 video-only   OK      vp8 + opus     FAIL
+ *   vp8 + vorbis     OK      vp9 (default)  FAIL
+ *
+ * So both halves of the muxer's preferred pairing are broken here, and the
+ * conversion only completes with the older codec on each side.
+ */
+const WEBM_AUDIO_CODEC = "libvorbis";
+
+/**
+ * VP8 encodes at `-cpu-used 5` rather than libvpx's default of 0.
+ *
+ * The default is far too slow to finish here. Measured in this core on 1080p30,
+ * fresh engine per run, with the arguments the app actually sends:
+ *
+ *   2s -> 17s     5s -> 49s     10s -> 96s     20s -> 205s
+ *
+ * That is a flat ~10x realtime, and `runInWorker` gives up at ten minutes
+ * (`workerClient.ts:21`), so the ceiling lands around a minute of 1080p on this
+ * machine and proportionally less on a slower one. The reported 20-second phone
+ * recording failed at ~12 minutes for exactly that reason: pinning the codecs
+ * stopped the crash and revealed the timeout underneath it.
+ *
+ * `-cpu-used 5` is 4.6x faster on the same clip (205s -> 45s), which puts a
+ * 20-second 1080p source comfortably inside the ceiling even on hardware
+ * several times slower than the one measured on. It costs efficiency, not
+ * quality target: the same content came back 1.54 MB instead of 0.75 MB.
+ *
+ * Peak wasm heap was 100-115 MB at every duration against a 2 GiB ceiling, so
+ * this was never the memory problem it looked like from the outside.
+ */
+const WEBM_CPU_USED = "5";
+
+/**
+ * WebM rate control is a bitrate, because `-crf` does nothing here.
+ *
+ * Measured on high-entropy 720p, fresh engine per run: `-crf 23`, `-crf 32`,
+ * and both again with `-b:v 0`, all produced byte-identical output. `-b:v 2M`
+ * produced five times as much. So the compression level - which reaches this
+ * handler as a CRF from `planVideo` - had no effect at all on this route, and
+ * every WebM came back at libvpx's own default. The reported 20-second phone
+ * video, 7,276 kbps in, came out at 972: an 87% cut on a *format conversion*,
+ * identical at all four levels.
+ *
+ * The target is a fraction of what came in rather than a constant. A fixed
+ * ladder would inflate a lean source - asking 5 Mbps of a 1.5 Mbps clip returns
+ * something several times larger than it went in, which is indefensible for an
+ * operation whose purpose is changing the container.
+ *
+ * Fractions chosen against measured overshoot, six seconds of 1072x1920 at two
+ * source bitrates, output as a share of input bytes:
+ *
+ *            asked 0.25   0.50   0.75   1.00
+ *   7067kbps       0.28   0.52   0.78   1.03  <- 1.00 exceeds the input
+ *   1523kbps       0.60   0.61   0.86   1.12  <- and by more when lean
+ *
+ * `-b:v` is a target, not a ceiling: it overshot by 3-12% on the fat source and
+ * by up to 2.4x when asked for less than the encoder will give at this
+ * resolution. Hence a ceiling of 0.75, which stayed under the input on both.
+ *
+ * The floor in that table is real and worth knowing: on the lean source, 0.25
+ * and 0.50 both landed near 0.60, because libvpx will not go below roughly
+ * 900 kbps for this many pixels. Levels converge on an already-small file. That
+ * is the encoder, not a bug, and it never inflates.
+ *
+ * One honest limit on the bound. The fraction is taken from the *container*
+ * bitrate - total bytes over duration - and spent on `-b:v`, the video stream
+ * alone, with audio encoded on top. On the video-dominant sources measured that
+ * leaves plenty of room, which is why no level exceeded its input. It is not a
+ * hard guarantee: a source where audio carries most of the bitrate would get a
+ * video target well above its own video bitrate. Nothing measured behaves that
+ * way, and conversions that grow are already understood on this route, so this
+ * is recorded rather than defended against with an unmeasured constant.
+ */
+export const WEBM_BITRATE_FRACTION: Record<QualityPreset, number> = {
+  lossless: 0.75,  // "Original quality": preserve as far as a VP8 re-encode can
+  high: 0.6,
+  medium: 0.4,
+  low: 0.25,
+};
+
+/**
+ * Target kbps for the WebM video stream, or null when the source cannot be
+ * measured - an unprobed duration means no honest fraction exists, and
+ * inventing one is worse than leaving libvpx's default in place.
+ */
+export function webmVideoBitrateKbps(inputBytes: number, durationSec: number, preset: QualityPreset): number | null {
+  if (!(durationSec > 0) || !(inputBytes > 0)) return null;
+  const sourceKbps = (inputBytes * 8) / durationSec / 1000;
+  return Math.max(1, Math.round(sourceKbps * WEBM_BITRATE_FRACTION[preset]));
+}
 
 /**
  * Codecs that reject arbitrary sample rates. When the input rate isn't in
@@ -79,7 +196,12 @@ function ffmpegPlanArgs(plan: CompressionPlan, outputFormat: FileFormat): string
   if (mime.startsWith("video/")) {
     if (outputFormat.format === "gif" || outputFormat.format === "apng") return [];
     const args: string[] = [];
-    if (plan.videoCrf !== undefined) args.push("-crf", String(plan.videoCrf));
+    // WebM gets its rate control as a bitrate instead: libvpx ignores -crf in
+    // this core, so emitting one here put a flag in the command that reads like
+    // the level is being honoured while doing nothing. The maxrate below still
+    // applies, and constrains the bitrate the WebM branch sets.
+    const crfIsInert = outputFormat.format === "webm";
+    if (plan.videoCrf !== undefined && !crfIsInert) args.push("-crf", String(plan.videoCrf));
     if (plan.videoMaxrate) {
       args.push("-maxrate", plan.videoMaxrate, "-bufsize", `${parseInt(plan.videoMaxrate) * 2}M`);
     }
@@ -120,6 +242,39 @@ function parseFfmpegTimestamp(ts: string): number | null {
  * - `Duration: HH:MM:SS.ms` appears once when the input is opened.
  * - `time=HH:MM:SS.ms` appears every ~0.5s during the run.
  */
+/**
+ * How long the run being measured actually is, in milliseconds.
+ *
+ * Input reaches FFmpeg through the concat demuxer (`-f concat -i list.txt`) so
+ * that one code path serves both single and multi-file runs. The cost is that
+ * concat reports `Duration: N/A` - it does not know the total up front - and
+ * that takes out *both* progress sources at once: the log tap never sees a
+ * `Duration:` line to divide by, and FFmpeg's own progress event is computed
+ * against the same missing duration, so it reports 0.0 for the entire run.
+ * Compressing a 20-second video sat at "0%" for four and a half minutes while
+ * emitting a hundred perfectly good events, every one of them zero.
+ *
+ * The number was already in hand: the `-i` probe reads it before the encode is
+ * built. An explicit `-t` wins over the probe, because a trimmed run (the
+ * video-to-GIF cap) encodes less than the source holds, and measuring against
+ * the full length would stall the bar short of the end.
+ *
+ * @param command The assembled FFmpeg argv.
+ * @param probedDurationSec Source duration in seconds, 0 when unprobed.
+ * @returns Milliseconds, or null when nothing reliable is known - in which case
+ * the caller falls back to whatever FFmpeg itself reports.
+ */
+export function resolveProgressDurationMs(
+    command: readonly string[], probedDurationSec: number,
+): number | null {
+    const i = command.lastIndexOf("-t");
+    if (i >= 0 && i + 1 < command.length) {
+        const explicit = Number(command[i + 1]);
+        if (Number.isFinite(explicit) && explicit > 0) return explicit * 1000;
+    }
+    return probedDurationSec > 0 ? probedDurationSec * 1000 : null;
+}
+
 function parseFfmpegProgress(line: string): { durationMs?: number; timeMs?: number } | null {
   // "Duration: 00:01:23.45, start: 0.000000, bitrate: ..."
   const dur = line.match(/Duration:\s*(\d+:\d{2}:\d{2}(?:\.\d+)?)/);
@@ -285,6 +440,8 @@ class NativeFFmpegAdapter {
 class FFmpegHandler implements FormatHandler {
 
   public name: string = "FFmpeg";
+  /** Reads `--quality`: this engine is one of the few that actually does. */
+  public usesQuality = true;
   public supportedFormats: FileFormat[] = [];
   public ready: boolean = false;
 
@@ -448,6 +605,24 @@ class FFmpegHandler implements FormatHandler {
         } catch (e) {
           extension = format;
           mimeType = mime.getType(format) || ("video/" + format);
+        }
+
+        // One ffmpeg line can name several containers ("matroska,webm"), and
+        // the details above describe only the first of them. Every alias
+        // therefore inherited the primary's extension, which is wrong by
+        // construction: an alias is a *different* container with a different
+        // extension. Nothing in the app claimed `.webm` for reading, so
+        // findMatchingFormat could not recognise a .webm file on any surface -
+        // Compress answered "can't compress this" for a format the Converter
+        // will happily produce.
+        //
+        // The alias name is the extension in ffmpeg's own convention
+        // (matroska,webm -> .mkv, .webm), so take it. Only the extension is
+        // corrected; the mime is left as the demuxer family reported it, since
+        // that is genuinely shared and the resolver already pairs halves that
+        // disagree about it.
+        if (format !== primaryFormat) {
+          extension = format;
         }
         mimeType = normalizeMimeType(mimeType);
 
@@ -808,6 +983,19 @@ class FFmpegHandler implements FormatHandler {
       command.push("-c", "copy");
     } else if (outputFormat.mime === "video/mp4" && !isAudioToVideo) {
       command.push("-pix_fmt", "yuv420p");
+    } else if (outputFormat.format === "webm" && !isAudioToVideo && !userHasEncoderFlag) {
+      // Explicit on both sides, because both muxer defaults crash this core.
+      command.push("-c:v", WEBM_VIDEO_CODEC, "-c:a", WEBM_AUDIO_CODEC);
+      // And explicit about speed, because the default cannot finish. See
+      // WEBM_CPU_USED.
+      if (!args?.includes("-cpu-used")) command.push("-cpu-used", WEBM_CPU_USED);
+      // And explicit about bitrate, because -crf does nothing here and the
+      // level would otherwise reach the encoder as nothing at all. See
+      // WEBM_BITRATE_FRACTION.
+      if (!args?.includes("-b:v")) {
+        const kbps = webmVideoBitrateKbps(inputBytes, probedDuration, preset);
+        if (kbps !== null) command.push("-b:v", `${kbps}k`);
+      }
     } else if (outputFormat.internal === "dvd") {
       command.push("-vf", "setsar=1", "-target", "ntsc-dvd", "-pix_fmt", "rgb24");
     } else if (outputFormat.internal === "vcd") {
@@ -870,7 +1058,7 @@ class FFmpegHandler implements FormatHandler {
         "-c:v", placeholderCodec,
         ...(placeholderCodec === "libx264" ? ["-tune", "stillimage"] : []),
         "-pix_fmt", "yuv420p",
-        "-c:a", outputFormat.format === "webm" ? "libopus" : "aac",
+        "-c:a", outputFormat.format === "webm" ? WEBM_AUDIO_CODEC : "aac",
         "-b:a", "192k",
         "-shortest",
       );
@@ -889,13 +1077,38 @@ class FFmpegHandler implements FormatHandler {
     //
     // Both sources share one throttle (≥ 250 ms between emits) so duplicate
     // events on WASM don't flood postMessage.
-    let durationMs: number | null = null;
+    // Seeded from the probe rather than left null.
+    //
+    // Input reaches FFmpeg through the concat demuxer (`-f concat -i list.txt`,
+    // above) so that one code path serves both single and multi-file runs. The
+    // cost is that concat reports `Duration: N/A`: the demuxer does not know the
+    // total up front. That takes out *both* progress sources at once - the log
+    // tap never sees a `Duration:` line to divide by, and ffmpeg's own progress
+    // event is computed against the same missing duration, so it reports 0.0
+    // forever. Compressing a 20-second video sat at "0%" for its entire run
+    // while emitting a hundred perfectly good events, every one of them zero.
+    //
+    // The number was already in hand: `probedDuration` came from the `-i` probe
+    // a few dozen lines up. An explicit `-t` (the video-to-GIF cap) wins over
+    // it, because that is the duration actually being encoded.
+    let durationMs: number | null = resolveProgressDurationMs(command, probedDuration);
     let lastEmit = 0;
-    // Format an "Encoded Xs of Ys" detail line when both times are known.
-    // Skipped once durationMs is unknown, the elapsed line alone is fine.
+    // "Compressed 12.4s of 20.0s" / "Converted 12.4s of 20.0s".
+    //
+    // It used to read "Encoded ... of video." Two problems: "encoded" is the
+    // engine's word, not the user's - they pressed Compress or Convert and
+    // deserve to see that verb echoed back - and "of video" was wrong on the
+    // MP4-to-MP3 route, where there is no video left to speak of. Same format
+    // in and out is what the Compress surface asks for; anything else is a
+    // conversion. Ghostscript already makes exactly this distinction.
+    //
+    // Skipped while durationMs is unknown; the elapsed clock alone is fine.
+    const sameFormat = inputFormat.format === outputFormat.format
+      && inputFormat.mime === outputFormat.mime;
+    const workVerb = sameFormat ? "Compressed" : "Converted";
     const formatDetail = (timeMs: number): string | undefined => {
       if (!durationMs || durationMs <= 0) return undefined;
-      return `Encoded ${(timeMs / 1000).toFixed(1)}s of ${(durationMs / 1000).toFixed(1)}s of video.`;
+      return `${workVerb} ${(timeMs / 1000).toFixed(1)}s of ${(durationMs / 1000).toFixed(1)}s`;
     };
     const emitProgress = onProgress
       ? (ratio: number, timeMs?: number) => {
@@ -929,8 +1142,14 @@ class FFmpegHandler implements FormatHandler {
       wasmProgressListener = (ev) => {
         // ev.progress is 0..1 (sometimes > 1 briefly at the very end).
         // ev.time is microseconds of encoded source media.
-        if (typeof ev.progress === "number" && isFinite(ev.progress)) {
-          const timeMs = typeof ev.time === "number" && isFinite(ev.time) ? ev.time / 1000 : undefined;
+        const timeMs = typeof ev.time === "number" && isFinite(ev.time) ? ev.time / 1000 : undefined;
+        // Our own duration beats ffmpeg's when we have one. Under the concat
+        // demuxer ffmpeg has no total to divide by and reports a flat 0, but
+        // `ev.time` - how much source media it has encoded - stays correct, so
+        // dividing that by the probed duration gives a real ratio.
+        if (timeMs !== undefined && durationMs && durationMs > 0) {
+          emitProgress(timeMs / durationMs, timeMs);
+        } else if (typeof ev.progress === "number" && isFinite(ev.progress)) {
           emitProgress(ev.progress, timeMs);
         }
       };

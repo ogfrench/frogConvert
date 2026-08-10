@@ -24,6 +24,7 @@ class MockIntersectionObserver {
 const { __testing } = await import('./PdfWorkspace.ts');
 import { renderPageThumbnail } from '../../tools/pdfThumbnails.ts';
 import type { PageEntry, SourceFile } from '../../tools/types.ts';
+import { ui } from '../store/store.ts';
 
 const renderPageThumbnailMock = vi.mocked(renderPageThumbnail);
 
@@ -565,5 +566,367 @@ describe('Watermark selection across file mutations', () => {
 
     const keys = [...__testing.getWmSelectedKeys()].sort();
     expect(keys).toEqual(['2:1', '2:2']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cancelling a per-file job
+// ---------------------------------------------------------------------------
+
+describe('a cancelled per-file save offers what it finished', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="popup-bg" class="modal-overlay"></div>
+      <div id="popup" class="card-base modal-container"></div>`;
+    // `ui` resolved its refs when the store module loaded, against a document
+    // this file has since replaced.
+    (ui as any).popupBox = document.getElementById('popup');
+    (ui as any).popupBackground = document.getElementById('popup-bg');
+  });
+
+  const doc = (name: string) => ({ name, bytes: new Uint8Array([1, 2, 3]) });
+
+  it('offers the finished files instead of closing silently', () => {
+    // These loops complete whole documents before they are stopped. Discarding
+    // them meant Cancel could only be paid for by redoing the ones that had
+    // already succeeded.
+    __testing.offerPartialPdfResult([doc('a.pdf'), doc('b.pdf'), doc('c.pdf')], 'organized.zip');
+
+    const popup = document.getElementById('popup')!;
+    expect(popup.querySelector('h2')!.textContent).toBe('Stopped');
+    expect(popup.querySelector('p')!.textContent).toMatch(/3.*finished before you stopped/);
+    const buttons = [...popup.querySelectorAll('.popup-actions-footer button')].map(b => b.textContent);
+    expect(buttons).toEqual(['Download 3 files (.zip)', 'Done']);
+  });
+
+  it('names the single file when only one finished', () => {
+    __testing.offerPartialPdfResult([doc('report.pdf')], 'organized.zip');
+    const popup = document.getElementById('popup')!;
+    expect(popup.querySelector('p')!.textContent).toMatch(/report\.pdf.*finished before you stopped/);
+    expect(popup.querySelector('.popup-actions-footer button')!.textContent).toBe('Download');
+  });
+
+  it('stays silent when nothing finished', () => {
+    // The popup is already closed, and "0 files were saved" is worse than the
+    // editor simply reappearing intact.
+    __testing.offerPartialPdfResult([], 'organized.zip');
+    expect(document.getElementById('popup')!.querySelector('h2')).toBeNull();
+  });
+
+  it('does not claim a download is under way', () => {
+    __testing.offerPartialPdfResult([doc('a.pdf'), doc('b.pdf')], 'z.zip');
+    expect(document.getElementById('popup')!.textContent).not.toMatch(/downloading now/i);
+    expect(document.getElementById('popup')!.textContent).toMatch(/ready to download/);
+  });
+});
+
+describe('sidebar file management', () => {
+  const countRowButtons = (root: ParentNode) =>
+    [...root.querySelectorAll('.ws-sidebar-count-row .ws-count-btn-group button')]
+      .map(b => b.textContent);
+
+  /** The visible panel: desktop card and mobile tray are both in the DOM. */
+  const panels = () => [
+    ...document.querySelectorAll('.ws-sidebar-card, .ws-wm-panel-card, .ws-tray-scroll'),
+  ].filter(p => p.querySelector('.ws-sidebar-files'));
+
+  for (const tab of ['merge', 'organize', 'watermark'] as const) {
+    it(`offers Replace all and Clear on ${tab}, in every panel that lists files`, () => {
+      __testing.setupForTest(tab, [sf(1, 2), sf(2, 3)]);
+      const found = panels();
+      expect(found.length).toBeGreaterThan(0);
+      for (const panel of found) {
+        // Exactly two, never three: a third small button wraps every label onto
+        // two lines at the sidebar's real width.
+        expect(countRowButtons(panel)).toEqual(['Replace all', 'Clear']);
+      }
+    });
+
+    it(`moves + Add out of the count row and under the file list on ${tab}`, () => {
+      __testing.setupForTest(tab, [sf(1, 2), sf(2, 3)]);
+      for (const panel of panels()) {
+        const list = panel.querySelector('.ws-sidebar-files')!;
+        const addRow = list.nextElementSibling;
+        expect(addRow?.className).toContain('ws-sidebar-btn-row');
+        expect([...addRow!.querySelectorAll('button')].map(b => b.textContent)).toContain('+ Add');
+      }
+    });
+  }
+
+  it('asks before clearing, and keeps the files if the confirm is dismissed', () => {
+    document.body.insertAdjacentHTML('beforeend',
+      '<div id="popup-bg" class="modal-overlay"></div><div id="popup" class="card-base modal-container"></div>');
+    (ui as any).popupBox = document.getElementById('popup');
+    (ui as any).popupBackground = document.getElementById('popup-bg');
+    __testing.setupForTest('merge', [sf(1, 2), sf(2, 3)]);
+
+    const clear = [...document.querySelectorAll<HTMLButtonElement>('.ws-count-btn-group button')]
+      .find(b => b.textContent === 'Clear')!;
+    clear.click();
+
+    const popup = document.getElementById('popup')!;
+    expect(popup.querySelector('h2')!.textContent).toBe('Clear all files?');
+    const [confirm, dismiss] = [...popup.querySelectorAll<HTMLButtonElement>('.popup-actions-footer button')];
+    expect(confirm.textContent).toBe('Clear');
+    expect(dismiss.textContent).toBe('Keep them');
+
+    dismiss.click();
+    expect(__testing.getFiles().length).toBe(2);
+  });
+
+  it('puts Pages above the tool settings on watermark, as on organize', () => {
+    __testing.setupForTest('watermark', [sf(1, 3)]);
+    const panel = panels()[0];
+    const labels = [...panel.querySelectorAll('.ws-sidebar-section-label')].map(l => l.textContent);
+    // Asserted as an order, not an index, so a block gaining a row cannot
+    // silently break it.
+    expect(labels.indexOf('Pages')).toBeGreaterThanOrEqual(0);
+    expect(labels.indexOf('Watermark')).toBeGreaterThanOrEqual(0);
+    expect(labels.indexOf('Pages')).toBeLessThan(labels.indexOf('Watermark'));
+  });
+});
+
+describe('watermark Reset style', () => {
+  const resetRows = () => [...document.querySelectorAll<HTMLElement>('.ws-wm-reset-row')];
+  const resetBtns = () => [...document.querySelectorAll<HTMLButtonElement>('.ws-wm-reset-row button')];
+
+  it('stays hidden while the style is untouched', () => {
+    __testing.setupForTest('watermark', [sf(1, 2)]);
+    expect(resetRows().length).toBeGreaterThan(0);
+    expect(resetRows().every(r => r.hidden)).toBe(true);
+  });
+
+  it('appears once a style control moves off its default', () => {
+    __testing.setupForTest('watermark', [sf(1, 2)]);
+    const opacity = document.querySelector<HTMLInputElement>('[data-wm="opacity"] .ws-wm-slider')!;
+    opacity.value = '20';
+    opacity.dispatchEvent(new Event('input'));
+
+    expect(resetRows().some(r => !r.hidden)).toBe(true);
+  });
+
+  it('restores every style field, in state and in the inputs', () => {
+    __testing.setWmSettings({
+      fontSize: 24, colorHex: '#ff0000', opacity: 0.9, rotation: 15, repeat: true,
+    });
+    __testing.setupForTest('watermark', [sf(1, 2)]);
+    expect(resetRows().some(r => !r.hidden)).toBe(true);
+
+    resetBtns()[0].click();
+
+    const s = __testing.getWmSettings();
+    expect(s.fontSize).toBe(80);
+    expect(s.colorHex).toBe('#808080');
+    expect(s.opacity).toBe(0.5);
+    expect(s.rotation).toBe(-45);
+    expect(s.repeat).toBe(false);
+
+    // The controls have no reactive binding, so state alone is not enough:
+    // a stale input would silently write the old value back on the next nudge.
+    expect(document.querySelector<HTMLInputElement>('[data-wm="size"] .ws-wm-slider')!.value).toBe('80');
+    expect(document.querySelector<HTMLInputElement>('[data-wm="opacity"] .ws-wm-slider')!.value).toBe('50');
+    expect(document.querySelector<HTMLInputElement>('[data-wm="rotation"] .ws-wm-slider')!.value).toBe('-45');
+    expect(document.querySelector<HTMLInputElement>('.ws-wm-color-hex')!.value).toBe('#808080');
+    expect(document.querySelector<HTMLInputElement>('.ws-wm-repeat-checkbox')!.checked).toBe(false);
+  });
+
+  it('leaves the watermark text alone', () => {
+    __testing.setWmSettings({ text: 'DRAFT COPY', opacity: 0.9 });
+    __testing.setupForTest('watermark', [sf(1, 2)]);
+
+    resetBtns()[0].click();
+
+    expect(__testing.getWmSettings().text).toBe('DRAFT COPY');
+  });
+
+  it('hides itself again, and hands focus on rather than stranding it', () => {
+    __testing.setWmSettings({ rotation: 15 });
+    __testing.setupForTest('watermark', [sf(1, 2)]);
+
+    resetBtns()[0].click();
+
+    expect(resetRows().every(r => r.hidden)).toBe(true);
+    expect(document.activeElement).not.toBe(document.body);
+    expect(document.activeElement?.classList.contains('ws-wm-repeat-checkbox')).toBe(true);
+  });
+
+  it('syncs every mounted panel, not just the one clicked', () => {
+    __testing.setWmSettings({ opacity: 0.9 });
+    __testing.setupForTest('watermark', [sf(1, 2)]);
+    // Open the phone tray so a second copy of the style controls is mounted.
+    document.querySelector<HTMLButtonElement>('.ws-toolbar-icon')!.click();
+    const sliders = () => [...document.querySelectorAll<HTMLInputElement>('[data-wm="opacity"] .ws-wm-slider')];
+    expect(sliders().length).toBeGreaterThan(1);
+
+    resetBtns()[0].click();
+
+    expect(sliders().every(s => s.value === '50')).toBe(true);
+    expect(resetRows().every(r => r.hidden)).toBe(true);
+  });
+});
+
+describe('removing a file from the mobile tray', () => {
+  it('leaves the tray open instead of destroying it mid-interaction', () => {
+    __testing.setupForTest('watermark', [sf(1, 2), sf(2, 2)]);
+    const iconBtn = document.querySelector<HTMLButtonElement>('.ws-toolbar-icon')!;
+    iconBtn.click();
+    expect(document.querySelector('.ws-tray.ws-tray-open')).not.toBeNull();
+
+    document.querySelector<HTMLButtonElement>('.ws-tray .ws-file-list-remove')!.click();
+
+    expect(__testing.getFiles().length).toBe(1);
+    // A different element than before - the tool re-rendered - but still open,
+    // so clearing three files does not mean reopening the sheet three times.
+    expect(document.querySelector('.ws-tray.ws-tray-open')).not.toBeNull();
+    expect(document.querySelector('.ws-tray .ws-file-list-remove')).not.toBeNull();
+  });
+
+  it('does not strand focus on <body> after the removed row is destroyed', () => {
+    __testing.setupForTest('watermark', [sf(1, 2), sf(2, 2)]);
+    document.querySelector<HTMLButtonElement>('.ws-toolbar-icon')!.click();
+    document.querySelector<HTMLButtonElement>('.ws-tray .ws-file-list-remove')!.click();
+
+    const tray = document.querySelector('.ws-tray.ws-tray-open')!;
+    expect(document.activeElement).not.toBe(document.body);
+    expect(tray.contains(document.activeElement)).toBe(true);
+  });
+
+  it('releases the scroll lock when cleanup deletes an open tray', () => {
+    // The lock is derived from an open tray existing. Deleting the tray without
+    // re-deriving it left `overflow-y: hidden` on <html> with no sheet on
+    // screen and no way to dismiss it.
+    __testing.setupForTest('watermark', [sf(1, 2)]);
+    document.querySelector<HTMLButtonElement>('.ws-toolbar-icon')!.click();
+    expect(document.documentElement.classList.contains('scroll-lock')).toBe(true);
+
+    __testing.cleanup();
+
+    expect(document.querySelector('.ws-tray')).toBeNull();
+    expect(document.documentElement.classList.contains('scroll-lock')).toBe(false);
+  });
+});
+
+describe('removing a file from a panel that survives the removal', () => {
+  it('hands focus to the next × on merge, which repaints in place', () => {
+    __testing.setupForTest('merge', [sf(1, 2), sf(2, 2), sf(3, 2)]);
+    const card = document.querySelector<HTMLElement>('.ws-sidebar-card')!;
+    const first = card.querySelectorAll<HTMLButtonElement>('.ws-file-list-remove')[0];
+    first.focus();
+
+    first.click();
+
+    expect(__testing.getFiles().length).toBe(2);
+    expect(document.activeElement).not.toBe(document.body);
+    expect(card.contains(document.activeElement)).toBe(true);
+    expect((document.activeElement as HTMLElement).className).toContain('ws-file-list-remove');
+  });
+
+  it('falls back to the button row once the last file is removed', () => {
+    __testing.setupForTest('merge', [sf(1, 2)]);
+    const card = document.querySelector<HTMLElement>('.ws-sidebar-card')!;
+    const only = card.querySelector<HTMLButtonElement>('.ws-file-list-remove');
+    // With a single file the row may not offer a ×; nothing to assert if so.
+    if (!only) return;
+    only.focus();
+    only.click();
+    expect(document.activeElement).not.toBe(document.body);
+  });
+
+  it('leaves focus alone when the × was clicked without holding focus', () => {
+    __testing.setupForTest('merge', [sf(1, 2), sf(2, 2)]);
+    const card = document.querySelector<HTMLElement>('.ws-sidebar-card')!;
+    (document.activeElement as HTMLElement | null)?.blur();
+
+    card.querySelectorAll<HTMLButtonElement>('.ws-file-list-remove')[0].click();
+
+    expect(document.activeElement).toBe(document.body);
+  });
+});
+
+describe('announcing removals to a screen reader', () => {
+  // A removal changes nothing that reads as text: the row disappears and the
+  // count beside it is rebuilt rather than edited. Sighted users watch the
+  // list get shorter; without this, screen reader users get silence.
+  const announcer = () => document.getElementById('a11y-announcer');
+
+  it('says what went and what is left', () => {
+    __testing.setupForTest('merge', [sf(1, 2), sf(2, 2), sf(3, 2)]);
+    const card = document.querySelector<HTMLElement>('.ws-sidebar-card')!;
+    card.querySelectorAll<HTMLButtonElement>('.ws-file-list-remove')[0].click();
+
+    expect(announcer()!.textContent).toMatch(/Removed .+\. 2 files remaining\./);
+  });
+
+  it('counts down in words that match the number', () => {
+    __testing.setupForTest('merge', [sf(1, 2), sf(2, 2)]);
+    const card = document.querySelector<HTMLElement>('.ws-sidebar-card')!;
+    card.querySelectorAll<HTMLButtonElement>('.ws-file-list-remove')[0].click();
+    // "1 files remaining" is the kind of thing only a machine says.
+    expect(announcer()!.textContent).toMatch(/1 file remaining\./);
+  });
+
+  it('says so when that was the last one', () => {
+    __testing.setupForTest('merge', [sf(1, 2)]);
+    const btn = document.querySelector<HTMLButtonElement>('.ws-file-list-remove');
+    if (!btn) return;
+    btn.click();
+    expect(announcer()!.textContent).toMatch(/No files left\./);
+  });
+
+  it('announces a second removal even when the sentence repeats', () => {
+    // Two removals can produce identical text, and identical text is not a
+    // change - so the second would pass in silence.
+    __testing.setupForTest('merge', [sf(1, 2), sf(2, 2), sf(3, 2)]);
+    const card = document.querySelector<HTMLElement>('.ws-sidebar-card')!;
+    card.querySelectorAll<HTMLButtonElement>('.ws-file-list-remove')[0].click();
+    const first = announcer()!.textContent;
+    card.querySelectorAll<HTMLButtonElement>('.ws-file-list-remove')[0].click();
+    expect(announcer()!.textContent).not.toBe(first);
+  });
+
+  it('keeps the region out of sight and out of the layout', () => {
+    __testing.setupForTest('merge', [sf(1, 2), sf(2, 2)]);
+    document.querySelector<HTMLButtonElement>('.ws-file-list-remove')!.click();
+    const region = announcer()!;
+    expect(region.className).toContain('sr-only');
+    expect(region.getAttribute('aria-live')).toBe('polite');
+    // Not hidden: display:none and visibility:hidden both take an element out
+    // of the accessibility tree, which is the one thing a live region cannot be.
+    expect(region.hasAttribute('hidden')).toBe(false);
+    expect(region.getAttribute('aria-hidden')).toBeNull();
+  });
+});
+
+describe('bulk file action accessibility', () => {
+  it('names what Replace all and Clear act on, keeping the visible text as a prefix', () => {
+    __testing.setupForTest('merge', [sf(1, 2), sf(2, 2)]);
+    const buttons = [...document.querySelectorAll<HTMLButtonElement>(
+      '.ws-sidebar-card .ws-count-btn-group button')];
+    for (const btn of buttons) {
+      const name = btn.getAttribute('aria-label')!;
+      expect(name).toBeTruthy();
+      // WCAG 2.5.3: speech control has to be able to act on what it can read.
+      expect(name.startsWith(btn.textContent!)).toBe(true);
+      expect(name).toMatch(/files$/);
+    }
+    expect(buttons.map(b => b.getAttribute('aria-label')))
+      .toEqual(['Replace all files', 'Clear all files']);
+  });
+
+  it('does not leave a stale Escape handler behind for every rebuilt tray', () => {
+    __testing.setupForTest('watermark', [sf(1, 2), sf(2, 2), sf(3, 2)]);
+    document.querySelector<HTMLButtonElement>('.ws-toolbar-icon')!.click();
+    // Two removals, each rebuilding the tray while it is open.
+    document.querySelector<HTMLButtonElement>('.ws-tray .ws-file-list-remove')!.click();
+    document.querySelector<HTMLButtonElement>('.ws-tray .ws-file-list-remove')!.click();
+
+    // Escape must close the one live tray, not fire once per orphaned handler
+    // against detached nodes.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+    expect(document.querySelector('.ws-tray.ws-tray-open')).toBeNull();
+    const iconBtn = document.querySelector<HTMLButtonElement>('.ws-toolbar-icon')!;
+    expect(iconBtn.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(iconBtn);
   });
 });

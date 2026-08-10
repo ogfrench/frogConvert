@@ -1,5 +1,6 @@
 import './core/polyfills.ts';
 
+import pkg from "../../package.json" with { type: "json" };
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
@@ -10,6 +11,7 @@ import type { FileFormat } from '../core/FormatHandler/FormatHandler.ts';
 import { registerListFormatsTool } from './tools/listFormats.ts';
 import { registerFindConversionPathTool } from './tools/findConversionPath.ts';
 import { registerConvertFileTool } from './tools/convertFile.ts';
+import { registerCompressFileTool } from './tools/compressFile.ts';
 import { registerPdfMergeTool } from './tools/pdfMerge.ts';
 import { registerPdfOrganizeTool } from './tools/pdfOrganize.ts';
 import { registerPdfExtractTool } from './tools/pdfExtract.ts';
@@ -22,7 +24,10 @@ export type { McpContext };
 async function main() {
     const server = new McpServer({
         name: "frogConvert-MCP",
-        version: "2.0.0"
+        // Read from package.json rather than restated here: this was left at
+        // "2.0.0" through the whole v3 cycle, so every MCP client was told the
+        // wrong server version.
+        version: pkg.version,
     });
 
     // Initialize handlers in the background, don't block server startup.
@@ -48,6 +53,7 @@ async function main() {
     registerListFormatsTool(server, initPromise);
     registerFindConversionPathTool(server, initPromise);
     registerConvertFileTool(server, initPromise);
+    registerCompressFileTool(server, initPromise);
     registerPdfMergeTool(server);
     registerPdfOrganizeTool(server);
     registerPdfExtractTool(server);

@@ -1,3 +1,4 @@
+import { hopQualityArgs } from "../../core/compression/hopQuality.ts";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { writeFile } from "fs/promises";
@@ -55,7 +56,7 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
             outputMime: z.string().describe("Output MIME type"),
             outputExtension: z.string().describe("Output format extension"),
             outputFilePath: z.string().optional().describe("Absolute path where the output file should be saved. If omitted, the result is returned as base64."),
-            quality: z.enum(["low", "medium", "high", "lossless"]).optional().describe("Quality preset. When omitted for cross-format conversion defaults to 'medium'. When omitted for same-format compression, the input is probed and the next lower tier is picked automatically (matching the web UI behavior). 'low' trades quality for smaller output; 'high' raises quality and relaxes adaptive caps; 'lossless' disables lossy compression where the codec supports it. Only affects handlers that re-encode (FFmpeg, ImageMagick, pdftoimg).")
+            quality: z.enum(["low", "medium", "high", "lossless"]).optional().describe("Quality preset. When omitted for cross-format conversion defaults to 'lossless': a conversion changes the format and nothing else, so pass a level explicitly to also shrink the file. When omitted for same-format compression, the input is probed and the next lower tier is picked automatically (matching the web UI behavior). 'low' trades quality for smaller output and downscales to a 1920px long edge; 'medium' downscales to 2560px; 'high' raises quality and applies no cap; 'lossless' disables lossy compression where the codec supports it. Only affects handlers that re-encode (FFmpeg, ImageMagick, pdftoimg). To shrink a file without changing its format, use compress_file.")
         },
         async ({ fileName, base64Bytes, filePath, inputMime, inputExtension, outputMime, outputExtension, outputFilePath, quality }) => {
             let bytes: Uint8Array;
@@ -81,7 +82,6 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
             if (resolved === null) {
                 return await serializeResults([{ name: resolvedName, bytes }], outputFilePath);
             }
-            const hopArgs = ["--quality", resolved];
 
             // Try native path when both formats are known to native handlers
             if (inputMatch && outputMatch) {
@@ -102,7 +102,8 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
                             const stepHandler = path[i].handler;
                             const prevFormat = path[i - 1].format;
                             const nextFormat = path[i].format;
-                            currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat, hopArgs);
+                            currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat,
+                                hopQualityArgs({ target: nextFormat, isLastHop: i === path.length - 1, requested: resolved }));
                         }
 
                         return await serializeResults(currentFiles, outputFilePath);

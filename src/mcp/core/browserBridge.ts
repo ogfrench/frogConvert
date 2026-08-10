@@ -282,6 +282,60 @@ export async function convertViaBrowser(
     return result as Promise<BridgeResult[]>;
 }
 
+/** What the page hands back for one compressed file. */
+export type BridgeCompressResult = {
+    fileName: string;
+    base64Bytes: string;
+    originalSize: number;
+    shrunk: boolean;
+    reason?: string;
+    warning?: string;
+};
+
+/**
+ * Compress one file in the browser, for the formats Node cannot.
+ *
+ * `ffmpeg.wasm` throws "ffmpeg.wasm does not support nodejs" the moment it is
+ * constructed, so video and audio compression over REST and MCP had no engine
+ * at all - honestly reported as `unsupported`, but only because of where the
+ * process was running. Conversion had solved this years earlier by keeping a
+ * real browser to hand; compression simply never got wired to it.
+ *
+ * Queued on the same chain as `convertViaBrowser`: one page, one job at a time.
+ */
+export async function compressViaBrowser(
+    fileName: string,
+    base64Bytes: string,
+    mimeType: string,
+    extension: string,
+    level: string,
+): Promise<BridgeCompressResult> {
+    await ensureInitialized();
+
+    const result = conversionQueue.then(() => {
+        const evaluatePromise = bridgePage!.evaluate(
+            (fn, fm, b64, m, e, l) => (window as any)[fn](fm, b64, m, e, l),
+            "__frogConvertCompressHeadless",
+            fileName,
+            base64Bytes,
+            mimeType,
+            extension,
+            level,
+        );
+        let timeoutId: ReturnType<typeof setTimeout>;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            timeoutId = setTimeout(
+                () => reject(new Error(`Browser compression timed out after ${EVALUATE_TIMEOUT_MS / 60000} minutes`)),
+                EVALUATE_TIMEOUT_MS,
+            );
+        });
+        return Promise.race([evaluatePromise, timeoutPromise]).finally(() => clearTimeout(timeoutId!));
+    });
+    conversionQueue = result.catch(() => {});
+
+    return result as Promise<BridgeCompressResult>;
+}
+
 /**
  * Fire-and-forget bridge warm-up. Call at server startup so the browser is
  * already running before the first convert_file tool call arrives.

@@ -1,3 +1,4 @@
+import { hopQualityArgs } from "../../core/compression/hopQuality.ts";
 import type { FormatHandler, FileData, QualityPreset } from "../../core/FormatHandler/FormatHandler.ts";
 import type { TraversionGraph } from "../../core/TraversionGraph/TraversionGraph.ts";
 import { findFormatAndHandler, libreofficeHint } from "../../mcp/core/utils.ts";
@@ -29,7 +30,6 @@ async function runConversion(
         return { files: [{ name: fileName, bytes }] };
     }
     const effectiveQuality: QualityPreset = resolved;
-    const hopArgs = ["--quality", effectiveQuality];
     const inputMatch = findFormatAndHandler(handlers, inputMime, inputExt, 'from');
     const outputMatch = findFormatAndHandler(handlers, outputMime, outputExt, 'to');
     let nativeFailure: unknown = null;
@@ -55,7 +55,8 @@ async function runConversion(
                     const stepHandler = path[i].handler;
                     const prevFormat = path[i - 1].format;
                     const nextFormat = path[i].format;
-                    currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat, hopArgs);
+                    currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat,
+                                hopQualityArgs({ target: nextFormat, isLastHop: i === path.length - 1, requested: effectiveQuality }));
                 }
                 return { files: currentFiles };
             } catch (nativeErr) {

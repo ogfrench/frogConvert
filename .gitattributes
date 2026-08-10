@@ -1,0 +1,26 @@
+# Line endings, settled once so they stop moving.
+#
+# Without this, git stores whatever bytes an editor happened to write, so a
+# contributor on Windows can flip a file to CRLF and every line in it reads as
+# changed. That is not hypothetical here: 8 of 335 text files had drifted to
+# CRLF, and normalising 5 of them accounted for roughly 2,200 lines of the
+# v3.0.0 diff - noise that buries the ~400 lines anyone actually needed to read.
+#
+# LF in the repository and LF on checkout, on every platform. Every toolchain
+# this project uses (bun, vite, tsc, electron-builder, nginx, Netlify) reads LF
+# fine on Windows, and there are no .bat/.cmd scripts, which are the usual
+# reason to pin something back to CRLF.
+* text=auto eol=lf
+
+# Binaries, marked so git never inspects or rewrites their bytes. `text=auto`
+# detects most of these anyway; naming them makes it explicit rather than
+# dependent on a heuristic reading the first few kilobytes.
+*.png   binary
+*.webp  binary
+*.ico   binary
+*.wasm  binary
+*.bin   binary
+*.mp3   binary
+*.mp4   binary
+*.sf2   binary
+*.docx  binary

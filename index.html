@@ -56,7 +56,7 @@
     html.app-revealed body > :not(#cold-start-splash) { animation: app-fade-in 0.25s ease forwards; }
     @keyframes app-fade-in { from { opacity: 0; } to { opacity: 1; } }
 
-    /* Cold-start splash — shown until main.ts adds body.app-ready. */
+    /* Cold-start splash - shown until main.ts adds body.app-ready. */
     #cold-start-splash {
       position: fixed;
       inset: 0;
@@ -122,14 +122,14 @@
   <meta name="mobile-web-app-capable" content="yes">
   <title>frogConvert | Convert and edit files privately in your browser</title>
   <meta name="description"
-    content="🐸 Convert 70+ file formats and edit PDFs right in your browser. No uploads, no servers, everything stays on your device.">
+    content="🐸 Convert 70+ file formats, compress images, audio and video, and edit or shrink PDFs, all in your browser. No uploads, no servers: your files never leave your device.">
   <link rel="canonical" href="https://frogconvert.xyz/">
 <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
 
   <!-- Schema.org for Google / Pinterest -->
   <meta itemprop="name" content="frogConvert | Convert and edit files privately in your browser">
   <meta itemprop="description"
-    content="🐸 Convert 70+ file formats and edit PDFs right in your browser. No uploads, no servers, everything stays on your device.">
+    content="🐸 Convert 70+ file formats, compress images, audio and video, and edit or shrink PDFs, all in your browser. No uploads, no servers: your files never leave your device.">
   <meta itemprop="image" content="https://frogconvert.xyz/social-preview.png">
 
   <!-- Open Graph / Facebook / Pinterest -->
@@ -138,7 +138,7 @@
   <meta property="og:site_name" content="frogConvert">
   <meta property="og:title" content="frogConvert | Convert and edit files privately in your browser">
   <meta property="og:description"
-    content="🐸 Convert 70+ file formats and edit PDFs right in your browser. No uploads, no servers, everything stays on your device.">
+    content="🐸 Convert 70+ file formats, compress images, audio and video, and edit or shrink PDFs, all in your browser. No uploads, no servers: your files never leave your device.">
   <meta property="og:image" content="https://frogconvert.xyz/social-preview.png">
   <meta property="og:image:secure_url" content="https://frogconvert.xyz/social-preview.png">
   <meta property="og:image:type" content="image/png">
@@ -150,7 +150,7 @@
   <meta name="twitter:url" content="https://frogconvert.xyz/">
   <meta name="twitter:title" content="frogConvert | Convert and edit files privately in your browser">
   <meta name="twitter:description"
-    content="🐸 Convert 70+ file formats and edit PDFs right in your browser. No uploads, no servers, everything stays on your device.">
+    content="🐸 Convert 70+ file formats, compress images, audio and video, and edit or shrink PDFs, all in your browser. No uploads, no servers: your files never leave your device.">
   <meta name="twitter:image" content="https://frogconvert.xyz/social-preview.png">
 
   <!-- Structured Data / Generative Engine Optimization (GEO) -->
@@ -160,7 +160,7 @@
       "@type": "WebApplication",
       "name": "frogConvert",
       "url": "https://frogconvert.xyz/",
-      "description": "frogConvert is a fast, offline, browser-based app that converts over 70+ file formats locally on your device without uploading data to any server. It supports images, videos, audio, text, and other common formats, plus a built-in PDF editor for merging, reordering, and extracting pages. Everything runs strictly on the client-side.",
+      "description": "frogConvert is an offline, browser-based app for converting, compressing and editing files. It converts over 70 formats across images, video, audio, documents and PostScript; compresses images, audio, video and PDFs; and includes a PDF editor for merging, reordering, rotating and extracting pages. Everything runs strictly client-side, so files are never uploaded to a server.",
       "applicationCategory": "Utility, File Converter, PDF Editor",
       "operatingSystem": "All environments with a modern web browser",
       "image": "https://frogconvert.xyz/social-preview.png",
@@ -172,8 +172,11 @@
       "featureList": [
         "100% private client-side conversions",
         "No server uploads required",
-        "Fast locally running WebAssembly engine",
+        "Locally running WebAssembly engine",
         "Supports 70+ file formats across image, audio, video, documents",
+        "Converts PostScript, EPS and Adobe Illustrator artwork to PDF, and PDF back to PostScript or EPS",
+        "Exports archival PDF/A and multi-page TIFF",
+        "Compresses images, audio, video and PDFs without uploading them",
         "Built-in PDF editor: merge, reorder, rotate, and extract pages"
       ],
       "offers": {
@@ -251,8 +254,8 @@
     <div id="noscript-overlay" aria-labelledby="noscript-heading">
       <div class="emoji" aria-hidden="true"><img src="/frog-emoji.webp" alt="" class="frog-emoji-img" width="128" height="128"></div>
       <h1 id="noscript-heading">JavaScript Required</h1>
-      <p>frogConvert does all its heavy lifting locally on your device for maximum privacy. To make this magic happen,
-        please enable JavaScript in your browser settings.</p>
+      <p>frogConvert converts your files on your own device, so nothing is uploaded. That needs JavaScript,
+        so please enable it in your browser settings.</p>
     </div>
   </noscript>
 
@@ -292,13 +295,43 @@
         <span aria-hidden="true"></span>
       </button>
       <div id="top-controls-menu" role="dialog" aria-modal="true" aria-label="Settings menu">
-        <button id="mode-toggle" title="Filter the formats you can select"
-          aria-label="Toggle format filter: Core Formats"><svg class="top-control-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg><span id="mode-toggle-text">Core Formats</span></button>
+        <div id="format-mode-picker">
+          <button id="mode-toggle" title="Filter the formats you can select" aria-haspopup="menu" aria-expanded="false"
+            aria-controls="format-mode-menu"
+            aria-label="Format filter: Core Formats. Change"><svg class="top-control-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg><span id="mode-toggle-text">Core Formats</span></button>
+          <div id="format-mode-menu" role="menu" aria-label="Format filter" hidden>
+            <p class="quality-menu-title">Formats offered</p>
+            <button class="quality-item" role="menuitem" data-value="core" tabindex="-1"><span class="quality-item-label">Core Formats</span><span class="quality-item-blurb">The everyday ones</span></button>
+            <button class="quality-item" role="menuitem" data-value="plus" tabindex="-1"><span class="quality-item-label">Core+ Formats</span><span class="quality-item-blurb">Adds data, fonts and extra media</span></button>
+            <button class="quality-item" role="menuitem" data-value="all" tabindex="-1"><span class="quality-item-label">All Formats</span><span class="quality-item-blurb">Everything frogConvert supports</span></button>
+          </div>
+        </div>
         <button id="theme-toggle" title="Toggle theme" aria-label="Toggle colour theme"><svg class="top-control-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
-        <button id="app-mode-toggle" title="Converter" aria-label="Switch app mode: Converter">
-          <svg class="top-control-icon" id="mode-icon-converter" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
-          <svg class="top-control-icon" id="mode-icon-pdf" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        </button>
+        <div id="quality-picker">
+          <button id="quality-toggle" title="Conversion compression: Original quality&#10;Applies to images, audio, video and PDFs. Other target formats are converted without compression." aria-haspopup="menu" aria-expanded="false"
+            aria-controls="quality-menu" aria-label="Compression when converting: Original quality. Change"><svg class="top-control-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></button>
+          <div id="quality-menu" role="menu" aria-label="Compression" hidden>
+            <p class="quality-menu-title" id="quality-menu-title">Conversion compression</p>
+            <button class="quality-item" role="menuitem" data-value="lossless" tabindex="-1"><span class="quality-item-label">Original quality</span><span class="quality-item-blurb">No compression, just the format change</span></button>
+            <button class="quality-item" role="menuitem" data-value="auto" tabindex="-1"><span class="quality-item-label">Automatic</span><span class="quality-item-blurb">Reads each file and picks a level</span></button>
+            <button class="quality-item" role="menuitem" data-value="high" tabindex="-1"><span class="quality-item-label">High quality</span><span class="quality-item-blurb">Slightly smaller files</span></button>
+            <button class="quality-item" role="menuitem" data-value="medium" tabindex="-1"><span class="quality-item-label">Balanced</span><span class="quality-item-blurb">Recommended for most files</span></button>
+            <button class="quality-item" role="menuitem" data-value="low" tabindex="-1"><span class="quality-item-label">Smallest file</span><span class="quality-item-blurb">Visible quality loss</span></button>
+          </div>
+        </div>
+        <div id="app-mode-picker">
+          <button id="app-mode-toggle" title="Converter" aria-haspopup="menu" aria-expanded="false"
+              aria-controls="app-mode-menu" aria-label="App mode: Converter. Change app mode">
+            <svg class="top-control-icon" id="mode-icon-converter" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+            <svg class="top-control-icon" id="mode-icon-pdf" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <svg class="top-control-icon" id="mode-icon-compress" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          </button>
+          <div id="app-mode-menu" role="menu" aria-label="App mode" hidden>
+            <button class="app-mode-item" role="menuitem" data-value="converter" tabindex="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg><span>Converter</span></button>
+            <button class="app-mode-item" role="menuitem" data-value="pdf-editor" tabindex="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><span>PDF Editor</span></button>
+            <button class="app-mode-item" role="menuitem" data-value="compress" tabindex="-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg><span>Compress</span></button>
+          </div>
+        </div>
         <!-- Mobile menu content -->
         <span class="menu-list-label">Theme</span>
         <div class="menu-pill-group" id="theme-segmented" role="group" aria-label="Theme">
@@ -313,7 +346,7 @@
         </div>
         <div class="menu-divider"></div>
         <span class="menu-list-label">Mode</span>
-        <div class="menu-pill-group" id="app-mode-segmented" role="group" aria-label="App mode">
+        <div class="menu-pill-group menu-pill-vertical" id="app-mode-segmented" role="group" aria-label="App mode">
           <button class="pill-option active" data-value="converter">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
             Converter
@@ -322,6 +355,10 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
             PDF Editor
           </button>
+          <button class="pill-option" data-value="compress">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            Compress
+          </button>
         </div>
         <div class="menu-divider" id="formats-divider"></div>
         <span class="menu-list-label" id="formats-label">Formats</span>
@@ -329,6 +366,19 @@
           <button class="pill-option active" data-value="core">Core</button>
           <button class="pill-option" data-value="plus">Core+</button>
           <button class="pill-option" data-value="all">All</button>
+        </div>
+        <!-- Compression sits last: it is the longest list and the one you set
+             once, where Theme and Mode are what you reach for repeatedly. Its
+             rows are rebuilt per mode by renderQualityOptions(); the markup
+             below is only the pre-hydration state for the Converter. -->
+        <div class="menu-divider" id="quality-divider"></div>
+        <span class="menu-list-label" id="quality-label">Conversion compression</span>
+        <div class="menu-pill-group menu-pill-vertical" id="quality-segmented" role="group" aria-label="Compression">
+          <button class="pill-option active" data-value="lossless">Original quality</button>
+          <button class="pill-option" data-value="auto">Automatic</button>
+          <button class="pill-option" data-value="high">High quality</button>
+          <button class="pill-option" data-value="medium">Balanced</button>
+          <button class="pill-option" data-value="low">Smallest file</button>
         </div>
 
 
@@ -385,7 +435,7 @@
 
     <div class="convert-field" id="from-field">
       <span id="upload-label" class="field-label"></span>
-      <div id="upload-zone" role="button" tabindex="0" aria-labelledby="upload-label upload-text upload-hint">
+      <div id="upload-zone" class="upload-zone" role="button" tabindex="0" aria-labelledby="upload-label upload-text upload-hint">
         <p class="upload-text" id="upload-text">Drop your files</p>
         <p class="upload-hint" id="upload-hint">or click to browse</p>
         <div class="upload-file-info" aria-live="polite" aria-atomic="true">
@@ -393,10 +443,10 @@
           <div class="upload-file-actions">
             <button class="upload-action-btn icon-btn floating-card-surface" id="expand-files-btn" title="Manage files"
               aria-label="Manage files">&#9776;</button>
-            <button class="upload-action-btn icon-btn floating-card-surface" id="replace-file-btn" title="Replace file"
-              aria-label="Replace file">&#8635;</button>
-            <button class="upload-action-btn icon-btn floating-card-surface" id="remove-file-btn" title="Remove file"
-              aria-label="Remove file">&times;</button>
+            <button class="upload-action-btn icon-btn floating-card-surface" id="replace-file-btn" title="Replace all files"
+              aria-label="Replace all files">&#8635;</button>
+            <button class="upload-action-btn icon-btn floating-card-surface" id="remove-file-btn" title="Clear all files"
+              aria-label="Clear all files">&times;</button>
           </div>
         </div>
       </div>
@@ -437,7 +487,7 @@
 
 
   <p id="description" class="page-description entrance d6">
-    Convert between 70+ formats, right here in your browser. Your files never leave your device.
+    Convert between 70+ formats, or compress them, right here in your browser. Your files never leave your device.
   </p>
 
   <main id="pdf-workspace" style="display:none" aria-label="PDF Editor">
@@ -467,12 +517,48 @@
     Merge, organize, and watermark PDFs right here in your browser. Your files never leave your device.
   </p>
 
+  <main id="compress-workspace" style="display:none" aria-label="Compress">
+    <h1 id="compress-hero-title" class="page-title" aria-label="What will you compress today?">
+      <span class="word-entrance" style="animation-delay: 0.1s" aria-hidden="true">What</span>
+      <span class="word-entrance" style="animation-delay: 0.15s" aria-hidden="true">will</span>
+      <span class="word-entrance" style="animation-delay: 0.2s" aria-hidden="true">you</span>
+      <span class="word-entrance" style="animation-delay: 0.25s" aria-hidden="true">compress</span>
+      <span class="word-entrance" style="animation-delay: 0.3s" aria-hidden="true">today?</span>
+    </h1>
+
+    <!-- Same .tab-bar the Converter uses. Here the pills state what this
+         surface can take rather than filtering a format list: tapping one
+         opens the picker already narrowed to that kind of file. -->
+    <nav id="compress-category-tabs" class="tab-bar entrance d4" aria-label="What can be compressed">
+      <button class="cat-tab active" data-accept="" aria-pressed="true">Any</button>
+      <button class="cat-tab" data-accept="image/*" aria-pressed="false">Image</button>
+      <button class="cat-tab" data-accept="audio/*" aria-pressed="false">Audio</button>
+      <button class="cat-tab" data-accept="video/*" aria-pressed="false">Video</button>
+      <button class="cat-tab" data-accept="application/pdf,.pdf" aria-pressed="false">PDF</button>
+    </nav>
+
+    <div id="compress-card" class="card-base entrance d5">
+      <div id="compress-content"></div>
+    </div>
+
+    <!-- PDFs belong here as much as the media types: Ghostscript is the whole
+         reason this surface exists. `.pdf` as well as the MIME because some
+         browsers hand over an empty type for a PDF picked from disk. -->
+    <input id="compress-file-input" type="file" multiple
+      accept="image/*,audio/*,video/*,application/pdf,.pdf" style="display:none">
+  </main>
+
+  <p id="compress-description" class="page-description entrance d6" style="display:none">
+    Compress images, audio, video and PDFs, right here in your browser. Your files never leave your device.
+  </p>
+
   <div id="frogsworth-slot"></div>
 
   <footer id="page-footer" class="entrance d7">
     <div class="footer-content">
       <span class="footer-text">designed with ♥ by François - <a id="commit-id"
-          href="/docs/">view docs</a></span>
+          href="/docs/">view docs</a> - <a href="https://github.com/ogfrench/frogConvert"
+          target="_blank" rel="noopener noreferrer">source</a></span>
     </div>
   </footer>
 
@@ -501,7 +587,7 @@
     </div>
     <div class="files-modal-top-actions">
       <button id="files-replace-all">Replace all</button>
-      <button id="files-remove-all">Remove all</button>
+      <button id="files-remove-all">Clear</button>
     </div>
     <div id="files-list" role="list" aria-label="Queued files"></div>
     <div id="files-pagination" aria-label="File list pages"></div>
@@ -520,6 +606,16 @@
   <div id="popup" class="card-base modal-container popup-size" role="status" aria-live="polite" aria-atomic="true">
   </div>
 
+  <!-- The app's one live region, for changes that happen without any text on
+       screen changing to describe them - removing a file from the PDF Editor,
+       say, where the row simply vanishes.
+
+       It lives here, empty, rather than being created when there is something
+       to say, because a live region has to exist *before* the change it
+       announces. Marking up the element that changed does nothing: screen
+       readers watch regions they already know about, and one that arrives
+       carrying its own message arrives too late. See `announce()`. -->
+  <div id="a11y-announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <script type="module" src="src/main.ts"></script>
 

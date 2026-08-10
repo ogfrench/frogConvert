@@ -2,9 +2,7 @@ import normalizeMimeType from "../core/utils/normalizeMimeType.ts";
 import { downloadFile, downloadAsZip, timestampForFilename } from "./download.ts";
 import { isSafari } from "../tools/pdfThumbnails.ts";
 import type { FileFormat, FormatHandler, FileData, ConvertPathNode, ProgressEvent, QualityPreset, Notice } from "../core/FormatHandler/FormatHandler.ts";
-import { withQualityArg } from "../core/FormatHandler/FormatHandler.ts";
-import { DEFAULT_PRESET } from "../core/FormatHandler/qualityPresets.ts";
-import { triggerConfetti } from "../effects/Confetti/Confetti.ts";
+import { celebrateOnPopup } from "../effects/Confetti/Confetti.ts";
 import {
     ui,
     currentFiles,
@@ -12,6 +10,8 @@ import {
     selectedToIndex,
     allOptionsRef,
     CATEGORY_LABELS,
+    convertQuality,
+    CONVERT_QUALITY_CHOICES,
 } from "../components/store/store.ts";
 import { escapeHTML } from "../components/utils/index.ts";
 import {
@@ -24,19 +24,15 @@ import {
     isCancelled,
     resetCancellation,
     showConversionInProgress,
-    setWorkerCancelCallback,
-    setForceCleanupCallback,
     setCanHardCancel,
     setCurrentFileProgress,
     setActiveConversionMode,
-    getActiveConversionMode,
     completeCancellation,
     showPartialDownloadPopup,
     showEnginesLoadingPopup,
     ensureCancelButton,
     removeCancelButton,
     modeCopy,
-    updateCancelProgress,
 } from "./cancellation.ts";
 import { createDancingFrog } from "../components/Frogsworth/DancingFrog.ts";
 import { clearConvertSession } from "../components/persistence/convertPersist.ts";
@@ -48,10 +44,17 @@ import {
     GENERIC_CONVERSION_ERROR_TEXT,
     CONVERSION_NOT_AVAILABLE_TEXT,
     formatBytes,
+    isOffline,
+    OFFLINE_MESSAGE,
     type UserErrorInfo,
 } from "../components/utils/index.ts";
-import { probeInputQuality } from "../core/compression/inputQuality.ts";
-import { tierDown } from "../core/compression/tierDown.ts";
+import { runInWorker, WORKER_TIMEOUT_MS } from "./workerClient.ts";
+import { hopQualityArgs, resolveAutoQuality } from "../core/compression/hopQuality.ts";
+import { startConversionStatus, type StatusHandle } from "./progressStatus.ts";
+// Re-exported rather than moved outright: the Compress surface and the tests
+// have imported it from here since it existed, and its home is an
+// implementation detail of where the status line lives.
+export { REASSURANCE_LINE } from "./progressStatus.ts";
 
 // --- Helpers ---
 
@@ -79,6 +82,27 @@ function formatConversionPath(path: ConvertPathNode[]): string {
 
 // Tracks the last runtime error from a handler (distinct from "no path exists")
 let _lastConversionError: UserErrorInfo | null = null;
+/**
+ * The quality the last route actually ran at, with "Automatic" already
+ * resolved to the tier it chose.
+ *
+ * The Converter defaults to Original quality, so any other value is a setting
+ * the user went and changed - and until now the only confirmation that it had
+ * been honoured was the file size, on a conversion where the format change
+ * moves that anyway. Naming the level is the honest version: it reports the
+ * setting, not a saving it cannot attribute.
+ */
+let _lastAppliedQuality: QualityPreset | null = null;
+
+/**
+ * Whether the engine that produced the output reads `--quality` at all.
+ *
+ * Distinct from `_lastAppliedQuality` being null, which is also what you get
+ * when the user simply asked for Original quality. Only this tells the modal
+ * the difference between "you asked for nothing" and "you asked for something
+ * this format cannot do".
+ */
+let _lastQualityApplicable = true;
 
 /** Called once after a conversion completes, then cleared. Used to defer work that is unsafe to run mid-conversion. */
 let onConversionEnd: (() => void) | null = null;
@@ -88,117 +112,9 @@ export function setOnConversionEnd(fn: (() => void) | null) {
 
 // --- Format matching ---
 
-export function findMatchingFormat(
-    files: File[],
-    allOptions: Array<{ format: FileFormat; handler: FormatHandler }>,
-): number {
-    // Intentionally format-mode-agnostic: detect the real format regardless of the
-    // current display mode. refreshUI() re-runs after each handler phase and handles
-    // switching to the matched category tab if the format wasn't yet loaded on upload.
-    const mimeType = normalizeMimeType(files[0].type);
-    // Only treat a trailing segment as an extension when there's an actual dot
-    // in the filename. Otherwise `"photo".split(".").pop()` returns the whole
-    // name, which would accidentally match a format whose extension happened
-    // to equal the filename.
-    const name = files[0].name;
-    const dotIdx = name.lastIndexOf(".");
-    const fileExtension = dotIdx > 0 ? name.slice(dotIdx + 1).toLowerCase() : undefined;
-    // Best match: MIME + extension
-    let mimeMatch = -1;
-    for (let i = 0; i < allOptions.length; i++) {
-        const { format } = allOptions[i];
-        if (!format.from || format.mime !== mimeType) continue;
-
-        if (fileExtension && format.extension === fileExtension) return i; // Exact MIME+ext match
-        if (mimeMatch === -1) mimeMatch = i; // First MIME-only match as fallback
-    }
-    if (mimeMatch !== -1) return mimeMatch;
-
-    // Fallback: extension-only match
-    if (fileExtension) {
-        for (let i = 0; i < allOptions.length; i++) {
-            const { format } = allOptions[i];
-            if (format.from && format.extension.toLowerCase() === fileExtension) {
-                return i;
-            }
-        }
-    }
-
-    return -1;
-}
-
-// --- Same-format compression ---
-
-type SameFormatDispatch = { handler: FormatHandler; args: string[] };
-
-const SAME_FORMAT_IMAGE_WHITELIST = new Set([
-    "png", "jpeg", "jpg", "webp", "tiff", "tif", "bmp",
-]);
-const SAME_FORMAT_ANIMATED = new Set(["gif", "apng"]);
-
-function findHandlerByName(name: string): FormatHandler | null {
-    for (const opt of allOptionsRef.value) {
-        if (opt.handler.name === name) return opt.handler;
-    }
-    return null;
-}
-
-function handlerSupportsFormat(handler: FormatHandler, format: FileFormat): FileFormat | null {
-    const cached = window.supportedFormatCache?.get(handler.name);
-    const formats = cached ?? handler.supportedFormats ?? [];
-    return formats.find(f =>
-        f.mime === format.mime
-        && f.format === format.format
-        && f.from
-        && f.to,
-    ) ?? null;
-}
-
-/**
- * Route a same-format pick (png→png, mp4→mp4, etc.) to a compressing
- * handler. Returns null when the format isn't a compressible raster/media
- * type or when the required handler isn't loaded. Whitelist-based on
- * purpose: SVG/PSD/raw etc. would get rasterised or flattened, so they
- * stay in pass-through mode.
- */
-function resolveSameFormatHandler(format: FileFormat): SameFormatDispatch | null {
-    const fmt = (format.format || "").toLowerCase();
-    const mime = (format.mime || "").toLowerCase();
-    const quality: QualityPreset = format.lossless ? "lossless" : DEFAULT_PRESET;
-    const baseArgs = ["--quality", quality];
-
-    if (SAME_FORMAT_ANIMATED.has(fmt)) {
-        const h = findHandlerByName("FFmpeg");
-        if (!h || !handlerSupportsFormat(h, format)) return null;
-        return { handler: h, args: baseArgs };
-    }
-
-    if (SAME_FORMAT_IMAGE_WHITELIST.has(fmt) && mime.startsWith("image/")) {
-        const h = findHandlerByName("ImageMagick");
-        if (!h || !handlerSupportsFormat(h, format)) return null;
-        return { handler: h, args: baseArgs };
-    }
-
-    if (mime.startsWith("video/")) {
-        const h = findHandlerByName("FFmpeg");
-        if (!h || !handlerSupportsFormat(h, format)) return null;
-        // Force re-encode: stream-copy fast path would remux without shrinking.
-        return { handler: h, args: [...baseArgs, "--no-stream-copy"] };
-    }
-
-    if (mime.startsWith("audio/")) {
-        const h = findHandlerByName("FFmpeg");
-        if (!h || !handlerSupportsFormat(h, format)) return null;
-        return { handler: h, args: baseArgs };
-    }
-
-    return null;
-}
-
-/** Category-agnostic check, used by the format modal to decide whether to show the "Compress" button copy. */
-export function isSameFormatCompressible(format: FileFormat): boolean {
-    return resolveSameFormatHandler(format) !== null;
-}
+// Moved to core/FormatHandler/detectFormat.ts so surfaces can detect a file's
+// format without importing this module. Re-exported for existing callers.
+export { findMatchingFormat } from "../core/FormatHandler/detectFormat.ts";
 
 // --- Download & converted-file tracking ---
 
@@ -216,97 +132,6 @@ export async function downloadAllConvertedFiles() {
             downloadFile(file.bytes, file.name);
         }
     }
-}
-
-// --- Worker Manager ---
-let conversionWorker: Worker | null = null;
-let workerMsgId = 0;
-const WORKER_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
-let workerErrorCallback: ((e: ErrorEvent) => void) | null = null;
-
-function getConversionWorker(): Worker {
-    if (!conversionWorker) {
-        conversionWorker = new Worker(new URL("../workers/conversion.worker.ts", import.meta.url), { type: "module" });
-        conversionWorker.onerror = (err) => {
-            // Worker crashed - reject the in-flight promise with a real error, then discard the dead worker
-            const cb = workerErrorCallback;
-            workerErrorCallback = null;
-            setWorkerCancelCallback(null);
-            conversionWorker = null;
-            cb?.(err);
-        };
-    }
-    return conversionWorker;
-}
-
-// bfcache restore: drop stale worker ref so getConversionWorker() re-spawns.
-if (typeof window !== "undefined") {
-    window.addEventListener("pageshow", (ev) => {
-        if ((ev as PageTransitionEvent).persisted) {
-            if (conversionWorker) {
-                try { conversionWorker.terminate(); } catch { /* already gone */ }
-                conversionWorker = null;
-            }
-        }
-    });
-}
-
-async function runInWorker(handlerName: string, inputFiles: FileData[], inputFormat: FileFormat, outputFormat: FileFormat, args?: string[], onProgress?: (p: ProgressEvent) => void): Promise<FileData[]> {
-    const worker = getConversionWorker();
-    const id = ++workerMsgId;
-    return new Promise((resolve, reject) => {
-        if (isCancelled) { reject(new Error("Cancelled")); return; }
-
-        const cleanup = () => {
-            clearTimeout(timeoutId);
-            worker.removeEventListener("message", onMessage);
-            setWorkerCancelCallback(null);
-            workerErrorCallback = null;
-        };
-
-        const onMessage = (ev: MessageEvent) => {
-            const msg = ev.data;
-            if (msg.id !== id) return;
-            if (msg.type === "progress") {
-                onProgress?.({ ratio: msg.ratio, detail: msg.detail });
-                return;
-            }
-            cleanup();
-            if (msg.type === "success") {
-                resolve(msg.outputFiles);
-            } else {
-                reject(msg.error);
-            }
-        };
-
-        const timeoutId = setTimeout(() => {
-            cleanup();
-            reject(new Error(`Conversion timed out after ${WORKER_TIMEOUT_MS / 60000} minutes.`));
-        }, WORKER_TIMEOUT_MS);
-
-        worker.addEventListener("message", onMessage);
-        setWorkerCancelCallback(() => {
-            cleanup();
-            worker.terminate();
-            conversionWorker = null;
-            reject(new Error("Cancelled"));
-        });
-        // Hard-cancel fallback if the normal cancel path doesn't bring us down.
-        setForceCleanupCallback(() => {
-            cleanup();
-            try { worker.terminate(); } catch { /* already terminated */ }
-            conversionWorker = null;
-            reject(new Error("Cancelled (forced)"));
-        });
-        workerErrorCallback = (err: ErrorEvent) => {
-            cleanup();
-            reject(new Error(`Conversion worker crashed: ${err.message}`));
-        };
-        // Copy bytes before transferring - originals must remain usable if this path fails and another is retried
-        const inputCopies = inputFiles.map(f => ({ ...f, bytes: f.bytes.slice() }));
-        const transferables = inputCopies.map(f => f.bytes.buffer).filter(b => b.byteLength > 0);
-        worker.postMessage({ id, handlerName, inputFiles: inputCopies, inputFormat, outputFormat, args }, transferables);
-    });
 }
 
 // --- Conversion logic helpers ---
@@ -386,6 +211,32 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
     _lastConversionError = null;
     ensureCancelButton();
 
+    // "Automatic" reads the sources and picks a tier once for the whole route,
+    // so an already-low-quality input isn't compressed a second time.
+    const requestedQuality: QualityPreset = convertQuality.value === "auto"
+        ? await resolveAutoQuality(
+            files.map(f => ({ bytes: f.bytes, mime: path[0]?.format.mime ?? "" })),
+        )
+        : convertQuality.value;
+    // Kept for the success modal, which is the only place the user finds out
+    // this happened. Automatic resolves to a real tier here and nowhere else,
+    // so recording the resolved answer is the only way to name it afterwards.
+    //
+    // Only claim it where it can be true. This used to be set from the setting
+    // alone, so converting to a container format announced "Compressed at
+    // Smallest file" while `jszip` - which never reads `--quality` - handed
+    // back a file 126 bytes *larger* than the input. The last hop is the one
+    // that produces the artifact the user keeps, so it is the only hop whose
+    // opinion counts; a lossless target opts out wherever it appears.
+    // `path.length >= 2` is load-bearing, not a null-check. A single-node path
+    // is zero hops: the loop below runs no steps and the input is handed back
+    // untouched, but `path[path.length - 1]` would then be the *source* node -
+    // so a PNG under ImageMagick would report a compression that, once again,
+    // never ran.
+    const finalHop = path.length >= 2 ? path[path.length - 1] : undefined;
+    _lastQualityApplicable = !!finalHop?.handler?.usesQuality && !finalHop.format.lossless;
+    _lastAppliedQuality = _lastQualityApplicable ? requestedQuality : null;
+
     for (let i = 0; i < path.length - 1; i++) {
         if (isCancelled) return null;
         const handler = path[i + 1].handler;
@@ -412,12 +263,13 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
             const isLastHop = i === path.length - 2;
             const hopProgress = isLastHop ? onProgress : undefined;
 
-            let hopArgs: string[] | undefined;
-            if (isLastHop) {
-                const target = path[i + 1].format;
-                const quality: QualityPreset = target.lossless ? "lossless" : DEFAULT_PRESET;
-                hopArgs = ["--quality", quality];
-            }
+            // One shared rule across every surface, so the browser, MCP, REST
+            // and CLI all reduce quality once rather than at each hop.
+            const hopArgs = hopQualityArgs({
+                target: path[i + 1].format,
+                isLastHop,
+                requested: requestedQuality,
+            });
 
             let outputFiles: FileData[];
             if (handler.requiresMainThread) {
@@ -459,73 +311,19 @@ function showConversionNotFoundPopup(fromFormat: string, toFormat: string) {
     );
 }
 
-const REASSURANCE_LINE = "feel free to switch tabs";
-
-function mmss(totalSec: number): string {
-    const m = Math.floor(totalSec / 60);
-    const s = Math.floor(totalSec % 60);
-    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-/**
- * Owns the conversion modal for the duration of one file's work. Three slots:
- * main line (stable), muted format/path subtitle, muted live-status line (shows
- * reassurance text, or latest handler detail when one was reported, with a
- * ` · MM:SS` elapsed suffix once the timer has been running ≥10s).
- */
-type StatusHandle = {
-    cancel: () => void;
-    update: (detail: string) => void;
-};
-function startConversionStatus({ main, subtitle }: { main: string; subtitle: string }): StatusHandle {
-    const startedAt = Date.now();
-    let tickTimer: ReturnType<typeof setInterval> | null = null;
-    let latestDetail: string | undefined;
-    let lastHTML: string | null = null;
-    let showElapsed = false;
-
-    const render = () => {
-        const leading = latestDetail ? escapeHTML(latestDetail) : REASSURANCE_LINE;
-        const suffix = showElapsed ? ` · ${mmss((Date.now() - startedAt) / 1000)}` : "";
-        const html = [
-            main,
-            `<span class="muted-text">${escapeHTML(subtitle)}</span>`,
-            `<span class="muted-text">${leading}${suffix}</span>`,
-        ].join("<br>");
-        if (html === lastHTML) return;
-        lastHTML = html;
-        showConversionInProgress(html, _convertingTitle);
-    };
-
-    render(); // initial paint, callers no longer paint the modal themselves
-
-    const slowKick = setTimeout(() => {
-        if (isCancelled) return;
-        showElapsed = true;
-        render();
-        tickTimer = setInterval(() => {
-            if (isCancelled) { clearInterval(tickTimer!); tickTimer = null; return; }
-            render();
-        }, 1000);
-    }, 10000);
-
-    return {
-        cancel: () => {
-            clearTimeout(slowKick);
-            if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
-        },
-        update: (detail) => {
-            latestDetail = detail;
-            updateCancelProgress(detail);
-            render();
-        },
-    };
-}
-
 function showConversionFailedPopup(fromFormat: string, toFormat: string, error: UserErrorInfo) {
     // Cancellation routes through showPartialDownloadPopup; if one ever leaks
     // here, don't render it under a failure title.
     if (error.kind === "cancelled") return;
+
+    // Offline outranks every other diagnosis. The converters are fetched on
+    // first use, so with no network the failure is always the download and
+    // never the file - and "the converter isn't available yet" would send
+    // someone hunting for a problem that reconnecting fixes.
+    if (isOffline()) {
+        showAlertPopup("You're offline", escapeHTML(OFFLINE_MESSAGE));
+        return;
+    }
 
     // Suppress the muted detail line when error.message is one of the catch-all
     // strings already conveyed by the kind-specific body. Specific messages
@@ -537,6 +335,13 @@ function showConversionFailedPopup(fromFormat: string, toFormat: string, error: 
     const detail = isInformativeDetail ? `<span class="muted-text error-detail">${escapeHTML(error.message)}</span>` : "";
     const contact = `<span class="muted-text error-detail">${escapeHTML(SUPPORT_CONTACT_TEXT)}</span>`;
     const fromTo = `<b>${fromFormat}</b> to <b>${toFormat}</b>`;
+
+    // The engine, not the file. Said before anything else, because every other
+    // message here would send the user to look at their document.
+    if (error.kind === "engine_download") {
+        showAlertPopup("Couldn't download the converter", escapeHTML(error.message));
+        return;
+    }
 
     if (error.kind === "not_available") {
         showAlertPopup(
@@ -569,6 +374,95 @@ function showConversionFailedPopup(fromFormat: string, toFormat: string, error: 
         copy.failedTitle,
         `${fromTo} was interrupted. Try again, or use a smaller file.${detail}${contact}`,
     );
+}
+
+/**
+ * The one sentence the success modal says about what just happened.
+ *
+ * Pulled out of the click handler so it can be read and tested on its own -
+ * the handler around it needs a format graph, live handlers and a popup to
+ * reach this point, which is why the copy went unverified for so long.
+ *
+ * Returns HTML: the caller assigns it with innerHTML, so every interpolated
+ * value is escaped here.
+ */
+export function conversionResultText(opts: {
+    /** Files the user dropped. */
+    fileCount: number;
+    /** Files produced. Not always the same number. */
+    outCount: number;
+    firstInputName: string;
+    /** Target format, upper-cased. */
+    format: string;
+    /** "converted" / "compressed", from the active mode. */
+    verb: string;
+    /** Level the route ran at, Automatic already resolved. Null when none ran. */
+    applied: QualityPreset | null;
+    /** What the *setting* says, so Automatic can be named as Automatic. */
+    requested: string;
+    /**
+     * Whether the target format's engine reads the quality argument at all.
+     * False for containers like ZIP and for the ~35 handlers that ignore it.
+     * Defaults to true so existing callers keep their behaviour.
+     */
+    qualityApplies?: boolean;
+}): string {
+    const { fileCount, outCount, firstInputName, verb, applied, requested } = opts;
+    const qualityApplies = opts.qualityApplies ?? true;
+    const fmt = escapeHTML(opts.format);
+    const first = `<b>${escapeHTML(shortenFileName(firstInputName, 32))}</b>`;
+
+    // How many went in, and how many came out.
+    //
+    // These are not always the same number, and this used to report the output
+    // count as though it were the input one - so a single 3-page PDF converted
+    // to EPS, which the format requires to be one file per page, announced
+    // "3 files converted". The user converted one. Where they differ, say
+    // both: the second number is the surprising one, and is the whole reason
+    // this release had to document the behaviour.
+    let text: string;
+    if (outCount > fileCount) {
+        const subject = fileCount === 1 ? first : `${fileCount} files`;
+        text = `${subject} became <b>${outCount} ${fmt} files</b>, one per page, zipped up and ready to download.`;
+    } else if (outCount > 1) {
+        text = `${outCount} files ${verb} to <b>${fmt}</b> and zipped up, ready to download.`;
+    } else {
+        text = `${first} has been ${verb} to <b>${fmt}</b> and is ready to download.`;
+    }
+
+    // One clause when the conversion also compressed, and nothing at all when
+    // it did not.
+    //
+    // The Converter defaults to Original quality, so reaching this at any
+    // other level means the user went to the settings menu and asked for it.
+    // Confirming it was honoured is the least the modal can do; until now the
+    // only evidence was the file size, on the one operation where the format
+    // change moves that anyway.
+    //
+    // It names the level rather than a saving, deliberately. A PNG -> JPG is
+    // smaller because it is a JPEG, and crediting that to the compression dial
+    // would be a number the app cannot stand behind. The level is a fact about
+    // what was asked for and done. Automatic is named by the tier it resolved
+    // to *and* as Automatic, since "Balanced" alone would look like a setting
+    // the user never chose.
+    if (applied && applied !== "lossless") {
+        // Label from the shared menu, so the modal cannot call a level
+        // something the settings menu does not.
+        const label = CONVERT_QUALITY_CHOICES.find(c => c.value === applied)?.label ?? applied;
+        const suffix = requested === "auto" ? " (Automatic)" : "";
+        text += ` Compressed at <b>${escapeHTML(label)}</b>${escapeHTML(suffix)}.`;
+    } else if (!qualityApplies && requested !== "lossless") {
+        // The user went to the settings menu, chose a level, and it did
+        // nothing - because this target has no quality knob to turn. Saying so
+        // costs one clause and answers the question they are about to ask,
+        // which is why the file did not get smaller. Naming the format matters:
+        // "doesn't apply here" invites "where does it apply, then?".
+        // Pluralised rather than written "file(s) was/were": the whole point of
+        // this sentence is to be read without decoding.
+        const subject = outCount === 1 ? "file was" : "files were";
+        text += ` Compression is not available for <b>${fmt}</b> files, so the converted ${subject} not compressed.`;
+    }
+    return text;
 }
 
 // --- Main convert action ---
@@ -606,6 +500,8 @@ export function initConvertButton() {
 
             const conversionStartTime = performance.now();
             resetCancellation();
+            _lastAppliedQuality = null;
+            _lastQualityApplicable = true;
 
             const inputOption = allOptionsRef.value[selectedFromIndex.value];
             const outputOption = allOptionsRef.value[selectedToIndex.value];
@@ -616,29 +512,26 @@ export function initConvertButton() {
             const isSameFormatPick = inputFormat.mime === outputFormat.mime
                 && inputFormat.format === outputFormat.format;
 
-            const sameFormatDispatch = isSameFormatPick
-                ? resolveSameFormatHandler(inputFormat)
-                : null;
+            _convertingTitle = `Converting your ${fileCount > 1 ? "files" : "file"}`;
 
-            const isPureCompression = Boolean(sameFormatDispatch);
-            const verbLabel = isPureCompression ? "Compressing" : "Converting";
-            const verbSubText = isPureCompression ? "compress" : "convert";
-
-            _convertingTitle = `${verbLabel} your ${fileCount > 1 ? "files" : "file"}`;
-
-            setActiveConversionMode(isPureCompression ? "compress" : "convert");
+            setActiveConversionMode("convert");
 
             await waitForPaint();
 
             const startupStartTime = performance.now();
-            showConversionInProgress(`Reading your ${fileCount > 1 ? "files" : "file"}...<br><span class="conversion-path">getting ready to ${verbSubText}</span>`, _convertingTitle, "idle");
+            showConversionInProgress(`Reading your ${fileCount > 1 ? "files" : "file"}...<br><span class="conversion-path">getting ready to convert</span>`, _convertingTitle, "idle");
             await waitForPaint();
 
             const inputFileData: FileData[] = [];
-            // Files picked with input format === output format. Compressed inline
-            // by the same-format dispatcher when a compressor is available,
-            // otherwise pushed through unchanged (today's "No conversion needed"
-            // behaviour).
+            // Files picked with input format === output format. These are
+            // passed through untouched - see the loop below that pushes them
+            // straight into the outputs. Recompressing in place is the Compress
+            // surface's job, and the format modal signposts it.
+            //
+            // (This comment used to claim they were "compressed inline by the
+            // same-format dispatcher", which stopped being true when the
+            // easter egg was stripped and directly contradicted the comment 25
+            // lines down.)
             const sameFormatRaw: { name: string; bytes: Uint8Array }[] = [];
 
             for (const inputFile of inputFiles) {
@@ -656,148 +549,32 @@ export function initConvertButton() {
             // Enforce minimum startup/warming-up phase duration (includes file reading time)
             await ensureMinDuration(startupStartTime, 1200);
 
-            // slowHandle.update fans out to both the in-progress notice and
-            // (when cancel is active) the cancel popup sub-line.
-            const makeProgressSink = (status: StatusHandle) => (p: ProgressEvent) => {
-                if (typeof p.detail === "string") {
-                    status.update(p.detail);
-                }
-            };
+            // The whole event, not just `p.detail`. This used to drop `p.ratio`
+            // on the floor, which is why no surface had ever shown a percentage
+            // despite FFmpeg and Ghostscript both reporting one all along.
+            // `update` fans out to the in-progress notice and (when cancel is
+            // active) the cancel popup sub-line.
+            const makeProgressSink = (status: StatusHandle) => (p: ProgressEvent) => status.update(p);
 
-            // Runs before path-finding because the graph has no self-loops.
-            // Each file ends up in allOutputFiles with either shrunk bytes
-            // (+ originalBytes) or the original bytes when the 98% size-guard
-            // fires or the handler throws.
-
-            if (sameFormatDispatch) {
-                ensureCancelButton();
-                const { handler, args } = sameFormatDispatch;
-
-                let initOk = handler.ready;
-                if (!initOk) {
-                    try {
-                        await handler.init();
-                        initOk = handler.ready;
-                        if (initOk && handler.supportedFormats) {
-                            window.supportedFormatCache.set(handler.name, handler.supportedFormats);
-                        }
-                    } catch (e) {
-                        console.error(handler.name, "same-format init failed", e);
-                    }
-                }
-
-                const handlerInputFmt = initOk ? handlerSupportsFormat(handler, inputFormat) : null;
-                const handlerOutputFmt = initOk ? handlerSupportsFormat(handler, outputFormat) : null;
-
-                if (initOk && handlerInputFmt && handlerOutputFmt) {
-                    // Same-format loop never runs findConversionPath, so the
-                    // default `canHardCancel = true` would leak through and
-                    // show "Stopping now..." even for main-thread handlers.
-                    setCanHardCancel(!handler.requiresMainThread);
-                    const totalSame = sameFormatRaw.length;
-                    for (let i = 0; i < totalSame; i++) {
-                        if (isCancelled) break;
-                        const file = sameFormatRaw[i];
-                        setCurrentFileProgress(i + 1, fileCount);
-                        const status = startConversionStatus({
-                            main: totalSame > 1
-                                ? `Compressing file ${i + 1} of ${totalSame}...`
-                                : `Compressing your file...`,
-                            subtitle: `${inputFormat.format.toLowerCase()} compression`,
-                        });
-
-                        // Lossless inputs stay on their preset; re-encoding would lose information.
-                        let perFileArgs = args;
-                        let alreadyMinimal = false;
-                        if (!inputFormat.lossless) {
-                            const probe = await probeInputQuality(file.bytes, inputFormat.mime ?? "");
-                            const next = tierDown(probe.inputTier);
-                            if (next.kind === "skip") {
-                                alreadyMinimal = true;
-                            } else {
-                                perFileArgs = withQualityArg(args, next.tier);
-                            }
-                        }
-
-                        if (alreadyMinimal) {
-                            status.cancel();
-                            allOutputFiles.push({
-                                name: file.name,
-                                bytes: file.bytes,
-                                notices: [{
-                                    title: "Already nicely squished 🐸",
-                                    body: `${file.name} is already at minimum useful quality. Kept original to avoid further loss.`,
-                                }],
-                            });
-                            continue;
-                        }
-
-                        const originalSize = file.bytes.byteLength;
-                        let compressed: FileData | null = null;
-                        try {
-                            const result = handler.requiresMainThread
-                                ? await handler.doConvert([file], handlerInputFmt, handlerOutputFmt, perFileArgs, makeProgressSink(status))
-                                : await runInWorker(handler.name, [file], handlerInputFmt, handlerOutputFmt, perFileArgs, makeProgressSink(status));
-                            if (result && result.length && result[0].bytes.byteLength > 0) {
-                                compressed = result[0];
-                            }
-                        } catch (e) {
-                            // Cancellation rejects the worker promise as an error; don't log it
-                            // as a real failure.
-                            if (!isCancelled) console.error(handler.name, "same-format compression threw", e);
-                        }
-                        status.cancel();
-
-                        // Cancelled mid-file with no output: drop it. Don't fall through to
-                        // pushing the original bytes as if the file had been processed,
-                        // that would feed a lie into the partial-download popup.
-                        if (compressed === null && isCancelled) break;
-
-                        if (compressed && compressed.bytes.byteLength < originalSize * 0.98) {
-                            allOutputFiles.push({
-                                name: file.name,
-                                bytes: compressed.bytes,
-                                warnings: compressed.warnings,
-                                notices: compressed.notices,
-                                originalBytes: originalSize,
-                            });
-                        } else {
-                            allOutputFiles.push({ name: file.name, bytes: file.bytes });
-                        }
-                    }
-                } else {
-                    for (const f of sameFormatRaw) allOutputFiles.push(f);
-                }
-            } else {
-                for (const f of sameFormatRaw) allOutputFiles.push(f);
-            }
+            // Same-format picks convert nothing, so they pass straight
+            // through. Recompressing in place lives on the Compress surface.
+            for (const f of sameFormatRaw) allOutputFiles.push(f);
 
             if (isCancelled) return;
 
-            // Pure same-format batch: skip path-finding. Fall through to the
-            // success popup when at least one file actually shrunk; otherwise
-            // show a friendly terminal popup and bail.
+            // Same-format batch: nothing to convert, so there is no path to
+            // find. Hand back the originals.
             if (inputFileData.length === 0) {
-                const anyShrunk = allOutputFiles.some(f => f.originalBytes != null);
-                if (!(sameFormatDispatch && anyShrunk)) {
-                    await ensureMinDuration(conversionStartTime);
-                    const title = sameFormatDispatch ? "Already nicely squished 🐸" : "No conversion needed";
-                    const fmt = outputFormat.format.toUpperCase();
-                    const singleBody = sameFormatDispatch
-                        ? `Couldn't shave any more bytes off <b>${escapeHTML(shortenFileName(inputFiles[0].name, 32))}</b> without losing quality. Downloading the original.`
-                        : `<b>${escapeHTML(shortenFileName(inputFiles[0].name, 32))}</b> is already a <b>${escapeHTML(fmt)}</b> file, so there's nothing to convert. Downloading the original for you.`;
-                    const batchBody = sameFormatDispatch
-                        ? `Couldn't shave any more bytes off these <b>${fileCount} files</b> without losing quality. Downloading the originals.`
-                        : `These <b>${fileCount} files</b> are already in <b>${escapeHTML(fmt)}</b> format, so there's nothing to convert. Downloading the originals for you.`;
-                    if (fileCount === 1) {
-                        downloadFile(allOutputFiles[0].bytes, allOutputFiles[0].name);
-                        showAlertPopup(title, singleBody);
-                    } else {
-                        showAlertPopup(title, batchBody);
-                        await downloadAsZip(allOutputFiles, `original-files-${timestampForFilename()}.zip`);
-                    }
-                    return;
+                await ensureMinDuration(conversionStartTime);
+                const fmt = outputFormat.format.toUpperCase();
+                if (fileCount === 1) {
+                    downloadFile(allOutputFiles[0].bytes, allOutputFiles[0].name);
+                    showAlertPopup("No conversion needed", `<b>${escapeHTML(shortenFileName(inputFiles[0].name, 32))}</b> is already a <b>${escapeHTML(fmt)}</b> file, so there's nothing to convert. Downloading the original for you.`);
+                } else {
+                    showAlertPopup("No conversion needed", `These <b>${fileCount} files</b> are already in <b>${escapeHTML(fmt)}</b> format, so there's nothing to convert. Downloading the originals for you.`);
+                    await downloadAsZip(allOutputFiles, `original-files-${timestampForFilename()}.zip`);
                 }
+                return;
             }
 
             await waitForPaint();
@@ -835,7 +612,7 @@ export function initConvertButton() {
                 setCurrentFileProgress(fileNum, fileCount);
                 const main = `Converting file ${fileNum} of ${fileCount}...`;
 
-                const status = startConversionStatus({ main, subtitle: formatConversionPath(conversionPath) });
+                const status = startConversionStatus({ main, subtitle: formatConversionPath(conversionPath), title: _convertingTitle });
 
                 let result = await attemptConvertPath(
                     [inputFileData[i]],
@@ -867,7 +644,7 @@ export function initConvertButton() {
                         return;
                     }
                     setCanHardCancel(pathSupportsHardCancel(conversionPath));
-                    const retryStatus = startConversionStatus({ main, subtitle: formatConversionPath(conversionPath) });
+                    const retryStatus = startConversionStatus({ main, subtitle: formatConversionPath(conversionPath), title: _convertingTitle });
 
                     result = await attemptConvertPath(
                         [inputFileData[i]],
@@ -920,36 +697,20 @@ export function initConvertButton() {
             if (isCancelled) return;
 
             const isBatch = allOutputFiles.length > 1;
-            // Compression summary: built when at least one file was successfully
-            // compressed by the same-format dispatcher (`originalBytes` set).
-            const compressedFiles = allOutputFiles.filter(f => f.originalBytes != null);
-            const didCompress = compressedFiles.length > 0;
             // Title follows user intent (_activeMode), not byte shrinkage. A
             // cross-format convert that happens to shrink shouldn't rename
             // itself "File compressed!" on the success popup.
             const successTitle = isBatch ? modeCopy().successTitleBatch : modeCopy().successTitleSingle;
-            let resultText: string;
-            if (didCompress) {
-                const totals = compressedFiles.reduce(
-                    (acc, f) => ({
-                        orig: acc.orig + (f.originalBytes ?? 0),
-                        comp: acc.comp + f.bytes.byteLength,
-                    }),
-                    { orig: 0, comp: 0 },
-                );
-                const saved = totals.orig - totals.comp;
-                const pct = totals.orig > 0 ? Math.round((saved / totals.orig) * 100) : 0;
-                if (isBatch) {
-                    resultText = `<b>${compressedFiles.length} file${compressedFiles.length === 1 ? "" : "s"}</b> compressed, saved <b>${escapeHTML(formatBytes(saved))}</b> (${pct}% smaller) and is downloading now.`;
-                } else {
-                    const first = compressedFiles[0];
-                    resultText = `<b>${escapeHTML(shortenFileName(first.name, 32))}</b> is smaller now: <b>${escapeHTML(formatBytes(first.originalBytes ?? 0))} to ${escapeHTML(formatBytes(first.bytes.byteLength))}</b> (${pct}% smaller) and is downloading now.`;
-                }
-            } else {
-                resultText = isBatch
-                    ? `${allOutputFiles.length} files ${modeCopy().verb} to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and zipped up for you, downloading now.`
-                    : `<b>${escapeHTML(shortenFileName(inputFiles[0].name, 32))}</b> has been ${modeCopy().verb} to <b>${escapeHTML(outputFormat.format.toUpperCase())}</b> and is downloading now.`;
-            }
+            const resultText = conversionResultText({
+                fileCount,
+                outCount: allOutputFiles.length,
+                firstInputName: inputFiles[0].name,
+                format: outputFormat.format.toUpperCase(),
+                verb: modeCopy().verb,
+                applied: _lastAppliedQuality,
+                requested: convertQuality.value,
+                qualityApplies: _lastQualityApplicable,
+            });
 
             const h2 = document.createElement("h2");
             h2.textContent = successTitle;
@@ -1029,7 +790,14 @@ export function initConvertButton() {
 
             const actions = document.createElement("div");
             actions.className = "popup-actions-footer";
-            actions.appendChild(createPopupButton("Download again", "btn-primary", () => downloadAllConvertedFiles()));
+            // Names the result rather than the gesture. "Download again" was
+            // both wrong - nothing had been downloaded yet - and vaguer than
+            // the Compress card sitting one surface away, which has always
+            // said how many files and in what shape.
+            const dlLabel = allOutputFiles.length > 1
+                ? `Download ${allOutputFiles.length} files (.zip)`
+                : "Download";
+            actions.appendChild(createPopupButton(dlLabel, "btn-primary", () => downloadAllConvertedFiles()));
             actions.appendChild(createPopupButton("Done", "btn-secondary", () => hidePopup()));
             const popupChildren: HTMLElement[] = [h2, frogDiv, p];
             if (noticeCards.length > 0) popupChildren.push(...noticeCards);
@@ -1042,22 +810,23 @@ export function initConvertButton() {
             clearConvertSession();
             // Show confetti faster for immediate celebration. Confetti is
             // popup-anchored, so skip it if the user already dismissed.
-            setTimeout(() => {
-                if (ui.popupBox.classList.contains("open")) triggerConfetti();
-            }, 150);
+            celebrateOnPopup(ui.popupBox);
 
-            // Delay download slightly longer to let the success UI breathe.
-            // Fire unconditionally - earlier we gated on popupBox.open which
-            // produced silent file loss when fast-clickers closed the popup
-            // before 400ms. The blob URL is independent of popup lifetime.
-            setTimeout(() => downloadAllConvertedFiles(), 400);
+            // Deliberately no automatic download.
+            //
+            // A file arriving in Downloads without being asked for is a
+            // decision made on the user's behalf, in the one place they can
+            // still say no: a conversion they got wrong, a level they want to
+            // change, a batch they only wanted to look at. The button below
+            // names exactly what it will produce, so pressing it is the whole
+            // transaction and nothing happens before it.
         } catch (e) {
             if (isCancelled) return;
             console.error(e);
             const detail = toUserErrorInfo(e).message || "Something went wrong while converting this file.";
             const detailHTML = `<span class="muted-text error-detail">${escapeHTML(SUPPORT_CONTACT_TEXT)}</span>`;
             showAlertPopup(
-                "Something went wrong",
+                "Conversion failed",
                 `${escapeHTML(detail)}${detailHTML}`,
             );
         } finally {
@@ -1066,15 +835,17 @@ export function initConvertButton() {
             // can throw), but `isConverting = false` MUST run or the whole app
             // freezes in "Converting…" state with no path back.
             try {
-                // In compression mode, "successfully compressed" only describes
-                // files that actually shrunk (originalBytes set). Pass-through
-                // and already-minimal files are in allOutputFiles too but don't
-                // count, the user already has those bytes. In convert mode,
-                // every entry is a real conversion output so all of them count.
-                const isCompressionMode = getActiveConversionMode() === "compress";
-                const meaningfulFiles = isCompressionMode
-                    ? allOutputFiles.filter(f => f.originalBytes != null)
-                    : allOutputFiles;
+                // Every entry here is a real conversion output, so a cancelled
+                // run offers all of the ones that finished.
+                //
+                // This used to branch on compression mode and filter by
+                // `originalBytes`, a field nothing in the codebase has ever
+                // set - so the filter always emptied the list. It never fired
+                // because Compress does not run through this handler at all
+                // (it has its own loop and its own results card, and is the
+                // only caller of `setActiveConversionMode("compress")`). Two
+                // dead paths keyed on a dead field.
+                const meaningfulFiles = allOutputFiles;
                 const hasMeaningfulFiles = meaningfulFiles.length > 0;
                 const shouldHide = !isCancelled || !hasMeaningfulFiles;
                 await completeCancellation(shouldHide);

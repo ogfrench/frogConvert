@@ -1,8 +1,10 @@
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 import "./FormatModal.css";
-import { ui, CATEGORY_LABELS, formatDisplayName, formatMode, getFormatCategory, activeCategory, allOptionsRef, isLoadingPhase2, isLoadingHandlers, updateScrollLock, isFormatVisible, isCategoryVisible, reachableIdentifiers, selectedFromIndex } from "../store/store.ts";
+import { ui, CATEGORY_LABELS, formatDisplayName, formatMode, getFormatCategory, activeCategory, allOptionsRef, isLoadingPhase2, isLoadingHandlers, updateScrollLock, isFormatVisible, isCategoryVisible, reachableIdentifiers, selectedFromIndex, currentFiles } from "../store/store.ts";
 import { formatToIdentifier } from "../../core/TraversionGraph/TraversionGraph.ts";
-import { isSameFormatCompressible } from "../../conversion/actions.ts";
+import { isSameFormatCompressible } from "../../core/compression/resolveCompressor.ts";
+import { COMPRESS_THESE_EVENT } from "../../constants/ui.ts";
+import { AI_FLATTENING_NOTICE } from "../../core/ghostscript/postscriptInput.ts";
 
 // --- Format modal ---
 
@@ -94,7 +96,11 @@ export function initFormatModal(
 
   ui.formatSearch.addEventListener("input", () => {
     clearTimeout(_searchTimeout);
-    _searchTimeout = setTimeout(() => filterFormats(ui.formatSearch.value), 80);
+    // The input is held, not resolved again inside the debounce, for the same
+    // reason the confetti timer holds its popup: `ui` reaches through to the
+    // document, and a timer can outlive it.
+    const input = ui.formatSearch;
+    _searchTimeout = setTimeout(() => filterFormats(input.value), 80);
   });
 
   ui.formatOptions.addEventListener("click", (e) => {
@@ -105,7 +111,12 @@ export function initFormatModal(
     }
   });
 
-  ui.formatModalBg.addEventListener("click", () => closeFormatModal());
+  // Backdrop dismissal is `ModalManager`'s, not this module's. It kept its own
+  // listener from before the manager had one, so after backdrop dismissal went
+  // app-wide a single click ran both: the bespoke handler closed this modal
+  // and popped it off the stack, then the manager's handler called `closeTop`
+  // against whatever was left - which is the modal *underneath* when this one
+  // is stacked. One gesture, one owner.
   ui.formatModalClose.addEventListener("click", () => closeFormatModal());
 
   // Arrow-key navigation across the visible format-option list. The list can
@@ -176,10 +187,11 @@ export function clearFormatSelection(activeCategory: string = "") {
 }
 
 /**
- * Compression helper line shown under the Convert button when the user
- * picks the same format for input and output AND that format supports
- * same-format compression (see `resolveSameFormatHandler`). Lazy-created
- * on first use so it only enters the DOM for users who hit the feature.
+ * Same-format notice under the Convert button. Picking one format for both
+ * sides converts nothing, so say that plainly up front and label the action
+ * for what it actually does - hand the file back untouched - rather than
+ * letting the user press "Convert" and discover it afterwards.
+ * Lazy-created so it only enters the DOM for users who hit the case.
  */
 let _convertHintEl: HTMLSpanElement | null = null;
 function ensureConvertHint(): HTMLSpanElement {
@@ -194,34 +206,94 @@ function ensureConvertHint(): HTMLSpanElement {
   return el;
 }
 
+/**
+ * What the Convert button says while it cannot yet be pressed.
+ *
+ * It used to say "Loading formats…", which is wrong twice. The formats are
+ * already on screen - you can open the picker and choose PNG - so a user who
+ * has just done that reads a button claiming to be loading the thing they are
+ * looking at. What is actually still arriving is the converter code, tens of
+ * megabytes of it, fetched in the background.
+ *
+ * On a slow connection this state lasts a long time, and "loading" with no
+ * subject and no motion is indistinguishable from frozen. Naming the download,
+ * and saying plainly when there is no connection to download over, is the
+ * whole fix - there is no progress number to give, because the handlers arrive
+ * as a set of independent chunks.
+ */
+function waitingLabel(): string {
+    if (!isLoadingHandlers.value) return "Convert";
+    // `navigator.onLine` false is reliable (no network interface); true is a
+    // hint only. Used in that direction, it is worth stating: the download
+    // this button is waiting on cannot possibly finish.
+    const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    return offline ? "Offline - can't finish downloading" : "Downloading converters…";
+}
+
 export function updateConvertButtonState(selectedFromIndex: number | null, selectedToIndex: number | null) {
   const hint = ensureConvertHint();
-  let showCompress = false;
-  let formatLabel = "";
+  const bothPicked = selectedFromIndex !== null && selectedToIndex !== null;
+  let samePick = false;
 
-  if (selectedFromIndex !== null && selectedToIndex !== null) {
+  if (bothPicked) {
     ui.convertButton.classList.remove("disabled");
     const fromOpt = allOptionsRef.value[selectedFromIndex];
     const toOpt = allOptionsRef.value[selectedToIndex];
-    const samePick = fromOpt && toOpt
+    samePick = !!(fromOpt && toOpt
       && fromOpt.format.mime === toOpt.format.mime
-      && fromOpt.format.format === toOpt.format.format;
-    showCompress = !!(samePick && isSameFormatCompressible(toOpt.format));
-    if (showCompress) formatLabel = toOpt.format.format.toUpperCase();
-    if (showCompress) {
-      ui.convertButton.innerHTML = `<span class="convert-strike">Convert</span> Compress`;
-    } else {
-      ui.convertButton.textContent = "Convert";
-    }
+      && fromOpt.format.format === toOpt.format.format);
+    // Honest label: this path returns the input unchanged.
+    ui.convertButton.textContent = samePick ? "Download original" : "Convert";
   } else {
     ui.convertButton.classList.add("disabled");
-    ui.convertButton.textContent = isLoadingHandlers.value ? "Loading formats…" : "Convert";
+    ui.convertButton.textContent = waitingLabel();
   }
+  // A breathing button, only while it is genuinely waiting on a download.
+  // Without it the disabled grey reads as broken rather than busy - which is
+  // exactly how it reads on a slow connection, where this state can last a
+  // minute or more with nothing on screen changing.
+  ui.convertButton.classList.toggle("is-waiting", !bothPicked && isLoadingHandlers.value);
 
-  ui.convertButton.classList.toggle("compress-mode", showCompress);
-
-  if (showCompress) {
-    hint.textContent = `${formatLabel} \u2192 ${formatLabel}? This will compress it, not convert it. Available for select formats.`;
+  if (samePick) {
+    // Two different situations share this signpost. If Compress can shrink
+    // this format, the user who picked png->png almost certainly wanted it
+    // smaller, so point them at the surface built for exactly that instead of
+    // leaving them at a dead end. Only when no compressor exists is "you'll
+    // get it back unchanged" the whole story.
+    hint.textContent = "";
+    // samePick implies bothPicked, but TS cannot see through the boolean.
+    const fromOpt = selectedFromIndex !== null ? allOptionsRef.value[selectedFromIndex] : undefined;
+    const compressible = fromOpt
+      ? isSameFormatCompressible(fromOpt.format, allOptionsRef.value)
+      : false;
+    if (compressible) {
+      hint.append("Same format in and out, so there's nothing to convert. Want it smaller? ");
+      const go = document.createElement("button");
+      go.type = "button";
+      go.className = "convert-hint-action";
+      go.textContent = "Open Compress";
+      // Carry the batch across. Sending the user to an empty Compress card
+      // makes them pick the same files a second time, which reads as the
+      // button having done nothing - the files are the whole reason they are
+      // being offered the trip.
+      go.addEventListener("click", () => {
+        closeFormatModal();
+        window.dispatchEvent(new CustomEvent(COMPRESS_THESE_EVENT, {
+          detail: { files: currentFiles.value.slice() },
+        }));
+      });
+      hint.append(go);
+    } else {
+      hint.append("Same format in and out, so there's nothing to convert. You'll get your file back unchanged.");
+    }
+    hint.hidden = false;
+  } else if (bothPicked && isIllustratorInput(selectedFromIndex)) {
+    // #19 requires AI's lossiness to be stated "wherever it is offered", and
+    // this is the last moment before the user commits. The conversion is a
+    // good one - the artwork comes across whole - so this is a note, not a
+    // warning, and it reuses the hint slot rather than a dismissable banner
+    // that a returning user would never see again.
+    hint.textContent = AI_FLATTENING_NOTICE;
     hint.hidden = false;
   } else {
     hint.hidden = true;
@@ -229,6 +301,12 @@ export function updateConvertButtonState(selectedFromIndex: number | null, selec
   }
 
   updateLibreofficeNoticeVisibility(selectedFromIndex, selectedToIndex);
+}
+
+/** True when the chosen input is an Illustrator file, whatever it converts to. */
+function isIllustratorInput(fromIdx: number | null): boolean {
+  if (fromIdx === null) return false;
+  return allOptionsRef.value[fromIdx]?.format.format === "ai";
 }
 
 /**

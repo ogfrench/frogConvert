@@ -12,7 +12,19 @@ It handles the operations most people reach for a paid tool to do: merging, reor
 
 ## Switching to editor mode
 
-The top bar has a **Converter / PDF Editor** pill toggle. Click **PDF Editor** to swap the workspace. Your app URL updates to `/pdf` so you can bookmark or share the editor directly.
+The top bar's mode control opens a menu with **Converter**, **PDF Editor** and **Compress**. Pick **PDF Editor** to swap the workspace. Your app URL updates to `/pdf` so you can bookmark or share the editor directly.
+
+Shrinking a PDF *without* editing it lives in the [Compress](COMPRESS.md) mode. The editor can also compress what it saves as an optional final step; see [Shrinking a saved PDF](#shrinking-a-saved-pdf) below.
+
+## Managing the file list
+
+Every tab's sidebar lists the loaded files, and carries the same three actions wherever it appears (desktop panel or the phone tray):
+
+- **`+ Add`**, below the list, appends more files.
+- **Replace all**, in the count row, swaps the whole list for a fresh pick. Cancelling the picker changes nothing.
+- **Clear**, beside it, empties the editor and returns you to the drop zone. It asks first, because page order, rotations and watermark settings go with the files.
+
+Individual files carry an `x` on their row. On Merge, selecting cards also grows a **Remove N files** button for the selection.
 
 ## What you can do
 
@@ -43,9 +55,9 @@ Reshape a single PDF at the page level. Extract is a sub-mode of the same tab, n
 Stamp a text watermark across selected pages, drawn at the page center or tiled across the whole page.
 
 1. Drop one or more PDFs onto the workspace and switch to the **Watermark** tab.
-2. Type the watermark text (default `CONFIDENTIAL`).
-3. Adjust style: size, color, opacity, rotation. Toggle **Repeat across page** to tile the watermark across the page with internally-computed spacing.
-4. Choose **Pages** by typing a range like `1-3, 8, 10-12`. With multiple files the range is over the flattened page sequence (file A's pages first, then file B, etc.). **Select all** fills `1-N`; **Deselect all** clears.
+2. Choose **Pages** by typing a range like `1-3, 8, 10-12`. With multiple files the range is over the flattened page sequence (file A's pages first, then file B, etc.). **Select all** fills `1-N`; **Deselect all** clears.
+3. Type the watermark text (default `CONFIDENTIAL`).
+4. Adjust style: size, color, opacity, rotation. Toggle **Repeat across page** to tile the watermark across the page with internally-computed spacing.
 5. The preview is the actual output for the page being viewed; it updates as you adjust settings.
 6. Click **Export PDF**. With multiple files you'll be asked whether to produce one combined PDF or one watermarked PDF per source file (per-source delivers a zip).
 
@@ -80,11 +92,19 @@ The tab bar (`Merge` / `Organize` / `Watermark`) supports `Arrow Left` / `Arrow 
 - **Size**: limited only by your device memory. Large PDFs (hundreds of pages) render thumbnails lazily to stay responsive.
 - **Output**: one or more `.pdf` files, saved via your browser's standard download flow. Merge, Organize, and Extract always produce a single PDF. Watermarking multiple files at once offers a choice: one combined PDF, or one watermarked PDF per source (delivered as a zip).
 
+## Shrinking a saved PDF
+
+The **PDF compression** control at the bottom of the settings menu (the control is titled for whichever mode you are in) defaults to **Original quality** - merging and watermarking are edits, not exports, so by default you get back exactly the document the editor built.
+
+Set it to anything else and every save (merge, organize, watermark, extract) runs its finished PDF through Ghostscript on the way to the download, at the same levels and with the same 98% keep-threshold the [Compress](COMPRESS.md) surface uses. If the result wouldn't be meaningfully smaller, or the engine can't run at all, the step is skipped and you get the uncompressed PDF - a completed edit is never lost to an optional extra.
+
+Note that this only resamples **images**. A PDF that is mostly text won't shrink much at any level; see [COMPRESS.md § PDF compression, honestly](COMPRESS.md#pdf-compression-honestly).
+
 ## Known caveats
 
 - **Safari**: Safari's JS engine has trouble with `pdfjs-dist` rendering for PDF input. A fallback path is in place so the editor still works, but thumbnail generation may be slower than in Chrome or Firefox.
-- **Forms and annotations**: not yet supported. Form-fill, digital signatures, and annotations are out of scope for the current editor; the focus is structural edits (merge, reorder, rotate, extract).
-- **Encrypted PDFs**: password-protected PDFs are not supported. Remove the password first using another tool.
+- **Forms and annotations**: not yet supported. Form-fill, digital signatures, and annotations are out of scope for the current editor; the focus is structural edits (merge, reorder, rotate, extract). Beyond "not supported", one behaviour is worth knowing before you merge something you care about: **merging a fillable PDF drops its form fields**. Measured on a 1-page AcroForm with three fields (`Name`, `Check`, `Submit`) merged with a 4-page document - the output has all 5 pages and the fields render as flat content, no longer fillable. Watermark and Organize keep them, because they write to the pages you already have rather than copying them into a new document. If you need the form to stay a form, watermark or reorder it, but merge it last (or not at all).
+- **Encrypted PDFs**: password-protected PDFs are not supported. Merge, Organize, Watermark and Extract each decline one with a message naming the file; remove the password with another tool first. The refusal is explicit on purpose. Until v3.0.0 the editor loaded these files with encryption ignored, which suppresses the error without supplying a password, so the pages copied across structurally intact and completely blank - measured on a merge of a protected file with a 4-page document, the output had all 5 pages and page 1 carried zero characters, with nothing on screen to say so.
 
 ## Privacy
 
