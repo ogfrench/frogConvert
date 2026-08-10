@@ -83,7 +83,9 @@ describe("Compress, end to end, in a browser", () => {
     afterAll(async () => {
         await browser?.close();
         server?.httpServer?.close();
-    });
+        // Chrome's process-tree teardown on Windows regularly exceeds vitest's
+        // 10s default hook timeout even when close() itself is well-behaved.
+    }, 30_000);
 
     async function openCompress() {
         await page.goto(base + "/", { waitUntil: "networkidle2" });
