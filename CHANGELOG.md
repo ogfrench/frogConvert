@@ -150,6 +150,7 @@ Adding a real PDF engine paid for two things beyond compression: **PostScript, E
 - On an already-lean WebM source the two lowest compression levels converge, because libvpx will not encode below roughly 900 kbps at 1080p. The encoder's floor rather than a defect, and it never inflates. The level's target is also taken from the *container* bitrate and spent on the video stream, so "no level exceeds its input" is what every measured source did, not a hard guarantee for one where audio carries most of the bitrate.
 - Cancelling a Compress batch during the degraded canvas PDF fallback (which only runs when Ghostscript is unreachable) waits for that one file: it is a main-thread handler, so there is nothing to terminate.
 - The whole batch is held in memory.
+- Merging a fillable PDF drops its AcroForm fields: the pages survive and the field content renders as flat page content, but it is no longer a form. Watermark and Organize keep the fields, because they write to the pages that already exist rather than copying them into a new document. Measured on a 1-page form with three fields merged with a 4-page document.
 - The Compress drop zone filters on MIME type alone, so a few image types that have no same-format compressor (HEIC, AVIF) are accepted and then reported *can't compress this* per file. Erring this way is deliberate: the authoritative answer needs the handler registry, which loads later, and over-rejecting at the door would turn away files that can in fact be compressed.
 
 ---

@@ -28,6 +28,7 @@
     "build": "bun x tsc && bun x vite build",
     "test": "bun x vitest run",
     "test:watch": "bun x vitest",
+    "test:corpus": "FROG_CORPUS=1 bun x vitest run test/e2e/corpus-*.test.ts",
     "cache:build": "bun run scripts/buildCache.js dist/cache.json --minify",
     "cache:build:dev": "bun run scripts/buildCache.js dist/cache.json",
     "cache:refresh": "bun run scripts/buildCache.js public/cache.json --minify",
