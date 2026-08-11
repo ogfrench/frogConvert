@@ -168,25 +168,34 @@ describe.skipIf(!ready)(`REST API against the real corpus [${CORPUS_REASON}; ${M
         expect(file.base64Bytes).toBe("");
     }, 600_000);
 
-    /**
-     * Characterization, not a guarantee.
-     *
-     * A zero-byte file posted as multipart is rejected with "Missing 'file'
-     * field (must be a file upload)" - and the field was not missing. Bun's
-     * multipart parser drops the `filename` from a part with no content
-     * (verified: a 1-byte part arrives with `name: "one.pdf"`, a 0-byte part
-     * arrives with `name: undefined`), and `asUpload` requires a name.
-     *
-     * So the 400 is the route defending itself correctly and describing the
-     * problem wrongly. It is recorded here rather than fixed because the JSON
-     * path - which is what an agent compressing a batch actually uses - handles
-     * the same file correctly, and because the message is the only thing at
-     * fault. When it is fixed this test goes red, which is the point.
-     */
-    it("rejects a zero-byte multipart upload, with a misleading reason (known)", async () => {
+    it("rejects a zero-byte multipart upload for the reason that is actually true", async () => {
+        // This used to answer "Missing 'file' field (must be a file upload)"
+        // and the field was not missing. Bun's multipart parser drops the
+        // `filename` from a part with no content - measured: a 1-byte part
+        // arrives as `name: "one.pdf"`, a 0-byte part as `name: undefined` -
+        // and the format is derived from the name, so the file arrives
+        // unnameable rather than absent. The 400 is right; "missing" sent the
+        // caller to inspect a form that had nothing wrong with it.
         const res = await postFile(api.base, "/compress", corpusFile("adversarial/zero.pdf")!);
         expect(res.status).toBe(400);
-        expect(JSON.parse(Buffer.from(res.bytes).toString()).error).toMatch(/Missing 'file' field/);
+
+        const { error } = JSON.parse(Buffer.from(res.bytes).toString());
+        expect(error).toMatch(/without a filename/i);
+        expect(error, "the reply should point at the body shape that handles this file")
+            .toMatch(/base64Bytes/);
+        expect(error, "the field was present; do not call it missing").not.toMatch(/Missing 'file'/);
+    }, 600_000);
+
+    it("still says 'missing' when the file field really is missing", async () => {
+        // The other half of the same branch. Making the empty-upload message
+        // accurate is only worth anything if the genuinely-absent case did not
+        // inherit it.
+        const form = new FormData();
+        form.append("level", "medium");
+        const res = await fetch(`${api.base}/compress`, { method: "POST", body: form });
+
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toMatch(/Missing 'file' field/);
     }, 600_000);
 
     it("never returns a larger file, at any level", async () => {
