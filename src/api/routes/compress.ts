@@ -82,10 +82,11 @@ export async function handleCompress(
             return Response.json({ error: "Failed to parse multipart form data" }, { status: 400 });
         }
 
-        const file = asUpload(formData.get("file"));
+        const raw = formData.get("file");
+        const file = asUpload(raw);
         const level = parseLevel(formData.get("level") ?? undefined);
         if (!file) {
-            return Response.json({ error: "Missing 'file' field (must be a file upload)" }, { status: 400 });
+            return Response.json({ error: describeMissingUpload(raw) }, { status: 400 });
         }
         if (level === null) return Response.json({ error: LEVEL_ERROR }, { status: 400 });
         if (file.size > MAX_UPLOAD_BYTES) {
@@ -170,6 +171,35 @@ export async function handleCompress(
  * get the bytes, so that is what is checked. The realm the object came from is
  * not information worth acting on.
  */
+/**
+ * Say which of the two ways an upload can be unusable actually happened.
+ *
+ * "Missing 'file' field" was returned for both, and for a zero-byte upload it
+ * is simply untrue - the field was there. Bun's multipart parser drops the
+ * `filename` from a part with no content (measured: a 1-byte part arrives as
+ * `name: "one.pdf"`, a 0-byte part as `name: undefined`), and the format is
+ * derived from the name, so an empty file arrives unnameable rather than
+ * absent. Telling the caller it was missing sends them to inspect their form
+ * construction, where there is nothing to find.
+ *
+ * A 400 is still the right answer: with no name there is no extension, and
+ * with no extension there is no format to route to an engine. What changes is
+ * that the reply now names the real problem and points at the body shape that
+ * handles this file correctly.
+ */
+function describeMissingUpload(value: unknown): string {
+    const looksLikeUpload = !!value
+        && typeof value === "object"
+        && typeof (value as { arrayBuffer?: unknown }).arrayBuffer === "function";
+    if (!looksLikeUpload) {
+        return "Missing 'file' field (must be a file upload)";
+    }
+    return "The 'file' upload arrived without a filename, so its format cannot be "
+        + "determined. A zero-byte file looks exactly like this over multipart. "
+        + "Send a non-empty file, or use a JSON body ('fileName' and 'base64Bytes'), "
+        + "which handles empty files and reports them as a 0% saving.";
+}
+
 function asUpload(value: unknown): { name: string; size: number; arrayBuffer: () => Promise<ArrayBuffer> } | null {
     if (!value || typeof value !== "object") return null;
     const candidate = value as { name?: unknown; size?: unknown; arrayBuffer?: unknown };
