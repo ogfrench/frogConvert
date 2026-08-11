@@ -23,6 +23,20 @@ function apiServerPlugin() {
     name: 'api-server',
     apply: 'serve',  // dev mode only
     async configureServer(server) {
+      // `apply: 'serve'` is not narrow enough: Vitest builds a Vite server in
+      // serve mode, so every `vitest run` was silently spawning a full API
+      // server on port 3000 plus the headless Chromium its bridge warms up.
+      //
+      // Nothing in the suite wants either. What it cost: a fixed port held for
+      // the length of every run, so a second run - or a `bun run dev` in
+      // another terminal - made the child die on EADDRINUSE with a bare "Fatal
+      // error", which reads like a test failure and is not one; a Chromium
+      // launched per run for nobody; and the "something prevents Vite server
+      // from exiting" warning plus a 10s teardown stall that has been on the
+      // end of every run for months. The API's own tests spawn what they need
+      // on an ephemeral port (test/helpers/corpusAgents.ts).
+      if (process.env.VITEST) return;
+
       // Probe existing API server first - skip spawn if already running.
       // Verify it's actually a frogConvert API (not some unrelated service
       // happening to answer /health with 200) by checking the body shape.
