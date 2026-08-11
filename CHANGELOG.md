@@ -8,6 +8,17 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Nothing here changes the app. Both entries are about the test suite, and the second one is a defect that had been shaping every run for months.
+
+### Fixed
+- **`vitest run` no longer boots an API server and a headless Chromium.** The dev-server plugin in `vite.config.js` is marked `apply: 'serve'`, which reads as "dev only" and is not - Vitest builds a Vite server in serve mode too, so every test run spawned a full API server on the fixed port 3000 plus the Chromium its bridge warms up. The costs were all misattributed: a second run, or a `bun run dev` in another terminal, made the spawned child die on `EADDRINUSE` printing a bare "Fatal error" that reads exactly like a test failure; and the `something prevents Vite server from exiting` warning with its 10-second teardown stall, on the end of every run since the plugin was added, was that child holding the runner open. A bare test file went from 3.96s to 236ms. [vite.config.js](vite.config.js), guarded by [test/viteConfig.test.ts](test/viteConfig.test.ts).
+
+### Added
+- **The corpus suites reach REST and MCP.** [test/e2e/corpus-api.test.ts](test/e2e/corpus-api.test.ts) and [test/e2e/corpus-mcp.test.ts](test/e2e/corpus-mcp.test.ts), sharing [test/helpers/corpusAgents.ts](test/helpers/corpusAgents.ts). The four existing corpus suites all drive the browser; the agent surfaces had only route tests against fake handlers and synthetic bytes, so no real file had ever been through either. These put the same corpus and the same weighed-byte assertions through both, and cover what only these surfaces have: bytes read from and written to disk, base64 in both directions, the `-compressed` sibling names a batch invents, and the guarantee that "I could not compress this" writes the original file rather than nothing. The API is spawned on an ephemeral port rather than its default 3000, because vitest runs files in parallel workers and a fixed port there fails as an unexplained connection refusal inside a child process. Opt-in behind `FROG_CORPUS=1` like the rest; `bun run test:corpus` runs all six.
+- **The two agent surfaces are checked against each other.** Both are thin wrappers over `compressForAgents`, and each was previously only ever compared against itself, so one of them drifting to different options would have gone unnoticed. Compared by size, page count and extracted text rather than bytes: Ghostscript stamps an XMP `ModifyDate`, so the same file compressed twice a second apart already differs.
+
 ## [3.0.0] - 2026-08-08
 
 Compression becomes a first-class feature. It was previously invisible - every conversion quietly applied a `medium` preset, and the only user-facing compression was a same-format easter egg in the Convert card. There is now a dedicated **Compress** mode, PDFs can actually be compressed, and the setting that was always being applied is now something you can see and change.
