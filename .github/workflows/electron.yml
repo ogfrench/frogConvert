@@ -88,7 +88,17 @@ jobs:
           # rolling release tracks the newest tag without a manual click. Use
           # overwrite_files so a re-run on the same tag replaces stale binaries
           # rather than uploading duplicates side-by-side.
-          generate_release_notes: true
+          # One job, and only one, generates the notes.
+          #
+          # This step runs once per matrix leg, and each leg that asks for
+          # generated notes APPENDS another copy to the release body rather
+          # than replacing it. v3.0.0 shipped with "What's Changed" and its
+          # changelog link printed three times over - once per platform - which
+          # is the first thing anyone sees on the release page. Pinning it to a
+          # single leg gives exactly one copy regardless of which platform
+          # finishes first: whoever creates the release leaves the body alone,
+          # and linux fills it in whenever it gets there.
+          generate_release_notes: ${{ matrix.platform == 'linux' }}
           draft: false
           make_latest: "true"
           overwrite_files: true
