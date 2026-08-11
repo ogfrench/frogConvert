@@ -26,7 +26,6 @@ import { hasFullRegistry, MISSING_DEPS_REASON } from "../helpers/optionalDeps.ts
  */
 const ROOT = path.resolve(__dirname, "../..");
 const ELECTRON_BIN = path.join(ROOT, "node_modules/electron/dist/electron");
-const DEBUG_PORT = 9422;
 
 function which(cmd: string): boolean {
     const dirs = (process.env.PATH ?? "").split(path.delimiter);
@@ -65,24 +64,72 @@ describe.skipIf(!canRun)(`Electron desktop app [${WHY}]`, () => {
             "-a", "--server-args=-screen 0 1280x800x24",
             ELECTRON_BIN, "--no-sandbox",
             `--user-data-dir=${profile}`,
-            `--remote-debugging-port=${DEBUG_PORT}`, ".",
+            // Port 0, and read back what Chromium chose. A fixed port is a
+            // shared resource: an Electron left behind by an earlier run - CI
+            // logs "Terminate orphan process: (electron)" on the way out - is
+            // still holding it, and `connect` would attach to THAT browser and
+            // drive somebody else's window. Chromium writes the assigned port
+            // to DevToolsActivePort in the profile directory, which is a fresh
+            // temp dir per run, so there is nothing to collide with.
+            "--remote-debugging-port=0", ".",
         ], { cwd: ROOT, stdio: "ignore", detached: true });
 
-        // Poll for the DevTools endpoint rather than sleeping a fixed amount.
-        const deadline = Date.now() + 90_000;
+        const portFile = path.join(profile, "DevToolsActivePort");
+        const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+        // Phase 1: the endpoint. Polled rather than slept on.
+        const endpointBy = Date.now() + 120_000;
+        let port = 0;
+        for (;;) {
+            // First line is the port, second the browser's WS path.
+            if (fs.existsSync(portFile)) {
+                const first = fs.readFileSync(portFile, "utf8").split("\n")[0].trim();
+                if (first && Number(first) > 0) { port = Number(first); break; }
+            }
+            if (Date.now() > endpointBy) {
+                throw new Error(`Electron never wrote ${portFile}; it did not start.`);
+            }
+            await sleep(250);
+        }
+
+        const connectBy = Date.now() + 120_000;
         for (;;) {
             try {
                 browser = await puppeteer.connect({
-                    browserURL: `http://127.0.0.1:${DEBUG_PORT}`,
+                    browserURL: `http://127.0.0.1:${port}`,
                     defaultViewport: null,
                 });
                 break;
             } catch (err) {
-                if (Date.now() > deadline) throw err;
-                await new Promise(r => setTimeout(r, 1000));
+                if (Date.now() > connectBy) throw err;
+                await sleep(1000);
             }
         }
-        page = (await browser.pages())[0];
+
+        // Phase 2: a window to actually drive.
+        //
+        // These are two separate events and the gap between them is wide.
+        // Measured here: DevToolsActivePort appears about a second after spawn,
+        // while the BrowserWindow takes appreciably longer - the main process
+        // opens the endpoint before it creates anything to look at. Taking
+        // `pages()[0]` straight after connecting therefore reads `undefined`
+        // whenever the machine is busy enough, and every test in the file then
+        // dies on `Cannot read properties of undefined (reading 'goto')`, which
+        // names neither the missing window nor the race that lost it. That is
+        // exactly how this suite went red in CI while passing locally.
+        const windowBy = Date.now() + 120_000;
+        for (;;) {
+            const pages = await browser.pages();
+            if (pages.length > 0) { page = pages[0]; break; }
+            if (Date.now() > windowBy) {
+                throw new Error(
+                    "Electron opened its DevTools endpoint but never created a window " +
+                    "within 120s. The app started and its main process did not get as " +
+                    "far as a BrowserWindow - check src/electron.cjs, not this test.",
+                );
+            }
+            await sleep(500);
+        }
     }, 600_000);
 
     afterAll(async () => {
