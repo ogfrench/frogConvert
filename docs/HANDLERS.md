@@ -154,7 +154,7 @@ Some conversions produce multiple outputs (frame extraction from animated GIF, v
 
 ### Post-conversion notices
 
-If a handler auto-adapts to fit a ceiling (e.g. PDF shrunk to stay under the memory cap, video-to-GIF trimmed to a duration cap, video frames sampled adaptively, sample rate snapped to a codec's whitelist), report it with a structured notice. Import the helper:
+If a handler auto-adapts to fit a ceiling (e.g. PDF compressed to stay under the memory cap, video-to-GIF trimmed to a duration cap, video frames sampled adaptively, sample rate snapped to a codec's whitelist), report it with a structured notice. Import the helper:
 
 ```ts
 import { attachNotice, API_DOCS_ACTION, fmtDuration } from "../core/compression/notices.ts";

@@ -18,7 +18,7 @@ This file is the **single source of truth** for agent rules. Do not duplicate th
 
 1. **Conversion pipeline** - TraversionGraph route finder plus FormatHandlers. Any format-to-format transformation (image to video, docx to pdf, etc.). 70+ formats supported. This subsystem originates from the [Convert to it!](https://github.com/p2r3/convert) fork.
 2. **PDF Workspace** - an in-browser PDF editor (merge, reorder, rotate, extract, watermark). **frogConvert-original, not part of the fork.** Parallel to the conversion pipeline; does **not** use FormatHandlers.
-3. **Compression engine** - [src/core/compression/](src/core/compression/) plus the Compress surface at `/compress`. Shrinks a file *without changing its format* (images, audio, video, PDF). **frogConvert-original.** It reuses FormatHandlers as engines but is not a conversion: same format in, same format out. Read [docs/COMPRESS.md](docs/COMPRESS.md).
+3. **Compression engine** - [src/core/compression/](src/core/compression/) plus the Compress surface at `/compress`. Compresses a file *without changing its format* (images, audio, video, PDF). **frogConvert-original.** It reuses FormatHandlers as engines but is not a conversion: same format in, same format out. Read [docs/COMPRESS.md](docs/COMPRESS.md).
 
 The MCP server and local REST API expose **all three**: `list_formats`, `find_conversion_path`, `convert_file` for the conversion pipeline, `pdf_merge`, `pdf_organize`, `pdf_extract`, `pdf_watermark` for the PDF editor, and compression via `convert_file`'s `quality` argument when input and output format match. REST routes mirror each MCP tool.
 

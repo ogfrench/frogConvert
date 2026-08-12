@@ -51,7 +51,7 @@ One control, four choices. The vocabulary is quality-forward - it names what the
 
 For calibration: Squoosh ships at quality 75 by default, and the aggressive presets in tools like iLoveIMG and TinyPNG sit near 65 and resize as well. **Smallest file** is deliberately in that company. **High quality** never resizes, so it stays a true "just re-encode it" option.
 
-There is deliberately **no "lossless" level here**. As a compression level it can only mean "do nothing": it targets quality 100 with no resize, so re-encoding an already-compressed file comes back *larger* and the keep-threshold discards it. The level would reliably accomplish nothing, so it isn't offered. (The Converter's own setting does include **Original quality**, because "convert this without shrinking it" is a real request.)
+There is deliberately **no "lossless" level here**. As a compression level it can only mean "do nothing": it targets quality 100 with no resize, so re-encoding an already-compressed file comes back *larger* and the keep-threshold discards it. The level would reliably accomplish nothing, so it isn't offered. (The Converter's own setting does include **Original quality**, because "convert this without compressing it" is a real request.)
 
 ### How Automatic works
 
@@ -65,7 +65,7 @@ Automatic doesn't apply a fixed tier. It runs three steps per file:
 
 This is why two files dropped together can come out at different levels, and why Automatic is the default: it's the right answer when the user has no opinion.
 
-**Automatic aims for a reliable win, not the biggest one.** If you want to push harder, say so with an explicit level - and note that an explicit level is never second-guessed. The probe only ever *chooses* on your behalf; it will not refuse a level you picked yourself, because whether a file can still shrink is a guess until the engine has actually tried.
+**Automatic aims for a reliable win, not the biggest one.** If you want to push harder, say so with an explicit level - and note that an explicit level is never second-guessed. The probe only ever *chooses* on your behalf; it will not refuse a level you picked yourself, because whether a file can still be compressed is a guess until the engine has actually tried.
 
 One definition backs all of this: `src/core/compression/automatic.ts`. The Converter, Compress and the MCP/REST entry point all call it, so the three surfaces cannot drift apart or miss a new per-format rule.
 
@@ -110,20 +110,20 @@ The same status line, from the same module (`src/conversion/progressStatus.ts`),
 
 Each row shows the outcome for one file. The wording is deliberate:
 
-- **−36%** - it shrank, and the smaller file is what you download.
+- **−36%** - it got smaller, and the smaller file is what you download.
 - **no gain** - the re-encode came back within 2% of the original, so the **original** is kept. Nothing was degraded for a rounding error.
 - **already compressed** - it was at minimum useful quality already, so it was never re-encoded.
 - **can't compress this** - no compressor for that format. The file is never opened, so it is not in the download either; your copy on disk is the only one there has ever been.
 - **stopped** - you pressed Stop. Either this file was never reached, or it was the one in flight and was abandoned. Your original is untouched either way.
 - **failed** - the engine errored. The original is kept.
 
-A batch reports the total saved across only the files that actually shrank. When that saving is real but rounds to zero against the batch total - a win on one small file next to a large untouched one - it reads *under 1% smaller* rather than the nonsensical *0% smaller*.
+A batch reports the total saved across only the files that actually got smaller. When that saving is real but rounds to zero against the batch total - a win on one small file next to a large untouched one - it reads *under 1% smaller* rather than the nonsensical *0% smaller*.
 
 Stop abandons the file being compressed rather than waiting for it to finish - the moment you most want out is usually a large video, which is exactly the case that used to make you wait. Everything already compressed is kept and downloadable, and the interrupted file is reported *stopped*, not *failed*: it is your decision, not our error.
 
 ### Download names
 
-A shrunk file downloads as `name-compressed.ext`, so it stays distinguishable from its source once both sit in the same folder ("photo (1).png" says nothing; "photo-compressed.png" does). Files that passed through untouched keep their original names - they *are* the originals. Files that were never opened at all (a format with no compressor, or one you stopped before it was reached) are listed in the results with their reason but left out of the archive: you already have them, byte for byte. Multi-file results arrive as `compressed-<timestamp>.zip`, timestamped so repeated runs never collide.
+A compressed file downloads as `name-compressed.ext`, so it stays distinguishable from its source once both sit in the same folder ("photo (1).png" says nothing; "photo-compressed.png" does). Files that passed through untouched keep their original names - they *are* the originals. Files that were never opened at all (a format with no compressor, or one you stopped before it was reached) are listed in the results with their reason but left out of the archive: you already have them, byte for byte. Multi-file results arrive as `compressed-<timestamp>.zip`, timestamped so repeated runs never collide.
 
 ## PDF compression, honestly
 
@@ -164,7 +164,7 @@ The second file gets *bigger* at both aggressive presets, because its JPEG2000 i
 
 If you want the 56%, pick **Smallest file** explicitly. That is exactly the split the two settings are for: Automatic is cautious on your behalf, an explicit level is you overriding that. The 98% keep-threshold means a preset that would inflate a file never ships it - you get *no gain* and your original back, never something larger.
 
-This is also why Compress does not use the rasterising route that the Converter's PDF→image path uses. Rendering pages to bitmaps would "shrink" a text PDF only by destroying the text layer, selectable text, and searchability. Measured on a vector-only PDF: the rasterising approach saves 0%, Ghostscript saves 36%.
+This is also why Compress does not use the rasterising route that the Converter's PDF→image path uses. Rendering pages to bitmaps would "compress" a text PDF only by destroying the text layer, selectable text, and searchability. Measured on a vector-only PDF: the rasterising approach saves 0%, Ghostscript saves 36%.
 
 The Ghostscript engine is ~16 MB of WebAssembly. It is fetched **on first PDF compression only**, never at page load, with download progress shown. After that the browser caches it.
 
@@ -192,21 +192,21 @@ It is titled for the mode you are in, because "Compression" on its own never say
 |---|---|---|---|---|
 | **Converter** | Conversion compression | Quality of converted output | **Original quality** | Original quality, Automatic, High quality, Balanced, Smallest file |
 | **Compress** | Compression level | How hard to compress. The same value as the card's own **Compression level** picker, two views kept in sync | Automatic | Automatic, High quality, Balanced, Smallest file |
-| **PDF Editor** | PDF compression | Whether a saved PDF is also shrunk on the way out | **Original quality** | Original quality, Automatic, High quality, Balanced, Smallest file |
+| **PDF Editor** | PDF compression | Whether a saved PDF is also compressed on the way out | **Original quality** | Original quality, Automatic, High quality, Balanced, Smallest file |
 
-Only **Compress** defaults to Automatic, because shrinking the file is the whole
+Only **Compress** defaults to Automatic, because compressing the file is the whole
 request there. The Converter and the PDF Editor both default to Original quality:
 one is asked for a format change and the other for an edit, and neither was asked
 to make the file smaller. Below `high` the plan applies a long-edge cap, so an
 Automatic default on the Converter could return a 4032x3024 photo at 2560 px -
 unrecoverable, on the only copy the user keeps.
 
-The three settings are **independent and separately persisted**. "How much quality to give up while changing format", "how hard to compress" and "should editing this also shrink it" are different questions, and an earlier build that shared one value meant changing it in one place silently moved the others.
+The three settings are **independent and separately persisted**. "How much quality to give up while changing format", "how hard to compress" and "should editing this also compress it" are different questions, and an earlier build that shared one value meant changing it in one place silently moved the others.
 
 Two defaults are worth explaining:
 
 - **The PDF Editor defaults to Original quality** because merging, organizing and watermarking are *edits, not exports*: you expect the same document back. Pick any other level and the finished PDF is run through the same Ghostscript engine, with the same 98% keep-threshold, on its way to the download. If that step fails for any reason it is skipped and you get your uncompressed result - losing a completed merge to an optional compression would be a much worse outcome than a large file.
-- **The PDF Editor does offer Automatic, but does not default to it.** Automatic means "read the file and decide", which is a good answer for a file handed over to be shrunk and a surprising default for a file handed over to be edited. It is offered because someone who has just merged forty scans has a real reason to want it; it is not the default because most edits are expected back unchanged.
+- **The PDF Editor does offer Automatic, but does not default to it.** Automatic means "read the file and decide", which is a good answer for a file handed over to be compressed and a surprising default for a file handed over to be edited. It is offered because someone who has just merged forty scans has a real reason to want it; it is not the default because most edits are expected back unchanged.
 
 The engine is fetched ahead of time whenever a PDF becomes likely - a PDF dropped on Compress, PDF chosen as a conversion target, or a PDF-editor level set to anything but Original quality. It's a `<link rel="prefetch">`, so the browser downloads it at idle priority into the HTTP cache and can abandon it under memory pressure; nothing is wasted if you don't follow through.
 
@@ -220,7 +220,7 @@ Everything the Compress surface does is reachable from the agent surfaces, throu
 { "filePath": "/tmp/scan.pdf", "inputExt": "pdf", "outputExt": "pdf", "quality": "low" }
 ```
 
-Images, audio, video and PDFs all work. The same 2% size-guard applies, so a file that cannot usefully shrink comes back unchanged rather than larger. See [INTEGRATIONS.md § Quality preset](INTEGRATIONS.md#quality-preset).
+Images, audio, video and PDFs all work. The same 2% size-guard applies, so a file that cannot usefully compress comes back unchanged rather than larger. See [INTEGRATIONS.md § Quality preset](INTEGRATIONS.md#quality-preset).
 
 ## Limits
 
