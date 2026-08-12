@@ -84,7 +84,7 @@ Eight tools, all over `stdio`: one metadata (`list_formats`), two conversion (`f
 
 ### PDF editor tools
 
-The PDF editor is exposed as three dedicated MCP tools. They operate on PDFs directly using `pdf-lib`; they do not run the browser bridge.
+The PDF editor is exposed as four dedicated MCP tools. They operate on PDFs directly using `pdf-lib`; they do not run the browser bridge.
 
 4. **`pdf_merge`**
    - **Arguments**:

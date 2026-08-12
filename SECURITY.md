@@ -17,7 +17,7 @@ A few specifics:
 - `bunx frogconvert mcp` talks over stdio (no network port). `bunx frogconvert api` binds to `127.0.0.1:3000` only and rejects cross-origin requests via Origin/Host header validation. Files passed in stay on the machine running the server.
 - Inter is bundled via `@fontsource-variable/inter`. If it doesn't load for some reason, the browser falls back to system fonts. No requests go to Google Fonts or any other font CDN.
 - The PWA service worker caches files in your browser. You can clear it from the browser's site-data UI or via the in-app cache controls.
-- Files dropped into the Converter or PDF Editor get saved to IndexedDB so the Resume prompt can offer them back. They auto-purge after 7 days; clearing site data wipes them right away.
+- Files dropped into the Converter, the PDF Editor **or Compress** get saved to IndexedDB so the Resume prompt can offer them back. Compress stores the chosen level alongside them. They auto-purge after 7 days; clearing site data wipes them right away.
 
 ## Limits worth knowing
 

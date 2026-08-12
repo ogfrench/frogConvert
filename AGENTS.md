@@ -20,7 +20,7 @@ This file is the **single source of truth** for agent rules. Do not duplicate th
 2. **PDF Workspace** - an in-browser PDF editor (merge, reorder, rotate, extract, watermark). **frogConvert-original, not part of the fork.** Parallel to the conversion pipeline; does **not** use FormatHandlers.
 3. **Compression engine** - [src/core/compression/](src/core/compression/) plus the Compress surface at `/compress`. Compresses a file *without changing its format* (images, audio, video, PDF). **frogConvert-original.** It reuses FormatHandlers as engines but is not a conversion: same format in, same format out. Read [docs/COMPRESS.md](docs/COMPRESS.md).
 
-The MCP server and local REST API expose **all three**: `list_formats`, `find_conversion_path`, `convert_file` for the conversion pipeline, `pdf_merge`, `pdf_organize`, `pdf_extract`, `pdf_watermark` for the PDF editor, and compression via `convert_file`'s `quality` argument when input and output format match. REST routes mirror each MCP tool.
+The MCP server and local REST API expose **all three**: `list_formats`, `find_conversion_path`, `convert_file` for the conversion pipeline, `pdf_merge`, `pdf_organize`, `pdf_extract`, `pdf_watermark` for the PDF editor, and `compress_file` for the compression engine. REST routes mirror each MCP tool. Compression is its own tool, not `convert_file` with matching formats - that resolves to a zero-hop path and returns the input untouched, which is why `compress_file` exists.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full picture.
 
@@ -39,7 +39,7 @@ Canonical command list lives in [package.json](package.json). Requires [Bun](htt
 | Watch tests | `bun run test:watch` |
 | MCP server | `bun run mcp` or `bunx frogconvert mcp` |
 | REST API | `bun run api` or `bunx frogconvert api` |
-| Docs link check | `bun run docs:verify` |
+| Docs root/docs sync | `bun run docs:verify` |
 
 Puppeteer E2E tests live under [test/e2e/](test/e2e/) and spin up a real browser to verify worker mounting and UI flows. For deployment (Docker, desktop builds, Netlify), see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 

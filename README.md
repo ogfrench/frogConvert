@@ -47,7 +47,28 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 The **conversion pipeline** (route finder, format handlers, Dijkstra routing) is forked from [Convert to it!](https://p2r3.github.io/convert/) by p2r3 ([original repo](https://github.com/p2r3/convert)). Full credit for the core conversion engine goes to the original author. The fork reimagines the UI/UX with quality-of-life improvements.
 
-The **PDF editor** (merge, organize, extract, watermark), the **MCP server**, the **REST API**, and the **test infrastructure** (Vitest + Puppeteer) are frogConvert-original; they are not part of the upstream project.
+The **PDF editor** (merge, organize, extract, watermark), the **Compress mode** and its compression engine, the **MCP server**, the **REST API**, and the **test infrastructure** (Vitest + Puppeteer) are frogConvert-original; they are not part of the upstream project.
+
+### Bundled handlers
+
+Several format handlers are third-party projects vendored as git submodules (see [SUBMODULES.md](SUBMODULES.md) for the pinned revisions):
+
+| Project | Author | Used for |
+|---|---|---|
+| [envelope](https://github.com/p2r3/envelope), [sppd](https://github.com/p2r3/sppd) | p2r3 | Envelope archives, Super Pixel Paint documents |
+| [qoi-fu](https://github.com/pfusik/qoi-fu), [qoa-fu](https://github.com/pfusik/qoa-fu) | Piotr Fusik | QOI images, QOA audio (MIT) |
+| [espeakng.js](https://github.com/TheZipCreator/espeakng.js), [image-to-txt](https://git.sr.ht/~thezipcreator/image-to-txt) | TheZipCreator | Text-to-speech, image-to-text |
+| [gimper](https://github.com/ConnorTippets/gimper), [RPG-Maker-MV-Decrypter](https://github.com/ConnorTippets/RPG-Maker-MV-Decrypter), [terraria-world-file-ts](https://github.com/ConnorTippets/terraria-world-file-ts) | ConnorTippets | GIMP `.xcf`, RPG Maker assets, Terraria worlds |
+
+The MIDI synthesis handler uses the TimGM6mb soundfont via FluidSynth; see [src/handlers/midi/README.md](src/handlers/midi/README.md) for that credit in full.
+
+### Built on
+
+frogConvert is mostly a careful shell around other people's engines. The heavy lifting is done by:
+
+**Ghostscript** (PDF and PostScript, via [@jspawn/ghostscript-wasm](https://github.com/jspawn/ghostscript-wasm)) · **ImageMagick** ([magick-wasm](https://github.com/dlemstra/magick-wasm)) · **FFmpeg** ([ffmpeg.wasm](https://github.com/ffmpegwasm/ffmpeg.wasm)) · **Pandoc** · **LibreOffice** (when installed natively) · [**pdf-lib**](https://pdf-lib.js.org/) and [**pdf.js**](https://mozilla.github.io/pdf.js/) · [**SheetJS**](https://sheetjs.com/) · [**7-Zip**](https://www.7-zip.org/) (7z-wasm) · [**SQLite**](https://sqlite.org/) · [**Verovio**](https://www.verovio.org/) and [**VexFlow**](https://www.vexflow.com/) (music engraving) · [**three.js**](https://threejs.org/) (3D) · [**FluidSynth**](https://www.fluidsynth.org/) via js-synthesizer · [**eSpeak NG**](https://github.com/espeak-ng/espeak-ng) · [**Mermaid**](https://mermaid.js.org/), [**marked**](https://marked.js.org/) and [**highlight.js**](https://highlightjs.org/) (docs rendering).
+
+Ghostscript is AGPLv3; its licence ships alongside the binary at `/wasm/gs/LICENSE`. Licences for the remaining dependencies are in their respective `node_modules` entries.
 
 ## License
 

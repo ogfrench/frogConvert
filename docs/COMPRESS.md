@@ -214,13 +214,17 @@ For multi-hop conversions (e.g. HEIC → PNG → WebP), the chosen level applies
 
 ## Using it from MCP / REST / CLI
 
-Everything the Compress surface does is reachable from the agent surfaces, through `convert_file` (MCP) or `POST /convert` (REST) with **matching input and output formats** plus a `quality` preset:
+Everything the Compress surface does is reachable from the agent surfaces, through **`compress_file`** (MCP) or **`POST /compress`** (REST):
 
 ```jsonc
-{ "filePath": "/tmp/scan.pdf", "inputExt": "pdf", "outputExt": "pdf", "quality": "low" }
+{ "filePath": "/tmp/scan.pdf", "outputFilePath": "/tmp/scan-small.pdf", "level": "low" }
 ```
 
-Images, audio, video and PDFs all work. The same 2% size-guard applies, so a file that cannot usefully compress comes back unchanged rather than larger. See [INTEGRATIONS.md § Quality preset](INTEGRATIONS.md#quality-preset).
+`level` is `auto` (the default, and what the web UI does), `high`, `medium` or `low`. There is deliberately no `lossless`, for the reason given above.
+
+> **Do not use `convert_file` / `POST /convert` with matching formats for this.** It was the documented approach until 3.0.0 and it never worked: a same-format request resolves to a zero-hop path through the conversion graph, and the runner executes no steps, so the input comes straight back. Measured before `compress_file` existed, a 10 MB image-heavy PDF returned byte-identical at every preset while the browser shrank the same file by 89%.
+
+Images, audio, video and PDFs all work, and a batch can be sent in one call. The same 2% size-guard applies, so a file that cannot usefully compress comes back unchanged rather than larger - with `shrunk: false` and a `reason` saying which of "already minimal", "no compressor for this format" or "the result would have been bigger" applied. See [INTEGRATIONS.md § Compression](INTEGRATIONS.md#compression).
 
 ## Limits
 

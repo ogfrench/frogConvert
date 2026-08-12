@@ -82,12 +82,22 @@ describe.skipIf(!hasFullRegistry)(`E2E Conversion Flow [${MISSING_DEPS_REASON}]`
         if (!browserAvailable) skip();
     });
 
+    // 45s, not the 20s default. These two only navigate, but a page load
+    // now costs up to 2s more than it used to: the LibreOffice handler probes
+    // `/api/health` on init, the dev server proxies that to port 3000, and
+    // nothing is listening there during a test run any more - the vite plugin
+    // that used to auto-spawn an API server now stands down under vitest. The
+    // probe is bounded by `AbortSignal.timeout(2000)` and its failure is
+    // caught, so this is a delay rather than a fault, and it matches
+    // production, where frogconvert.xyz has no API behind it either. Under a
+    // full parallel suite that delay plus CPU contention was enough to cross
+    // 20s and fail two tests that pass 5/5 in isolation.
     it("loads the page and has the correct title", async () => {
         await safeGoto(page, url);
         await page.waitForSelector("#upload-zone", { timeout: 10000 });
         const title = await page.title();
         expect(title).toContain("frogConvert");
-    }, 20000);
+    }, 45000);
 
     it("has a file input available in the upload zone", async () => {
         await safeGoto(page, url);
@@ -95,7 +105,7 @@ describe.skipIf(!hasFullRegistry)(`E2E Conversion Flow [${MISSING_DEPS_REASON}]`
 
         const fileUploadTrigger = await page.$("#file-input");
         expect(fileUploadTrigger).not.toBeNull();
-    });
+    }, 45000);  // Same page-load budget as above.
 
     it("can upload a mock file, run conversion off main thread, and update UI", async () => {
         await safeGoto(page, url);

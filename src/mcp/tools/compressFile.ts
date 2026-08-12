@@ -32,7 +32,7 @@ export function registerCompressFileTool(server: McpServer, initPromise: Promise
     server.tool(
         "compress_file",
         "Make files smaller without changing their format (images, audio, video, PDFs). "
-        + "Returns each file with a report saying whether it shrank and, if not, why. "
+        + "Returns each file with a report saying whether it got smaller and, if not, why. "
         + "Use this instead of convert_file when the input and output format are the same.",
         {
             fileName: z.string().optional()

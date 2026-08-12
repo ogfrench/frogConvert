@@ -12,12 +12,13 @@
 ## User documentation
 
 - [Converter guide](https://frogconvert.xyz/docs/CONVERTER.md): Supported formats, quality presets, batch mode
+- [Compress guide](https://frogconvert.xyz/docs/COMPRESS.md): Levels, the keep-threshold, PDF compression, what will not get smaller
 - [PDF editor guide](https://frogconvert.xyz/docs/PDF_EDITOR.md): Merge, reorder, watermark, extract, organize
 - [Integrations](https://frogconvert.xyz/docs/INTEGRATIONS.md): MCP server, local REST API, automation
 
 ## Contributor documentation
 
-- [Architecture](https://frogconvert.xyz/docs/ARCHITECTURE.md): Two-subsystem design (conversion pipeline + PDF workspace), worker model
+- [Architecture](https://frogconvert.xyz/docs/ARCHITECTURE.md): Three-subsystem design (conversion pipeline + compression engine + PDF workspace), worker model
 - [Handler authoring](https://frogconvert.xyz/docs/HANDLERS.md): FormatHandler interface, registration, quality planners
 - [Contributing](https://frogconvert.xyz/docs/CONTRIBUTING.md): Local setup, conventions, test commands
 - [Deployment](https://frogconvert.xyz/docs/DEPLOYMENT.md): Build, hosting, PWA, desktop build
