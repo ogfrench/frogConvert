@@ -89,8 +89,8 @@ The tab bar (`Merge` / `Organize` / `Watermark`) supports `Arrow Left` / `Arrow 
 ## Inputs and limits
 
 - **Input**: one or more `.pdf` files.
-- **Size**: limited only by your device memory. Large PDFs (hundreds of pages) render thumbnails lazily to stay responsive.
-- **Output**: one or more `.pdf` files, saved via your browser's standard download flow. Merge, Organize, and Extract always produce a single PDF. Watermarking multiple files at once offers a choice: one combined PDF, or one watermarked PDF per source (delivered as a zip).
+- **Size**: three caps apply at intake - 300 files, 500 MB total, and 300 pages in total across everything loaded. Within those, your device memory is the practical limit. Large PDFs (hundreds of pages) render thumbnails lazily to stay responsive.
+- **Output**: one or more `.pdf` files, saved via your browser's standard download flow. Merge and Organize produce a single PDF. Extract asks: with more than one page selected you choose **Combined** (one PDF) or **One file per page** (a zip). Watermarking multiple files at once offers a choice: one combined PDF, or one watermarked PDF per source (delivered as a zip).
 
 ## Compressing a saved PDF
 

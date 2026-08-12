@@ -452,6 +452,8 @@ export default defineConfig({
         { src: "*.md", dest: "docs" },
         { src: "docs/*.md", dest: "docs" },
         { src: "LICENSE", dest: "docs" },
+        { src: "LICENSE.upstream-GPLv2", dest: "docs" },
+        { src: "COPYRIGHT", dest: "docs" },
         {
           src: "node_modules/pdf-parse/dist/pdf-parse/web/pdf.worker.mjs",
           dest: "js"

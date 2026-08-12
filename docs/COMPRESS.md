@@ -43,13 +43,13 @@ One control, four choices. The vocabulary is quality-forward - it names what the
 
 | | Quality | Long edge |
 |---|---|---|
-| High quality | 93 | unchanged |
+| High quality | 93 | 3840 px long edge |
 | Balanced | 80 | 2560 px |
 | Smallest file | 65 | 1920 px |
 
 **The resize is where the saving is.** Halving an image's long edge quarters its pixels, and the pixel count *is* the file. An earlier version of this only resized above 30 megapixels - which no phone or camera photo reaches - so quality alone had to carry the whole ladder, and it could not: a 4 MB photo re-encoded at the same dimensions came back around 3.4 MB whatever level you chose.
 
-For calibration: Squoosh ships at quality 75 by default, and the aggressive presets in tools like iLoveIMG and TinyPNG sit near 65 and resize as well. **Smallest file** is deliberately in that company. **High quality** never resizes, so it stays a true "just re-encode it" option.
+For calibration: Squoosh ships at quality 75 by default, and the aggressive presets in tools like iLoveIMG and TinyPNG sit near 65 and resize as well. **Smallest file** is deliberately in that company. **High quality** caps the long edge at 3840 px - 4K, so it is a no-op for anything that was not shot larger - which keeps it the closest thing to a "just re-encode it" option. Only **lossless** applies no cap at all.
 
 There is deliberately **no "lossless" level here**. As a compression level it can only mean "do nothing": it targets quality 100 with no resize, so re-encoding an already-compressed file comes back *larger* and the keep-threshold discards it. The level would reliably accomplish nothing, so it isn't offered. (The Converter's own setting does include **Original quality**, because "convert this without compressing it" is a real request.)
 
@@ -98,11 +98,11 @@ A compression run moves through phases, and the modal names each one rather than
 | `Reading your file...` | The file's bytes are coming off disk. Files are read one at a time, however large the batch, so only one is ever resident. |
 | `Compressing your file...` | The engine is working. This is where the live detail appears. |
 
-Underneath, a live line reports whatever the engine is willing to say: `Encoded 12.4s of 47.0s of media. · 34%`, `Fetching the compressor (52%)`, `Rasterising page 12 of 50 · 24%`. It alternates with `feel free to switch tabs` on a 9-seconds-on, 3-seconds-off rhythm, and gains a `· MM:SS` elapsed clock once a run passes ten seconds, so something is always moving.
+Underneath, a live line reports whatever the engine is willing to say: `Encoded 12.4s of 47.0s of media. · 34%`, `Fetching the compressor (52%)`, `Rasterising page 12 of 50 · 24%`. The reassurance sits on its own line and simply stays there; it used to take turns with the progress on a single line and that read as flicker, and gains a `· MM:SS` elapsed clock once a run passes ten seconds, so something is always moving.
 
 The spinner distinguishes the two kinds of wait: a thin ring while nothing is being processed yet (engine download, file read), the gooey one while an engine is actually working.
 
-**Not every engine reports progress.** Six do (FFmpeg, Ghostscript, comics, pdfCanvasCompress, pdftoimg, pdftotxt), which covers video, PDF and comic archives, the slow cases. Image compression through ImageMagick shows the phase, the file name and the elapsed clock, but no percentage, because the engine does not provide one. The batch position (`Compressing file 2 of 5...`) always works, since it is counted here rather than reported by the engine.
+**Not every engine reports progress.** Seven do (FFmpeg, Ghostscript, comics, pdfCanvasCompress, pdftoimg, pdftotxt), which covers video, PDF and comic archives, the slow cases. Image compression through ImageMagick shows the phase, the file name and the elapsed clock, but no percentage, because the engine does not provide one. The batch position (`Compressing file 2 of 5...`) always works, since it is counted here rather than reported by the engine.
 
 The same status line, from the same module (`src/conversion/progressStatus.ts`), is what the Converter and the PDF editor show. A video that reports `Encoded 3.2s of 8.7s` while being converted reports it identically while being compressed.
 
@@ -172,7 +172,7 @@ The Ghostscript engine is ~16 MB of WebAssembly. It is fetched **on first PDF co
 
 The 16 MB payload needs one online moment. If it can't be reached - offline, a blocked network, a bad deploy - Compress falls back to rasterising pages and rebuilding the PDF from JPEGs, and **tells you what that cost**:
 
-> Couldn't reach the PDF compressor, so pages were turned into images. The text is no longer selectable or searchable. Reconnect and re-run for a proper compress.
+> Couldn't reach the PDF compressor, so pages were turned into images. The text is no longer selectable or searchable. Reconnect and run it again for a proper compression.
 
 This route is strictly worse and is never chosen while Ghostscript is available. It destroys the text layer, so selection, search, copy/paste, accessibility and links all go with it. On a text or vector PDF it usually produces a *larger* file, which the 98% keep-threshold then discards - so you get your original back rather than a damaged copy. It earns its place only on scans, where the pages were already images.
 

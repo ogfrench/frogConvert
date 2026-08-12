@@ -68,7 +68,7 @@ Avoid `document.querySelector` inside components. Use the centralized `ui` objec
 - **Visibility contract.** Modals are shown/hidden via the `open` CSS class, never `style.display`. A modal is open iff it has `classList.contains("open")`.
 - **Spinners.** Active conversions use the gooey spinner (`loader-gooey`); short blocking operations like cancellation use `loader-spinner`.
 - **Stopping and partial downloads.** `isCancelled` and related state machine live in `src/conversion/cancellation.ts`. If a batch is stopped, `showPartialDownloadPopup()` offers a download of finished files. User-facing copy says **stop / stopping / stopped** everywhere - the button, the interstitial, the finished state and the per-file row labels. The internal identifiers still say `cancel` (`isCancelled`, `cancelButton`, `reason: "cancelled"`); only the strings changed. Don't reintroduce "Cancel" in visible copy - it reads as *dismiss this dialog*, which is the opposite of abandoning work in flight.
-- **Scroll locking.** `updateScrollLock()` in `store.ts` checks all three modal elements for the `open` class and toggles `.scroll-lock` on `<html>`. Called automatically by `ModalManager`.
+- **Scroll locking.** `updateScrollLock()` in `store.ts` checks all five open-surface conditions - the format modal, the files modal, the top-bar menu, the popup, and the PDF workspace tray and toggles `.scroll-lock` on `<html>`. Called automatically by `ModalManager`.
 
 ---
 
@@ -201,7 +201,7 @@ test('myHandler converts X to Y', async () => {
 4. **Docs.** If you change a handler, update `public/cache.json` via `bun run build && bun run cache:refresh` (see [Cache system](#4-cache-system) for why `cache:build` is the wrong one). If you change user-visible behaviour, touch the relevant doc ([CONVERTER.md](CONVERTER.md), [PDF_EDITOR.md](PDF_EDITOR.md), [INTEGRATIONS.md](INTEGRATIONS.md)) and add a [CHANGELOG.md](../CHANGELOG.md) bullet.
 5. **Doc sync.** `bun run docs:verify` checks that any root-level `.md` with a twin in `docs/` has identical contents. It does *not* check links, and it passes trivially when no such pair exists - so treat a green as "no duplicate has drifted", not as "the docs are fine".
 6. **Declare what you import.** A package that happens to be installed as somebody else's transitive dependency will import fine on your machine and keep working until that somebody bumps a version and drops it. If you `import` it, it belongs in `package.json`, and both `package.json` and `bun.lock` go in the commit - CI runs `bun i --frozen-lockfile` and fails if they disagree.
-7. **Dead-file check.** `bun x knip --include files` is **enforced in CI**: a file nothing imports fails the build. Run the full `bun x knip` too - the other categories are advisory but real. If it flags a file that *is* used, the reference is probably invisible to it (a path inside a string, say), and the fix is to declare it in `knip.jsonc` as an entry rather than to ignore the finding. Read the warning at the top of that file before removing any ignore.
+7. **Dead-file check.** `bun x knip --include files,unlisted` is **enforced in CI**: a file nothing imports fails the build. Run the full `bun x knip` too - the other categories are advisory but real. If it flags a file that *is* used, the reference is probably invisible to it (a path inside a string, say), and the fix is to declare it in `knip.jsonc` as an entry rather than to ignore the finding. Read the warning at the top of that file before removing any ignore.
 
 ---
 

@@ -208,7 +208,7 @@ The preset is a request-level parameter here. The web UI's equivalent settings -
 |---|---|---|---|---|---|---|---|
 | `low` | q65 | 1920 px | 1.2 MP | ~120 frames | 30s | 128 kbps | Fires earliest |
 | `medium` | q80 | 2560 px | 2.5 MP | ~300 frames, 1920 px | 60s | 192 kbps | Fires at the midpoint |
-| `high` | q93 | no cap | 5.0 MP | ~1000 frames, 3840 px | 180s | 256 kbps | Fires latest |
+| `high` | q93 | 3840 px | 5.0 MP | ~1000 frames, 3840 px | 180s | 256 kbps | Fires latest |
 | `lossless` | q100 | no cap | 25 MP | no cap | no cap | uncompressed | Disabled |
 
 > **Changed in v3.0.0.** `low` and `medium` were q82 and q90 with no resize cap -
@@ -216,7 +216,7 @@ The preset is a request-level parameter here. The web UI's equivalent settings -
 > quality. `low` is now q65 and `medium` q80, and both **downscale**: a
 > 4032x3024 phone photo comes back 1920x1440 at `low`. If your script depended
 > on a `quality: "low"` conversion preserving pixel dimensions, pass `high` or
-> `lossless` instead. `high` and `lossless` are unchanged.
+> `lossless` instead. `lossless` is uncapped; `high` caps at 3840 px, which is a no-op below 4K.
 >
 > **The omitted-`quality` default also changed, from `medium` to `lossless`.**
 > A request that says nothing about quality now returns the conversion at full
@@ -436,7 +436,7 @@ The browser bridge uses a **lazy-init architecture** - the headless page signals
 | Second call, same handler | 2–10 s (Chromium warm, handler compiled) |
 | Subsequent calls | Near-instant (handler already in memory) |
 
-The first call is slow because headless Chromium must launch and the specific handler's WASM must be compiled in that browser context. Handlers that require heavy WASM (pandoc ~55 MB, ImageMagick ~80 MB) will be at the upper end. This is inherent to the cold-start path - subsequent calls are fast.
+The first call is slow because headless Chromium must launch and the specific handler's WASM must be compiled in that browser context. Handlers that require heavy WASM (pandoc ~55 MB, ImageMagick ~14 MB) will be at the upper end. This is inherent to the cold-start path - subsequent calls are fast.
 
 > **Tip:** If you need predictable latency, call `POST /convert` with a small browser-bridge conversion (e.g. a 1×1 PNG→SVG via svgTrace) immediately after starting the server to get Chromium running before real traffic arrives.
 
