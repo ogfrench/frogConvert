@@ -112,7 +112,7 @@ Don't hand-roll your own quality mapping. Route through the shared planner in `s
 
 **Image archetype** matters: the same image-output handler can be converting one hand-picked photo (`archetype: "singleton"`) or one of hundreds of frames extracted from a video (`archetype: "video-frame"`). Passing the right archetype keeps quality sensible for both cases. See `ImageArchetype` in `plan.ts` for the full list.
 
-**Same-format compression.** Conversion routes can include same-format requests (e.g. `JPG → JPG`). In these cases, the handler is called to re-encode the file using the specified `quality` preset (defaults to `"medium"`). Output files from these runs are subject to a **smart size-guard** in the conversion runner: if the result is larger than the original, it is discarded.
+**Same-format requests never reach a handler.** A same-format pick (e.g. `JPG → JPG`) is short-circuited in `src/conversion/actions.ts` before any handler runs: the input bytes are returned untouched under a *"No conversion needed"* notice. There is no re-encode and no size-guard on this path - earlier builds had both, and the comment at that call site records why they went. Compression is a separate surface with its own engine selection and its own keep-threshold; see below.
 
 The same handlers back the dedicated **Compress** surface, which dispatches through `src/core/compression/resolveCompressor.ts` rather than the conversion graph. Two consequences for handler authors:
 
@@ -142,11 +142,11 @@ Three rules the renderer applies, worth knowing before you write a `detail` stri
 
 - **Never two percentages.** If your `detail` already contains one, the `ratio` is not appended. Ghostscript relies on this: its engine download reads `Fetching the compressor (52%)` while `ratio` is at 26%, because the fetch is only the first half of its overall work.
 - **The ratio is clamped to 0–100.** FFmpeg briefly reports slightly over 1 as a stream finishes.
-- **The line alternates.** It shows your progress for 9 seconds, then `feel free to switch tabs` for 3, on repeat, with an elapsed clock appended once a run passes 10 seconds. Do not put "you can leave this tab" style reassurance in your own `detail` - the surface already says it.
+- **The reassurance has its own line.** It used to alternate with the progress on a single line, which read as flicker; it now sits below and stays put, with an elapsed clock appended once a run passes 10 seconds. Do not put "you can leave this tab" style reassurance in your own `detail` - the surface already says it.
 
 Emitting is what makes a wait legible, so it is worth doing even for an engine that is usually fast: the first use of any WASM handler also pays for fetching and compiling the binary, which is the longest wait most users ever see.
 
-**Only 6 of ~82 handlers emit anything today** (FFmpeg, Ghostscript, comics, pdfCanvasCompress, pdftoimg, pdftotxt). The rest are silent, which is fine for the ones that finish instantly - but ImageMagick is a notable gap: it is not instant on large images and reports nothing.
+**Only 7 of ~82 handlers emit anything today** (FFmpeg, Ghostscript, comics, imageToPdf, pdfCanvasCompress, pdftoimg, pdftotxt). The rest are silent, which is fine for the ones that finish instantly - but ImageMagick is a notable gap: it is not instant on large images and reports nothing.
 
 ### Multi-file output
 
@@ -154,7 +154,7 @@ Some conversions produce multiple outputs (frame extraction from animated GIF, v
 
 ### Post-conversion notices
 
-If a handler auto-adapts to fit a ceiling (e.g. PDF shrunk to stay under the memory cap, video-to-GIF trimmed to a duration cap, video frames sampled adaptively, sample rate snapped to a codec's whitelist), report it with a structured notice. Import the helper:
+If a handler auto-adapts to fit a ceiling (e.g. PDF compressed to stay under the memory cap, video-to-GIF trimmed to a duration cap, video frames sampled adaptively, sample rate snapped to a codec's whitelist), report it with a structured notice. Import the helper:
 
 ```ts
 import { attachNotice, API_DOCS_ACTION, fmtDuration } from "../core/compression/notices.ts";

@@ -57,10 +57,7 @@ flowchart TD
     I --> J[Browser downloads the file]
 
     subgraph " "
-    K[Same Format Picked\ne.g. JPEG → JPEG] --> L{Is it compressible?}
-    L -- Yes --> M[Run Compression Path\nEnforce 2% size-guard]
-    L -- No --> N[Pass through original bytes]
-    M --> I
+    K[Same Format Picked\ne.g. JPEG → JPEG] --> N[Pass through original bytes\n\"No conversion needed\"]
     N --> I
     end
 ```
@@ -135,7 +132,7 @@ Some handlers are pure compute (run in a background thread). Others need browser
 
 frogConvert ships a second workspace alongside the converter: an in-browser **PDF editor**. Unlike the conversion pipeline, which originates from the [Convert to it!](https://github.com/p2r3/convert) fork, the PDF Workspace is **frogConvert-original**; it is not present in the upstream project. It is a parallel subsystem and **does not route through TraversionGraph or FormatHandlers**. If you are extending the converter, ignore it. If you are extending the editor, ignore the handler authoring guide.
 
-**App-mode toggle.** [src/main.ts](../src/main.ts) and [src/router.ts](../src/router.ts) maintain an "app mode" state (`converter` vs `pdf`) that swaps which workspace section is visible in [index.html](../index.html). The converter workspace is `#convert-card`; the editor is `#pdf-workspace`.
+**App-mode toggle.** [src/main.ts](../src/main.ts) and [src/router.ts](../src/router.ts) maintain an "app mode" state - `converter`, `pdf-editor` or `compress` - that swaps which workspace section is visible in [index.html](../index.html). The converter workspace is `#convert-card`, the editor is `#pdf-workspace`, and Compress is `#compress-card`.
 
 **Four operations**, each isolated in `src/tools/`, plus two shared helpers:
 
@@ -370,7 +367,7 @@ flowchart LR
     E --> O[Output Files]
 ```
 
-Both run 100% locally. The MCP server exposes 7 tools (`list_formats`, `find_conversion_path`, `convert_file`, `pdf_merge`, `pdf_organize`, `pdf_extract`, `pdf_watermark`). The REST API mirrors the same surface. See [INTEGRATIONS.md](INTEGRATIONS.md) for request/response shapes.
+Both run 100% locally. The MCP server exposes 8 tools (`list_formats`, `find_conversion_path`, `convert_file`, `compress_file`, `pdf_merge`, `pdf_organize`, `pdf_extract`, `pdf_watermark`). The REST API mirrors the same surface. See [INTEGRATIONS.md](INTEGRATIONS.md) for request/response shapes.
 
 **Browser bridge.** Conversions that need browser-only APIs (Canvas, WebGL, AudioContext, document) cannot run in pure Node.js. When a request lacks a native path, the server transparently launches headless Chromium via Puppeteer and executes the conversion there. Cold start is on the order of 30 seconds to 8 minutes depending on the handler's WASM size; warm calls are seconds. Full performance table and fallback strategy in [INTEGRATIONS.md § Browser-Assisted Conversions](INTEGRATIONS.md#browser-assisted-conversions---automatic-fallback).
 

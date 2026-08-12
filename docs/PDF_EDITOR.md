@@ -14,7 +14,7 @@ It handles the operations most people reach for a paid tool to do: merging, reor
 
 The top bar's mode control opens a menu with **Converter**, **PDF Editor** and **Compress**. Pick **PDF Editor** to swap the workspace. Your app URL updates to `/pdf` so you can bookmark or share the editor directly.
 
-Shrinking a PDF *without* editing it lives in the [Compress](COMPRESS.md) mode. The editor can also compress what it saves as an optional final step; see [Shrinking a saved PDF](#shrinking-a-saved-pdf) below.
+Compressing a PDF *without* editing it lives in the [Compress](COMPRESS.md) mode. The editor can also compress what it saves as an optional final step; see [Compressing a saved PDF](#compressing-a-saved-pdf) below.
 
 ## Managing the file list
 
@@ -89,16 +89,16 @@ The tab bar (`Merge` / `Organize` / `Watermark`) supports `Arrow Left` / `Arrow 
 ## Inputs and limits
 
 - **Input**: one or more `.pdf` files.
-- **Size**: limited only by your device memory. Large PDFs (hundreds of pages) render thumbnails lazily to stay responsive.
-- **Output**: one or more `.pdf` files, saved via your browser's standard download flow. Merge, Organize, and Extract always produce a single PDF. Watermarking multiple files at once offers a choice: one combined PDF, or one watermarked PDF per source (delivered as a zip).
+- **Size**: three caps apply at intake - 300 files, 500 MB total, and 300 pages in total across everything loaded. Within those, your device memory is the practical limit. Large PDFs (hundreds of pages) render thumbnails lazily to stay responsive.
+- **Output**: one or more `.pdf` files, saved via your browser's standard download flow. Merge and Organize produce a single PDF. Extract asks: with more than one page selected you choose **Combined** (one PDF) or **One file per page** (a zip). Watermarking multiple files at once offers a choice: one combined PDF, or one watermarked PDF per source (delivered as a zip).
 
-## Shrinking a saved PDF
+## Compressing a saved PDF
 
 The **PDF compression** control at the bottom of the settings menu (the control is titled for whichever mode you are in) defaults to **Original quality** - merging and watermarking are edits, not exports, so by default you get back exactly the document the editor built.
 
 Set it to anything else and every save (merge, organize, watermark, extract) runs its finished PDF through Ghostscript on the way to the download, at the same levels and with the same 98% keep-threshold the [Compress](COMPRESS.md) surface uses. If the result wouldn't be meaningfully smaller, or the engine can't run at all, the step is skipped and you get the uncompressed PDF - a completed edit is never lost to an optional extra.
 
-Note that this only resamples **images**. A PDF that is mostly text won't shrink much at any level; see [COMPRESS.md § PDF compression, honestly](COMPRESS.md#pdf-compression-honestly).
+Note that this only resamples **images**. A PDF that is mostly text won't compress much at any level; see [COMPRESS.md § PDF compression, honestly](COMPRESS.md#pdf-compression-honestly).
 
 ## Known caveats
 

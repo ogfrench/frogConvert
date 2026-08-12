@@ -1,6 +1,7 @@
 import './PdfWorkspace.css';
 import Sortable from 'sortablejs';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { loadEditablePdf } from '../../tools/pdfSource.ts';
 import type { PageEntry, SourceFile } from '../../tools/types.ts';
 import { getNextFileId, bumpNextFileId, getNextPageId, bumpNextPageId } from '../../tools/types.ts';
 import { createPersistor } from '../persistence/createPersistor.ts';
@@ -3369,7 +3370,14 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
           const page = pages[sorted[i]];
           if (!loadedSources.has(page.sourceFileId)) {
             const sf = files.find(f => f.id === page.sourceFileId)!;
-            loadedSources.set(page.sourceFileId, await PDFDocument.load(sf.bytes, { ignoreEncryption: true }));
+            // Guarded loader, not the raw one. Ignoring encryption suppresses
+            // the throw but leaves the content streams encrypted, so copyPages
+            // lands pages of the right size with nothing on them - a plausible
+            // file, reported as a success. The per-source branch below already
+            // gets this right via `extract()`; this branch was the one place in
+            // the editor still loading an about-to-be-edited PDF unguarded.
+            // Guarded at the source level by src/tools/pdfSource.test.ts.
+            loadedSources.set(page.sourceFileId, await loadEditablePdf(sf.bytes, sf.name));
           }
           const source = loadedSources.get(page.sourceFileId)!;
           const [copied] = await output.copyPages(source, [page.sourcePageNum - 1]);

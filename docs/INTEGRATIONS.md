@@ -74,7 +74,7 @@ Eight tools, all over `stdio`: one metadata (`list_formats`), two conversion (`f
        { "savedTo": ["/path/to/output.pptx"] }
        ```
      The array contains multiple entries when a conversion produces multiple output files (e.g. a multi-page PDF split into individual images).
-     Both response shapes may include an optional `warnings` array of strings when the conversion adapted silently (dimension padding, sample-rate snap, large-PDF shrink, long video-to-GIF trim, adaptive frame sampling). Example: `{ "savedTo": [...], "warnings": ["Trimmed to the first 60 seconds. GIF gets unwieldy past a minute of video..."] }`.
+     Both response shapes may include an optional `warnings` array of strings when the conversion adapted silently (dimension padding, sample-rate snap, large-PDF compression, long video-to-GIF trim, adaptive frame sampling). Example: `{ "savedTo": [...], "warnings": ["Trimmed to the first 60 seconds. GIF gets unwieldy past a minute of video..."] }`.
    - **LibreOffice hint**: If conversion fails for office formats (DOCX, PPTX, XLSX, ODT, etc.) and LibreOffice is not installed, the error message includes a hint to install it from [libreoffice.org](https://www.libreoffice.org/).
    - **Large file guidance**: For files that are too large to embed in the context window, always use `filePath` (input) and `outputFilePath` (output) together:
      ```
@@ -84,7 +84,7 @@ Eight tools, all over `stdio`: one metadata (`list_formats`), two conversion (`f
 
 ### PDF editor tools
 
-The PDF editor is exposed as three dedicated MCP tools. They operate on PDFs directly using `pdf-lib`; they do not run the browser bridge.
+The PDF editor is exposed as four dedicated MCP tools. They operate on PDFs directly using `pdf-lib`; they do not run the browser bridge.
 
 4. **`pdf_merge`**
    - **Arguments**:
@@ -200,7 +200,7 @@ Returns `400` on bad input, `413` if the file exceeds `MAX_UPLOAD_MB`, `415` if 
 
 #### Quality preset
 
-Both `POST /convert` and the MCP `convert_file` tool accept an optional `quality` preset, which governs the re-encode a conversion performs. **When omitted it is `"lossless"`**: a conversion changes the format and nothing else. Pass a level explicitly to also shrink the file, or use [`compress_file` / `POST /compress`](#compression) to shrink one without changing its format.
+Both `POST /convert` and the MCP `convert_file` tool accept an optional `quality` preset, which governs the re-encode a conversion performs. **When omitted it is `"lossless"`**: a conversion changes the format and nothing else. Pass a level explicitly to also compress the file, or use [`compress_file` / `POST /compress`](#compression) to compress one without changing its format.
 
 The preset is a request-level parameter here. The web UI's equivalent settings - **Compression** in the Converter's settings menu and the level picker on the **Compress** surface - are per-surface browser preferences stored in `localStorage`; they do not reach the API or MCP server, which run in a separate process. Pass `quality` explicitly to get a specific tier.
 
@@ -208,7 +208,7 @@ The preset is a request-level parameter here. The web UI's equivalent settings -
 |---|---|---|---|---|---|---|---|
 | `low` | q65 | 1920 px | 1.2 MP | ~120 frames | 30s | 128 kbps | Fires earliest |
 | `medium` | q80 | 2560 px | 2.5 MP | ~300 frames, 1920 px | 60s | 192 kbps | Fires at the midpoint |
-| `high` | q93 | no cap | 5.0 MP | ~1000 frames, 3840 px | 180s | 256 kbps | Fires latest |
+| `high` | q93 | 3840 px | 5.0 MP | ~1000 frames, 3840 px | 180s | 256 kbps | Fires latest |
 | `lossless` | q100 | no cap | 25 MP | no cap | no cap | uncompressed | Disabled |
 
 > **Changed in v3.0.0.** `low` and `medium` were q82 and q90 with no resize cap -
@@ -216,7 +216,7 @@ The preset is a request-level parameter here. The web UI's equivalent settings -
 > quality. `low` is now q65 and `medium` q80, and both **downscale**: a
 > 4032x3024 phone photo comes back 1920x1440 at `low`. If your script depended
 > on a `quality: "low"` conversion preserving pixel dimensions, pass `high` or
-> `lossless` instead. `high` and `lossless` are unchanged.
+> `lossless` instead. `lossless` is uncapped; `high` caps at 3840 px, which is a no-op below 4K.
 >
 > **The omitted-`quality` default also changed, from `medium` to `lossless`.**
 > A request that says nothing about quality now returns the conversion at full
@@ -226,7 +226,7 @@ The preset is a request-level parameter here. The web UI's equivalent settings -
 > conversion is usually the only copy kept. Scripts that relied on the old
 > behaviour should pass `quality: "medium"` explicitly.
 
-Adaptive-cap behavior (frame sampling, GIF trim, PDF auto-shrink) applies at all lossy presets. `lossless` disables all of them, so it can produce very large outputs.
+Adaptive-cap behavior (frame sampling, GIF trim, PDF auto-compress) applies at all lossy presets. `lossless` disables all of them, so it can produce very large outputs.
 
 Handlers ignore the preset when it doesn't apply to them (lossless codecs, structural conversions like DOCX→PDF, etc.).
 
@@ -242,7 +242,7 @@ early hop cannot be recovered by a gentler later one.
 
 `quality: "lossless"` is honoured on every hop, so "no compression" means it end
 to end. A hop whose output format is inherently lossless (PNG, FLAC…) always
-runs lossless, since a quality knob can't shrink it.
+runs lossless, since a quality knob can't compress it.
 
 This rule is shared by every surface - web UI, REST, MCP and CLI - so the same
 file and the same `quality` produce the same result whichever way you convert.
@@ -251,7 +251,7 @@ file and the same `quality` produce the same result whichever way you convert.
 
 Compression has its own endpoint and its own tool: **`POST /compress`** and **`compress_file`**. Use those, not `convert_file` with the same format twice.
 
-> **Changed in v3.0.0.** Earlier documentation described same-format `convert` as the way to compress. It did not work: a same-format request resolves to a zero-hop path through the conversion graph and the runner executes no steps, so the input came straight back. Measured, a 10 MB image-heavy PDF returned byte-identical at every preset while the browser shrank the same file by 89%. Same-format `convert` still returns your file unchanged; it is simply not a compressor, and nothing about the fix changed cross-format conversion.
+> **Changed in v3.0.0.** Earlier documentation described same-format `convert` as the way to compress. It did not work: a same-format request resolves to a zero-hop path through the conversion graph and the runner executes no steps, so the input came straight back. Measured, a 10 MB image-heavy PDF returned byte-identical at every preset while the browser compressed the same file by 89%. Same-format `convert` still returns your file unchanged; it is simply not a compressor, and nothing about the fix changed cross-format conversion.
 
 Both surfaces share the engine selection, the level vocabulary and the 98% keep-threshold with the browser's Compress surface, so a rule added in one place reaches all three.
 
@@ -308,7 +308,7 @@ curl -X POST http://localhost:3000/compress \
 | `outputFilePath` | optional | Where to write a single result. Omit to get base64 back. |
 | `level` | optional | `auto` (default), `high`, `medium`, `low`. |
 
-A file that could not be shrunk comes back with `shrunk: false` and a `reason`, not an error - one unsupported file in a batch never costs you the rest.
+A file that could not be compressed comes back with `shrunk: false` and a `reason`, not an error - one unsupported file in a batch never costs you the rest.
 
 #### PDF compression
 
@@ -327,13 +327,13 @@ Four things to expect, so a correct result isn't mistaken for a broken one:
 
 - **A password-protected PDF is declined, not compressed.** Ghostscript has no password, so it reads the page tree, fails to decrypt the content streams, and writes that many *empty* pages - with the page count preserved exactly, which is why a page-count check cannot catch it. Measured before this was guarded: 12,783 bytes and a page of text became 2,188 bytes of blank page, reported as an 83% saving. You now get `shrunk: false` and your original bytes back, still encrypted. This matters more for an agent than for a person: a script compressing a folder has nothing on screen to notice the difference.
 
-- **A text or vector PDF barely shrinks, and that is right.** Ghostscript's presets bound *image* resampling; text and vector art are left alone because there is nothing to throw away. Scans and image-heavy decks are where the 30–80% savings live. If the result saves less than 2%, the size-guard returns the original.
+- **A text or vector PDF barely compresses, and that is right.** Ghostscript's presets bound *image* resampling; text and vector art are left alone because there is nothing to throw away. Scans and image-heavy decks are where the 30–80% savings live. If the result saves less than 2%, the size-guard returns the original.
 - **The first PDF in a process is slower.** The 16 MB WASM engine is compiled on first use and then reused, so subsequent files in the same process are markedly faster (measured: 718 ms then 248 ms). It is never loaded at startup - a session that touches no PDFs never pays for it.
-- **A lower level can produce a *larger* PDF.** Ghostscript's presets are not monotonic in output size: on one 71-page research brief `/screen` grew the file 42% and `/ebook` 65%, while `/printer` shrank it 18%. The keep-threshold means you never receive the larger file - you get the original with `shrunk: false` - but it does mean `low` is not reliably the smallest answer for PDFs. `auto` exists to pick per file rather than guess.
+- **A lower level can produce a *larger* PDF.** Ghostscript's presets are not monotonic in output size: on one 71-page research brief `/screen` grew the file 42% and `/ebook` 65%, while `/printer` compressed it by 18%. The keep-threshold means you never receive the larger file - you get the original with `shrunk: false` - but it does mean `low` is not reliably the smallest answer for PDFs. `auto` exists to pick per file rather than guess.
 
 #### Compressing an edited PDF
 
-The browser's PDF editor has a **PDF compression** setting that shrinks whatever it saves. The PDF tools below deliberately do not take a `quality` parameter - on the agent surfaces the same result is composition, not a flag: chain the edit into `compress_file` / `POST /compress`.
+The browser's PDF editor has a **PDF compression** setting that compresses whatever it saves. The PDF tools below deliberately do not take a `quality` parameter - on the agent surfaces the same result is composition, not a flag: chain the edit into `compress_file` / `POST /compress`.
 
 ```
 pdf_merge(inputs) -> compress_file(filePath: <merged>, level: "auto")
@@ -436,7 +436,7 @@ The browser bridge uses a **lazy-init architecture** - the headless page signals
 | Second call, same handler | 2–10 s (Chromium warm, handler compiled) |
 | Subsequent calls | Near-instant (handler already in memory) |
 
-The first call is slow because headless Chromium must launch and the specific handler's WASM must be compiled in that browser context. Handlers that require heavy WASM (pandoc ~55 MB, ImageMagick ~80 MB) will be at the upper end. This is inherent to the cold-start path - subsequent calls are fast.
+The first call is slow because headless Chromium must launch and the specific handler's WASM must be compiled in that browser context. Handlers that require heavy WASM (pandoc ~55 MB, ImageMagick ~14 MB) will be at the upper end. This is inherent to the cold-start path - subsequent calls are fast.
 
 > **Tip:** If you need predictable latency, call `POST /convert` with a small browser-bridge conversion (e.g. a 1×1 PNG→SVG via svgTrace) immediately after starting the server to get Chromium running before real traffic arrives.
 

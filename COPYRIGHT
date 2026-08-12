@@ -1,0 +1,96 @@
+frogConvert - copyright and licence notice
+==========================================
+
+Copyright (C) 2024-2026 p2r3
+    The conversion pipeline - route finder, format graph, format handlers -
+    originates in "Convert to it!" (https://github.com/p2r3/convert) and is
+    used here under its terms. See LICENSE.upstream-GPLv2 and the note below.
+
+Copyright (C) 2025-2026 ogfrench
+    frogConvert. Everything below is original work, not present in the
+    upstream project in any form:
+
+      - the Compress surface at /compress and the whole compression engine
+        (src/core/compression/, the Ghostscript integration, the mixed-batch
+        orchestrator, the keep-threshold, the level model)
+      - the PDF editor at /pdf (merge, organize, extract, watermark)
+      - the MCP server (src/mcp/) and the local REST API (src/api/)
+      - the test infrastructure (Vitest + Puppeteer, the corpus suites)
+      - the UI, the docs, and the desktop/PWA packaging
+
+    What is inherited from upstream is the conversion pipeline and the
+    handlers that existed at the fork point. The two headline surfaces of
+    3.0.0 - Compress and the PDF editor - are frogConvert originals.
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+Why version 3, when the upstream project shipped the version 2 text
+-------------------------------------------------------------------
+
+This is an election made by this fork, and the reasoning is set out here so it
+can be checked rather than taken on trust.
+
+What "Convert to it!" actually contains, verified against the repository at
+commit 2fc7143:
+
+  - LICENSE is the stock GPLv2 text, with the "How to Apply These Terms"
+    template placeholders left unfilled - no program name, no copyright line,
+    no "version 2 or, at your option, any later version" election.
+  - Its README has no License section.
+  - Its package.json has no `license` field.
+  - No source file carries a GPL header.
+  - Its README does mention a version once, at line 33, in contributor
+    guidance for proposing new formats: "make sure the license is compatible
+    with GPL-2.0". That is a statement about which third-party libraries may
+    be pulled in, not a statement of the program's own licence version.
+
+GPLv2 section 9 provides:
+
+    If the Program does not specify a version number of this License, you may
+    choose any version ever published by the Free Software Foundation.
+
+The election rests on reading that single README line as dependency-selection
+guidance rather than as the Program specifying a version number "which applies
+to it". That reading is defensible - it is not a licence grant, it appears in
+issue-filing instructions, and none of the places a version election normally
+lives is filled in - but it is a judgement call, and a reader should know it is
+one. It is weaker than "upstream names no version at all", which is not true.
+
+The safest way to remove the ambiguity entirely is to ask p2r3 to state a
+version explicitly upstream, or to confirm they are content with this fork
+being GPLv3. Until then this file records the position and the evidence for it.
+
+The GPLv2 text this fork inherited is retained verbatim in
+LICENSE.upstream-GPLv2. LICENSE is the GPLv3 text that governs frogConvert.
+
+The election is not academic: GPLv3 section 13 permits combining a covered work
+with AGPLv3 code, which is what allows the Ghostscript-based PDF compressor to
+ship. Ghostscript is part of the Compress surface rather than an optional
+extra, so AGPLv3 section 13's network-interaction requirement applies to the
+combination - which is why the hosted app links to its own source. The upstream
+Ghostscript licence travels with the binary at /wasm/gs/LICENSE.
+
+None of the above is legal advice.
+
+
+Third-party components
+----------------------
+
+Bundled handlers vendored as git submodules, and the engines this project is
+built on, are credited in README.md. Two carry their own terms in-tree:
+
+  - src/handlers/qoi-fu-lib/QOI.ts and src/handlers/qoa-fu-lib/QOA.ts are
+    MIT-licensed, Copyright (C) Piotr Fusik. The notice is reproduced at the
+    top of each file.
+  - Ghostscript is AGPLv3; its licence ships at /wasm/gs/LICENSE.

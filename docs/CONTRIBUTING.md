@@ -68,7 +68,7 @@ Avoid `document.querySelector` inside components. Use the centralized `ui` objec
 - **Visibility contract.** Modals are shown/hidden via the `open` CSS class, never `style.display`. A modal is open iff it has `classList.contains("open")`.
 - **Spinners.** Active conversions use the gooey spinner (`loader-gooey`); short blocking operations like cancellation use `loader-spinner`.
 - **Stopping and partial downloads.** `isCancelled` and related state machine live in `src/conversion/cancellation.ts`. If a batch is stopped, `showPartialDownloadPopup()` offers a download of finished files. User-facing copy says **stop / stopping / stopped** everywhere - the button, the interstitial, the finished state and the per-file row labels. The internal identifiers still say `cancel` (`isCancelled`, `cancelButton`, `reason: "cancelled"`); only the strings changed. Don't reintroduce "Cancel" in visible copy - it reads as *dismiss this dialog*, which is the opposite of abandoning work in flight.
-- **Scroll locking.** `updateScrollLock()` in `store.ts` checks all three modal elements for the `open` class and toggles `.scroll-lock` on `<html>`. Called automatically by `ModalManager`.
+- **Scroll locking.** `updateScrollLock()` in `store.ts` checks all five open-surface conditions - the format modal, the files modal, the top-bar menu, the popup, and the PDF workspace tray and toggles `.scroll-lock` on `<html>`. Called automatically by `ModalManager`.
 
 ---
 
@@ -132,7 +132,7 @@ In dev, the cache is optional; the app falls back to initializing all handlers a
 
 ### The corpus suites (opt-in, and the ones that find real bugs)
 
-Four suites in `test/e2e/` drive the **built** app in a real browser against real files: `corpus-compress`, `corpus-convert`, `corpus-pdf` and `corpus-combined`. They exist because every serious defect in v3 lived in a seam between mocked units and was invisible to a green unit run - an encrypted PDF emptied and reported as an 83% saving, a truncated PDF returned as a blank page called a 99% win, a `.webm` not recognised as input at all.
+Six suites in `test/e2e/` run real files through the real thing. Four drive the **built** app in a real browser - `corpus-compress`, `corpus-convert`, `corpus-pdf`, `corpus-combined` - and two drive the agent surfaces over their real transports: `corpus-api` (HTTP against a spawned `src/api/index.ts`) and `corpus-mcp` (stdio against `src/mcp/index.ts`). They exist because every serious defect in v3 lived in a seam between mocked units and was invisible to a green unit run - an encrypted PDF emptied and reported as an 83% saving, a truncated PDF returned as a blank page called a 99% win, a `.webm` not recognised as input at all.
 
 They need ~49 MB of other people's files, so they are opt-in and skip loudly (`test/helpers/corpus.ts` prints a manifest of exactly what did not run and why - the inverse of `optionalDeps.ts`, which throws, because CI genuinely does have those dependencies and genuinely does not have this corpus):
 
@@ -143,9 +143,19 @@ bun run build                        # they drive dist/, not the dev server
 bun run test:corpus                  # sets FROG_CORPUS=1 for you
 ```
 
-Deliberately **not** part of the default CI run: it needs a production build, a browser, and ~49 MB of downloads. `bun run test` skips all four suites, and says so.
+Deliberately **not** part of the default CI run: it needs a production build, a browser, and ~49 MB of downloads. `bun run test` skips all six suites, and says so. (The two agent suites need no build - they spawn the servers directly - but they share the same corpus gate.)
 
-Shared plumbing is in `test/helpers/corpusBrowser.ts` - static server, browser, downloads, and re-opening PDF output with pdf-lib and pdfjs. Add to it rather than starting a fifth copy. Two things it encodes that cost a debugging round each: `.mjs` must be in the server's MIME map (Ghostscript ships `gs.mjs`, and a module script with the wrong type is refused, which looks exactly like a compression failure), and every suite waits for the handler registry rather than a fixed delay.
+Shared plumbing lives in **two** helpers, split by what they drive. Add to the right one rather than starting a third copy.
+
+`test/helpers/corpusBrowser.ts` - static server, browser, downloads, and re-opening PDF output with pdf-lib and pdfjs. Two things it encodes that cost a debugging round each: `.mjs` must be in the server's MIME map (Ghostscript ships `gs.mjs`, and a module script with the wrong type is refused, which looks exactly like a compression failure), and every suite waits for the handler registry rather than a fixed delay.
+
+`test/helpers/corpusAgents.ts` - spawning the API and MCP servers, and the byte-level assertions both agent suites share. It encodes three constraints of its own:
+
+- **`PORT=0`, always.** The API defaults to 3000 and vitest runs test files in parallel workers, so a fixed port fails as an unexplained connection refusal *inside a child process* rather than as the port conflict it is. The assigned port is read back off the line the server prints, because that is the only place it exists.
+- **SIGTERM, never SIGKILL.** `browserBridge.ts` installs a SIGTERM handler whose exit path kills the Chromium it warmed up. SIGKILL leaks a browser per run.
+- **Compare by size, page count and extracted text - not by bytes.** Ghostscript stamps an XMP `ModifyDate`, so the same file compressed twice a second apart already differs. A first version of the REST-vs-MCP parity test asserted byte equality and reported the app broken for it.
+
+The two agent suites also check the surfaces against *each other*: both are thin wrappers over `compressForAgents`, and each was previously only ever compared against itself, so one drifting to different options would have gone unnoticed.
 
 ### Writing a handler test
 
@@ -189,9 +199,9 @@ test('myHandler converts X to Y', async () => {
 2. **Commit style.** Imperative, specific. Don't bundle unrelated changes.
 3. **Run locally.** `bun run test` must be green. Run `bun run build` once before opening the PR.
 4. **Docs.** If you change a handler, update `public/cache.json` via `bun run build && bun run cache:refresh` (see [Cache system](#4-cache-system) for why `cache:build` is the wrong one). If you change user-visible behaviour, touch the relevant doc ([CONVERTER.md](CONVERTER.md), [PDF_EDITOR.md](PDF_EDITOR.md), [INTEGRATIONS.md](INTEGRATIONS.md)) and add a [CHANGELOG.md](../CHANGELOG.md) bullet.
-5. **Link-check.** `bun run docs:verify` catches broken cross-links before review.
+5. **Doc sync.** `bun run docs:verify` checks that any root-level `.md` with a twin in `docs/` has identical contents. It does *not* check links, and it passes trivially when no such pair exists - so treat a green as "no duplicate has drifted", not as "the docs are fine".
 6. **Declare what you import.** A package that happens to be installed as somebody else's transitive dependency will import fine on your machine and keep working until that somebody bumps a version and drops it. If you `import` it, it belongs in `package.json`, and both `package.json` and `bun.lock` go in the commit - CI runs `bun i --frozen-lockfile` and fails if they disagree.
-7. **Dead-file check.** `bun x knip --include files` is **enforced in CI**: a file nothing imports fails the build. Run the full `bun x knip` too - the other categories are advisory but real. If it flags a file that *is* used, the reference is probably invisible to it (a path inside a string, say), and the fix is to declare it in `knip.jsonc` as an entry rather than to ignore the finding. Read the warning at the top of that file before removing any ignore.
+7. **Dead-file check.** `bun x knip --include files,unlisted` is **enforced in CI**: a file nothing imports fails the build. Run the full `bun x knip` too - the other categories are advisory but real. If it flags a file that *is* used, the reference is probably invisible to it (a path inside a string, say), and the fix is to declare it in `knip.jsonc` as an entry rather than to ignore the finding. Read the warning at the top of that file before removing any ignore.
 
 ---
 

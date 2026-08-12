@@ -143,6 +143,7 @@ Verified by serving the built policy as enforcing and driving Convert, Compress,
 | Variable | Default | Applies to | Description |
 |---|---|---|---|
 | `PORT` | `3000` | REST API | Port the HTTP server binds to. |
+| `FROGCONVERT_SANDBOX_ROOT` | unset | When set, every `filePath`, `outputFilePath` and `outputDir` an agent passes must resolve inside this directory; relative paths resolve against it and escapes are rejected. Defence in depth for the local API - see [SECURITY.md](../SECURITY.md). |
 | `MAX_UPLOAD_MB` | `4096` | MCP + REST API | Max input file size in MB. Files over this are rejected before conversion. |
 
 ## See also

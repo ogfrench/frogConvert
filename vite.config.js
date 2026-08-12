@@ -452,6 +452,8 @@ export default defineConfig({
         { src: "*.md", dest: "docs" },
         { src: "docs/*.md", dest: "docs" },
         { src: "LICENSE", dest: "docs" },
+        { src: "LICENSE.upstream-GPLv2", dest: "docs" },
+        { src: "COPYRIGHT", dest: "docs" },
         {
           src: "node_modules/pdf-parse/dist/pdf-parse/web/pdf.worker.mjs",
           dest: "js"
@@ -488,7 +490,7 @@ export default defineConfig({
       manifest: {
         name: 'frogConvert - convert files privately in your browser',
         short_name: 'frogConvert',
-        description: 'Convert 70+ file formats, compress images, audio and video, and edit or shrink PDFs, all in your browser. Nothing is uploaded.',
+        description: 'Convert 70+ file formats, compress images, audio, video and PDFs, and edit PDFs, all in your browser. Nothing is uploaded.',
         start_url: '/',
         scope: '/',
         id: '/',
