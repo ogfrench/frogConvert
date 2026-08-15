@@ -123,8 +123,11 @@ The election matters because GPLv3 section 13 permits combining a covered work
 with AGPLv3 code, which is what allows the Ghostscript-based PDF compressor to
 ship. That engine is part of Compress rather than an optional extra, so AGPLv3
 section 13's network-interaction requirement applies to the combination - which
-is why the hosted app links to its own source. The upstream Ghostscript LICENSE
-is shipped alongside the binary at `/wasm/gs/LICENSE`.
+is why the hosted app offers its own source. That offer lives on the docs page
+(reachable from the footer's *view docs*): a link to the repository, and a link
+to the exact commit the running build came from, which is the revision the
+source offer is actually about. The upstream Ghostscript LICENSE is shipped
+alongside the binary at `/wasm/gs/LICENSE`.
 
 Not legal advice.
 </details>

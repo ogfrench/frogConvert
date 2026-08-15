@@ -375,7 +375,7 @@ summary {
   }
 }
 
-#commit-id {
+#footer-docs-link {
   color: inherit;
   font-weight: inherit;
   text-decoration: underline;
@@ -384,7 +384,7 @@ summary {
   transition: color var(--transition-fast), text-decoration-color var(--transition-fast);
 }
 
-#commit-id:hover {
+#footer-docs-link:hover {
   color: var(--foreground);
   text-decoration-color: var(--foreground);
 }
