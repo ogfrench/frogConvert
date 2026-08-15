@@ -170,6 +170,12 @@ export default defineConfig({
         main: resolve(__dirname, "index.html"),
         docs: resolve(__dirname, "docs/index.html"),
         headless: resolve(__dirname, "headless/index.html"),
+        // Self-contained deck, not part of the docs nav (the scanner only
+        // picks up .md carrying a docs-frontmatter block). Declared here so
+        // it is actually served: unbuilt, the only way to read it was to
+        // open the file off disk, which is how it went a release without
+        // anyone noticing it was unreachable.
+        slidedeck: resolve(__dirname, "docs/slidedeck.html"),
       },
       // Desktop build skips vite-plugin-pwa (Electron runs from app:// where
       // a service worker is useless). Without the plugin, the `virtual:pwa-register`
