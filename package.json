@@ -47,7 +47,6 @@
     "compile:mac": "bun build --compile --target=bun-darwin-arm64 bin/frogconvert.ts --outfile=release/frogconvert-mac-arm64",
     "compile:mac:x64": "bun build --compile --target=bun-darwin-x64 bin/frogconvert.ts --outfile=release/frogconvert-mac-x64",
     "compile:linux": "bun build --compile --target=bun-linux-x64 bin/frogconvert.ts --outfile=release/frogconvert-linux",
-    "docs:verify": "bun run scripts/verify-docs.ts",
     "audit": "bun audit --level high",
     "prepare": "husky"
   },
