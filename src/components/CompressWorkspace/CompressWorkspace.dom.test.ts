@@ -503,19 +503,21 @@ describe('CompressWorkspace - assistive technology', () => {
     expect(message.textContent).toContain('b.png');
   });
 
-  it('shows live engine progress with a percentage', async () => {
-    // The reported bug: this line never changed for the whole run.
+  it('shows live engine progress from the detail alone', async () => {
+    // The reported bug: this line never changed for the whole run. The ratio
+    // is dropped rather than appended - "12.4s of 47.0s" already implies
+    // "34%", and showing both stacked the same fact twice.
     const { emit, engine } = await startStalledRun();
     emit(0, 3, 'b.png');
     engine({ ratio: 0.34, detail: 'Encoded 12.4s of 47.0s of video.' });
     const message = document.getElementById('popup')!.querySelector('p')!;
     expect(message.textContent).toContain('Encoded 12.4s of 47.0s of video.');
-    expect(message.textContent).toContain('34%');
+    expect(message.textContent).not.toContain('34%');
   });
 
   it('keeps the volatile line out of the live region', async () => {
     // #popup is aria-atomic, so every write re-announces the whole modal. A
-    // percentage updating several times a second would make a screen reader
+    // line updating several times a second would make a screen reader
     // unusable; the phase and the file name stay announced.
     const { emit, engine } = await startStalledRun();
     emit(0, 3, 'b.png');
@@ -523,7 +525,7 @@ describe('CompressWorkspace - assistive technology', () => {
     const hidden = document.getElementById('popup')!
       .querySelector('p [aria-hidden="true"]');
     expect(hidden).not.toBeNull();
-    expect(hidden!.textContent).toContain('34%');
+    expect(hidden!.textContent).toContain('Encoded 12.4s of 47.0s of video.');
   });
 
   it('replaces the progress modal with the results, in place', async () => {

@@ -36,7 +36,7 @@ import {
   resetPdfOutputCompression,
   wasPdfOutputCompressionCancelled,
 } from '../../conversion/compressPdfOutput.ts';
-import { formatProgress, liveLine, reassuranceLine } from '../../conversion/progressStatus.ts';
+import { formatProgress, liveLine, reassuranceLine, elapsedSuffix } from '../../conversion/progressStatus.ts';
 import type { ProgressEvent } from '../../core/FormatHandler/FormatHandler.ts';
 import { MAX_TOTAL_FILE_SIZE, ABSOLUTE_MAX_FILES } from '../../constants/ui.ts';
 
@@ -540,8 +540,15 @@ async function setPdfResult(
   let position = '';
   const paint = () => {
     if (!note) return;
-    const live = liveLine(formatProgress(latest), Date.now() - startedAt);
-    const line = live ? `${live} · ${reassuranceLine()}` : reassuranceLine();
+    // The clock sits after the reassurance, matching the modal: the engine's
+    // own detail says what is happening, the clock says only how long it has
+    // been happening, and the two do not share a slot. This surface is a
+    // single line rather than the modal's stack, so "after" is literal here.
+    // `elapsedSuffix` owns the "long enough to be worth saying" threshold, so
+    // this line no longer starts its clock at 00:00 while the modal waits.
+    const live = liveLine(formatProgress(latest));
+    const tail = reassuranceLine() + elapsedSuffix(Date.now() - startedAt);
+    const line = live ? `${live} · ${tail}` : tail;
     note.textContent = position ? `${position} · ${line}` : line;
   };
   if (note) ticker = setInterval(paint, 1000);
