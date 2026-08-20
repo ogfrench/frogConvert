@@ -24,7 +24,7 @@ import {
 export const REASSURANCE_LINE = "feel free to switch tabs";
 
 /** What we tell a touch user, where the other thing is not true. */
-export const KEEP_OPEN_LINE = "keep this tab open while it works";
+export const KEEP_OPEN_LINE = "keep this tab open";
 
 /**
  * The reassurance, which is only reassuring where it is honest.
@@ -59,27 +59,21 @@ export function mmss(totalSec: number): string {
 /**
  * Render one handler progress event as a single plain-text line.
  *
- * Percentage only when the engine actually reported a ratio. FFmpeg, Ghostscript
- * and pdfCanvasCompress do; pdftoimg, pdftotxt and comics report a counted
- * detail with no ratio, and inventing one for them would mean a number that
- * jumps rather than advances.
+ * Percentage only when there is nothing else to say. A detail string already
+ * carries the progress - a page count, a timestamp within the source's own
+ * duration - and a `ratio`-derived percentage beside it restates the same
+ * number a second way rather than adding one: "Rasterising page 74 of 118"
+ * and "63%" are the same fact twice. The percentage is the fallback for the
+ * engines that report a bare ratio with nothing to say about it.
  *
  * Returns undefined when there is nothing worth saying, which is the caller's
  * cue to keep showing the reassurance line instead.
  */
 export function formatProgress(p: ProgressEvent | undefined): string | undefined {
     if (!p) return undefined;
-    const parts: string[] = [];
     const detail = typeof p.detail === "string" ? p.detail.trim() : "";
-    if (detail) parts.push(detail);
-    // Never two percentages in one line. Ghostscript's own copy already reads
-    // "Fetching the compressor (52%)" during its engine download, while `ratio`
-    // is at 26% because that fetch is only the first half of its overall
-    // progress - so appending it produced "(52%) · 26%", two numbers that
-    // disagree about the same moment. The engine's own wording wins: it knows
-    // what it is measuring.
-    const detailHasPercent = /\d\s*%/.test(detail);
-    if (!detailHasPercent && typeof p.ratio === "number" && Number.isFinite(p.ratio)) {
+    if (detail) return detail;
+    if (typeof p.ratio === "number" && Number.isFinite(p.ratio)) {
         // Clamped before it is judged. FFmpeg briefly reports slightly over 1 as
         // a stream finishes (see FFmpeg.ts:934), and a "104%" would undo the
         // credibility the whole line exists to build.
@@ -89,42 +83,72 @@ export function formatProgress(p: ProgressEvent | undefined): string | undefined
         // recovery retries), and with no detail beside it that event rendered
         // as a lone "0%" sitting on screen through the whole engine load -
         // technically true, and less use than the reassurance it displaced.
-        // Once a detail arrives, "Encoded 0.0s of 20.0s · 0%" is worth showing.
-        if (!detail && pct === 0) return undefined;
-        parts.push(`${pct}%`);
+        if (pct === 0) return undefined;
+        return `${pct}%`;
     }
-    return parts.length ? parts.join(" · ") : undefined;
+    return undefined;
 }
 
 /**
- * The live line: what the engine is doing, and how long it has been doing it.
+ * The live line: what the engine is doing, or how long it has been doing it.
  *
- * The reassurance is no longer part of this. It used to take turns with the
- * progress on a single line, which meant the one number worth watching
+ * The clock is a fallback, not an addition. Once a detail exists it already
+ * answers "is this working" better than a wall-clock count does - "Encoded
+ * 12.4s of 47.0s" is a position within a known duration, `00:14` is not - so
+ * appending both stacked two answers to one question. The clock only shows
+ * for the engines with nothing to say at all (ImageMagick and ~75 others),
+ * where it is the only evidence the run is still going.
+ *
+ * The reassurance is no longer part of this either. It used to take turns with
+ * the progress on a single line, which meant the one number worth watching
  * disappeared every few seconds - a flicker between two things, neither of
  * which you could settle on. The reassurance is static text, so it costs a line
- * and nothing else; it now has its own and simply stays there.
+ * and nothing else; it has its own and simply stays there.
  *
  * Returns "" when there is nothing to report yet, which is the caller's cue to
  * omit the line entirely rather than render an empty one.
  *
  * @param progressText Result of {@link formatProgress}, or undefined.
- * @param elapsedMs How long this run has been going, or null before the clock starts.
  */
-export function liveLine(
-    progressText: string | undefined, elapsedMs: number | null,
-): string {
-    const parts: string[] = [];
-    if (progressText) parts.push(progressText);
-    if (elapsedMs !== null) parts.push(mmss(elapsedMs / 1000));
-    return parts.join(" · ");
+export function liveLine(progressText: string | undefined): string {
+    return progressText ?? "";
 }
 
 /**
- * Owns the progress modal for the duration of one unit of work. Three slots:
- * main line (stable), muted subtitle (the format path or the file name), and a
- * muted live line that alternates between the handler's latest progress and the
- * reassurance, with a ` · MM:SS` elapsed suffix once the run passes 10s.
+ * How long a run has to last before it is worth telling anyone how long it has
+ * lasted. Below this the clock is noise on a wait nobody was worried about.
+ */
+export const ELAPSED_AFTER_MS = 20_000;
+
+/**
+ * The elapsed clock, which rides on the reassurance line rather than this one.
+ *
+ * It answers a different question from everything above it: not "what is the
+ * engine doing" but "how long have I been waiting", which is the input to the
+ * decision to press Stop. The reassurance is the only other line about waiting
+ * rather than about the work, so the clock belongs there - and putting it there
+ * keeps the live line free for the engine, which is the thing worth watching.
+ *
+ * The threshold lives in here rather than in each caller. Two surfaces render
+ * this - the modal and the PDF editor's single status line - and when they each
+ * decided for themselves they disagreed: the modal held the clock back while
+ * the editor showed `00:00` from the first frame. Gating it here means a third
+ * surface cannot get it wrong either.
+ *
+ * Returns "" for a run too short to have a clock, which is every run under
+ * {@link ELAPSED_AFTER_MS}.
+ */
+export function elapsedSuffix(elapsedMs: number | null): string {
+    if (elapsedMs === null || elapsedMs < ELAPSED_AFTER_MS) return "";
+    return ` · ${mmss(elapsedMs / 1000)}`;
+}
+
+/**
+ * Owns the progress modal for the duration of one unit of work. Four slots:
+ * main line (stable), muted subtitle (the format path or the file name), a
+ * muted live line (the handler's own progress, or an elapsed clock once the
+ * run passes 10s if the handler reports nothing), and its own permanent
+ * reassurance line beneath it.
  */
 export type StatusHandle = {
     cancel: () => void;
@@ -150,16 +174,14 @@ export function startConversionStatus(
     let tickTimer: ReturnType<typeof setInterval> | null = null;
     let latest: ProgressEvent | undefined;
     let lastHTML: string | null = null;
-    let showElapsed = false;
     let mainLine = main;
     let subLine = subtitle;
     let currentPhase: ProgressPhase = phase;
     let painted = false;
 
     const render = () => {
-        const live = liveLine(
-            formatProgress(latest),
-            showElapsed ? Date.now() - startedAt : null);
+        const live = liveLine(formatProgress(latest));
+        const clock = elapsedSuffix(Date.now() - startedAt);
         const lines = [
             mainLine,
             `<span class="muted-text">${escapeHTML(subLine)}</span>`,
@@ -179,7 +201,17 @@ export function startConversionStatus(
         // seconds and came back - a flicker between two things, neither of which
         // you could settle on. It is static text; it costs a line and nothing
         // else, and it is announced once instead of being re-read every tick.
-        lines.push(`<span class="muted-text">${reassuranceLine()}</span>`);
+        //
+        // The clock rides here rather than on the live line above, in its own
+        // aria-hidden span: the reassurance is the only other line about the
+        // waiting rather than about the work, and hanging the elapsed time off
+        // it leaves the engine's own line to say one thing. Two spans rather
+        // than one string because the sentence stays announced while the
+        // ticking half does not.
+        lines.push(
+            `<span class="muted-text">${reassuranceLine()}</span>`
+            + (clock ? `<span class="muted-text" aria-hidden="true">${escapeHTML(clock)}</span>` : ""),
+        );
         const html = lines.join("<br>");
         if (html === lastHTML) return;
         lastHTML = html;
@@ -190,9 +222,10 @@ export function startConversionStatus(
     render(); // initial paint, callers no longer paint the modal themselves
 
     /**
-     * One timer, armed immediately rather than after the old 10s delay: the
-     * alternation needs a heartbeat from the first progress event, and the
-     * elapsed clock still holds itself back until 10s so short runs stay quiet.
+     * One timer, armed immediately rather than after a delay: the modal needs a
+     * heartbeat from the first progress event. The elapsed clock holds itself
+     * back until {@link ELAPSED_AFTER_MS} inside `elapsedSuffix`, so short runs
+     * stay quiet without this loop knowing anything about it.
      */
     const stop = () => {
         if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
@@ -214,7 +247,6 @@ export function startConversionStatus(
         // the caller forgot to cancel - there is nothing left to paint, and a
         // handle that keeps ticking would write into a modal that has moved on.
         if (painted && !ui.popupBox?.classList.contains("open")) { stop(); return; }
-        if (!showElapsed && Date.now() - startedAt >= 10_000) showElapsed = true;
         render();
     }, 1000);
 
