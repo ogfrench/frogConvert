@@ -48,6 +48,16 @@
   [headers.values]
     Content-Type = "application/manifest+json"
 
+# cache.json is the prebuilt format registry the app falls back to when it has
+# no valid localStorage copy. It has no hash in its URL, so without an explicit
+# rule a returning user can be served a stale registry from HTTP cache and see
+# an out-of-date format list. Revalidate every time; it is one 153 KB request
+# made once per build change.
+[[headers]]
+  for = "/cache.json"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
 # WASM blobs ship with content-stable URLs (vite-plugin-static-copy doesn't
 # hash them). Long HTTP cache + 7-day SW cache means repeat conversions hit
 # disk instantly while critical fixes still propagate within a week.

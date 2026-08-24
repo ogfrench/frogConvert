@@ -40,10 +40,20 @@ export function registerPWA(env: PwaEnv = defaultEnv()): void {
     try {
       const updateSW = registerSW({
         onNeedRefresh() {
-          showUpdateAvailableNotice(() => {
+          const reload = () => {
             void Promise.resolve(updateSW(true)).catch((e) => {
               console.warn("[pwa] updateSW(true) failed:", e);
             });
+          };
+          showUpdateAvailableNotice(reload);
+          // Dismissal is per-session, not permanent. registerSW only calls
+          // onNeedRefresh once per page load, so without this a user who
+          // dismissed the notice kept the old precached index.html - and
+          // therefore the old asset hashes - until they happened to reload.
+          // Re-offering when they come back to the tab bounds that to one
+          // visit rather than indefinitely.
+          document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") showUpdateAvailableNotice(reload);
           });
         },
         onRegisterError(error) {
