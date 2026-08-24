@@ -662,6 +662,34 @@ function selectToFormat(index: number) {
   closeFormatModal();
 }
 
+/**
+ * Preselects the output format from `?to=` so a landing page can link
+ * straight into the conversion it describes (/convert?from=heic&to=jpg).
+ *
+ * Only `to` is applied. The source format is detected from the file the user
+ * drops, so there is nothing to preselect for `from` before that happens; it
+ * stays in the URL for the landing page's own bookkeeping.
+ *
+ * Runs at most once, and only once the format list exists, since the format
+ * list is what an index refers to.
+ */
+let queryPreselectApplied = false;
+function applyQueryPreselect(): void {
+  if (queryPreselectApplied || !allOptionsRef.value.length) return;
+  const wanted = new URLSearchParams(location.search).get("to")?.trim().toLowerCase();
+  if (!wanted) { queryPreselectApplied = true; return; }
+
+  const index = allOptionsRef.value.findIndex(o =>
+    o.format.to && (
+      String(o.format.extension).toLowerCase() === wanted ||
+      String(o.format.format).toLowerCase() === wanted
+    ));
+  if (index === -1) return; // may appear once Phase 2 handlers land
+
+  queryPreselectApplied = true;
+  selectToFormat(index);
+}
+
 // --- Popup (global) ---
 
 window.showPopup = showPopup;
@@ -813,6 +841,7 @@ let convertRestoreAttempted = false;
     populateFromCache(handlers);
     refreshUI();
     attemptConvertRestore();
+    applyQueryPreselect();
   }
 
   try {
@@ -825,6 +854,7 @@ let convertRestoreAttempted = false;
       }
       console.debug(`Phase 1: ${handlers.length} core handlers loaded.`);
       attemptConvertRestore();
+      applyQueryPreselect();
     } catch (e) {
       console.error("Phase 1 init failed:", e);
     }

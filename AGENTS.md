@@ -37,8 +37,8 @@ Canonical command list lives in [package.json](package.json). Requires [Bun](htt
 | Build | `bun run build` |
 | Run tests | `bun run test` *(do not use bare `bun test`; it skips jsdom)* |
 | Watch tests | `bun run test:watch` |
-| MCP server | `bun run mcp` or `bunx frogconvert mcp` |
-| REST API | `bun run api` or `bunx frogconvert api` |
+| MCP server | `bun run mcp` |
+| REST API | `bun run api` |
 
 Puppeteer E2E tests live under [test/e2e/](test/e2e/) and spin up a real browser to verify worker mounting and UI flows. For deployment (Docker, desktop builds, Netlify), see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
