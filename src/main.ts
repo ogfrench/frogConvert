@@ -19,6 +19,7 @@ function getCompressWorkspace(): Promise<CompressWorkspaceModule> {
 }
 import { initRouter, navigateTo, type RouteState, type AppMode } from "./router.ts";
 import { isTouchUi } from "./core/utils/touchUi.ts";
+import { readFormatCache, writeFormatCache } from "./core/formatCacheStore.ts";
 
 // Kick off TraversionGraph load immediately in the background - does not block paint.
 // refreshUI() awaits this promise before calling .init(), so it's always ready in time.
@@ -771,6 +772,12 @@ async function refreshUI() {
 
 // --- Init ---
 
+// Identifies the build that produced a persisted format cache. Injected by
+// vite.config.js from `git rev-parse --short HEAD`, falling back to "dev" when
+// git is unavailable, so local builds share one bucket, which is fine because
+// the case that matters is a deploy changing under a returning user.
+const BUILD_VERSION: string = (import.meta.env.VITE_COMMIT_SHA as string) || "dev";
+
 // Hoisted ahead of the init IIFE so the synchronous localStorage-cache path
 // at line ~473 can call attemptConvertRestore() without hitting a TDZ on this
 // `let` (the function declaration itself hoists, but the variable does not).
@@ -780,17 +787,15 @@ let convertRestoreAttempted = false;
   isLoadingHandlers.value = true;
   updateConvertButtonState(selectedFromIndex.value, selectedToIndex.value);
 
-  // Load cache: localStorage → cache.json → nothing (cold start)
+  // Load cache: localStorage (this build only) → cache.json → nothing (cold start)
   let hasCache = false;
-  try {
-    const stored = localStorage.getItem("supportedFormatCache");
-    if (stored) {
-      window.supportedFormatCache = new Map(JSON.parse(stored));
-      hasCache = true;
-    } else {
-      throw "No localStorage cache";
-    }
-  } catch {
+  const stored = readFormatCache(localStorage, BUILD_VERSION);
+  if (stored) {
+    window.supportedFormatCache = new Map(stored);
+    hasCache = true;
+  } else {
+    // Either a cold start or a build change. readFormatCache has already
+    // dropped the stale blob, so this is the path that picks up new formats.
     try {
       const cacheJSON = await fetch("cache.json", { signal: AbortSignal.timeout(5000) }).then(r => r.json());
       window.supportedFormatCache = new Map(cacheJSON);
@@ -847,15 +852,11 @@ let convertRestoreAttempted = false;
     } else {
       setOnConversionEnd(refreshUI);
     }
-    // Persist cache for next page load. localStorage.setItem throws a
-    // QuotaExceededError synchronously when origin storage is full; if
-    // uncaught it takes the Phase-2 load path down with it. Log and move on.
-    try {
-      const entries = [...window.supportedFormatCache.entries()];
-      localStorage.setItem("supportedFormatCache", JSON.stringify(entries));
-    } catch (e) {
-      console.warn("[main] localStorage persist failed (quota or disabled):", e);
-    }
+    // Persist cache for next page load, stamped with this build so the next
+    // load can tell whether it is still current. writeFormatCache swallows
+    // QuotaExceededError, which setItem raises synchronously when origin
+    // storage is full and which would otherwise take the Phase-2 path down.
+    writeFormatCache(localStorage, BUILD_VERSION, [...window.supportedFormatCache.entries()]);
     console.debug(`Phase 2: ${handlers.length - countBefore} background handlers loaded.`);
   } finally {
     isLoadingHandlers.value = false;
