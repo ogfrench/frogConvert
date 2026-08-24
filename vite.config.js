@@ -484,8 +484,9 @@ export default defineConfig({
           src: "src/handlers/espeakng.js/js/espeakng.worker.data",
           dest: "js"
         },
-        // Auto-sync all documentation files
-        { src: "*.md", dest: "docs" },
+        // Auto-sync all documentation files. CLAUDE.md is gitignored local-only
+        // instructions, so it must not be copied into a build someone can serve.
+        { src: "!(CLAUDE).md", dest: "docs" },
         { src: "docs/*.md", dest: "docs" },
         { src: "LICENSE", dest: "docs" },
         { src: "LICENSE.upstream-GPLv2", dest: "docs" },
