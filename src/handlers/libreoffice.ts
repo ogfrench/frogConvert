@@ -211,14 +211,13 @@ class libreofficeHandler implements FormatHandler {
       },
       CommonFormats.TEXT.builder("text").allowFrom(),
       CommonFormats.CSV.builder("csv").allowFrom(),
-      {
-        name: "EPUB",
-        format: "epub",
-        extension: "epub",
-        mime: "application/epub+zip",
-        from: true, to: false, internal: "epub",
-        category: "document", lossless: false
-      },
+      // EPUB is deliberately absent. LibreOffice writes EPUB but has no import
+      // filter for it, so declaring `from: true` gave the graph an epub -> pdf
+      // edge that always failed with "source file could not be loaded".
+      // Verified against LibreOffice 26.2 with a real 6,150-byte EPUB: exit 1,
+      // no output. It also made md -> pdf fail, because the router preferred
+      // md -> epub -> pdf over the md -> html -> pdf route that works.
+
       // Output
       CommonFormats.PDF.builder("pdf").allowTo()
     ];
@@ -402,13 +401,17 @@ class libreofficeHandler implements FormatHandler {
 
   async #exec(outDir: string, inputPath: string): Promise<void> {
     const cpName = "child_process";
+    const urlName = "url";
     const { spawn } = await import(/* @vite-ignore */ cpName);
+    const { pathToFileURL } = await import(/* @vite-ignore */ urlName);
 
-    // Convert to file:// URI, Windows paths need the extra slash (file:///C:/...)
-    // while Unix paths already start with / (file:///tmp/...)
-    const normalized = this.#profileDir.replace(/\\/g, "/");
-    const encoded = normalized.split("/").map(s => encodeURIComponent(s)).join("/");
-    const profileUri = "file://" + (encoded.startsWith("/") ? "" : "/") + encoded;
+    // pathToFileURL, not a hand-rolled encoder. Running every path segment
+    // through encodeURIComponent turned the Windows drive letter "C:" into
+    // "C%3A", and LibreOffice does not reject that URI - it hangs on it until
+    // the 120s timeout kills it, so every native conversion on Windows failed
+    // by timing out. Measured on the same file: file:///C:/... exits 0 with an
+    // 86,639-byte PDF, file:///C%3A/... produces nothing.
+    const profileUri = pathToFileURL(this.#profileDir).href;
 
     const args = [
       "--headless",
