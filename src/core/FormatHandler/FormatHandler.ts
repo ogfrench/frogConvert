@@ -211,6 +211,16 @@ export interface FormatHandler {
   supportAnyInput?: boolean;
 
   /**
+   * With {@link supportAnyInput}, the `internal` names of the outputs actually
+   * reachable from an arbitrary input. Defaults to every `to` format, which is
+   * wrong for a handler whose other outputs are only reachable from its own
+   * inputs: lzh writes `zip` and `json` only when reading an `lzh`, so the
+   * default gave the graph `pdf → json` and `svg → zip` edges that
+   * {@link doConvert} rejects at run time.
+   */
+  anyInputFormats?: string[];
+
+  /**
    * Whether the handler is ready for use. Should be set in {@link init}.
    * If true, {@link doConvert} is expected to work.
    */

@@ -211,9 +211,14 @@ export class TraversionGraph {
             const formats = supportedFormatCache.get(handler.name);
             if (!formats || !this.handlersByName.has(handler.name)) return;
 
+            // Not every `to` format is reachable from an arbitrary input; see
+            // FormatHandler.anyInputFormats. Absent, all of them are, which is
+            // the long-standing behaviour for jszip and sevenZip.
+            const anyInput = handler.anyInputFormats;
             const toIndices: Array<{ format: FileFormat, index: number }> = [];
             formats.forEach(format => {
                 if (!format.to) return;
+                if (anyInput && !anyInput.includes(String(format.internal))) return;
                 const identifier = formatToIdentifier(format);
                 const index = nodeIndexByIdentifier.get(identifier) ?? -1;
                 if (index !== -1) toIndices.push({ format, index });

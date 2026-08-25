@@ -20,7 +20,7 @@ frogConvert runs entirely in your browser. Convert between 70+ file formats, com
 - **Convert a file**: [docs/CONVERTER.md](docs/CONVERTER.md).
 - **Edit a PDF**: [docs/PDF_EDITOR.md](docs/PDF_EDITOR.md).
 - **Make a file smaller**: [docs/COMPRESS.md](docs/COMPRESS.md).
-- **Run the MCP server or REST API**: `bunx frogconvert mcp` or `bunx frogconvert api`. See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
+- **Run the MCP server or REST API**: clone the repo, then `bun run mcp` or `bun run api`. See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 - **Self-host, Docker, desktop builds**: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Recent changes

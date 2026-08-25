@@ -47,7 +47,10 @@ export function initRouter(onRouteChange: (route: RouteState) => void): RouteSta
   if (location.protocol !== 'app:') {
     const correctPath = buildPath(initial.mode);
     if (location.pathname !== correctPath) {
-      history.replaceState(null, '', correctPath);
+      // Keep the query string. Landing pages link in as
+      // /convert?from=heic&to=jpg to preselect the conversion, and dropping
+      // the search here silently discarded that before the app could read it.
+      history.replaceState(null, '', correctPath + location.search);
     }
     window.addEventListener('popstate', () => onRouteChange(parseURL()));
   }

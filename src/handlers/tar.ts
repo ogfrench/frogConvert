@@ -14,6 +14,8 @@ class tarHandler implements FormatHandler {
   ];
 
   public supportAnyInput: boolean = true;
+  /** Packing arbitrary input yields tar; the zip output is produced only when reading a tar archive. */
+  public anyInputFormats: string[] = ["tar"];
 
   public ready: boolean = false;
 

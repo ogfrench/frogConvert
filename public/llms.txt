@@ -24,7 +24,14 @@
 - [Deployment](https://frogconvert.xyz/docs/DEPLOYMENT.md): Build, hosting, PWA, desktop build
 - [Agent rules](https://frogconvert.xyz/docs/AGENTS.md): Mandatory contributor rules (read first)
 
+## Format and conversion reference
+
+- [All supported formats](https://frogconvert.xyz/formats/): Every format, grouped by type, each with its own page
+- [Conversion guides](https://frogconvert.xyz/convert/): One page per conversion, with the engine used and what each conversion loses
+
 ## Crawler policy
 
 - [robots.txt](https://frogconvert.xyz/robots.txt): Crawler access; all standard search engines and GenAI bots (GPTBot, ClaudeBot, Google-Extended, PerplexityBot, etc.) are explicitly allowed
-- [sitemap.xml](https://frogconvert.xyz/sitemap.xml): Indexable URLs
+- [sitemap.xml](https://frogconvert.xyz/sitemap.xml): Every indexable URL, generated at build time
+
+Each doc above is also served as rendered HTML at https://frogconvert.xyz/docs/<name>/ (for example /docs/architecture/), which needs no JavaScript to read.

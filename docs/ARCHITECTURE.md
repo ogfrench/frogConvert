@@ -57,7 +57,7 @@ flowchart TD
     I --> J[Browser downloads the file]
 
     subgraph " "
-    K[Same Format Picked\ne.g. JPEG → JPEG] --> N[Pass through original bytes\n\"No conversion needed\"]
+    K[Same Format Picked\ne.g. JPEG → JPEG] --> N[Pass through original bytes\n'No conversion needed']
     N --> I
     end
 ```

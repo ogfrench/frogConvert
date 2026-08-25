@@ -37,6 +37,8 @@ class LZHHandler implements FormatHandler {
   ];
 
   public supportAnyInput: boolean = true;
+  /** Packing arbitrary input yields lzh; zip and json outputs are produced only when reading an lzh archive. */
+  public anyInputFormats: string[] = ["lzh"];
   public ready: boolean = false;
 
   async init() {

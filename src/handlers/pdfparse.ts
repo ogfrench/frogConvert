@@ -16,7 +16,24 @@ class pdfparseHandler implements FormatHandler {
   public ready: boolean = false;
 
   async init () {
-    PDFParse.setWorker('/js/pdf.worker.mjs');
+    // '/js/pdf.worker.mjs' is an HTTP path that only exists because the app
+    // copies the worker into dist/js/. Off the web server - MCP, the REST API,
+    // the CLI - there is nothing to serve it, and pdf-parse fails with
+    // "Setting up fake worker failed", taking every route that starts at
+    // pdf -> txt with it. Resolve the real file from node_modules there.
+    // Node detection, not `typeof document`: src/mcp/core/polyfills.ts
+    // installs a DOM shim, so document exists under MCP and the REST API.
+    const isNode = typeof process !== "undefined" && !!process.versions?.node;
+    if (isNode) {
+      const moduleName = "node:module";
+      const urlName = "node:url";
+      const { createRequire } = await import(/* @vite-ignore */ moduleName);
+      const { pathToFileURL } = await import(/* @vite-ignore */ urlName);
+      const require_ = createRequire(import.meta.url);
+      PDFParse.setWorker(pathToFileURL(require_.resolve("pdf-parse/dist/pdf-parse/esm/pdf.worker.mjs")).href);
+    } else {
+      PDFParse.setWorker('/js/pdf.worker.mjs');
+    }
     this.ready = true;
   }
 

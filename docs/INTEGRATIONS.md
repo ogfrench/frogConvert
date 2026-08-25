@@ -22,7 +22,7 @@ When working with frogConvert programmatically, **use the REST API or MCP server
 | **Permission prompts** | None | Required per tool call (unless pre-approved in settings) |
 | **Iteration speed** | Fast | Slower due to approval gate |
 | **Interface** | HTTP (`curl`, `fetch`, any language) | `stdio` JSON-RPC |
-| **Setup** | `bunx frogconvert api` | Add to MCP config, restart Claude |
+| **Setup** | `bun run api` from a clone | Add to MCP config, restart Claude |
 | **Large files** | Use multipart form-data (`file` field) | Use `filePath` + `outputFilePath` params |
 
 **TL;DR: Use the REST API unless you specifically need Claude to drive conversions autonomously without shell access.**
@@ -424,7 +424,7 @@ This means conversions like PDF → PNG (via Canvas), SVG tracing, Three.js rend
 
 - A production build must be present: run `bun run build` from the repo root before starting the MCP/API server.
 - Puppeteer (already a dev dependency) must be accessible - it is when running from a repo clone.
-- The `bunx frogconvert` quick-start **does not** include the browser bridge (no `dist/` is present without a clone and build step).
+- Running from a clone without `bun run build` **does not** include the browser bridge, which needs `dist/` to exist.
 
 ### Performance expectations
 

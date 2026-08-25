@@ -28,11 +28,11 @@ The MCP server and REST API run directly via `bunx`; no clone or install needed.
 **REST API** (recommended for scripting and automation):
 
 ```bash
-bunx frogconvert api
-PORT=8080 bunx frogconvert api
+bun run api
+PORT=8080 bun run api
 ```
 
-> **First-run note.** The npm package bundles `pandoc.wasm` (~55 MB uncompressed, ~12 MB compressed download) for document conversion. `bunx` caches this after the first run.
+> **First-run note.** `pandoc.wasm` is ~55 MB uncompressed and is compiled on first use, which takes 30 s to 3 min. Subsequent runs reuse the compiled module.
 
 See [INTEGRATIONS.md](INTEGRATIONS.md) for request/response shapes, authentication notes, and browser-bridge behavior.
 

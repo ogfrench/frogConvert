@@ -69,6 +69,36 @@
 # Entry HTMLs MUST NOT be HTTP-cached — they reference hashed asset URLs
 # that change every build. Caching the HTML pins users to old asset hashes
 # and breaks the SW update flow.
+# Generated static pages. The per-mode copies reference hashed asset URLs that
+# change every build, and the landing pages are regenerated whenever the format
+# registry moves, so none of them may be pinned in an HTTP cache. Deliberately
+# scoped rather than a blanket /* rule, which would also stop /assets/* from
+# being cached and defeat the hashing.
+[[headers]]
+  for = "/convert/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/compress/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/pdf/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/formats/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/docs/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
 [[headers]]
   for = "/index.html"
   [headers.values]

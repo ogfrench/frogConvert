@@ -8,6 +8,8 @@ import tsconfigPaths from "vite-tsconfig-paths";
 
 import { execSync, spawn } from "child_process";
 
+import { generateSeoPages } from "./src/seo/generate.ts";
+
 /**
  * Auto-spawn the API server (src/api/index.ts) as a child process on dev
  * startup. This lets the browser UI proxy to /api/* and reach Node-only
@@ -270,6 +272,34 @@ export default defineConfig({
     },
     {
       /**
+       * Emits the static pages: one per doc, one per format hub, one per
+       * conversion pair, plus per-mode copies of index.html and a generated
+       * sitemap. See src/seo/generate.ts.
+       *
+       * writeBundle, NOT closeBundle. csp-hashes runs in closeBundle and walks
+       * every .html in dist/ to compute the sha256 allowlist; writeBundle is
+       * guaranteed to run first regardless of plugin order, so pages emitted
+       * here are hashed rather than silently blocked. The generated pages are
+       * script-free, but the per-mode index.html copies are not, and those are
+       * exactly the ones that would break.
+       */
+      name: 'seo-pages',
+      apply: 'build',
+      async writeBundle() {
+        // Desktop builds are packaged for Electron and have no crawler to
+        // serve, so the pages are pure weight there.
+        if (isDesktopBuild) return;
+        const { warnings } = await generateSeoPages({
+          root: __dirname,
+          outDir: resolve(__dirname, 'dist'),
+          strict: true,
+          log: (msg) => console.log(msg),
+        });
+        for (const w of warnings) console.warn(`[seo] ${w}`);
+      },
+    },
+    {
+      /**
        * Write a sha256 for every inline <script> that ships into the CSP.
        *
        * The two inline blocks in index.html cannot simply become files: the
@@ -454,8 +484,9 @@ export default defineConfig({
           src: "src/handlers/espeakng.js/js/espeakng.worker.data",
           dest: "js"
         },
-        // Auto-sync all documentation files
-        { src: "*.md", dest: "docs" },
+        // Auto-sync all documentation files. CLAUDE.md is gitignored local-only
+        // instructions, so it must not be copied into a build someone can serve.
+        { src: "!(CLAUDE).md", dest: "docs" },
         { src: "docs/*.md", dest: "docs" },
         { src: "LICENSE", dest: "docs" },
         { src: "LICENSE.upstream-GPLv2", dest: "docs" },

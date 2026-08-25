@@ -7,18 +7,55 @@ function hasPrefix(bytes: Uint8Array, prefix: number[]) {
   return true;
 }
 
+/**
+ * Drop a leading U+FEFF. The encoders emit a BOM; left in by the decoders it
+ * surfaced as a stray invisible character at the start of every file that had
+ * been round-tripped through UTF-16 or UTF-32.
+ */
+function stripBOM(s: string) {
+  return s.charCodeAt(0) === 0xfeff ? s.slice(1) : s;
+}
+
 function decodeUTF32(bytes: Uint8Array, littleEndian: boolean) {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  // A trailing partial unit means the bytes are not what they were declared to
+  // be. Dropping it silently truncated the file's last character instead.
+  if (bytes.byteLength % 4 !== 0) {
+    throw new Error(
+      `Not valid UTF-32 ${littleEndian ? "LE" : "BE"}: ${bytes.byteLength} bytes is ` +
+      `not a whole number of 4-byte characters. Pick the encoding the file actually uses.`
+    );
+  }
   let out = "";
   for (let i = 0; i + 4 <= dv.byteLength; i += 4) {
     const cp = dv.getUint32(i, littleEndian);
+    // Reject before String.fromCodePoint, which throws a bare RangeError
+    // ("Arguments contain a value that is out of range of code points") that
+    // says nothing about which file or encoding was wrong. Reading ASCII as
+    // UTF-32 hits this on the first word: "frog" little-endian is 0x676F7266.
+    if (cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) {
+      throw new Error(
+        `Not valid UTF-32 ${littleEndian ? "LE" : "BE"}: byte ${i} decodes to ` +
+        `U+${cp.toString(16).toUpperCase()}, which is not a Unicode character. ` +
+        `Pick the encoding the file actually uses.`
+      );
+    }
     out += String.fromCodePoint(cp);
   }
-  return out;
+  return stripBOM(out);
 }
 
 function decodeUTF16(bytes: Uint8Array, littleEndian: boolean) {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  // See decodeUTF32: an odd byte count is a wrong-encoding signal, not a byte
+  // to discard.
+  if (bytes.byteLength % 2 !== 0) {
+    throw new Error(
+      `Not valid UTF-16 ${littleEndian ? "LE" : "BE"}: ${bytes.byteLength} bytes is ` +
+      `an odd number, so the last character is incomplete. Pick the encoding the ` +
+      `file actually uses.`
+    );
+  }
   let out = "";
   for (let i = 0; i + 2 <= dv.byteLength; ) {
     const w1 = dv.getUint16(i, littleEndian);
@@ -32,18 +69,24 @@ function decodeUTF16(bytes: Uint8Array, littleEndian: boolean) {
       out += String.fromCharCode(w1);
     }
   }
-  return out;
+  return stripBOM(out);
 }
 
 function encodeUTF16(str: string, littleEndian: boolean, addBOM = false) {
-  // count code units
+  // Array.from iterates by code point, not by UTF-16 code unit.
   const codepoints = Array.from(str);
-  // worst case 2 units per code point
-  const buf = new ArrayBuffer((codepoints.length * 2 + (addBOM ? 2 : 0)));
+  // Worst case is 2 code units, so 4 bytes, per code point. Allocating 2 bytes
+  // overflowed on any astral character: one emoji is a single entry in
+  // codepoints but needs a surrogate pair. Trailing slack is trimmed by the
+  // `offset` length passed to the Uint8Array below.
+  const buf = new ArrayBuffer((codepoints.length * 4 + (addBOM ? 2 : 0)));
   const dv = new DataView(buf);
   let offset = 0;
   if (addBOM) {
-    dv.setUint16(0, littleEndian ? 0xFF_FE : 0xFE_FF, false);
+    // As in encodeUTF32: write the BOM's code point and let setUint16 order
+    // the bytes. Swapping the constant *and* the endianness cancels out, but
+    // it is the exact shape of the bug that made UTF-32 LE emit BE bytes.
+    dv.setUint16(0, 0xfeff, littleEndian);
     offset += 2;
   }
   for (const ch of codepoints) {
@@ -69,8 +112,11 @@ function encodeUTF32(str: string, littleEndian: boolean, addBOM = false) {
   const dv = new DataView(buf);
   let offset = 0;
   if (addBOM) {
-    if (littleEndian) dv.setUint32(0, 0xFF_FE_00_00, true);
-    else dv.setUint32(0, 0x00_00_FE_FF, false);
+    // U+FEFF is the BOM's code point; setUint32 lays out the bytes for the
+    // requested endianness. Pre-swapping the constant as well swapped it
+    // twice, so UTF-32 LE emitted the BE sequence 00 00 FE FF and could not
+    // read back its own output.
+    dv.setUint32(0, 0xfeff, littleEndian);
     offset += 4;
   }
   for (const cp of codepoints) {
