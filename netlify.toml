@@ -29,11 +29,15 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
-    # Mirrors docker/nginx/default.conf:21 so the hosted build matches the
-    # containerised deploy. 'unsafe-inline' is required by the FOUC-prevention
-    # inline script in index.html, the async-CSS onload attribute, and the
-    # onclick in UploadZone's string popup — all documented in nginx conf.
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; worker-src 'self' blob:; connect-src 'self'; img-src 'self' data: blob:; object-src 'none'; frame-ancestors 'none';"
+    # No Content-Security-Policy here on purpose. public/_headers carries it,
+    # and the csp-hashes plugin stamps that file with a sha256 for every inline
+    # script it finds in the built output, so the policy needs no
+    # 'unsafe-inline'. netlify.toml takes precedence over _headers for the same
+    # header on the same path, so declaring a CSP here silently shadowed the
+    # hashed one: the strict policy was written, deployed and never applied.
+    # A static toml cannot carry per-build hashes, which is why the real policy
+    # lives in the file the build rewrites. docker/nginx/default.conf keeps the
+    # permissive policy for the same reason: its conf is static too.
 
 # Service worker must not be HTTP-cached so updates roll out promptly.
 # Service-Worker-Allowed: / lets the SW be registered with root scope from any path.

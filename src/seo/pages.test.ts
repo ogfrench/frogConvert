@@ -47,6 +47,10 @@ describe("content matches the live registry", () => {
 
 describe("generated pages", () => {
   const { pages, warnings } = buildLandingPages(graph, { strict: true });
+  // buildLandingPages returns the pairs and the format hubs. The /formats/
+  // index is built separately, so every content check below ran without it and
+  // it shipped at 114 words of body, thinner than any page they guarded.
+  const allPages = [...pages, formatsIndexPage(graph)];
 
   it("produces a page per pair plus a hub per format", () => {
     expect(pages.length).toBe(Object.keys(PAIR_CONTENT).length + Object.keys(FORMAT_CONTENT).length);
@@ -60,7 +64,7 @@ describe("generated pages", () => {
     const notWasm = ["the browser canvas", "pdf.js", "JSZip", "pdf-lib",
       "pdf-parse", "ImageTracer", "fontkit", "the built-in text encoder",
       "the built-in JSON converter"];
-    for (const page of pages) {
+    for (const page of allPages) {
       for (const label of notWasm) {
         expect(page.html, `${page.path} claims ${label} is WebAssembly`)
           .not.toContain(`${label}, compiled to WebAssembly`);
@@ -75,7 +79,7 @@ describe("generated pages", () => {
     const internals = ["meyda", "renamezip", "renametxt", "renamejson",
       "PdfCanvasCompress", "svgForeignObject", "htmlEmbed", "qoa-fu",
       "miditextcodec", "aperturePicture", "celariaMap", "fromjson", "tojson"];
-    for (const page of pages) {
+    for (const page of allPages) {
       const facts = page.html.match(/<dd>[^<]*<\/dd>/g) ?? [];
       for (const name of internals) {
         // Word-bounded: "Link targets are dropped" must not read as `tar`.
@@ -89,20 +93,24 @@ describe("generated pages", () => {
   it("emits no executable script, so nothing needs a CSP hash", () => {
     // Landing pages are deliberately script-free: a wrong sha256 in _headers
     // fails silently, blocking the script while the build reports success.
-    for (const p of pages) {
+    for (const p of allPages) {
       expect(p.html, p.path).not.toMatch(/<script(?! type="application\/ld\+json")/);
     }
   });
 
   it("gives every page a self-referencing canonical", () => {
-    for (const p of pages) {
+    for (const p of allPages) {
       expect(p.html, p.path).toContain(`<link rel="canonical" href="https://frogconvert.xyz${p.path}">`);
     }
   });
 
   it("carries enough prose to not read as a thin doorway page", () => {
-    for (const p of pages) {
+    for (const p of allPages) {
+      // Body only. Counting <head> as well meant the meta description,
+      // the OG tags and the twitter tags all paid into the total, and
+      // /formats/ cleared 200 on 114 words of actual page.
       const text = p.html
+        .replace(/[\s\S]*?<\/head>/, "")
         .replace(/<(script|style)[\s\S]*?<\/\1>/g, "")
         .replace(/<[^>]+>/g, " ")
         .replace(/\s+/g, " ").trim();

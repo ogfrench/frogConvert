@@ -342,6 +342,12 @@ export function formatsIndexPage(graph: FormatGraph): Page {
 <h1>Supported file formats</h1>
 <p class="lede">frogConvert reads and writes hundreds of formats, all converted in your browser with no upload. These are the ones people ask for most; the converter itself handles many more.</p>
 <p><a class="cta" href="/convert">Open the converter &rarr;</a></p>
+
+<h2>How to read this list</h2>
+<p>Each format has its own page listing what it can be converted to, what it can be converted from, and which engine does the work. The engines are FFmpeg for audio and video, ImageMagick for images, Ghostscript for PostScript and PDF, and Pandoc for documents and markup, all compiled to WebAssembly and running in the page rather than on a server.</p>
+<p>A pair does not need a direct converter to work. The router treats the formats as a graph and finds the shortest chain between them, so a conversion with no single tool behind it still runs, one step at a time, without asking you to stage the intermediate files yourself.</p>
+<p>Some formats can be read but not written, because no engine here produces them. HEIC is the common example: an iPhone photo converts to JPEG or PNG, and nothing converts back to HEIC. Where that is true the format page says so rather than offering a conversion that would fail.</p>
+
 ${sections}
 `.trim();
 
