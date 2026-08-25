@@ -35,6 +35,7 @@ const {
     mmss,
     reassuranceLine,
     startConversionStatus,
+    statusHTML,
     REASSURANCE_LINE,
     KEEP_OPEN_LINE,
 } = await import("./progressStatus.ts");
@@ -246,6 +247,94 @@ describe("where the rendered lines put the clock", () => {
             expect(lastHTML()).not.toMatch(/\d\d:\d\d/);
             status.cancel();
         });
+    });
+});
+
+describe("the row count, which is the modal's height", () => {
+    // The modal is auto-height and its message is one <br>-delimited paragraph,
+    // so the row count *is* the height. Everything here is really one
+    // assertion - that it is four, whatever the run is doing - because a row
+    // that comes and goes moves the box under whatever the user is reading.
+    const rows = (html: string) => html.split("<br>").length;
+
+    const withOpenModal = (fn: () => void) => {
+        vi.useFakeTimers();
+        document.body.innerHTML = '<div id="popupBox" class="open"></div>';
+        painted.mockClear();
+        try { fn(); } finally {
+            document.body.innerHTML = "";
+            vi.useRealTimers();
+        }
+    };
+
+    const lastHTML = () => painted.mock.calls.at(-1)![0] as string;
+
+    it("is four before the engine has said anything", () => {
+        withOpenModal(() => {
+            const status = startConversionStatus({
+                main: "Converting file 1 of 3...", subtitle: "PNG → WEBP", title: "Converting your files",
+            });
+            expect(rows(lastHTML())).toBe(4);
+            status.cancel();
+        });
+    });
+
+    it("is still four once it has, and four again when it stops", () => {
+        withOpenModal(() => {
+            const status = startConversionStatus({
+                main: "Converting file 1 of 3...", subtitle: "PNG → WEBP", title: "Converting your files",
+            });
+            const atRest = rows(lastHTML());
+
+            status.update({ detail: "Encoded 12.4s of 47.0s" });
+            expect(rows(lastHTML())).toBe(atRest);
+            expect(lastHTML()).toContain("Encoded 12.4s of 47.0s");
+
+            // A phase change drops the engine's detail on purpose - it belonged
+            // to the phase that just ended. The row it lived in has to stay.
+            status.setPhase("Creating a ZIP folder", { subtitle: "packing your files" });
+            expect(lastHTML()).not.toContain("Encoded 12.4s of 47.0s");
+            expect(rows(lastHTML())).toBe(atRest);
+            status.cancel();
+        });
+    });
+
+    it("is four when the clock arrives, because the clock costs no row", () => {
+        withOpenModal(() => {
+            const status = startConversionStatus({
+                main: "Working", subtitle: "a.pdf", title: "Busy",
+            });
+            vi.advanceTimersByTime(ELAPSED_AFTER_MS + 1_000);
+            expect(lastHTML()).toMatch(/\d\d:\d\d/);
+            expect(rows(lastHTML())).toBe(4);
+            status.cancel();
+        });
+    });
+
+    it("reserves the engine's row rather than omitting it", () => {
+        // An omitted row and an empty one read the same to a user and differ by
+        // ~22px of modal, which is the whole bug.
+        const html = statusHTML({ main: "Reading your files...", subtitle: "getting ready to convert" });
+        expect(html).toContain('<span class="status-live muted-text" aria-hidden="true"></span>');
+        expect(rows(html)).toBe(4);
+    });
+
+    it("gives the phases that own no status handle the same four rows", () => {
+        // Warming up, downloading an engine and packing a ZIP paint the modal
+        // directly. They used to render two rows of a different shape, so the
+        // box changed height on the way into and out of every conversion.
+        const phases = [
+            statusHTML({ main: "Warming up the engines...", subtitle: "finding the best conversion route" }),
+            statusHTML({ main: "Downloading the image converter...", subtitle: "this happens once and may take a moment" }),
+            statusHTML({ main: "Creating a ZIP folder", subtitle: "packing your files" }),
+        ];
+        for (const html of phases) expect(rows(html)).toBe(4);
+    });
+
+    it("escapes the subtitle, which is a file name on the Compress surface", () => {
+        const html = statusHTML({ main: "Compressing your file...", subtitle: '<img src=x onerror=1>.png' });
+        expect(html).not.toContain("<img");
+        expect(html).toContain("&lt;img");
     });
 });
 

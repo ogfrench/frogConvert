@@ -144,11 +144,62 @@ export function elapsedSuffix(elapsedMs: number | null): string {
 }
 
 /**
+ * The four rows of the progress modal, rendered as one HTML string.
+ *
+ * Every row is emitted every time, empty ones included. The modal is
+ * auto-height, so a row that is omitted rather than left blank takes ~22px of
+ * box with it: the engine's own line arrives a second or two into a run and
+ * disappears again at every phase change (and at every file boundary, where
+ * `actions.ts` starts a fresh handle), which made the modal breathe in and out
+ * under whatever the user was reading. An empty `<br>`-delimited span still
+ * takes a full line box from the paragraph's strut, so a reserved row costs
+ * exactly what a filled one does and the box stops moving.
+ *
+ * The same shape is what the phases that don't own a status handle - reading,
+ * warming up, downloading an engine, packing a ZIP - render through, so those
+ * are the same height as the conversion they bracket.
+ *
+ * SECURITY: `main` is injected as HTML and must never carry user-supplied
+ * content; it is app copy in every caller. `subtitle`, `live` and `clock` are
+ * escaped, which is what lets `subtitle` be a file name.
+ *
+ * @param live The handler's own progress, from {@link formatProgress}. Empty
+ *             reserves the row.
+ * @param clock The elapsed suffix, from {@link elapsedSuffix}. Rides on the
+ *              reassurance row, so it costs no row of its own either way.
+ */
+export function statusHTML(
+    { main, subtitle, live = "", clock = "" }:
+        { main: string; subtitle: string; live?: string; clock?: string },
+): string {
+    return [
+        main,
+        `<span class="muted-text">${escapeHTML(subtitle)}</span>`,
+        // aria-hidden, deliberately. #popup is role="status" aria-live="polite"
+        // aria-atomic="true", so every write re-announces the whole modal. This
+        // line changes once a second for the clock and faster still for a
+        // percentage, which would turn a screen reader into a metronome. The
+        // lines that carry meaning stay announced.
+        `<span class="status-live muted-text" aria-hidden="true">${escapeHTML(live)}</span>`,
+        // The reassurance is static text, so it costs a line and nothing else
+        // and is announced once rather than re-read every tick. The clock rides
+        // here rather than on the live line above: the reassurance is the only
+        // other line about the waiting rather than about the work, and hanging
+        // the elapsed time off it leaves the engine's own line to say one
+        // thing. Two spans rather than one string because the sentence stays
+        // announced while the ticking half does not.
+        `<span class="muted-text">${reassuranceLine()}</span>`
+        + `<span class="status-clock muted-text" aria-hidden="true">${escapeHTML(clock)}</span>`,
+    ].join("<br>");
+}
+
+/**
  * Owns the progress modal for the duration of one unit of work. Four slots:
  * main line (stable), muted subtitle (the format path or the file name), a
- * muted live line (the handler's own progress, or an elapsed clock once the
- * run passes 10s if the handler reports nothing), and its own permanent
- * reassurance line beneath it.
+ * muted live line (the handler's own progress), and its own permanent
+ * reassurance line beneath it, carrying the elapsed clock once the run passes
+ * {@link ELAPSED_AFTER_MS}. All four are always present - see
+ * {@link statusHTML}.
  */
 export type StatusHandle = {
     cancel: () => void;
@@ -180,39 +231,12 @@ export function startConversionStatus(
     let painted = false;
 
     const render = () => {
-        const live = liveLine(formatProgress(latest));
-        const clock = elapsedSuffix(Date.now() - startedAt);
-        const lines = [
-            mainLine,
-            `<span class="muted-text">${escapeHTML(subLine)}</span>`,
-        ];
-        // Omitted entirely when there is nothing to report, rather than left as
-        // an empty row pushing the reassurance around.
-        if (live) {
-            // aria-hidden, deliberately. #popup is role="status" aria-live="polite"
-            // aria-atomic="true", so every write re-announces the whole modal.
-            // This line changes once a second for the clock and faster still for
-            // a percentage, which would turn a screen reader into a metronome.
-            // The lines that carry meaning stay announced.
-            lines.push(`<span class="muted-text" aria-hidden="true">${escapeHTML(live)}</span>`);
-        }
-        // Its own line, always. This used to take turns with the progress on a
-        // single row, so the one number worth watching vanished every few
-        // seconds and came back - a flicker between two things, neither of which
-        // you could settle on. It is static text; it costs a line and nothing
-        // else, and it is announced once instead of being re-read every tick.
-        //
-        // The clock rides here rather than on the live line above, in its own
-        // aria-hidden span: the reassurance is the only other line about the
-        // waiting rather than about the work, and hanging the elapsed time off
-        // it leaves the engine's own line to say one thing. Two spans rather
-        // than one string because the sentence stays announced while the
-        // ticking half does not.
-        lines.push(
-            `<span class="muted-text">${reassuranceLine()}</span>`
-            + (clock ? `<span class="muted-text" aria-hidden="true">${escapeHTML(clock)}</span>` : ""),
-        );
-        const html = lines.join("<br>");
+        const html = statusHTML({
+            main: mainLine,
+            subtitle: subLine,
+            live: liveLine(formatProgress(latest)),
+            clock: elapsedSuffix(Date.now() - startedAt),
+        });
         if (html === lastHTML) return;
         lastHTML = html;
         showConversionInProgress(html, title, currentPhase);

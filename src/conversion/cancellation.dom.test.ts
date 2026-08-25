@@ -6,6 +6,7 @@ import {
     showConversionInProgress,
     ensureCancelButton,
     removeCancelButton,
+    setCancelEnabled,
     resetCancellation,
     setCancelled,
     setCanHardCancel,
@@ -131,6 +132,51 @@ describe("cancellation DOM bindings", () => {
         expect(cancelBtn?.textContent).toBe("Stop conversion");
     });
 
+    describe("keeping the footer mounted, which is ~110px of modal", () => {
+        // The footer goes up once, before the first phase paints, and stays up
+        // for the whole run. The stretches where cancelling isn't offered -
+        // warm-up, a retry path search, ZIP packing - disable it instead of
+        // unmounting it, so the box doesn't move on the way in or out.
+        it("disables the button without taking the footer down", () => {
+            showConversionInProgress("Reading your files...");
+            ensureCancelButton();
+
+            setCancelEnabled(false);
+
+            const btn = ui.popupBox.querySelector<HTMLButtonElement>("#cancel-conversion-btn");
+            expect(btn).not.toBeNull();
+            expect(btn?.disabled).toBe(true);
+            expect(ui.popupBox.querySelector(".popup-actions-footer")).not.toBeNull();
+        });
+
+        it("re-enables through ensureCancelButton, without a second button", () => {
+            showConversionInProgress("Reading your files...");
+            ensureCancelButton();
+            setCancelEnabled(false);
+
+            ensureCancelButton();
+
+            expect(ui.popupBox.querySelectorAll("#cancel-conversion-btn")).toHaveLength(1);
+            expect(ui.popupBox.querySelector<HTMLButtonElement>("#cancel-conversion-btn")?.disabled).toBe(false);
+        });
+
+        it("is a no-op before the button exists, so the warm-up can call it freely", () => {
+            showConversionInProgress("Warming up the engines...");
+            expect(() => setCancelEnabled(false)).not.toThrow();
+            expect(ui.popupBox.querySelector("#cancel-conversion-btn")).toBeNull();
+        });
+
+        it("a disabled control cannot start a cancellation", () => {
+            showConversionInProgress("Creating a ZIP folder");
+            ensureCancelButton();
+            setCancelEnabled(false);
+
+            ui.popupBox.querySelector<HTMLButtonElement>("#cancel-conversion-btn")?.click();
+
+            expect(isCancelled).toBe(false);
+        });
+    });
+
     describe("triggerCancellation (hard-cancellable path)", () => {
         it("replaces popup with the Cancelling modal and fires worker callback", () => {
             const cb = vi.fn();
@@ -165,7 +211,7 @@ describe("cancellation DOM bindings", () => {
     });
 
     describe("triggerCancellation (main-thread path, cannot interrupt mid-file)", () => {
-        it("updates status copy in place and removes the cancel button", () => {
+        it("updates status copy in place and disables the cancel button without unmounting it", () => {
             setCanHardCancel(false);
             setCurrentFileProgress(2, 3);
             showConversionInProgress("Converting file 2 of 3...");
@@ -179,7 +225,13 @@ describe("cancellation DOM bindings", () => {
             expect(pHtml).toContain("Finishing file 2 of 3, then stopping.");
             expect(pHtml).toContain("this step can't be interrupted mid-file -");
             expect(pHtml).toContain("refresh the page if you need to stop right now.");
-            expect(ui.popupBox.querySelector("#cancel-conversion-btn")).toBeNull();
+            // Disabled, not removed: unmounting it takes the whole footer - and
+            // ~110px of modal - out from under the user in the same frame they
+            // pressed Stop. Dead either way, but the box stays put.
+            const btn = ui.popupBox.querySelector<HTMLButtonElement>("#cancel-conversion-btn");
+            expect(btn).not.toBeNull();
+            expect(btn?.disabled).toBe(true);
+            expect(ui.popupBox.querySelector(".popup-actions-footer")).not.toBeNull();
             resetCancellation();
         });
 

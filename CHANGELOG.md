@@ -8,6 +8,11 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **The conversion modal stopped changing size while you read it.** The progress modal is auto-height and its message is one `<br>`-delimited paragraph, so the row count *is* the height, and three separate things were changing it mid-run: the engine's own progress line was omitted rather than left blank whenever there was nothing to report, so it appeared a second into every file and vanished again at every file boundary; the phases that paint the modal directly (reading, warming up, downloading an engine, packing a ZIP) built two rows of a different shape instead of the status block's four; and the Stop button's footer, roughly 110px of modal, was mounted three phases in and torn off again before the ZIP. Measured across a three-file conversion in Chromium, the box stepped between 264px and 385px, a 121px swing, with a 23px dip at the start of each file. Every phase now renders the same four rows through one `statusHTML` helper, empty rows reserved rather than dropped; the footer is mounted once before the first paint and disabled rather than removed for the stretches where cancelling is not offered; and a floor on the status paragraph catches the states that do not come from the helper at all, including the soft-cancel notice. Measured again the same way: 385px at every phase, on desktop and at 375px and 320px viewports.
+
 ## [3.0.0] - 2026-08-25
 
 Compression becomes a first-class feature. It was previously invisible - every conversion quietly applied a `medium` preset, and the only user-facing compression was a same-format easter egg in the Convert card. There is now a dedicated **Compress** mode, PDFs can actually be compressed, and the setting that was always being applied is now something you can see and change.
