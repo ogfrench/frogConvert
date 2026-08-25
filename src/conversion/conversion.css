@@ -106,3 +106,52 @@
 .conversion-wrap-up {
   display: inline;
 }
+
+/* --- Progress modal: a box that doesn't move ---
+   The modal is auto-height, so every row the message gains or loses moves it.
+   `statusHTML` keeps the row count at four for every phase; these three rules
+   are what stop the layout undoing that. */
+
+/* Cancel, disabled rather than removed, for the stretches where it isn't
+   offered. It keeps the footer's ~110px in the box; this is what makes it
+   read as unavailable rather than broken. */
+#popup .popup-actions-footer button:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+/* The engine's own line, reserved whether or not there is anything in it.
+   Two consecutive <br>s already give the strut a full line box in every
+   engine we ship on, but an empty inline is exactly the case a rendering
+   engine is entitled to collapse - the zero-width space makes the row
+   unambiguously non-empty without printing anything or being selectable. */
+.status-live:empty::after {
+  content: "\200B";
+}
+
+/* The elapsed clock arrives 20s into a run and then ticks. Tabular figures
+   stop `01:09 -> 01:10` reflowing the sentence it hangs off, and nowrap stops
+   it breaking onto a second row - which would be a height change - if the
+   reassurance beside it ever grows. No reserved width: the popup centres its
+   text, so an empty placeholder would sit the sentence permanently off-centre
+   to buy back a horizontal shift that happens once. */
+.status-clock {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The floor, for the states that don't come from `statusHTML` at all - the
+   soft-cancel notice, the hard-cancel popup, and whatever a later phase adds
+   without reading this file. Four rows at the paragraph's own size and
+   leading, which is exactly what a full status block occupies, so it can only
+   ever pad a shorter message up to the running height - never stretch the box
+   past it.
+
+   On the paragraph's own class rather than on `.loader-spinner + p`: the
+   engines-loading popup is a spinner and a paragraph too, and it swaps its
+   spinner for a tick when the engines arrive, so an adjacency selector would
+   have floored it and then dropped the floor mid-popup - a jump invented in
+   the course of removing one. */
+.conversion-status {
+  min-height: calc(4 * var(--leading-normal) * 1em);
+}

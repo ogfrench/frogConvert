@@ -32,6 +32,7 @@ import {
     showEnginesLoadingPopup,
     ensureCancelButton,
     removeCancelButton,
+    setCancelEnabled,
     modeCopy,
 } from "./cancellation.ts";
 import { createDancingFrog } from "../components/Frogsworth/DancingFrog.ts";
@@ -50,7 +51,7 @@ import {
 } from "../components/utils/index.ts";
 import { runInWorker, WORKER_TIMEOUT_MS } from "./workerClient.ts";
 import { hopQualityArgs, resolveAutoQuality } from "../core/compression/hopQuality.ts";
-import { startConversionStatus, type StatusHandle } from "./progressStatus.ts";
+import { startConversionStatus, statusHTML, type StatusHandle } from "./progressStatus.ts";
 // Re-exported rather than moved outright: the Compress surface and the tests
 // have imported it from here since it existed, and its home is an
 // implementation detail of where the status line lives.
@@ -167,7 +168,10 @@ async function findConversionPath(
 ): Promise<ConvertPathNode[] | null> {
     if (!preserveDeadEnds) window.traversionGraph.clearDeadEndPaths();
 
-    const warmingMsg = `Warming up the engines...<br><span class="conversion-path">finding the best ${modeCopy().routeLabel}</span>`;
+    const warmingMsg = statusHTML({
+        main: "Warming up the engines...",
+        subtitle: `finding the best ${modeCopy().routeLabel}`,
+    });
     const showWarming = () => showConversionInProgress(warmingMsg, _convertingTitle, "idle");
     showWarming();
 
@@ -192,7 +196,10 @@ async function findConversionPath(
                 const cat = Array.isArray(outputFormat.category) ? outputFormat.category[0] : outputFormat.category;
                 const label = (cat && CATEGORY_LABELS[cat]) ? CATEGORY_LABELS[cat].toLowerCase() : "file";
                 showConversionInProgress(
-                    `Downloading the ${label} ${modeCopy().toolLabel}...<br><span class="conversion-path">this happens once and may take a moment</span>`,
+                    statusHTML({
+                        main: `Downloading the ${label} ${modeCopy().toolLabel}...`,
+                        subtitle: "this happens once and may take a moment",
+                    }),
                     _convertingTitle,
                     "idle",
                 );
@@ -519,7 +526,22 @@ export function initConvertButton() {
             await waitForPaint();
 
             const startupStartTime = performance.now();
-            showConversionInProgress(`Reading your ${fileCount > 1 ? "files" : "file"}...<br><span class="conversion-path">getting ready to convert</span>`, _convertingTitle, "idle");
+            showConversionInProgress(
+                statusHTML({
+                    main: `Reading your ${fileCount > 1 ? "files" : "file"}...`,
+                    subtitle: "getting ready to convert",
+                }),
+                _convertingTitle,
+                "idle",
+            );
+            // Mounted here, before anything else paints, and kept for the whole
+            // run. The footer is ~110px of modal; adding it three phases in used
+            // to shove the box down under whatever the user was reading. Cancel
+            // isn't offered during warm-up, so it goes up disabled - the button
+            // holds its space and `ensureCancelButton` enables it once the
+            // conversion loop can honour it.
+            ensureCancelButton();
+            setCancelEnabled(false);
             await waitForPaint();
 
             const inputFileData: FileData[] = [];
@@ -625,7 +647,7 @@ export function initConvertButton() {
                 if (!result) {
                     if (isCancelled) break;
                     const failedError = _lastConversionError;
-                    removeCancelButton(); // Restore "no cancel during warm-up" invariant before retry search
+                    setCancelEnabled(false); // Restore "no cancel during warm-up" invariant before retry search
                     // Path failed (dead end) - find the next best path and retry once.
                     // Preserve dead ends so the same broken path isn't rediscovered.
                     conversionPath = await findConversionPath(inputOption, outputOption, true);
@@ -681,9 +703,9 @@ export function initConvertButton() {
 
             if (allOutputFiles.length > 1) {
                 const packingStartTime = performance.now();
-                removeCancelButton();
+                setCancelEnabled(false);
                 showConversionInProgress(
-                    `Creating a ZIP folder<br><span class="conversion-path">packing your files</span>`,
+                    statusHTML({ main: "Creating a ZIP folder", subtitle: "packing your files" }),
                     "Packing your files",
                 );
                 await waitForPaint();

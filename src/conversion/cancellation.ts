@@ -166,6 +166,15 @@ export function showConversionInProgress(
 
         const p = existingSpinner.nextElementSibling as HTMLElement;
         if (p && p.tagName === "P") {
+            // For the case where the paragraph being reused came from some
+            // other popup that happened to have a spinner - the engines-loading
+            // notice, most often - so the height floor travels with the class
+            // rather than with the position. Guarded rather than unconditional:
+            // this is the same hot path the message diff below protects, and it
+            // runs on every pathfinding tick.
+            if (!p.classList.contains("conversion-status")) {
+                p.classList.add("conversion-status");
+            }
             if (messageHTML !== lastShownMessage) {
                 p.innerHTML = messageHTML;
                 lastShownMessage = messageHTML;
@@ -185,6 +194,7 @@ export function showConversionInProgress(
         spinner.className = targetClass;
 
         const p = document.createElement("p");
+        p.className = "conversion-status";
         p.innerHTML = messageHTML;
 
         showPopup([h2, spinner, p], true);
@@ -253,6 +263,7 @@ export function triggerCancellation() {
         spinner.className = "loader-spinner";
 
         const p = document.createElement("p");
+        p.className = "conversion-status";
         p.textContent = "Stopping now...";
 
         replacePopup([h2, spinner, p], true);
@@ -268,9 +279,12 @@ export function triggerCancellation() {
             `<span class="conversion-path">this step can't be interrupted mid-file - refresh the page if you need to stop right now.</span>`,
             modeCopy().cancellingTitle,
         );
-        // Remove the cancel button so it doesn't sit there as a dead control
-        // (clicking it again hits the isCancelled guard and is a no-op).
-        removeCancelButton();
+        // Disabled rather than removed: clicking it again only hits the
+        // isCancelled guard and is a no-op, but taking the footer off the modal
+        // takes ~110px of box with it, and shrinking the modal in the same
+        // frame the user pressed Stop reads as the dialog collapsing under
+        // them. A disabled control is just as dead and weighs the same.
+        setCancelEnabled(false);
         cancelStartTime = performance.now();
         // No watchdog here: soft cancel promises to finish the current file.
         // The hard-cancel watchdog exists to rescue a stuck worker that never
@@ -322,6 +336,28 @@ export function removeCancelButton() {
     ModalManager.updateTop({ onEscape: undefined });
 }
 
+/**
+ * Take cancelling off the table without taking the footer off the modal.
+ *
+ * There are stretches of a run where cancelling isn't offered - the warm-up
+ * before a retry path search, the ZIP packing at the end, the wind-down after
+ * a soft cancel - and the way to express that used to be to delete the button,
+ * which deleted the footer with it: a border, 40px of padding and a 45px
+ * button, ~110px of modal, appearing and disappearing three phases into a
+ * conversation the user is reading. The invariant those callers care about is
+ * that cancelling can't be *reached*, and a disabled button plus an unbound
+ * Escape says that exactly as well while leaving the box where it was.
+ *
+ * Safe to call before the button exists; the phases that mount it call
+ * {@link ensureCancelButton}, which leaves it enabled.
+ */
+export function setCancelEnabled(enabled: boolean) {
+    const btn = ui.popupBox.querySelector<HTMLButtonElement>("#cancel-conversion-btn");
+    if (!btn) return;
+    btn.disabled = !enabled;
+    ModalManager.updateTop({ onEscape: enabled ? triggerCancellation : undefined });
+}
+
 export function ensureCancelButton() {
     let actions = ui.popupBox.querySelector(".popup-actions-footer");
     if (!actions) {
@@ -334,8 +370,11 @@ export function ensureCancelButton() {
         const btn = createPopupButton(modeCopy().cancelButton, "btn-secondary", () => triggerCancellation());
         btn.id = "cancel-conversion-btn";
         actions.appendChild(btn);
-        ModalManager.updateTop({ onEscape: triggerCancellation });
     }
+
+    // Unconditional, so this doubles as the re-enable after a stretch where
+    // cancelling was disabled rather than removed.
+    setCancelEnabled(true);
 }
 
 // --- Engines loading popup ---
