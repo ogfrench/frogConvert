@@ -53,6 +53,39 @@ describe("generated pages", () => {
     expect(warnings).toEqual([]);
   });
 
+  it("claims WebAssembly only for engines that are actually WebAssembly", () => {
+    // The browser canvas is a native API and pdf.js, JSZip and pdf-lib are
+    // plain JavaScript. Appending "compiled to WebAssembly" to every engine
+    // label put a false claim on a third of the conversion pages.
+    const notWasm = ["the browser canvas", "pdf.js", "JSZip", "pdf-lib",
+      "pdf-parse", "ImageTracer", "fontkit", "the built-in text encoder",
+      "the built-in JSON converter"];
+    for (const page of pages) {
+      for (const label of notWasm) {
+        expect(page.html, `${page.path} claims ${label} is WebAssembly`)
+          .not.toContain(`${label}, compiled to WebAssembly`);
+      }
+    }
+  });
+
+  it("never prints a raw internal handler name as an engine", () => {
+    // These are registry identifiers, not product names. meyda is the sharpest
+    // case: it declares image formats so it can render waveforms, which is true
+    // of the graph and wrong about the app.
+    const internals = ["meyda", "renamezip", "renametxt", "renamejson",
+      "PdfCanvasCompress", "svgForeignObject", "htmlEmbed", "qoa-fu",
+      "miditextcodec", "aperturePicture", "celariaMap", "fromjson", "tojson"];
+    for (const page of pages) {
+      const facts = page.html.match(/<dd>[^<]*<\/dd>/g) ?? [];
+      for (const name of internals) {
+        // Word-bounded: "Link targets are dropped" must not read as `tar`.
+        const re = new RegExp(String.raw`\b${name}\b`);
+        const leaked = facts.filter(f => re.test(f));
+        expect(leaked, `${page.path} names ${name}`).toEqual([]);
+      }
+    }
+  });
+
   it("emits no executable script, so nothing needs a CSP hash", () => {
     // Landing pages are deliberately script-free: a wrong sha256 in _headers
     // fails silently, blocking the script while the build reports success.
@@ -127,9 +160,30 @@ describe("docs", () => {
     expect(stripFrontmatter("<!-- docs-frontmatter\nlabel: X\n-->\n# Title")).toBe("# Title");
   });
 
-  it("maps README to the /docs/ index and others to their own slug", () => {
-    expect(docSlug("README.md")).toBe("");
+  it("gives every doc its own slug and leaves /docs/ to the docs app", () => {
+    // "" would emit /docs/index.html, overwriting the docs app that
+    // vite builds from docs/index.html. See docSlug.
+    expect(docSlug("README.md")).toBe("readme");
     expect(docSlug("ARCHITECTURE.md")).toBe("architecture");
+  });
+
+  it("has no mermaid label that the parser rejects", () => {
+    // A backslash-escaped quote inside a node label is a parse error, so the
+    // diagram silently failed to render in the docs app and, before the
+    // build-time renderer, shipped as raw source on the static page.
+    const bad: string[] = [];
+    for (const doc of discoverDocs(ROOT)) {
+      const md = readFileSync(doc.fullPath, "utf-8");
+      for (const m of md.matchAll(/```mermaid\n([\s\S]*?)```/g)) {
+        if (m[1].includes("\\\"")) bad.push(doc.file);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it("gives no doc an empty slug, so nothing overwrites the docs app", () => {
+    const empty = discoverDocs(ROOT).filter(d => docSlug(d.file) === "");
+    expect(empty.map(d => d.file)).toEqual([]);
   });
 
   it("discovers the documented files, README first", () => {

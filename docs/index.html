@@ -6,6 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>frogConvert Docs</title>
   <meta name="description" content="Documentation for frogConvert - private in-browser file conversion, compression and PDF editing.">
+  <!-- This shell renders its document with JavaScript, so a crawler sees ~20
+       words. Every document also exists as a prerendered page at
+       /docs/<slug>/, and those are what the sitemap lists. noindex keeps the
+       empty shell out of results; follow still lets crawlers walk the nav. -->
+  <meta name="robots" content="noindex, follow">
   <link rel="icon" href="../favicon.ico" type="image/x-icon">
   <link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
   <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)">

@@ -25,26 +25,51 @@ const gib = (n: number) => `${Math.round(n / (1024 ** 3))} GB`;
 const mib = (n: number) => `${Math.round(n / (1024 * 1024))} MB`;
 
 /** Reader-facing engine names. The registry's handler ids are internal. */
-const ENGINE_NAMES: Record<string, string> = {
-  FFmpeg: "FFmpeg",
-  ImageMagick: "ImageMagick",
-  Ghostscript: "Ghostscript",
-  pandoc: "Pandoc",
-  libreoffice: "LibreOffice",
-  imageToPdf: "pdf-lib",
-  pdfparse: "pdf-parse",
-  pdftotxt: "pdf.js",
-  pdftoimg: "pdf.js",
-  sevenZip: "7-Zip (WASM)",
-  jszip: "JSZip",
-  canvasToBlob: "the browser canvas",
-  svgTrace: "ImageTracer",
-  sqlite3: "SQLite (WASM)",
-  font: "fontkit",
-  TextEncoding: "the built-in text encoder",
+/**
+ * Display names for handlers, and whether the handler is actually WebAssembly.
+ *
+ * A handler absent from this map is never named on a page. The registry's own
+ * handler names are internal identifiers - `renamezip`, `PdfCanvasCompress`,
+ * `svgForeignObject` - and publishing them reads as a leak, not a credit. It
+ * also keeps `meyda` off the format hubs: it declares image formats so it can
+ * render waveforms, which is true of the graph and wrong about the app.
+ *
+ * `wasm` is not decoration. Claiming WebAssembly for the browser canvas, or
+ * for a plain JS library like pdf.js or JSZip, is simply false, and the same
+ * rule that keeps the registry's `lossless` flag off these pages applies here.
+ */
+const ENGINES: Record<string, { label: string; wasm: boolean }> = {
+  FFmpeg: { label: "FFmpeg", wasm: true },
+  ImageMagick: { label: "ImageMagick", wasm: true },
+  Ghostscript: { label: "Ghostscript", wasm: true },
+  pandoc: { label: "Pandoc", wasm: true },
+  sevenZip: { label: "7-Zip", wasm: true },
+  sqlite3: { label: "SQLite", wasm: true },
+  imageToPdf: { label: "pdf-lib", wasm: false },
+  pdfparse: { label: "pdf-parse", wasm: false },
+  pdftotxt: { label: "pdf.js", wasm: false },
+  pdftoimg: { label: "pdf.js", wasm: false },
+  jszip: { label: "JSZip", wasm: false },
+  canvasToBlob: { label: "the browser canvas", wasm: false },
+  svgTrace: { label: "ImageTracer", wasm: false },
+  font: { label: "fontkit", wasm: false },
+  TextEncoding: { label: "the built-in text encoder", wasm: false },
+  fromjson: { label: "the built-in JSON converter", wasm: false },
+  tojson: { label: "the built-in JSON converter", wasm: false },
+  // libreoffice is deliberately absent. It is a native binary reached through
+  // the local API server or the desktop build, so on a hosted page it is
+  // neither WebAssembly nor "running in this tab", and the surrounding copy
+  // promises both. No page credits it today; leaving it out keeps it that way.
 };
 
-const engineLabel = (h: string): string => ENGINE_NAMES[h] ?? h;
+/** The label for a handler, or undefined when it has no vetted display name. */
+const engineLabel = (h: string): string | undefined => ENGINES[h]?.label;
+
+/** First handler in priority order that we are willing to name on a page. */
+const namedEngine = (engines: string[]): { label: string; wasm: boolean } | undefined => {
+  for (const h of engines) if (ENGINES[h]) return ENGINES[h];
+  return undefined;
+};
 
 export const canonicalToken = (t: string): string => FORMAT_ALIASES[t.toLowerCase()] ?? t.toLowerCase();
 
@@ -109,8 +134,9 @@ function pairPage(
   const pageTitle = `Convert ${fromTitle} to ${toTitle} in your browser | frogConvert`;
   const description = `${content.summary} Runs entirely in your browser, so the file is never uploaded.`;
 
-  const engine = engines.length
-    ? `${engineLabel(engines[0])}, compiled to WebAssembly and running in this tab`
+  const named = namedEngine(engines);
+  const engine = named
+    ? `${named.label}${named.wasm ? ", compiled to WebAssembly," : ","} running in this tab`
     : `a ${hops}-step chain of local converters`;
 
   const fromInfo = graph.format(from);
@@ -119,7 +145,7 @@ function pairPage(
   const questions = [
     {
       q: `Is my file uploaded when converting ${fromTitle} to ${toTitle}?`,
-      a: "No. The conversion runs in your browser using WebAssembly. The file never leaves your device, there is no server to upload to, and the page works offline once loaded.",
+      a: "No. The conversion runs entirely in your browser. The file never leaves your device, there is no server to upload to, and the page works offline once loaded.",
     },
     {
       q: `Is ${fromTitle} to ${toTitle} conversion free?`,
@@ -144,7 +170,7 @@ function pairPage(
     name: `Convert ${fromTitle} to ${toTitle}`,
     description: content.summary,
     totalTime: "PT1M",
-    tool: [{ "@type": "HowToTool", name: "A web browser with WebAssembly support" }],
+    tool: [{ "@type": "HowToTool", name: "A modern web browser" }],
     step: [
       { "@type": "HowToStep", name: "Open the converter", text: `Open frogConvert and select ${toTitle} as the output format.`, url: `${path}` },
       { "@type": "HowToStep", name: `Add your ${fromTitle} file`, text: `Drop the ${fromTitle} file onto the page, or click to browse. It stays on your device.` },
@@ -171,7 +197,7 @@ ${content.caveat ? `<h2>What to expect</h2>\n<p>${esc(content.caveat)}</p>` : ""
 
 <h2>Why convert ${esc(fromTitle)} without uploading</h2>
 <p>Most online converters take your file, send it to their servers, convert it there and hand back a download link. That means your document sits on someone else's disk, subject to their retention policy and their breaches. It also means you cannot use them offline, and cannot use them at all for anything confidential.</p>
-<p>frogConvert does the conversion in the page itself, with ${esc(engineLabel(engines[0] ?? "the conversion engines"))} compiled to WebAssembly. There is no upload step because there is no server. You can disconnect from the network and it still works.</p>
+<p>frogConvert does the conversion in the page itself, with ${esc(named ? named.label : "the conversion engines")}${named && !named.wasm ? "" : " compiled to WebAssembly"}. There is no upload step because there is no server. You can disconnect from the network and it still works.</p>
 
 <h2>About the formats</h2>
 <h3>${esc(fromTitle)}</h3>
@@ -214,8 +240,11 @@ function hubPage(
   const readable = graph.canRead(token);
   const writable = graph.canWrite(token);
 
-  const readers = info?.readableBy.slice(0, 3).map(engineLabel) ?? [];
-  const writers = info?.writableBy.slice(0, 3).map(engineLabel) ?? [];
+  // Only engines with a vetted display name; see ENGINES.
+  const named3 = (hs: string[] | undefined) =>
+    [...new Set((hs ?? []).map(engineLabel).filter((l): l is string => !!l))].slice(0, 3);
+  const readers = named3(info?.readableBy);
+  const writers = named3(info?.writableBy);
 
   const list = (items: Array<{ from: string; to: string }>) =>
     items.length

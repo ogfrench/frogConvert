@@ -15,6 +15,7 @@ import { resolve } from "node:path";
 import { marked } from "marked";
 import { shell, esc } from "./templates.ts";
 import type { Page } from "./pages.ts";
+import { createMermaidRenderer } from "./mermaid-svg.ts";
 
 export interface DocMeta {
   /** Source filename, e.g. "ARCHITECTURE.md". */
@@ -76,8 +77,16 @@ export function discoverDocs(root: string): DocMeta[] {
 }
 
 /** "ARCHITECTURE.md" -> "architecture". README is the /docs/ index itself. */
+/**
+ * `/docs/` is NOT available to us. `docs/index.html` is a Vite rollup input:
+ * the docs app, which reads `location.hash` to pick a document and renders
+ * its mermaid diagrams. The seo-pages plugin runs in `writeBundle`, so
+ * emitting a page at `/docs/` overwrites that app after it is built, killing
+ * every `/docs/#SOMEDOC.md` deep link and orphaning its 1.6 MB bundle.
+ * README therefore gets `/docs/readme/` like every other document.
+ */
 export function docSlug(file: string): string {
-  return file === "README.md" ? "" : file.replace(/\.md$/i, "").toLowerCase();
+  return file === "README.md" ? "readme" : file.replace(/\.md$/i, "").toLowerCase();
 }
 
 /**
@@ -111,6 +120,9 @@ function anchorHeadings(html: string): string {
 export async function buildDocPages(root: string): Promise<Page[]> {
   const docs = discoverDocs(root);
   const pages: Page[] = [];
+  // Turns ```mermaid fences into SVG. Null when puppeteer cannot start, in
+  // which case the fences stay as source rather than failing the build.
+  const mermaid = await createMermaidRenderer();
 
   const nav = docs
     .map(d => `<li><a href="/docs/${docSlug(d.file) ? `${docSlug(d.file)}/` : ""}">${esc(d.icon)} ${esc(d.label)}</a></li>`)
@@ -118,7 +130,8 @@ export async function buildDocPages(root: string): Promise<Page[]> {
 
   for (const doc of docs) {
     const raw = stripFrontmatter(readFileSync(doc.fullPath, "utf-8"));
-    const rendered = anchorHeadings(rewriteLinks(await marked.parse(raw), docs));
+    let rendered = anchorHeadings(rewriteLinks(await marked.parse(raw), docs));
+    if (mermaid) rendered = await mermaid.render(rendered);
     const slug = docSlug(doc.file);
     const path = `/docs/${slug ? `${slug}/` : ""}`;
 
@@ -163,5 +176,6 @@ ${rendered}
     });
   }
 
+  await mermaid?.close();
   return pages;
 }

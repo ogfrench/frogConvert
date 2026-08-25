@@ -73,6 +73,8 @@ table{border-collapse:collapse;width:100%;font-size:.92rem}
 th,td{text-align:left;padding:.5rem .6rem;border-bottom:1px solid var(--line)}
 th{color:var(--muted);font-weight:600}
 .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+figure.diagram{margin:1.25rem 0;padding:1rem;background:#fff;border:1px solid var(--line);border-radius:.6rem}
+figure.diagram svg{max-width:100%;height:auto;display:block;margin:0 auto}
 code{background:var(--code);padding:.12em .38em;border-radius:.25rem;font-size:.9em}
 ul.grid{list-style:none;padding:0;margin:.5rem 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(8.5rem,1fr));gap:.5rem}
 ul.grid a{display:block;border:1px solid var(--line);border-radius:.45rem;padding:.45rem .6rem;text-decoration:none;font-size:.9rem;background:var(--card)}

@@ -14,7 +14,7 @@ export function attachNotice(file: FileData, notice: Notice): void {
  * Canonical API-docs link for the "escape hatch" action on notices that
  * have a programmatic equivalent.
  */
-export const API_DOCS_ACTION = { label: "API docs", href: "/docs/#INTEGRATIONS.md" };
+export const API_DOCS_ACTION = { label: "API docs", href: "/docs/integrations/" };
 
 /** Format a duration in seconds as "Xm Ys" or "Ys". */
 export function fmtDuration(sec: number): string {
