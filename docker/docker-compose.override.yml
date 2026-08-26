@@ -2,7 +2,10 @@ services:
   convert:
     build:
       context: ..
-      args:
-        VITE_COMMIT_SHA: docker
+      # No VITE_COMMIT_SHA default here: it is honoured now, and a fixed string
+      # is exactly the stamp that stops a rebuilt image from being recognised as
+      # a new build. `bun run docker:build` passes the real SHA; without it this
+      # dev image falls back to 'dev', which the docs footer renders as an
+      # unlinked placeholder rather than a commit link that 404s.
       dockerfile: docker/Dockerfile
     image: convert:dev

@@ -83,7 +83,21 @@ function apiServerPlugin() {
 const isDesktopBuild = process.env.IS_DESKTOP === 'true';
 
 const projectPkg = JSON.parse(fs.readFileSync("./package.json", "utf-8"));
+// An explicit VITE_COMMIT_SHA wins over `git rev-parse`, because the one build
+// that cannot ask git is the one that most needs an answer: .dockerignore keeps
+// .git out of the image build context, so the rev-parse below throws there and
+// every image ever built stamped itself 'dev'. That stamp is what main.ts
+// invalidates the persisted format cache against, so a self-hosted user stayed
+// pinned to their first visit's format list across image upgrades - the bug
+// fixed for the web app in #35, still live on Docker. Passing the build-arg was
+// not enough on its own: a `define` for import.meta.env.VITE_COMMIT_SHA
+// overrides the value Vite derives from the environment, so the env var was
+// read and then discarded. Normalised to the same short form rev-parse returns,
+// since CI passes the full 40-character SHA and this string is rendered as the
+// commit link in the docs footer.
 const commitSha = (() => {
+  const fromEnv = (process.env.VITE_COMMIT_SHA || '').trim();
+  if (fromEnv) return /^[0-9a-f]{40}$/i.test(fromEnv) ? fromEnv.slice(0, 7) : fromEnv;
   try {
     return execSync('git rev-parse --short HEAD', { stdio: 'pipe', encoding: 'utf8' }).trim();
   } catch (e) {
