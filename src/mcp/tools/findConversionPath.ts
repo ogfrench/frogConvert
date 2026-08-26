@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { McpContext } from "../core/types.ts";
 
-import { findFormatAndHandler, libreofficeHint } from "../core/utils.ts";
+import { findFirstPath, libreofficeHint } from "../core/utils.ts";
 import { canConvertViaBrowser } from "../core/browserBridge.ts";
 import { appendSupportContact, CONVERSION_NOT_AVAILABLE_TEXT } from "../../components/utils/index.ts";
 
@@ -19,26 +19,17 @@ export function registerFindConversionPathTool(server: McpServer, initPromise: P
         async ({ inputMime, inputExtension, outputMime, outputExtension }) => {
             const { handlers, allHandlers, graph } = await initPromise;
 
-            const inputMatch = findFormatAndHandler(handlers, inputMime, inputExtension, 'from');
-            const outputMatch = findFormatAndHandler(handlers, outputMime, outputExtension, 'to');
-
-            // Unknown formats can't be resolved via the bridge, but callers
-            // still get the same public no-conversion copy as other no-paths.
-            if (!inputMatch || !outputMatch) {
-                return { content: [{ type: "text", text: appendSupportContact(CONVERSION_NOT_AVAILABLE_TEXT) }], isError: true };
-            }
-
-            const { format: fromFormat, handler: fromHandler } = inputMatch;
-            const { format: toFormat, handler: toHandler } = outputMatch;
-
-            const pathsGenerator = graph.searchPath(
-                { format: fromFormat, handler: fromHandler },
-                { format: toFormat, handler: toHandler },
-                false
-            );
-
-            const pathResult = await pathsGenerator.next();
-            if (pathResult.done || !pathResult.value) {
+            // findFirstPath returns null for an unroutable pair and for a token
+            // no native handler claims at all. Both used to be separate branches
+            // here, and the unknown-format one skipped the bridge check on the
+            // reasoning that the bridge could not help - which is backwards.
+            // The bridge is the side that has the browser-only handlers, so a
+            // format Node has never heard of is exactly the case it can answer.
+            // simpleMode=true so this reports the same route convert_file will
+            // actually run. See the note there for why the handler-constrained
+            // mode returned longer, worse paths.
+            const path = await findFirstPath(graph, handlers, inputMime, inputExtension, outputMime, outputExtension, true);
+            if (!path) {
                 const browserAvailable = await canConvertViaBrowser(
                     inputMime, inputExtension, outputMime, outputExtension
                 ).catch(() => false);
@@ -53,7 +44,7 @@ export function registerFindConversionPathTool(server: McpServer, initPromise: P
                 return { content: [{ type: "text", text: appendSupportContact(msg) }], isError: true };
             }
 
-            const pathText = pathResult.value.map((p: any) => `${p.handler.name} (${p.format.mime})`).join(" -> ");
+            const pathText = path.map((p) => `${p.handler.name} (${p.format.mime})`).join(" -> ");
 
             return {
                 content: [{ type: "text", text: `Path: ${pathText}` }]

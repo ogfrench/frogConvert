@@ -1,7 +1,7 @@
 import { hopQualityArgs } from "../../core/compression/hopQuality.ts";
 import type { FormatHandler, FileData, QualityPreset } from "../../core/FormatHandler/FormatHandler.ts";
 import type { TraversionGraph } from "../../core/TraversionGraph/TraversionGraph.ts";
-import { findFormatAndHandler, libreofficeHint } from "../../mcp/core/utils.ts";
+import { findFirstPath, libreofficeHint } from "../../mcp/core/utils.ts";
 import { convertViaBrowser } from "../../mcp/core/browserBridge.ts";
 import { resolveEffectiveQuality } from "../../core/compression/resolveEffectiveQuality.ts";
 import { appendSupportContact, toUserErrorInfo } from "../../components/utils/index.ts";
@@ -30,39 +30,30 @@ async function runConversion(
         return { files: [{ name: fileName, bytes }] };
     }
     const effectiveQuality: QualityPreset = resolved;
-    const inputMatch = findFormatAndHandler(handlers, inputMime, inputExt, 'from');
-    const outputMatch = findFormatAndHandler(handlers, outputMime, outputExt, 'to');
     let nativeFailure: unknown = null;
 
-    // Try native path when both formats are known to native handlers
-    if (inputMatch && outputMatch) {
-        // simpleMode=true: accept any handler for the final step.
-        // Without this, findFormatAndHandler might pick e.g. ImageMagick for PDF
-        // output while libreoffice provides the actual pptx→pdf edge, and the
-        // handler-name constraint would reject the libreoffice path, causing a
-        // 15s timeout search for a non-existent ImageMagick-terminated path.
-        const pathsGenerator = graph.searchPath(
-            { format: inputMatch.format, handler: inputMatch.handler },
-            { format: outputMatch.format, handler: outputMatch.handler },
-            true
-        );
-        const pathResult = await pathsGenerator.next();
-        if (!pathResult.done && pathResult.value) {
-            const path = pathResult.value;
-            let currentFiles: FileData[] = [{ name: fileName, bytes }];
-            try {
-                for (let i = 1; i < path.length; i++) {
-                    const stepHandler = path[i].handler;
-                    const prevFormat = path[i - 1].format;
-                    const nextFormat = path[i].format;
-                    currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat,
-                                hopQualityArgs({ target: nextFormat, isLastHop: i === path.length - 1, requested: effectiveQuality }));
-                }
-                return { files: currentFiles };
-            } catch (nativeErr) {
-                nativeFailure = nativeErr;
-                // Native execution failed, fall through to browser bridge
+    // Try native first. findFirstPath resolves both tokens and searches, trying
+    // the next reading of an ambiguous one rather than giving up on the first.
+    // simpleMode=true: accept any handler for the final step. Without it the
+    // resolver can name e.g. ImageMagick for PDF output while libreoffice
+    // provides the actual pptx→pdf edge, and the handler-name constraint would
+    // reject the libreoffice path, costing a 15s timeout searching for a
+    // non-existent ImageMagick-terminated one.
+    const path = await findFirstPath(graph, handlers, inputMime, inputExt, outputMime, outputExt, true);
+    if (path) {
+        let currentFiles: FileData[] = [{ name: fileName, bytes }];
+        try {
+            for (let i = 1; i < path.length; i++) {
+                const stepHandler = path[i].handler;
+                const prevFormat = path[i - 1].format;
+                const nextFormat = path[i].format;
+                currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat,
+                            hopQualityArgs({ target: nextFormat, isLastHop: i === path.length - 1, requested: effectiveQuality }));
             }
+            return { files: currentFiles };
+        } catch (nativeErr) {
+            nativeFailure = nativeErr;
+            // Native execution failed, fall through to browser bridge
         }
     }
 

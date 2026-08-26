@@ -62,3 +62,55 @@ jobs:
 
       - name: Run tests
         run: bun run test
+
+  # Runs the conversions rather than trusting the route graph. The graph
+  # answers "is there a path", which has been true for pairs that then threw on
+  # the real bytes: a handler that rejects the file, a format token that
+  # resolves to a registry entry no user would pick, a buffer detached by an
+  # earlier hop. This job converts one real sample per landing-page pair and
+  # checks bytes come back.
+  #
+  # Separate from `build` so it runs alongside it instead of after: the whole
+  # job is ~4 minutes, most of it apt. It does not need `bun run build` - the
+  # script imports src directly and reads test/resources.
+  #
+  # The script exits 0 for pairs it can explain away (browser-only handler,
+  # no sample to bootstrap from), so a red job here is a conversion that
+  # actually broke.
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "latest"
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun i --frozen-lockfile
+
+      # Not the `libreoffice` metapackage: writer, impress and calc are the
+      # three the office pairs route through, and the metapackage pulls in
+      # Base, Draw, Math and a JRE for no extra coverage. Without this the
+      # office pairs report ENV and pass silently, which is the failure mode
+      # this job exists to remove.
+      - name: Install LibreOffice
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libreoffice-writer libreoffice-impress libreoffice-calc
+
+      - name: Verify conversions
+        run: bun run scripts/verify-conversions.ts

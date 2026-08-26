@@ -56,7 +56,15 @@ class pdfparseHandler implements FormatHandler {
     const outputFiles: FileData[] = [];
 
     for (const inputFile of inputFiles) {
-      const parser = new PDFParse({ data: inputFile.bytes });
+      // A copy, because pdf.js detaches whatever buffer it is given, and
+      // pdf-parse hands ours straight to it. The caller's bytes may still be
+      // needed: a multi-hop route reuses them, MCP's convert_file falls back to
+      // the browser bridge with the same array when the native path throws, and
+      // the verifier converts one sample pdf to several targets in a row. Before
+      // this, that second use failed with "Underlying ArrayBuffer has been
+      // detached from the view". The other four pdf.js call sites in this
+      // codebase already copy.
+      const parser = new PDFParse({ data: inputFile.bytes.slice() });
       let text;
       try {
         text = await parser.getText();

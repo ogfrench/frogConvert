@@ -91,24 +91,26 @@ describe('handlePath', () => {
         expect(res.status).toBe(404);
     });
 
-    it('returns 404 when input format is not found in native handlers', async () => {
-        // No handlers registered
+    // A format no native handler claims used to 404 without asking the bridge.
+    // The bridge is the side with the browser-only handlers, so that is the
+    // case it can answer - png -> svg needs svgTrace, which never loads here.
+    it('asks the bridge when a format is unknown to the native handlers', async () => {
+        vi.mocked(canConvertViaBrowser).mockResolvedValue(true);
         const res = await handlePath(makeUrl(defaultParams), [], makeGraph(null));
-        expect(res.status).toBe(404);
-        const body = await res.json();
-        expect(body.error).toContain("This conversion isn't available yet.");
-        expect(body.error).toContain("francois.prevot@frog.co");
-        expect(canConvertViaBrowser).not.toHaveBeenCalled();
+        expect(canConvertViaBrowser).toHaveBeenCalled();
+        expect(res.status).toBe(200);
+        expect((await res.json()).browserAssisted).toBe(true);
     });
 
-    it('returns 404 when output format is not found in native handlers', async () => {
+    it('returns 404 when a format is unknown and the bridge cannot help either', async () => {
+        vi.mocked(canConvertViaBrowser).mockResolvedValue(false);
         const inputHandler = makeHandler('InputHandler', [jpegFormat]);
         const res = await handlePath(makeUrl(defaultParams), [inputHandler], makeGraph(null));
+        expect(canConvertViaBrowser).toHaveBeenCalled();
         expect(res.status).toBe(404);
         const body = await res.json();
         expect(body.error).toContain("This conversion isn't available yet.");
         expect(body.error).toContain("francois.prevot@frog.co");
-        expect(canConvertViaBrowser).not.toHaveBeenCalled();
     });
 
     it('path response includes handler, mime, extension, format fields', async () => {
