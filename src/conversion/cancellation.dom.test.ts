@@ -14,6 +14,7 @@ import {
     setWorkerCancelCallback,
     setForceCleanupCallback,
     triggerCancellation,
+    updateCancelProgress,
     completeCancellation,
     showPartialDownloadPopup,
 } from "./cancellation.ts";
@@ -177,6 +178,99 @@ describe("cancellation DOM bindings", () => {
         });
     });
 
+    describe("the soft-cancel row count, which is the modal's height", () => {
+        // Same invariant as progressStatus.test.ts's "the row count, which is
+        // the modal's height", for the one state that does not come from
+        // statusHTML. Measured in Chromium against the real stylesheets, the
+        // notice sits at 394.59px - identical to every running phase, at 1280,
+        // 375 and 320px - and used to jump to 414.55px the moment the engine
+        // reported its first detail, one beat after the user pressed Stop.
+        //
+        // jsdom has no layout, so what is asserted here is the thing that
+        // produced the jump rather than the pixels: the number of rows in the
+        // paragraph, which for a <br>-delimited paragraph is its height.
+        const rows = (p: Element) => p.innerHTML.split("<br>").length;
+
+        const softCancel = () => {
+            setCanHardCancel(false);
+            setCurrentFileProgress(2, 3);
+            showConversionInProgress("Converting file 2 of 3...");
+            ensureCancelButton();
+            triggerCancellation();
+            return ui.popupBox.querySelector("p")!;
+        };
+
+        it("reserves the live row before the engine has said anything", () => {
+            const live = softCancel().querySelector(".cancel-live-progress");
+            expect(live).not.toBeNull();
+            expect(live!.textContent).toBe("");
+            // The row is empty, so it only takes a line box because
+            // conversion.css gives it a zero-width space. Announcing it would
+            // read that out.
+            expect(live!.getAttribute("aria-hidden")).toBe("true");
+        });
+
+        it("fills that row rather than adding one", () => {
+            const p = softCancel();
+            const before = rows(p);
+
+            updateCancelProgress("Rasterising page 74 of 118");
+
+            expect(p.querySelector(".cancel-live-progress")?.textContent)
+                .toBe("Rasterising page 74 of 118");
+            expect(rows(p)).toBe(before);
+        });
+
+        it("stays at that row count however many details arrive", () => {
+            const p = softCancel();
+            const before = rows(p);
+
+            updateCancelProgress("Rasterising page 74 of 118");
+            updateCancelProgress("Rasterising page 75 of 118");
+            updateCancelProgress("Rasterising page 118 of 118");
+
+            expect(p.querySelectorAll(".cancel-live-progress")).toHaveLength(1);
+            expect(rows(p)).toBe(before);
+        });
+
+        // The two lines whose length decides the row count. Measured in
+        // Chromium against the real app at a 320px viewport, where the notice's
+        // paragraph is 250px wide: the four-row floor is 89.6px, which pays for
+        // one row of main copy (22.4px), one for the engine's detail (22.4px)
+        // and two of note (19.2px each) plus its 4px margin - 87.16px, with
+        // 2.44px spare. There is no room for a third row anywhere, so a copy
+        // edit that pushes either line over its width puts the jump back.
+        // Character counts stand in for the widths, which jsdom cannot measure.
+        it("keeps both lines inside the row budget the floor pays for", () => {
+            const p = softCancel();
+            const main = p.firstChild!.textContent!;
+            const note = p.querySelector(".conversion-path")!.textContent!;
+
+            // 37 measured as one row; 42 measured as two.
+            expect(main.length, main).toBeLessThanOrEqual(38);
+            // 76 measured as two rows; 89 measured as three.
+            expect(note.length, note).toBeLessThanOrEqual(80);
+        });
+
+        it("builds no row under the hard-cancel popup, which has none to fill", () => {
+            // Hard cancel terminates the worker and replaces the modal with a
+            // bare "Stopping now...". A detail from a handler still unwinding
+            // used to build itself a row there and grow that modal instead.
+            vi.useFakeTimers();
+            setCanHardCancel(true);
+            showConversionInProgress("Working...");
+            ensureCancelButton();
+            triggerCancellation();
+            const p = ui.popupBox.querySelector("p")!;
+
+            updateCancelProgress("Rasterising page 74 of 118");
+
+            expect(p.textContent).toBe("Stopping now...");
+            expect(p.querySelector(".cancel-live-progress")).toBeNull();
+            resetCancellation();
+        });
+    });
+
     describe("triggerCancellation (hard-cancellable path)", () => {
         it("replaces popup with the Cancelling modal and fires worker callback", () => {
             const cb = vi.fn();
@@ -223,8 +317,8 @@ describe("cancellation DOM bindings", () => {
             expect(ui.popupBox.querySelector("h2")?.textContent).toBe("Stopping conversion");
             const pHtml = ui.popupBox.querySelector("p")?.innerHTML ?? "";
             expect(pHtml).toContain("Finishing file 2 of 3, then stopping.");
-            expect(pHtml).toContain("this step can't be interrupted mid-file -");
-            expect(pHtml).toContain("refresh the page if you need to stop right now.");
+            expect(pHtml).toContain("this step can't be interrupted mid-file.");
+            expect(pHtml).toContain("Refresh the page to stop right now.");
             // Disabled, not removed: unmounting it takes the whole footer - and
             // ~110px of modal - out from under the user in the same frame they
             // pressed Stop. Dead either way, but the box stays put.
@@ -235,7 +329,7 @@ describe("cancellation DOM bindings", () => {
             resetCancellation();
         });
 
-        it("uses 'the current file' copy when there is only one file", () => {
+        it("uses 'this file' copy when there is only one file", () => {
             setCanHardCancel(false);
             setCurrentFileProgress(1, 1);
             showConversionInProgress("Converting your file...");
@@ -244,7 +338,7 @@ describe("cancellation DOM bindings", () => {
             triggerCancellation();
 
             const pHtml = ui.popupBox.querySelector("p")?.innerHTML ?? "";
-            expect(pHtml).toContain("Finishing the current file, then stopping.");
+            expect(pHtml).toContain("Finishing this file, then stopping.");
             resetCancellation();
         });
 

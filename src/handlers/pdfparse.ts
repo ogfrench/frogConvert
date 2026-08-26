@@ -27,10 +27,21 @@ class pdfparseHandler implements FormatHandler {
     if (isNode) {
       const moduleName = "node:module";
       const urlName = "node:url";
+      const pathName = "node:path";
       const { createRequire } = await import(/* @vite-ignore */ moduleName);
       const { pathToFileURL } = await import(/* @vite-ignore */ urlName);
+      const { dirname, join } = await import(/* @vite-ignore */ pathName);
       const require_ = createRequire(import.meta.url);
-      PDFParse.setWorker(pathToFileURL(require_.resolve("pdf-parse/dist/pdf-parse/esm/pdf.worker.mjs")).href);
+      // Resolved as a sibling of the package's own entry point, not as a deep
+      // subpath. pdf-parse declares an `exports` map with no `./dist/*` entry,
+      // so resolving the worker file directly is blocked by the package - it
+      // threw "Cannot find module 'pdf-parse/dist/pdf-parse/esm/pdf.worker.mjs'"
+      // and left the handler unregistered, silently falling MCP back to the
+      // browser bridge for every pdf -> txt. The entry point is exported, and
+      // both the cjs and esm builds ship pdf.worker.mjs beside it, so this
+      // resolves whichever condition the host picked.
+      const entry = require_.resolve("pdf-parse");
+      PDFParse.setWorker(pathToFileURL(join(dirname(entry), "pdf.worker.mjs")).href);
     } else {
       PDFParse.setWorker('/js/pdf.worker.mjs');
     }

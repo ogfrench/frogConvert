@@ -124,8 +124,14 @@
    Two consecutive <br>s already give the strut a full line box in every
    engine we ship on, but an empty inline is exactly the case a rendering
    engine is entitled to collapse - the zero-width space makes the row
-   unambiguously non-empty without printing anything or being selectable. */
-.status-live:empty::after {
+   unambiguously non-empty without printing anything or being selectable.
+
+   `.cancel-live-progress` is the same row on the soft-cancel notice, and
+   needs this more than `.status-live` does: it sits between a <br> and a
+   block element, so with nothing in it there is no following inline
+   content to force the line at all. */
+.status-live:empty::after,
+.cancel-live-progress:empty::after {
   content: "\200B";
 }
 
