@@ -919,7 +919,10 @@ summary {
     border-top-color: var(--primary);
     border-radius: 50%;
     animation: spin-complex 2.4s cubic-bezier(0.45, 0.15, 0.55, 0.85) infinite;
-    margin: var(--space-8) auto;
+    /* Matches .loader-spinner's box for the same reason it matches the gooey
+       one's: this branch turns the two spinners into the same ring, and they
+       still have to measure the same. */
+    margin: calc(var(--space-5) + (var(--space-16) - var(--space-8)) / 2) auto;
     flex-shrink: 0;
   }
 
@@ -937,7 +940,14 @@ summary {
   border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin-complex 2.4s cubic-bezier(0.45, 0.15, 0.55, 0.85) infinite;
-  margin: var(--space-8) auto;
+  /* Same outer box as .loader-gooey, which is --space-16 square inside
+     --space-5 of margin: 104px against this ring's 96px. The progress modal
+     swaps one spinner for the other the moment pathfinding hands over to a
+     handler, so an 8px difference here was an 8px jump in the box on every
+     conversion, and again on the way into the hard-cancel popup. The ring
+     takes the difference as margin rather than growing, so it looks the same
+     and measures the same. */
+  margin: calc(var(--space-5) + (var(--space-16) - var(--space-8)) / 2) auto;
   flex-shrink: 0;
 }
 
