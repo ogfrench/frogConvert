@@ -113,22 +113,29 @@ describe('registerFindConversionPathTool', () => {
         expect(result.content[0].text).toContain("francois.prevot@frog.co");
     });
 
-    it('returns input-not-found error immediately (no bridge check) when input format is unknown', async () => {
-        // No handlers → inputMatch will be null
+    // A format the Node handler set has never heard of used to return here
+    // without asking the bridge, on the reasoning that the bridge could not
+    // resolve it either. That is backwards: the bridge is the side that loads
+    // the browser-only handlers, so an unknown format is exactly the case it
+    // can answer. png -> svg is the live one - svgTrace is browser-only, so
+    // "svg" has no native writer and the answer was "not available" while the
+    // landing page for it advertised the conversion.
+    it('asks the bridge when the input format is unknown natively', async () => {
+        vi.mocked(canConvertViaBrowser).mockResolvedValue(true);
+
         const server = makeMockServer();
         registerFindConversionPathTool(server, Promise.resolve({ handlers: [], graph: makeGraph(null) }));
         const cb = getCallback(server);
 
         const result = await cb({ inputMime: 'image/jpeg', inputExtension: 'jpeg', outputMime: 'image/png', outputExtension: 'png' });
 
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain("This conversion isn't available yet.");
-        expect(result.content[0].text).toContain("francois.prevot@frog.co");
-        // Path queries don't spin up the browser for unknown formats
-        expect(canConvertViaBrowser).not.toHaveBeenCalled();
+        expect(canConvertViaBrowser).toHaveBeenCalled();
+        expect(result.isError).toBeUndefined();
+        expect(result.content[0].text).toContain('browser-assisted path is available');
     });
 
-    it('returns output-not-found error immediately when output format is unknown', async () => {
+    it('reports unavailable when the output format is unknown and the bridge cannot help either', async () => {
+        vi.mocked(canConvertViaBrowser).mockResolvedValue(false);
         const inputHandler = makeHandler('InputHandler', [jpegFormat]);
 
         const server = makeMockServer();
@@ -137,9 +144,9 @@ describe('registerFindConversionPathTool', () => {
 
         const result = await cb({ inputMime: 'image/jpeg', inputExtension: 'jpeg', outputMime: 'model/gltf+json', outputExtension: 'gltf' });
 
+        expect(canConvertViaBrowser).toHaveBeenCalled();
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain("This conversion isn't available yet.");
         expect(result.content[0].text).toContain("francois.prevot@frog.co");
-        expect(canConvertViaBrowser).not.toHaveBeenCalled();
     });
 });

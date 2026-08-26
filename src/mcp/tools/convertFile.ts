@@ -6,7 +6,7 @@ import { basename, dirname, join } from "path";
 import type { FileData } from "../../core/FormatHandler/FormatHandler.ts";
 import type { McpContext } from "../core/types.ts";
 
-import { findFormatAndHandler, libreofficeHint } from "../core/utils.ts";
+import { findFirstPath, libreofficeHint } from "../core/utils.ts";
 import { convertViaBrowser } from "../core/browserBridge.ts";
 import { resolveBytes } from "../core/fileInput.ts";
 import { resolveEffectiveQuality } from "../../core/compression/resolveEffectiveQuality.ts";
@@ -74,8 +74,6 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
 
             const { handlers, allHandlers, graph } = await initPromise;
 
-            const inputMatch = findFormatAndHandler(handlers, inputMime, inputExtension, 'from');
-            const outputMatch = findFormatAndHandler(handlers, outputMime, outputExtension, 'to');
             let nativeFailure: unknown = null;
 
             const resolved = await resolveEffectiveQuality(quality, bytes, inputMime, outputMime);
@@ -83,35 +81,37 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
                 return await serializeResults([{ name: resolvedName, bytes }], outputFilePath);
             }
 
-            // Try native path when both formats are known to native handlers
-            if (inputMatch && outputMatch) {
-                const pathsGenerator = graph.searchPath(
-                    { format: inputMatch.format, handler: inputMatch.handler },
-                    { format: outputMatch.format, handler: outputMatch.handler },
-                    false
-                );
+            // Try native first. findFirstPath resolves both tokens and searches,
+            // trying the next reading of an ambiguous one rather than giving up
+            // on the first - see findFormatCandidates for what one reading cost.
+            // simpleMode=true, the same as the REST /convert route. The graph
+            // keys its nodes by format, not by handler, so the handler name on
+            // the target node buys no precision - it only rejects paths whose
+            // last hop comes from a different handler that writes the same
+            // format, and the graph then returns whatever longer route survives.
+            // Measured against the Node handler set, false gave
+            // pdf -> txt as Ghostscript -> tiff -> png -> html -> pandoc, and
+            // docx -> pdf as libreoffice -> zip -> png -> imageToPdf. With true
+            // they are Ghostscript -> pdfparse and libreoffice -> libreoffice.
+            const path = await findFirstPath(graph, handlers, inputMime, inputExtension, outputMime, outputExtension, true);
+            if (path) {
+                let currentFiles: FileData[] = [{ name: resolvedName, bytes }];
 
-                const pathResult = await pathsGenerator.next();
-                if (!pathResult.done && pathResult.value) {
-                    const path = pathResult.value;
-                    let currentFiles: FileData[] = [{ name: resolvedName, bytes }];
-
-                    try {
-                        // path[0] is the source node (no conversion step); steps start at index 1
-                        for (let i = 1; i < path.length; i++) {
-                            const stepHandler = path[i].handler;
-                            const prevFormat = path[i - 1].format;
-                            const nextFormat = path[i].format;
-                            currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat,
-                                hopQualityArgs({ target: nextFormat, isLastHop: i === path.length - 1, requested: resolved }));
-                        }
-
-                        return await serializeResults(currentFiles, outputFilePath);
-                    } catch (nativeErr: any) {
-                        nativeFailure = nativeErr;
-                        // Native execution failed, log for diagnostics and fall through to browser bridge
-                        process.stderr.write(`[mcp] Native conversion failed, trying browser bridge: ${nativeErr?.message ?? nativeErr}\n`);
+                try {
+                    // path[0] is the source node (no conversion step); steps start at index 1
+                    for (let i = 1; i < path.length; i++) {
+                        const stepHandler = path[i].handler;
+                        const prevFormat = path[i - 1].format;
+                        const nextFormat = path[i].format;
+                        currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat,
+                            hopQualityArgs({ target: nextFormat, isLastHop: i === path.length - 1, requested: resolved }));
                     }
+
+                    return await serializeResults(currentFiles, outputFilePath);
+                } catch (nativeErr: any) {
+                    nativeFailure = nativeErr;
+                    // Native execution failed, log for diagnostics and fall through to browser bridge
+                    process.stderr.write(`[mcp] Native conversion failed, trying browser bridge: ${nativeErr?.message ?? nativeErr}\n`);
                 }
             }
 
