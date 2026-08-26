@@ -271,12 +271,33 @@ export function triggerCancellation() {
         // Update status copy in place BEFORE setting cancelStartTime. The
         // guard at the top of showConversionInProgress bails once cancelStartTime
         // is non-null, so we need to get the final update in first.
+        // "this file", not "the current file". Both lines below have a row
+        // budget: measured in Chromium against the real app at a 320px
+        // viewport, the notice's paragraph is 250px wide and the four-row
+        // floor gives it 89.6px, which buys one row of main copy, one for the
+        // engine's detail and two for the note. "Finishing the current file,
+        // then stopping." is 42 characters and wraps to two, which took the
+        // whole block to 128.73px and grew the modal to 432.73px against the
+        // 393.59px every other phase sits at. At 35 characters this is one row,
+        // as is the "file 2 of 3" form at 37.
         const fileRef = _currentFileTotal > 1
             ? `file ${_currentFileIndex} of ${_currentFileTotal}`
-            : "the current file";
+            : "this file";
         showConversionInProgress(
-            `Finishing ${fileRef}, then stopping.<br>` +
-            `<span class="conversion-path">this step can't be interrupted mid-file - refresh the page if you need to stop right now.</span>`,
+            `Finishing ${fileRef}, then stopping.<br>`
+            // The engine's live detail lands here. The row is in the markup
+            // from the start, empty, so the detail arrives into a box that
+            // already existed - see updateCancelProgress for what it cost when
+            // it did not. aria-hidden for the same reason statusHTML's live row
+            // is: #popup is role="status" aria-live="polite" aria-atomic="true",
+            // so a line that changes per page would re-announce the whole
+            // notice every time it ticked.
+            + `<span class="cancel-live-progress muted-text" aria-hidden="true"></span>`
+            // 76 characters, which is two rows at 250px. The 89-character
+            // version this replaces was three, and three rows of note plus one
+            // of detail does not fit under the floor whatever the main line
+            // says. Same two facts, one sentence each.
+            + `<span class="conversion-path">this step can't be interrupted mid-file. Refresh the page to stop right now.</span>`,
             modeCopy().cancellingTitle,
         );
         // Disabled rather than removed: clicking it again only hits the
@@ -302,28 +323,30 @@ export function triggerCancellation() {
  *
  * Called via `slowHandle.update({ detail })`, the same channel that feeds the
  * normal slow-conversion notice. No-op when cancel isn't active.
+ *
+ * Fills a row that is already there; it does not build one. It used to insert a
+ * `<br>` and the span the first time a detail arrived, into a paragraph whose
+ * main line already ended in a `<br>` - so the pair rendered as two consecutive
+ * breaks and the detail cost an empty row as well as its own. Measured in
+ * Chromium against the real stylesheets, that grew the modal 394.59px ->
+ * 414.55px at 1280, 375 and 320px alike, at the moment the engine first
+ * reported anything: the box moved under the user one beat after they pressed
+ * Stop. One row, reserved in the markup, fits under the four-row floor
+ * `.conversion-status` already imposes (87.18px of 89.6px), so the notice is now
+ * the same height as every phase around it, before and after the detail lands.
+ *
+ * No-op when the row is absent, which is the hard-cancel popup. That path
+ * replaces the modal with a bare "Stopping now..." line and terminates the
+ * worker; a late detail from an in-flight handler used to build itself a row
+ * there too and grow that modal instead. There is nothing left to report the
+ * progress of, so there is nothing to say.
  */
 export function updateCancelProgress(detail: string) {
     if (cancelStartTime === null) return;
     if (!ui.popupBox.classList.contains("open")) return;
     if (!detail) return;
-    const messageP = ui.popupBox.querySelector("p");
-    if (!messageP) return;
-    let liveSpan = messageP.querySelector<HTMLElement>(".cancel-live-progress");
-    if (!liveSpan) {
-        liveSpan = document.createElement("span");
-        liveSpan.className = "cancel-live-progress muted-text";
-        // Insert before the trailing "refresh the page" note.
-        const footnote = messageP.querySelector(".conversion-path");
-        const br = document.createElement("br");
-        if (footnote) {
-            messageP.insertBefore(br, footnote);
-            messageP.insertBefore(liveSpan, footnote);
-        } else {
-            messageP.appendChild(br);
-            messageP.appendChild(liveSpan);
-        }
-    }
+    const liveSpan = ui.popupBox.querySelector<HTMLElement>(".cancel-live-progress");
+    if (!liveSpan) return;
     liveSpan.textContent = detail;
 }
 

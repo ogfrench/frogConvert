@@ -255,6 +255,10 @@ describe("the row count, which is the modal's height", () => {
     // so the row count *is* the height. Everything here is really one
     // assertion - that it is four, whatever the run is doing - because a row
     // that comes and goes moves the box under whatever the user is reading.
+    //
+    // The one state that does not come from statusHTML is the soft-cancel
+    // notice, which cancellation.ts builds itself; its row count is asserted in
+    // cancellation.dom.test.ts, under the same heading.
     const rows = (html: string) => html.split("<br>").length;
 
     const withOpenModal = (fn: () => void) => {
