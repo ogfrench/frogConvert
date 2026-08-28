@@ -63,6 +63,17 @@ jobs:
       - name: Run tests
         run: bun run test
 
+      # The only test that drives a real service worker through a real deploy.
+      # It is opt-in because inside the default run it builds and drives a
+      # browser in a worker parallel with everything else, and that contention
+      # once pushed the MCP suite past its 60s timeout. Run here instead:
+      # serially, in a job that already has the submodules and dependencies it
+      # needs. Not running it anywhere is how a service worker that could not
+      # install shipped in 3.0.0 - unit tests cannot catch that, because the
+      # failure is `precacheAndRoute` rejecting its install promise.
+      - name: Stale-shell E2E (service-worker install + deploy skew)
+        run: bun run test:shell
+
   # Runs the conversions rather than trusting the route graph. The graph
   # answers "is there a path", which has been true for pairs that then threw on
   # the real bytes: a handler that rejects the file, a format token that

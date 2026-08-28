@@ -8,6 +8,19 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **The 3.0.0 service worker could not install, so 3.0.0 shipped none of its own fix.** `rejectHtmlFallback` ([src/pwa/cachePolicy.ts](src/pwa/cachePolicy.ts)) refused every `text/html` response on content type alone, and `addPlugins([rejectHtmlFallback])` in [src/pwa/sw.ts](src/pwa/sw.ts) applies it to the precache as well as the runtime routes. 125 of the ~165 precache entries *are* HTML documents, so `precacheAndRoute` rejected its install promise with `bad-precaching-response :: index.html`, the worker went from `installing` straight to `redundant`, and the registration was discarded - measured in Chromium: registrations 0, 5 of 165 entries cached. The consequence was the opposite of the intent: a returning user's existing worker never got replaced, so they kept the 2.x caching behaviour and the dead-UI bug 3.0.0 exists to fix, while a new visitor got no service worker and no offline support at all. The guard now takes the URL it is about to cache under and only refuses HTML where the URL does not name a document (`.html` or a trailing slash), which is the check the doc comment always claimed it did. Verified in a browser against a real build: the worker reaches `activated` and all 165 manifest URLs are precached. The gap that let this ship is that the only test which drives a real service worker is [test/e2e/stale-shell-recovery.test.ts](test/e2e/stale-shell-recovery.test.ts), and it is opt-in *and* skipped wherever the `image-to-txt` submodule is unreachable - so it ran in neither CI nor the sandbox. The unit tests passed because they never supplied a URL.
+- **`wasm-v1` was the one runtime cache without the HTML guard.** It is also the one deliberately spared by `RETIRED_CACHES` and by both recovery paths, and it is `CacheFirst`, so a poisoned entry there was the most durable of the lot - nothing revalidated it and nothing cleared it. Now guarded like the others.
+
+### Documentation
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) still described the pre-3.0.0 cache strategy (`/assets/` as StaleWhileRevalidate, 200 entries, 30-day TTL; precache as "HTML, CSS, icons and fonts"), which is the exact configuration 3.0.0 replaced and the one that caused the outage. Rewritten to match the shipped service worker, with a new **Stale shell recovery** section covering the two recovery handlers and why their scopes differ.
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) told self-hosters to mirror a header table that no longer contained the rules that matter. It now documents the `/assets/*` immutable header, the requirement that missing build output **404 rather than fall through to the SPA rule**, and nginx's non-merging `add_header` semantics.
+- [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) documents `bun run test:shell`, including what it does *not* gate - the precache invariant is asserted at build time, so `bun run build` fails without it.
+
 ## [3.0.0] - 2026-08-28
 
 Compression becomes a first-class feature. It was previously invisible - every conversion quietly applied a `medium` preset, and the only user-facing compression was a same-format easter egg in the Convert card. There is now a dedicated **Compress** mode, PDFs can actually be compressed, and the setting that was always being applied is now something you can see and change.

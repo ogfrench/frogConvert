@@ -123,9 +123,50 @@ The web build emits a service worker (`sw.js`) and a Web App Manifest (`manifest
 | `/sw.js` | `Service-Worker-Allowed: /` | Lets the SW be registered with root scope from any path. |
 | `/manifest.webmanifest` | `Content-Type: application/manifest+json` | Required by the manifest spec; some browsers reject `text/plain`. |
 | `/wasm/*` | `Cache-Control: public, max-age=31536000, immutable` | Content-stable URLs. SW also runtime-caches with a 7-day TTL so critical fixes still propagate within a week. |
+| `/assets/*` | `Cache-Control: public, max-age=31536000, immutable` | Build output is content-hashed, so a given URL's bytes can never change. |
 | `/index.html`, `/docs/index.html`, `/headless/index.html` | `Cache-Control: public, max-age=0, must-revalidate` | Entry HTMLs reference hashed asset URLs that change every build. Caching them pins users to old asset hashes. |
 
-If you're self-hosting behind a different reverse proxy or CDN, mirror these. The desktop (Electron) build skips the SW entirely (`!isDesktopBuild` gate in `vite.config.js`) so packaged binaries are unaffected.
+### Missing build output must 404, not fall through
+
+This one is not a header, and it is the rule most likely to be missed when
+porting to another host - it caused a production outage before it was fixed.
+
+`/assets/*`, `/js/*` and `/wasm/*` **must return 404 when the file does not
+exist.** A blanket SPA rewrite (`/*` → `/index.html`, status 200) also catches
+these paths, so a returning user asking for a chunk the current deploy no longer
+has receives `200 text/html`. Workbox's cacheability check reads only the status
+code, so that HTML gets written into the cache under a `.js` URL and stays
+there - the app then renders fully and binds nothing, recoverable only by
+clearing site data.
+
+Both shipped configs already do this, above their SPA rule:
+
+- **Netlify** - three `[[redirects]]` blocks in [netlify.toml](../netlify.toml) sending those prefixes to `/404.html` with `status = 404`. Netlify matches real files before redirects, so present assets are unaffected.
+- **nginx** - `try_files $uri =404;` in the corresponding `location` blocks in `docker/nginx/default.conf`.
+
+The service worker refuses an HTML body under a non-HTML URL regardless
+(`src/pwa/cachePolicy.ts`), so a host that gets this wrong degrades to "chunk
+doesn't load" rather than "cache is poisoned" - but fix the host config; the
+SW guard is a backstop, not the fix.
+
+### nginx: `add_header` does not merge across levels
+
+If you edit `docker/nginx/default.conf`, know that a `location` block declaring
+**any** `add_header` of its own inherits **none** from the server block. Adding a
+single `Cache-Control` to a location silently drops its CSP,
+`X-Content-Type-Options`, `X-Frame-Options` and `Referrer-Policy`.
+
+The security headers therefore live in one snippet,
+`docker/nginx/security-headers.conf`, `include`d at server level *and* again in
+every location that adds a header of its own. `docker/nginx/headers.test.ts`
+enforces that structurally: it fails if a location adds a header without
+re-including the snippet, and separately checks the Dockerfile's `COPY`
+destination matches the path the `include` names - a mismatch there stops nginx
+booting rather than merely dropping a header.
+
+If you're self-hosting behind a different reverse proxy or CDN, mirror all of the
+above. The desktop (Electron) build skips the SW entirely (`!isDesktopBuild` gate
+in `vite.config.js`) so packaged binaries are unaffected.
 
 ## Content Security Policy
 
