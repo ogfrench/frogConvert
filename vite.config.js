@@ -104,8 +104,15 @@ const shellChunks = new Set();
 
 /**
  * Absolute build output directory, captured from the resolved config rather
- * than assumed to be ./dist so the precache assertion below reads the files
- * this build actually wrote.
+ * than assumed to be ./dist, so every plugin here reads and writes the files
+ * this build actually produced.
+ *
+ * Three of them used to hardcode ./dist - the precache assertion, seo-pages
+ * and csp-hashes - which quietly made the output directory un-overridable. A
+ * test building to a temp directory still got its SEO pages written into
+ * ./dist, and two builds running concurrently (vitest runs test files in
+ * parallel workers) fought over the same _headers file: whichever substituted
+ * the CSP placeholder first made the other fail with "found 0".
  */
 let resolvedOutDir = resolve(__dirname, 'dist');
 
@@ -386,7 +393,7 @@ export default defineConfig({
         if (isDesktopBuild) return;
         const { warnings } = await generateSeoPages({
           root: __dirname,
-          outDir: resolve(__dirname, 'dist'),
+          outDir: resolvedOutDir,
           strict: true,
           log: (msg) => console.log(msg),
         });
@@ -411,7 +418,7 @@ export default defineConfig({
       name: 'csp-hashes',
       apply: 'build',
       closeBundle() {
-        const outDir = resolve(__dirname, 'dist');
+        const outDir = resolvedOutDir;
         const headers = resolve(outDir, '_headers');
         if (!fs.existsSync(headers)) return;
 

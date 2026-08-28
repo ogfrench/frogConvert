@@ -63,17 +63,18 @@ describe.skipIf(!hasFullRegistry)(
       deployA = path.join(workDir, "deploy-a");
       deployB = path.join(workDir, "deploy-b");
 
-      // Built into the default dist/, not straight into workDir: the seo-pages
-      // and csp-hashes plugins write to a hardcoded dist/, so a custom outDir
-      // would produce a build missing the very HTML this test reads. Copy out
-      // afterwards instead, so what is served is the real production output.
+      // Built straight into this test's own directory, never the shared dist/.
+      // vitest runs test files in parallel workers, and test/e2e/electron-app
+      // builds too: with both writing dist/, whichever substituted the CSP
+      // placeholder in _headers first made the other fail the build outright.
+      // Every plugin that writes output now honours the resolved outDir, which
+      // is what makes this possible.
       await build({
         configFile: path.join(ROOT, "vite.config.js"),
         root: ROOT,
         logLevel: "silent",
-        build: { sourcemap: false },
+        build: { outDir: deployA, emptyOutDir: true, sourcemap: false },
       });
-      fs.cpSync(path.join(ROOT, "dist"), deployA, { recursive: true });
 
       deriveNextDeploy(deployA, deployB);
 
