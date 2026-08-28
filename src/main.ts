@@ -999,8 +999,10 @@ if (footerConfettiBtn) {
 
 import { registerPWA } from "./pwa/registerSW";
 import { initShareTargetAndLaunchQueue } from "./pwa/shareTarget";
+import { initStaleShellRecovery } from "./pwa/staleShell";
 
 registerPWA();
+initStaleShellRecovery();
 initShareTargetAndLaunchQueue();
 
 // Web Share Target / launchQueue routing lives here because it needs

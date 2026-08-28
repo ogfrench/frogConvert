@@ -82,6 +82,49 @@ function apiServerPlugin() {
 
 const isDesktopBuild = process.env.IS_DESKTOP === 'true';
 
+/**
+ * Emitted file names of the app shell: every entry chunk plus the transitive
+ * closure of its *static* imports. Populated during generateBundle and read by
+ * the precache manifestTransform below.
+ *
+ * Per page this is exactly the set Vite already emits `<link rel="modulepreload">`
+ * tags for, so visiting that page costs no extra bandwidth. The precache is
+ * origin-wide, though, so it also pulls the other entries' shells - notably the
+ * ~1.6 MB docs entry, which statically imports mermaid and highlight.js. That
+ * weight is the price of docs/index.html being precached at all; shrinking it
+ * means making those two dynamic imports in src/docs/, not dropping the chunk
+ * here, because HTML precached without its JS is the exact bug this fixes.
+ *
+ * What precaching buys is atomicity: the HTML and the JS it names land in the
+ * same versioned precache and can never disagree. Dynamic imports (the ~250
+ * lazy handler chunks) are deliberately excluded; they stay runtime-cached so a
+ * cold install doesn't pull 17 MB.
+ */
+const shellChunks = new Set();
+
+function collectShellChunks() {
+  return {
+    name: 'collect-shell-chunks',
+    apply: 'build',
+    generateBundle(_options, bundle) {
+      // Deliberately additive rather than reset-per-call: vite-plugin-pwa runs
+      // a second, nested Vite build for the service worker itself, and clearing
+      // here would empty the set before the manifestTransform reads it.
+      const visit = (fileName) => {
+        if (shellChunks.has(fileName)) return;
+        const chunk = bundle[fileName];
+        if (!chunk || chunk.type !== 'chunk') return;
+        shellChunks.add(fileName);
+        // `imports` is static imports only; `dynamicImports` is not walked.
+        for (const imported of chunk.imports) visit(imported);
+      };
+      for (const chunk of Object.values(bundle)) {
+        if (chunk.type === 'chunk' && chunk.isEntry) visit(chunk.fileName);
+      }
+    },
+  };
+}
+
 const projectPkg = JSON.parse(fs.readFileSync("./package.json", "utf-8"));
 // An explicit VITE_COMMIT_SHA wins over `git rev-parse`, because the one build
 // that cannot ask git is the one that most needs an answer: .dockerignore keeps
@@ -242,6 +285,7 @@ export default defineConfig({
     }
   },
   plugins: [
+    collectShellChunks(),
     {
       name: 'spa-fallback',
       configureServer(server) {
@@ -591,13 +635,67 @@ export default defineConfig({
         launch_handler: { client_mode: 'navigate-existing' }
       },
       injectManifest: {
-        // Precache only entry HTMLs, CSS, registry, icons, fonts. JS chunks
-        // are runtime-cached (see src/pwa/sw.ts) so the SW install doesn't
-        // pre-pull 17 MB of lazy handler code before the user does anything.
+        // Precache the entry HTMLs, CSS, registry, icons, fonts AND the app
+        // shell JS (entry chunks + their static-import closure, filtered by the
+        // manifestTransform below). The ~250 lazy handler chunks stay out and
+        // are runtime-cached in src/pwa/sw.ts, so a cold install still doesn't
+        // pre-pull 17 MB.
+        //
+        // The JS *must* be precached with the HTML that names it. Precaching
+        // index.html alone pinned returning users to asset hashes from the
+        // build they first visited; after a deploy those URLs are gone from the
+        // server, the SPA fallback answered 200 text/html for them, and the app
+        // rendered fully but bound no JavaScript - a dead UI that only clearing
+        // site data could fix. Precache is versioned and atomic, so shipping
+        // both halves through it is what keeps them in step.
         globPatterns: [
           '*.{html,ico,webp,png,svg,json,txt,woff2}',
           '**/index.html',
-          'assets/*.css'
+          'assets/*.css',
+          'assets/*.js'
+        ],
+        manifestTransforms: [
+          (entries) => {
+            const manifest = entries.filter((entry) => (
+              !entry.url.endsWith('.js') || shellChunks.has(entry.url)
+            ));
+            const kept = manifest.filter((entry) => entry.url.endsWith('.js')).length;
+            const dropped = entries.length - manifest.length;
+
+            /*
+             * Assert the invariant this whole arrangement exists to hold: every
+             * script a precached HTML file names must itself be precached.
+             *
+             * Checked against the built HTML rather than against shellChunks so
+             * it stays true regardless of how the closure was computed - a chunk
+             * silently dropped for exceeding maximumFileSizeToCacheInBytes would
+             * reintroduce exactly the skew this prevents, and would otherwise
+             * only show up as a dead UI for returning users after a deploy.
+             */
+            const precached = new Set(manifest.map((entry) => entry.url));
+            const outDir = resolve(__dirname, 'dist');
+            const missing = [];
+            for (const entry of manifest) {
+              if (!entry.url.endsWith('.html')) continue;
+              const html = fs.readFileSync(resolve(outDir, entry.url), 'utf8');
+              for (const [, url] of html.matchAll(/(?:src|href)="\/(assets\/[^"]+\.js)"/g)) {
+                if (!precached.has(url)) missing.push(`${url} (referenced by ${entry.url})`);
+              }
+            }
+            if (missing.length > 0) {
+              throw new Error(
+                `[pwa] ${missing.length} script(s) referenced by precached HTML are not ` +
+                `themselves precached, which strands returning users after a deploy:\n  ` +
+                missing.join('\n  ')
+              );
+            }
+
+            console.log(
+              `[pwa] precaching ${kept} shell chunk(s); ` +
+              `${dropped} lazy chunk(s) left to the runtime cache`
+            );
+            return { manifest, warnings: [] };
+          }
         ],
         globIgnores: [
           '**/wasm/**',

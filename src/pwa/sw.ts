@@ -5,6 +5,7 @@ import { CacheFirst, StaleWhileRevalidate } from "workbox-strategies";
 import { ExpirationPlugin } from "workbox-expiration";
 import { CacheableResponsePlugin } from "workbox-cacheable-response";
 import { clientsClaim } from "workbox-core";
+import { rejectHtmlFallback } from "./cachePolicy.ts";
 import {
   SHARE_TARGET_CACHE,
   SHARE_TARGET_READY_PATH,
@@ -22,6 +23,22 @@ self.addEventListener("message", (event) => {
 
 cleanupOutdatedCaches();
 clientsClaim();
+
+// Runtime caches this SW no longer reads. cleanupOutdatedCaches() only prunes
+// Workbox *precaches*, so a renamed runtime cache would otherwise sit in
+// storage forever. assets-v1 is retired rather than reused because entries in
+// it may be SPA-fallback HTML cached under a .js URL by the previous strategy;
+// those are unrecoverable in place, and every URL in there is content-hashed,
+// so nothing of value is lost by dropping it.
+const RETIRED_CACHES = ["assets-v1"];
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    Promise.all(RETIRED_CACHES.map((name) => caches.delete(name)))
+      .then(() => undefined)
+      .catch((err) => { console.warn("[sw] retiring old caches failed:", err); })
+  );
+});
 
 precacheAndRoute(self.__WB_MANIFEST);
 
@@ -65,14 +82,27 @@ registerRoute(
   })
 );
 
+// Lazy chunks under /assets/ that the precache doesn't carry (see the
+// manifestTransform in vite.config.js: entry chunks and their static-import
+// closure are precached, everything else lands here).
+//
+// CacheFirst, not StaleWhileRevalidate: these URLs are content-hashed, so a
+// given URL's bytes can never change. Revalidating them spends a network round
+// trip per chunk to re-confirm something the hash already guarantees.
+//
+// No maxAgeSeconds, deliberately. A TTL on immutable assets is a scheduled
+// outage: entries expired out from under HTML that still referenced them, and
+// the refetch then 404'd because the deploy had moved on. Eviction is by LRU
+// alone, and an evicted chunk is simply refetched.
 registerRoute(
   ({ url }) => url.pathname.startsWith("/assets/"),
-  new StaleWhileRevalidate({
-    cacheName: "assets-v1",
+  new CacheFirst({
+    cacheName: "assets-v2",
     plugins: [
+      rejectHtmlFallback,
+      new CacheableResponsePlugin({ statuses: [200] }),
       new ExpirationPlugin({
-        maxEntries: 200,
-        maxAgeSeconds: 30 * 24 * 60 * 60,
+        maxEntries: 400,
         purgeOnQuotaError: true,
       }),
     ],
@@ -81,12 +111,15 @@ registerRoute(
 
 registerRoute(
   ({ url }) => url.pathname.startsWith("/js/"),
-  new StaleWhileRevalidate({ cacheName: "js-runtime-v1" })
+  new StaleWhileRevalidate({
+    cacheName: "js-runtime-v1",
+    plugins: [rejectHtmlFallback],
+  })
 );
 
 registerRoute(
   ({ url }) => url.pathname.startsWith("/docs/") && url.pathname.endsWith(".md"),
-  new StaleWhileRevalidate({ cacheName: "docs-md-v1" })
+  new StaleWhileRevalidate({ cacheName: "docs-md-v1", plugins: [rejectHtmlFallback] })
 );
 
 async function handleShareTarget(request: Request): Promise<Response> {
