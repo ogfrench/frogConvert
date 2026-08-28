@@ -67,4 +67,27 @@ describe('initBuildInfo', () => {
     const link = document.getElementById('commit-link') as HTMLAnchorElement;
     expect(link.classList.contains('disabled')).toBe(true);
   });
+
+  it.each(['local', 'v3.0.0', '20250828', '123456'])(
+    'shows %j as text rather than a commit link that 404s',
+    (stamp) => {
+      // VITE_COMMIT_SHA is passed through verbatim unless it is a full 40-char
+      // SHA, so a self-hoster or a CI passing a tag lands here.
+      mod.initBuildInfo({ commitSha: stamp });
+      const link = document.getElementById('commit-link') as HTMLAnchorElement;
+      expect(link.textContent).toBe(stamp);
+      expect(link.getAttribute('href')).toBeNull();
+      expect(link.classList.contains('disabled')).toBe(true);
+    },
+  );
+
+  it.each(['b44f3ec', 'abc1234def', 'b44f3ec1a2b3c4d5e6f7089a1b2c3d4e5f607182'])(
+    'links %j, which GitHub can resolve',
+    (sha) => {
+      mod.initBuildInfo({ commitSha: sha });
+      const link = document.getElementById('commit-link') as HTMLAnchorElement;
+      expect(link.href).toBe(`https://github.com/ogfrench/frogConvert/commit/${sha}`);
+      expect(link.classList.contains('disabled')).toBe(false);
+    },
+  );
 });

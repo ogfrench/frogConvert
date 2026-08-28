@@ -1,26 +1,39 @@
 import { marked } from 'marked';
-import hljs from 'highlight.js';
 import DOMPurify from 'dompurify';
 import { initCustomCursor } from "../components/CustomCursor/CustomCursor.ts";
 import { buildToc } from "./toc.ts";
 import { initTheme } from "./theme.ts";
-import { renderMermaid, rerenderMermaid } from "./mermaid-renderer.ts";
+import { rerenderMermaid } from "./mermaid-renderer.ts";
+import { enhanceDoc } from "./enhance.ts";
 import { initSidebar, setActiveDoc, closeSidebar } from "./sidebar.ts";
 import { initBuildInfo } from "./build-info.ts";
+import { initStaleShellRecovery } from "../pwa/staleShell.ts";
+
+// Docs precaches its own shell, so it strands the same way the app does.
+// Also disarms the inline boot handler injected into this page's <head>.
+initStaleShellRecovery();
 
 interface NavDoc { file: string; icon: string; label: string; desc: string }
 
 const NAV_DOCS = import.meta.env.VITE_NAV_DOCS as unknown as NavDoc[];
 
 initCustomCursor();
-initTheme(rerenderMermaid);
+// Async now; initTheme fires it and does not await, so swallow the rejection
+// here rather than letting a theme toggle raise an unhandled one.
+initTheme(() => { void rerenderMermaid(); });
 initBuildInfo();
 initSidebar(NAV_DOCS, loadDoc);
 
 const placeholder = document.getElementById('doc-placeholder')!;
 const docBody = document.getElementById('doc-body')!;
 
+// Bumped on every navigation. loadDoc now awaits dynamic imports after it has
+// mutated the shared #doc-body, so a second navigation can land mid-flight and
+// the older call would otherwise keep enhancing the newer document.
+let loadGeneration = 0;
+
 async function loadDoc(filename: string) {
+  const generation = ++loadGeneration;
   setActiveDoc(filename);
 
   placeholder.innerHTML = '<div class="loader-spinner"></div><span>Loading…</span>';
@@ -44,10 +57,16 @@ async function loadDoc(filename: string) {
       a.rel = 'noopener';
     });
 
-    docBody.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el as HTMLElement));
-    renderMermaid(docBody);
     buildToc(docBody);
 
+    // Reveal BEFORE highlighting and diagramming, both of which are now
+    // awaited. mermaid measures rendered text to lay a diagram out, and an
+    // element that is still display:none measures as nothing - every <g> came
+    // out with transform="translate(undefined, NaN)". It used to get away with
+    // running here because mermaid.run() was fire-and-forget and happened to
+    // resolve after this flip; awaiting it made that accident load-bearing.
+    // Showing the prose first is better anyway: it no longer waits on a
+    // ~600 KB highlighter to arrive.
     placeholder.style.display = 'none';
     docBody.style.display = 'block';
     docBody.classList.remove('doc-entering');
@@ -55,6 +74,8 @@ async function loadDoc(filename: string) {
     docBody.classList.add('doc-entering');
     window.scrollTo({ top: 0 });
     history.replaceState(null, '', `#${filename}`);
+
+    await enhanceDoc(docBody, () => generation === loadGeneration);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     const title = document.createElement('span');

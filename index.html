@@ -49,6 +49,7 @@
     // Safety net: hide splash after 15s even if main.ts never signals app-ready
     // (e.g. boot crash). Without this the splash would lock the screen forever.
     setTimeout(function () { document.body && document.body.classList.add("app-ready"); }, 15000);
+
   </script>
   <style>
     /* Cold-start visibility gate: body content hidden until CSS loads, splash exempt. */

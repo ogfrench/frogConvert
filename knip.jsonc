@@ -18,6 +18,12 @@
     // injects into the HTML, so the only reference to it is a string inside
     // vite.config.js and knip cannot see it.
     "public/async-css.js",
+    // Same shape as async-css.js above: the `boot-recovery` plugin in
+    // vite.config.js reads this file as text and inlines it into the <head> of
+    // every HTML entry, so the only reference to it is an fs.readFileSync path
+    // in the config. It has to be a standalone non-module file precisely
+    // because it must run when the bundle did not load.
+    "src/pwa/bootRecovery.js",
     "src/docs/docs.ts",
     "src/headless/index.ts",
     "src/workers/conversion.worker.ts",
