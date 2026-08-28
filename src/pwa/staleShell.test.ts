@@ -4,8 +4,10 @@ import { resolve } from "path";
 import {
   claimReloadAttempt,
   isStaleChunkFailure,
+  isShellCache,
   RELOAD_MARKER,
   RELOAD_COOLDOWN_MS,
+  BOOT_FLAG,
   type ReloadGuardStorage,
 } from "./staleShell";
 
@@ -61,6 +63,7 @@ describe("isStaleChunkFailure", () => {
     "error loading dynamically imported module",
     "Importing a module script failed.",
     'Expected a JavaScript module script but the server responded with a MIME type of "text/html".',
+    "Unable to preload CSS for /assets/PdfWorkspace-a1b2c3d4.css",
   ])("recognises %j as a stale chunk", (message) => {
     expect(isStaleChunkFailure(new Error(message))).toBe(true);
   });
@@ -86,29 +89,72 @@ describe("isStaleChunkFailure", () => {
   });
 });
 
-describe("the inline boot recovery in index.html", () => {
-  const html = readFileSync(resolve(__dirname, "../../index.html"), "utf8");
+describe("isShellCache", () => {
+  it.each([
+    "workbox-precache-v2-https://frogconvert.xyz/",
+    "assets-v1",
+    "assets-v2",
+    "js-runtime-v1",
+    "docs-md-v1",
+  ])("purges %j, which can hold a stale or poisoned shell", (name) => {
+    expect(isShellCache(name)).toBe(true);
+  });
+
+  it("spares wasm-v1", () => {
+    // ~17 MB of engines at content-stable URLs no deploy invalidates. Deleting
+    // them for a hashed-asset problem is pure cost to the user.
+    expect(isShellCache("wasm-v1")).toBe(false);
+  });
+
+  it("spares the share-target cache", () => {
+    // It may hold the files a share is mid-way through handing to the app;
+    // clearing it turns a recoverable reload into a share that does nothing.
+    expect(isShellCache("share-target-files-v1")).toBe(false);
+  });
+});
+
+describe("the inline boot recovery script", () => {
+  const boot = readFileSync(resolve(__dirname, "bootRecovery.js"), "utf8");
 
   it("uses the same sessionStorage key as this module", () => {
-    // They are two implementations of one guard - the inline copy exists
-    // because it must run when no module has loaded. If the keys drift apart
-    // each can reload once, defeating the loop guard.
-    expect(html).toContain(`var _RELOAD_MARKER = "${RELOAD_MARKER}";`);
+    // Two implementations of one guard - the inline copy exists because it must
+    // run when no module has loaded. If the keys drift apart each can reload
+    // once, defeating the loop guard.
+    expect(boot).toContain(`var MARKER = "${RELOAD_MARKER}";`);
   });
 
   it("uses the same cooldown as this module", () => {
-    expect(html).toContain(`var _RELOAD_COOLDOWN_MS = ${RELOAD_COOLDOWN_MS};`);
+    expect(boot).toContain(`var COOLDOWN_MS = ${RELOAD_COOLDOWN_MS};`);
+  });
+
+  it("checks the same boot flag this module sets", () => {
+    expect(boot).toContain(`window.${BOOT_FLAG}`);
+  });
+
+  it("bails once the app has booted, leaving lazy chunks to this module", () => {
+    // Without this the listener stays armed all session: a transient failure on
+    // one of Vite's modulepreload links would purge caches and reload
+    // mid-conversion, losing queued files.
+    expect(boot).toMatch(/if \(window\.__frogShellBooted\) return;/);
+  });
+
+  it("purges exactly the caches isShellCache selects", () => {
+    // Same divergence risk as the marker: the inline copy cannot import.
+    const inlined = [...boot.matchAll(/name === "([^"]+)"/g)].map((m) => m[1]);
+    expect(inlined.sort()).toEqual(
+      ["assets-v1", "assets-v2", "js-runtime-v1", "docs-md-v1"].sort()
+    );
+    expect(boot).toContain('name.indexOf("workbox-precache") === 0');
+    for (const name of inlined) expect(isShellCache(name)).toBe(true);
   });
 
   it("listens for asset load errors in the capture phase", () => {
     // Resource load errors do not bubble; a non-capturing listener never sees
     // them and the whole recovery silently does nothing.
-    expect(html).toMatch(/addEventListener\("error",[\s\S]*?\}, true\);/);
+    expect(boot).toMatch(/addEventListener\("error",[\s\S]*?\}, true\);/);
   });
 
   it("does not clear localStorage while recovering", () => {
-    // The format registry, theme and persisted session live there and are not
-    // implicated in a shell/chunk mismatch.
-    expect(html).not.toMatch(/localStorage\.clear\(\)/);
+    expect(boot).not.toMatch(/localStorage\.clear\(\)/);
   });
 });

@@ -101,6 +101,13 @@ import CommonFormats from "./core/CommonFormats/CommonFormats.ts";
 import { EXTERNAL_FILES_EVENT, type ExternalFilesDetail } from "./pwa/shareTargetConstants.ts";
 import { COMPRESS_THESE_EVENT } from "./constants/ui.ts";
 
+import { initStaleShellRecovery } from "./pwa/staleShell.ts";
+
+// Before the first dynamic import below. Reaching this line means every static
+// import resolved, i.e. the shell loaded - which disarms the inline boot
+// handler in src/pwa/bootRecovery.js and hands lazy-chunk failures to this one.
+initStaleShellRecovery();
+
 getPdfWorkspace().catch((e) => console.warn("[main] PDF workspace module load failed:", e));
 
 // Last-line safety net for errors that escape every other catch site.
@@ -999,10 +1006,8 @@ if (footerConfettiBtn) {
 
 import { registerPWA } from "./pwa/registerSW";
 import { initShareTargetAndLaunchQueue } from "./pwa/shareTarget";
-import { initStaleShellRecovery } from "./pwa/staleShell";
 
 registerPWA();
-initStaleShellRecovery();
 initShareTargetAndLaunchQueue();
 
 // Web Share Target / launchQueue routing lives here because it needs

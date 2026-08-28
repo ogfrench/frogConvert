@@ -19,6 +19,10 @@ import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/
 import { TraversionGraph } from "../core/TraversionGraph/TraversionGraph.ts";
 import handlers, { loadBackgroundHandlers } from "../handlers/index.ts";
 
+import { initStaleShellRecovery } from "../pwa/staleShell.ts";
+// Headless precaches its own shell too, and disarms the inline boot handler.
+initStaleShellRecovery();
+
 let graph: TraversionGraph | null = null;
 let supportedFormatCache: Map<string, FileFormat[]> | null = null;
 

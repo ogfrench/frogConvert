@@ -7,6 +7,11 @@ import { initTheme } from "./theme.ts";
 import { renderMermaid, rerenderMermaid } from "./mermaid-renderer.ts";
 import { initSidebar, setActiveDoc, closeSidebar } from "./sidebar.ts";
 import { initBuildInfo } from "./build-info.ts";
+import { initStaleShellRecovery } from "../pwa/staleShell.ts";
+
+// Docs precaches its own shell, so it strands the same way the app does.
+// Also disarms the inline boot handler injected into this page's <head>.
+initStaleShellRecovery();
 
 interface NavDoc { file: string; icon: string; label: string; desc: string }
 

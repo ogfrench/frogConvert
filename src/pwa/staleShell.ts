@@ -13,6 +13,13 @@
 // handles: reload once to pick up the current shell, with a guard so a genuine
 // persistent failure cannot become a reload loop.
 
+/**
+ * Global the inline boot handler checks to tell "the bundle never loaded" from
+ * "the app is running and a lazy chunk failed". Kept in sync with
+ * src/pwa/bootRecovery.js by a test.
+ */
+export const BOOT_FLAG = "__frogShellBooted";
+
 /** sessionStorage key holding the timestamp of our last self-inflicted reload. */
 export const RELOAD_MARKER = "frogconvert:stale-shell-reload";
 
@@ -68,6 +75,10 @@ export function isStaleChunkFailure(reason: unknown, online = true): boolean {
     text.includes("failed to fetch dynamically imported module") ||
     text.includes("error loading dynamically imported module") ||
     text.includes("importing a module script failed") ||
+    // The only rejection Vite's own __vitePreload helper produces for a failed
+    // dependency. A stale hashed .css chunk strands the page exactly like a
+    // stale .js one, and this is the sole message shape that reports it.
+    text.includes("unable to preload css for") ||
     // Wrong MIME type: the host answered a missing chunk with the SPA
     // fallback. The 404 rules in netlify.toml and the nginx conf are meant to
     // prevent this, but a differently-configured host will still do it.
@@ -77,8 +88,26 @@ export function isStaleChunkFailure(reason: unknown, online = true): boolean {
 }
 
 /**
- * Drop every Cache Storage entry and unregister the service workers, so the
- * next load is served entirely from the network.
+ * Runtime caches that can hold a stale or poisoned copy of the shell, alongside
+ * any Workbox precache (whose name is origin-derived, hence the prefix test).
+ *
+ * Everything else is deliberately spared. wasm-v1 holds ~17 MB of engines at
+ * content-stable URLs that no deploy invalidates, and re-downloading them for a
+ * hashed-asset problem is pure cost. share-target-files-v1 may be holding the
+ * files a share is mid-way through handing to the app, and clearing it turns a
+ * recoverable reload into a share that silently does nothing.
+ */
+export function isShellCache(name: string): boolean {
+  return name.startsWith("workbox-precache")
+    || name === "assets-v1"
+    || name === "assets-v2"
+    || name === "js-runtime-v1"
+    || name === "docs-md-v1";
+}
+
+/**
+ * Drop the shell-bearing caches and unregister the service workers, so the next
+ * load takes its HTML and JS from the network.
  *
  * Deliberately does NOT touch localStorage: it holds the format registry, the
  * theme and any persisted conversion session, none of which are implicated in
@@ -89,7 +118,7 @@ export async function purgeShellCaches(): Promise<void> {
   if (typeof caches !== "undefined") {
     jobs.push(
       caches.keys()
-        .then((names) => Promise.all(names.map((name) => caches.delete(name))))
+        .then((names) => Promise.all(names.filter(isShellCache).map((name) => caches.delete(name))))
         .catch((err) => { console.warn("[pwa] cache purge failed:", err); })
     );
   }
@@ -113,6 +142,12 @@ export async function purgeShellCaches(): Promise<void> {
  */
 export function initStaleShellRecovery(): void {
   if (typeof window === "undefined") return;
+
+  // Disarm the inline boot handler in src/pwa/bootRecovery.js. From here on an
+  // /assets/ load error is a lazy chunk, not a failed boot, and this module
+  // owns it - the inline one would otherwise purge and reload mid-session,
+  // losing queued files, and would win the shared reload claim below.
+  (window as unknown as Record<string, unknown>)[BOOT_FLAG] = true;
 
   window.addEventListener("vite:preloadError", (event) => {
     if (!isStaleChunkFailure(event.payload, navigator.onLine !== false)) return;

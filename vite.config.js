@@ -102,10 +102,20 @@ const isDesktopBuild = process.env.IS_DESKTOP === 'true';
  */
 const shellChunks = new Set();
 
+/**
+ * Absolute build output directory, captured from the resolved config rather
+ * than assumed to be ./dist so the precache assertion below reads the files
+ * this build actually wrote.
+ */
+let resolvedOutDir = resolve(__dirname, 'dist');
+
 function collectShellChunks() {
   return {
     name: 'collect-shell-chunks',
     apply: 'build',
+    configResolved(config) {
+      resolvedOutDir = resolve(config.root ?? __dirname, config.build.outDir);
+    },
     generateBundle(_options, bundle) {
       // Deliberately additive rather than reset-per-call: vite-plugin-pwa runs
       // a second, nested Vite build for the service worker itself, and clearing
@@ -121,6 +131,27 @@ function collectShellChunks() {
       for (const chunk of Object.values(bundle)) {
         if (chunk.type === 'chunk' && chunk.isEntry) visit(chunk.fileName);
       }
+    },
+  };
+}
+
+/**
+ * Inline src/pwa/bootRecovery.js into the <head> of every HTML entry.
+ *
+ * Injected rather than imported because it must run when the app bundle did not
+ * load, and shared across entries because the failure is origin-wide: docs and
+ * headless precache their own shells and strand the same way. head-prepend puts
+ * the listener in place before any module script can error.
+ *
+ * The csp-hashes plugin walks the built HTML and hashes every inline script, so
+ * this is covered by the policy automatically.
+ */
+function bootRecoveryPlugin() {
+  const source = fs.readFileSync(resolve(__dirname, 'src/pwa/bootRecovery.js'), 'utf8');
+  return {
+    name: 'boot-recovery',
+    transformIndexHtml() {
+      return [{ tag: 'script', children: source, injectTo: 'head-prepend' }];
     },
   };
 }
@@ -286,6 +317,7 @@ export default defineConfig({
   },
   plugins: [
     collectShellChunks(),
+    bootRecoveryPlugin(),
     {
       name: 'spa-fallback',
       configureServer(server) {
@@ -673,11 +705,10 @@ export default defineConfig({
              * only show up as a dead UI for returning users after a deploy.
              */
             const precached = new Set(manifest.map((entry) => entry.url));
-            const outDir = resolve(__dirname, 'dist');
             const missing = [];
             for (const entry of manifest) {
               if (!entry.url.endsWith('.html')) continue;
-              const html = fs.readFileSync(resolve(outDir, entry.url), 'utf8');
+              const html = fs.readFileSync(resolve(resolvedOutDir, entry.url), 'utf8');
               for (const [, url] of html.matchAll(/(?:src|href)="\/(assets\/[^"]+\.js)"/g)) {
                 if (!precached.has(url)) missing.push(`${url} (referenced by ${entry.url})`);
               }

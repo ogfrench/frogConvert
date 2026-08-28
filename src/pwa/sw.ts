@@ -1,8 +1,8 @@
 /// <reference lib="webworker" />
-import { precacheAndRoute, cleanupOutdatedCaches, createHandlerBoundToURL } from "workbox-precaching";
+import { precacheAndRoute, cleanupOutdatedCaches, createHandlerBoundToURL, addPlugins } from "workbox-precaching";
 import { registerRoute, NavigationRoute } from "workbox-routing";
 import { CacheFirst, StaleWhileRevalidate } from "workbox-strategies";
-import { ExpirationPlugin } from "workbox-expiration";
+import { ExpirationPlugin, CacheExpiration } from "workbox-expiration";
 import { CacheableResponsePlugin } from "workbox-cacheable-response";
 import { clientsClaim } from "workbox-core";
 import { rejectHtmlFallback } from "./cachePolicy.ts";
@@ -24,21 +24,45 @@ self.addEventListener("message", (event) => {
 cleanupOutdatedCaches();
 clientsClaim();
 
-// Runtime caches this SW no longer reads. cleanupOutdatedCaches() only prunes
-// Workbox *precaches*, so a renamed runtime cache would otherwise sit in
-// storage forever. assets-v1 is retired rather than reused because entries in
-// it may be SPA-fallback HTML cached under a .js URL by the previous strategy;
-// those are unrecoverable in place, and every URL in there is content-hashed,
-// so nothing of value is lost by dropping it.
-const RETIRED_CACHES = ["assets-v1"];
+// Runtime caches carrying entries the previous strategy may have poisoned:
+// on a miss, the SPA fallback answered 200 text/html and the old cacheability
+// check stored it under the requested URL. cleanupOutdatedCaches() only prunes
+// Workbox *precaches*, so these have to be named explicitly.
+//
+// assets-v1 is the renamed predecessor of assets-v2; every URL in it is
+// content-hashed, so dropping it costs only a refetch. js-runtime-v1 keeps its
+// name but is wiped once, because /js/ URLs are NOT hashed - a poisoned
+// pdf.worker.mjs is the live key, and StaleWhileRevalidate serves it stale
+// before repairing it, so the first PDF text extraction after activation would
+// fail on an HTML body.
+//
+// wasm-v1 and the share-target cache are deliberately left alone: neither is
+// implicated in a shell/chunk mismatch, wasm-v1 holds ~17 MB of engines behind
+// content-stable URLs, and the share cache may be holding files a share is
+// mid-way through handing over.
+const RETIRED_CACHES = ["assets-v1", "js-runtime-v1"];
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    Promise.all(RETIRED_CACHES.map((name) => caches.delete(name)))
+    Promise.all(RETIRED_CACHES.map(async (name) => {
+      await caches.delete(name);
+      // caches.delete() removes the bucket but not the per-URL rows
+      // ExpirationPlugin keeps in IndexedDB, which would otherwise outlive
+      // every reference to the cache name.
+      await new CacheExpiration(name, { maxEntries: 1 }).delete();
+    }))
       .then(() => undefined)
       .catch((err) => { console.warn("[sw] retiring old caches failed:", err); })
   );
 });
+
+// The precache is the permanent, versioned cache this whole arrangement rests
+// on, and PrecacheStrategy's default cacheability check reads only the status -
+// the same check that let an SPA-fallback HTML body be stored under a .js URL.
+// A shell chunk answered that way during install would be served as the entry
+// script for the entire lifetime of this SW version, and precache entries are
+// never revalidated, so it would survive every reload. Guard it too.
+addPlugins([rejectHtmlFallback]);
 
 precacheAndRoute(self.__WB_MANIFEST);
 
