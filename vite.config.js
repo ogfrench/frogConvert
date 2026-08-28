@@ -145,6 +145,11 @@ function collectShellChunks() {
  *
  * The csp-hashes plugin walks the built HTML and hashes every inline script, so
  * this is covered by the policy automatically.
+ *
+ * Gated off for desktop the same way VitePWA is. Electron serves from app://
+ * with no service worker and no deploy that can move an asset out from under
+ * it, so there is no stale shell to recover from - and the handler's purge and
+ * reload would be a reload of a packaged app for no reason.
  */
 function bootRecoveryPlugin() {
   const source = fs.readFileSync(resolve(__dirname, 'src/pwa/bootRecovery.js'), 'utf8');
@@ -317,7 +322,7 @@ export default defineConfig({
   },
   plugins: [
     collectShellChunks(),
-    bootRecoveryPlugin(),
+    !isDesktopBuild && bootRecoveryPlugin(),
     {
       name: 'spa-fallback',
       configureServer(server) {

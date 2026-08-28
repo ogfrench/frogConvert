@@ -24,6 +24,9 @@ RUN bun run cache:build
 FROM nginx:stable-alpine AS runtime
 
 COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
+# Not conf.d: nginx auto-includes conf.d/*.conf into the http block, and this
+# is a per-location snippet, not a standalone config.
+COPY docker/nginx/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80

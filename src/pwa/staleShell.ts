@@ -142,6 +142,12 @@ export async function purgeShellCaches(): Promise<void> {
  */
 export function initStaleShellRecovery(): void {
   if (typeof window === "undefined") return;
+  // Same reasoning as the boot handler's desktop gate in vite.config.js:
+  // Electron serves from app:// with no service worker and no deploy that can
+  // move an asset out from under it, so there is no stale shell to recover
+  // from - and a purge-and-reload of a packaged app mid-conversion would
+  // discard the user's queue for nothing.
+  if (import.meta.env.VITE_IS_DESKTOP) return;
 
   // Disarm the inline boot handler in src/pwa/bootRecovery.js. From here on an
   // /assets/ load error is a lazy chunk, not a failed boot, and this module
