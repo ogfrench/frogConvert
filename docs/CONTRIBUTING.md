@@ -130,6 +130,7 @@ In dev, the cache is optional; the app falls back to initializing all handlers a
 - **`bun run test:watch`** runs tests in watch mode.
 - **E2E** tests live in `test/e2e/` (Puppeteer) and verify that workers mount and the UI flow works.
 - **`bun run test:shell`** runs the stale-shell recovery E2E, which is opt-in - see [The stale-shell suite](#the-stale-shell-suite-opt-in) below.
+- **`bun run test` leaves `dist/` holding a *desktop* build.** `test/e2e/electron-app.test.ts` sets `IS_DESKTOP=true` and builds into `dist/`, because that is where Electron's main process loads the app from. A desktop build has no service worker, no `sw.js` and no inlined boot handler, all gated off deliberately - so serving `dist/` after a test run and finding the PWA missing means the build is stale, not broken. Re-run `bun run build` first.
 
 ### The corpus suites (opt-in, and the ones that find real bugs)
 
