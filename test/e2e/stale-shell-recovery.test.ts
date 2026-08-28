@@ -34,6 +34,28 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import { hasFullRegistry, MISSING_DEPS_REASON } from "../helpers/optionalDeps.ts";
+
+/**
+ * Opt-in, the same way the corpus suites are (see test/helpers/corpus.ts).
+ *
+ * This file runs a full production build and drives Chromium: 62 seconds on its
+ * own, in a worker parallel with every other test file. On a two-core CI runner
+ * that contention is enough to push the MCP integration suite past the SDK's
+ * 60-second request timeout - which is exactly what happened on the merge to
+ * master, on a tree that had passed the identical suite minutes earlier.
+ *
+ * Gating it costs less than it looks. The invariant that actually matters -
+ * every script a precached HTML file names is itself precached - is asserted at
+ * BUILD time by the manifestTransform in vite.config.js, so `bun run build`
+ * fails in CI without this file running at all. What is gated here is the
+ * browser-level confirmation, which is worth running deliberately:
+ *
+ *     bun run test:shell
+ */
+const shellE2eRequested = process.env.FROG_E2E_SHELL === "1";
+const SKIP_REASON = !shellE2eRequested
+  ? "opt-in: set FROG_E2E_SHELL=1, or run `bun run test:shell`"
+  : MISSING_DEPS_REASON;
 import { startDeployServer, deriveNextDeploy, type DeployServer } from "../helpers/staticDeploy.ts";
 
 const ROOT = path.resolve(__dirname, "../../");
@@ -48,8 +70,8 @@ async function settles(page: Page, fn: string, timeout = 30_000): Promise<boolea
   }
 }
 
-describe.skipIf(!hasFullRegistry)(
-  `E2E stale-shell recovery [${MISSING_DEPS_REASON}]`,
+describe.skipIf(!hasFullRegistry || !shellE2eRequested)(
+  `E2E stale-shell recovery [${SKIP_REASON}]`,
   () => {
     let workDir: string;
     let deployA: string;
