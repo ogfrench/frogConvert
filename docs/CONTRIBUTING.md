@@ -183,8 +183,12 @@ whether or not this suite runs. What `test:shell` adds is the browser-level
 confirmation.
 
 It also shares the `optionalDeps.ts` gate, so it skips where `xlsx` or the
-`image-to-txt` submodule are unreachable - it runs a real production build, and
-that build cannot resolve them.
+`image-to-txt` submodule are missing: it runs a real production build, and that
+build cannot resolve them. Since 2026-08-29 the submodule half is usually
+satisfied - it moved off `git.sr.ht`, which no restricted network here could
+reach, onto the author's GitHub mirror - so `xlsx` is normally the one left, and
+it installs from `cdn.sheetjs.com` rather than npm. The skip message names
+whichever is actually absent.
 
 ### Writing a handler test
 

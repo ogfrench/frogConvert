@@ -2,12 +2,25 @@
 
 Third-party code vendored into `src/handlers/` via git submodules. Each entry below records the pinned commit SHA and the upstream URL so a contributor can audit the exact bytes shipping with the bundle.
 
+Both `zipsegv` entries were repointed on 2026-08-29. `image-to-txt` was fetched
+from `git.sr.ht`, the one host outside GitHub in this list, and it took a CI leg
+down when sourcehut was unreachable; it also cannot be fetched from restricted
+networks at all, which blocks `bun run build` and every test gated on the full
+handler registry. `espeakng.js` was fetched through `github.com/TheZipCreator`,
+an account since renamed to `zipsegv` - that only worked via GitHub's rename
+redirect, and a freed username can be registered by anyone, so the path was one
+registration away from pointing at a stranger's code.
+
+Both now use the author's own canonical GitHub URLs. Neither pin moved: an
+identical commit SHA hashes identical content *and* identical ancestry, so these
+are the same bytes from a different host, not a substitute.
+
 | Path | Upstream | Pinned commit | Last reviewed |
 |------|----------|---------------|---------------|
 | `src/handlers/envelope` | https://github.com/p2r3/envelope | `2d8bc87d948ccfc391e86724bb0a5d7b1689d5c6` | 2026-05-13 |
-| `src/handlers/espeakng.js` | https://github.com/TheZipCreator/espeakng.js | `d889d8b9cb07af4e3edb23e41a88adc1c9918414` | 2026-05-13 |
+| `src/handlers/espeakng.js` | https://github.com/zipsegv/espeakng.js | `d889d8b9cb07af4e3edb23e41a88adc1c9918414` | 2026-08-29 |
 | `src/handlers/gimper` | https://github.com/ConnorTippets/gimper | `fe96bd9e8efa33cbb8b23f134207ecf3e6dfecbd` | 2026-05-13 |
-| `src/handlers/image-to-txt` | https://git.sr.ht/~thezipcreator/image-to-txt | `477f5dcd3a699119f471ffeb334bb77795bc3bdd` | 2026-05-13 |
+| `src/handlers/image-to-txt` | https://github.com/zipsegv/image-to-txt | `477f5dcd3a699119f471ffeb334bb77795bc3bdd` | 2026-08-29 |
 | `src/handlers/qoa-fu` | https://github.com/pfusik/qoa-fu | `521424aec645666d49cac7935b9d2f03354d92e6` | 2026-05-13 |
 | `src/handlers/qoi-fu` | https://github.com/pfusik/qoi-fu | `d4e5af8d3f3bed953f68dfc9c569690823888140` | 2026-05-13 |
 | `src/handlers/rpgmvp-decrypter` | https://github.com/ConnorTippets/RPG-Maker-MV-Decrypter | `82ccd8c4e1efcd051ab55ad618c320777c77b350` | 2026-05-13 |
