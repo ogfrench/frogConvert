@@ -154,128 +154,109 @@ jobs:
             -v "$PWD/docker/nginx/security-headers.conf:/etc/nginx/snippets/security-headers.conf:ro" \
             nginx:stable-alpine nginx -t
 
-  # Measurement, not a gate on this PR's changes. #45: xlsx is pinned to a
-  # tarball on cdn.sheetjs.com because SheetJS stopped publishing to npm after
-  # 0.18.5, and 0.18.5 carries two high-severity advisories (GHSA-4r6h-8v6p-xvw6,
-  # GHSA-5pgg-2g8v-p4x9) that our pinned 0.20.3 does not. A restricted network
-  # cannot reach that CDN, and `bun install` exits 0 without the package, which
-  # is what confines six suites to CI.
+  # xlsx is installed from `@e965/xlsx`, an npm republish of SheetJS, because
+  # SheetJS self-hosts from 0.19 onward and a restricted network cannot reach
+  # cdn.sheetjs.com - which left `bun install` silently succeeding without the
+  # package and six suites unable to run outside CI (#45). Going back to the
+  # newest xlsx still on npm is not an option: 0.18.5 carries
+  # GHSA-4r6h-8v6p-xvw6 and GHSA-5pgg-2g8v-p4x9, both high, both patched in
+  # what we pin.
   #
-  # `@e965/xlsx` republishes 0.20.3 to npm, so switching would be a one-line
-  # fix - but it is a single-maintainer repack whose hash cannot be tied back
-  # to the official tarball. This job answers whether it is the same code,
-  # which is the fact that decides between mirroring ourselves and using it.
+  # Depending on a republish is only defensible while it is provably the
+  # official code, so prove it on every run rather than once. Two checks:
   #
-  # Runs here because a GitHub runner has the open egress the CDN needs; every
-  # `bun i` in this workflow already pulls that tarball successfully.
-  xlsx-mirror-audit:
+  #   1. What we install matches the integrity hash in bun.lock. Local, always
+  #      runs, and on its own enough to guarantee the bytes cannot change
+  #      under us - npm versions are immutable.
+  #   2. Those bytes equal the official SheetJS tarball. Needs cdn.sheetjs.com,
+  #      so a CDN outage warns rather than fails: check 1 already pins the
+  #      content, and going red because someone else's host is down would
+  #      teach everyone to ignore this job.
+  #
+  # README.md is expected to differ - the republish rewrites its relative links
+  # to absolute ones. Any other file differing is a real divergence and fails.
+  xlsx-provenance:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Compare the npm mirror against the official SheetJS tarball
+      - name: Verify the xlsx republish is the official SheetJS code
         run: |
           set -euo pipefail
 
-          # Derived from bun.lock rather than hardcoded, so a version bump does
-          # not leave this auditing a tarball we no longer install.
-          LOCK_LINE=$(grep '"xlsx": \["xlsx@https://cdn.sheetjs.com' bun.lock)
-          OFFICIAL_URL=$(grep -o 'https://cdn\.sheetjs\.com[^"]*' <<<"$LOCK_LINE")
+          # Derived from bun.lock, so a version bump cannot leave this
+          # verifying a tarball we no longer install.
+          LOCK_LINE=$(grep '"xlsx": \["@e965/xlsx@' bun.lock)
+          VERSION=$(sed -n 's/.*"@e965\/xlsx@\([0-9.]*\)".*/\1/p' <<<"$LOCK_LINE")
           EXPECTED=$(grep -o 'sha512-[A-Za-z0-9+/=]*' <<<"$LOCK_LINE")
-          VERSION=$(sed -n 's#.*/xlsx-\([0-9.]*\)\.tgz#\1#p' <<<"$OFFICIAL_URL")
           MIRROR_URL="https://registry.npmjs.org/@e965/xlsx/-/xlsx-${VERSION}.tgz"
+          OFFICIAL_URL="https://cdn.sheetjs.com/xlsx-${VERSION}/xlsx-${VERSION}.tgz"
 
+          echo "version  : $VERSION"
+          echo "installed: $MIRROR_URL"
           echo "official : $OFFICIAL_URL"
-          echo "mirror   : $MIRROR_URL"
 
-          curl -sSfL --retry 3 -o official.tgz "$OFFICIAL_URL"
-          curl -sSfL --retry 3 -o mirror.tgz   "$MIRROR_URL"
-
-          # 1. Provenance. The tarball the CDN served today must be the one
-          #    bun.lock pinned. A mismatch means the pin no longer describes
-          #    what we install, which is a real problem regardless of #45.
-          ACTUAL="sha512-$(openssl dgst -sha512 -binary official.tgz | base64 -w0)"
+          # 1. What we install is what bun.lock pinned.
+          curl -sSfL --retry 3 -o mirror.tgz "$MIRROR_URL"
+          ACTUAL="sha512-$(openssl dgst -sha512 -binary mirror.tgz | base64 -w0)"
           if [ "$ACTUAL" != "$EXPECTED" ]; then
-            echo "::error::official tarball does not match the integrity hash in bun.lock"
+            echo "::error::installed tarball does not match the integrity hash in bun.lock"
             echo "  expected: $EXPECTED"
             echo "  actual  : $ACTUAL"
             exit 1
           fi
-          echo "provenance OK - official tarball matches the bun.lock hash"
+          echo "integrity OK - installed tarball matches bun.lock"
+
+          # 2. Those bytes are the official SheetJS release.
+          if ! curl -sSfL --retry 3 -o official.tgz "$OFFICIAL_URL"; then
+            echo "::warning::cdn.sheetjs.com unreachable; skipped the equivalence \
+          check. bun.lock still pins the exact bytes installed."
+            echo
+            echo "=================================================="
+            echo "  integrity   : OK (matches bun.lock)"
+            echo "  equivalence : SKIPPED (cdn.sheetjs.com unreachable)"
+            echo "=================================================="
+            exit 0
+          fi
 
           mkdir -p a b && tar xzf official.tgz -C a && tar xzf mirror.tgz -C b
 
-          # 2. Which files differ, by name. `diff -rq` prints one line per file,
-          #    so the answer stays legible however large the content difference
-          #    is. Reporting content instead hid this: the mirror rewrites
-          #    relative links in README.md to absolute ones, which is enough to
-          #    fill any sample and bury whether a code file differed too.
-          #    package.json is excluded and handled separately - the mirror is
-          #    published under a different name, so it always differs.
+          # package.json is compared separately: the republish must change its
+          # own name and repository, so a textual diff of it is pure noise.
           diff -rq --exclude=package.json a/package b/package > qdelta.txt 2>&1 || true
           sed -E 's#^Files a/package/(.+) and b/package/.+ differ$#\1#; s#^Only in (a|b)/package/?(.*): (.+)$#\1-only \2/\3#' \
             qdelta.txt | sed 's#//#/#' > changed.txt
 
-          # Documentation may differ without disqualifying the mirror; the
-          # republish necessarily rewrites the readme. Anything else is code.
-          CODE_CHANGED=$(grep -vxE 'README\.md|CHANGELOG\.md' changed.txt || true)
-
-          if [ ! -s changed.txt ]; then
-            VERDICT="IDENTICAL"
-          elif [ -z "$CODE_CHANGED" ]; then
-            VERDICT="DOCS ONLY (code identical)"
-          else
-            VERDICT="CODE DIFFERS"
-          fi
-
           echo "--- files that differ (package.json excluded) ---"
-          cat changed.txt
+          if [ -s changed.txt ]; then cat changed.txt; else echo "(none)"; fi
 
-          # 3. package.json, compared as parsed JSON so only real differences
-          #    show rather than every reindented line.
-          python3 - <<'PY' | tee pkg.txt
+          python3 - <<'PY'
           import json
           a = json.load(open("a/package/package.json"))
           b = json.load(open("b/package/package.json"))
           diffs = [k for k in sorted(set(a) | set(b)) if a.get(k) != b.get(k)]
           print("package.json keys that differ: " + (", ".join(diffs) if diffs else "(none)"))
-          for k in diffs:
-              print(f"  {k}:")
-              print(f"    official: {json.dumps(a.get(k))[:160]}")
-              print(f"    mirror  : {json.dumps(b.get(k))[:160]}")
+          unexpected = [k for k in diffs if k not in ("name", "repository")]
+          if unexpected:
+              print("::error::unexpected package.json divergence: " + ", ".join(unexpected))
+              raise SystemExit(1)
           PY
 
-          {
-            echo "## xlsx mirror audit ($VERSION)"
-            echo
-            echo "Official tarball matches the \`bun.lock\` integrity hash."
-            echo
-            echo "**Verdict: $VERDICT**"
-            echo
-            echo "Files differing (excluding \`package.json\`):"
-            echo '```'
-            if [ -s changed.txt ]; then cat changed.txt; else echo "(none)"; fi
-            echo '```'
-            echo
-            echo '```'
-            cat pkg.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
+          # README.md is expected to differ; anything else is a real divergence.
+          CODE_CHANGED=$(grep -vxE 'README\.md' changed.txt || true)
           if [ -n "$CODE_CHANGED" ]; then
-            echo "--- content of differing code files (first 40 lines) ---"
-            # Only the code files, so a readme rewrite cannot crowd them out.
+            echo "::error::the npm republish diverges from official SheetJS in files other than README.md"
             while IFS= read -r f; do
               [ -f "a/package/$f" ] && [ -f "b/package/$f" ] || continue
               diff "a/package/$f" "b/package/$f" | head -40
             done <<<"$CODE_CHANGED"
+            exit 1
           fi
 
-          # Verdict last, so a tail of the log always ends on the answer.
           echo
           echo "=================================================="
-          echo "  provenance : OK (matches bun.lock)"
-          echo "  verdict    : $VERDICT"
+          echo "  integrity   : OK (matches bun.lock)"
+          echo "  equivalence : OK (code identical to official $VERSION)"
           echo "=================================================="
