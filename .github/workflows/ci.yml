@@ -189,7 +189,6 @@ jobs:
 
           echo "official : $OFFICIAL_URL"
           echo "mirror   : $MIRROR_URL"
-          echo "version  : $VERSION"
 
           curl -sSfL --retry 3 -o official.tgz "$OFFICIAL_URL"
           curl -sSfL --retry 3 -o mirror.tgz   "$MIRROR_URL"
@@ -198,25 +197,47 @@ jobs:
           #    bun.lock pinned. A mismatch means the pin no longer describes
           #    what we install, which is a real problem regardless of #45.
           ACTUAL="sha512-$(openssl dgst -sha512 -binary official.tgz | base64 -w0)"
-          echo "expected : $EXPECTED"
-          echo "actual   : $ACTUAL"
           if [ "$ACTUAL" != "$EXPECTED" ]; then
             echo "::error::official tarball does not match the integrity hash in bun.lock"
+            echo "  expected: $EXPECTED"
+            echo "  actual  : $ACTUAL"
             exit 1
           fi
-          echo "provenance OK"
+          echo "provenance OK - official tarball matches the bun.lock hash"
 
           mkdir -p a b && tar xzf official.tgz -C a && tar xzf mirror.tgz -C b
 
-          # 2. Contents. package.json necessarily differs - the mirror is
-          #    published under a different name - so compare everything else,
-          #    then show that delta separately rather than hiding it.
+          # 2. Code. package.json is excluded and handled separately below:
+          #    the mirror is published under a different name, so it always
+          #    differs, and the two are formatted differently (tabs vs spaces)
+          #    so a textual diff of them prints both files in full and buries
+          #    everything else.
+          if diff -r --exclude=package.json a/package b/package > delta.txt 2>&1; then
+            CODE_VERDICT="IDENTICAL"
+          else
+            CODE_VERDICT="DIFFERENT"
+          fi
+
+          # 3. package.json, compared as parsed JSON so only real differences
+          #    show rather than every reindented line.
+          python3 - <<'PY' | tee pkg.txt
+          import json
+          a = json.load(open("a/package/package.json"))
+          b = json.load(open("b/package/package.json"))
+          diffs = [k for k in sorted(set(a) | set(b)) if a.get(k) != b.get(k)]
+          print("package.json keys that differ: " + (", ".join(diffs) if diffs else "(none)"))
+          for k in diffs:
+              print(f"  {k}:")
+              print(f"    official: {json.dumps(a.get(k))[:160]}")
+              print(f"    mirror  : {json.dumps(b.get(k))[:160]}")
+          PY
+
           {
             echo "## xlsx mirror audit ($VERSION)"
             echo
             echo "Official tarball matches the \`bun.lock\` integrity hash."
             echo
-            if diff -r --exclude=package.json a/package b/package > delta.txt 2>&1; then
+            if [ "$CODE_VERDICT" = "IDENTICAL" ]; then
               echo "**Code is identical.** Every file except \`package.json\` matches byte-for-byte."
             else
               echo "**Code differs.** First 40 lines:"
@@ -225,10 +246,20 @@ jobs:
               echo '```'
             fi
             echo
-            echo "<details><summary>package.json delta</summary>"
-            echo
-            echo '```diff'
-            diff a/package/package.json b/package/package.json || true
             echo '```'
-            echo "</details>"
-          } | tee -a "$GITHUB_STEP_SUMMARY"
+            cat pkg.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$CODE_VERDICT" = "DIFFERENT" ]; then
+            echo "--- code differences (first 40 lines) ---"
+            head -40 delta.txt
+          fi
+
+          # Verdict last, so a tail of the log always ends on the answer rather
+          # than on whatever diff output happened to precede it.
+          echo
+          echo "=================================================="
+          echo "  provenance : OK (matches bun.lock)"
+          echo "  code       : $CODE_VERDICT"
+          echo "=================================================="
