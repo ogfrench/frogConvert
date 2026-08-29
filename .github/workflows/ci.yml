@@ -125,3 +125,138 @@ jobs:
 
       - name: Verify conversions
         run: bun run scripts/verify-conversions.ts
+
+  # nginx has never actually parsed these files. `docker/nginx/headers.test.ts`
+  # reads default.conf as text and checks a structural rule - every location
+  # that adds a header of its own re-includes the security snippet - which is a
+  # real regression guard but not a syntax check. A typo'd directive passes
+  # that test, builds a clean image, publishes to GHCR on the next master push,
+  # and fails only when someone starts a container.
+  #
+  # So hand the files to the same nginx the runtime stage runs, laid out where
+  # docker/Dockerfile puts them. `nginx -t` opens the listening sockets as well
+  # as parsing, so this also covers `listen [::]:80` being bindable.
+  #
+  # Its own job rather than a step in `build`: it needs no bun, no submodules
+  # and no dist, so it has no reason to queue behind them.
+  nginx:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Same tag as the Dockerfile runtime stage - keep the two in step.
+      - name: Validate nginx config
+        run: |
+          docker run --rm \
+            -v "$PWD/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro" \
+            -v "$PWD/docker/nginx/security-headers.conf:/etc/nginx/snippets/security-headers.conf:ro" \
+            nginx:stable-alpine nginx -t
+
+  # xlsx is installed from `@e965/xlsx`, an npm republish of SheetJS, because
+  # SheetJS self-hosts from 0.19 onward and a restricted network cannot reach
+  # cdn.sheetjs.com - which left `bun install` silently succeeding without the
+  # package and six suites unable to run outside CI (#45). Going back to the
+  # newest xlsx still on npm is not an option: 0.18.5 carries
+  # GHSA-4r6h-8v6p-xvw6 and GHSA-5pgg-2g8v-p4x9, both high, both patched in
+  # what we pin.
+  #
+  # Depending on a republish is only defensible while it is provably the
+  # official code, so prove it on every run rather than once. Two checks:
+  #
+  #   1. What we install matches the integrity hash in bun.lock. Local, always
+  #      runs, and on its own enough to guarantee the bytes cannot change
+  #      under us - npm versions are immutable.
+  #   2. Those bytes equal the official SheetJS tarball. Needs cdn.sheetjs.com,
+  #      so a CDN outage warns rather than fails: check 1 already pins the
+  #      content, and going red because someone else's host is down would
+  #      teach everyone to ignore this job.
+  #
+  # README.md is expected to differ - the republish rewrites its relative links
+  # to absolute ones. Any other file differing is a real divergence and fails.
+  xlsx-provenance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify the xlsx republish is the official SheetJS code
+        run: |
+          set -euo pipefail
+
+          # Derived from bun.lock, so a version bump cannot leave this
+          # verifying a tarball we no longer install.
+          LOCK_LINE=$(grep '"xlsx": \["@e965/xlsx@' bun.lock)
+          VERSION=$(sed -n 's/.*"@e965\/xlsx@\([0-9.]*\)".*/\1/p' <<<"$LOCK_LINE")
+          EXPECTED=$(grep -o 'sha512-[A-Za-z0-9+/=]*' <<<"$LOCK_LINE")
+          MIRROR_URL="https://registry.npmjs.org/@e965/xlsx/-/xlsx-${VERSION}.tgz"
+          OFFICIAL_URL="https://cdn.sheetjs.com/xlsx-${VERSION}/xlsx-${VERSION}.tgz"
+
+          echo "version  : $VERSION"
+          echo "installed: $MIRROR_URL"
+          echo "official : $OFFICIAL_URL"
+
+          # 1. What we install is what bun.lock pinned.
+          curl -sSfL --retry 3 -o mirror.tgz "$MIRROR_URL"
+          ACTUAL="sha512-$(openssl dgst -sha512 -binary mirror.tgz | base64 -w0)"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::installed tarball does not match the integrity hash in bun.lock"
+            echo "  expected: $EXPECTED"
+            echo "  actual  : $ACTUAL"
+            exit 1
+          fi
+          echo "integrity OK - installed tarball matches bun.lock"
+
+          # 2. Those bytes are the official SheetJS release.
+          if ! curl -sSfL --retry 3 -o official.tgz "$OFFICIAL_URL"; then
+            echo "::warning::cdn.sheetjs.com unreachable; skipped the equivalence \
+          check. bun.lock still pins the exact bytes installed."
+            echo
+            echo "=================================================="
+            echo "  integrity   : OK (matches bun.lock)"
+            echo "  equivalence : SKIPPED (cdn.sheetjs.com unreachable)"
+            echo "=================================================="
+            exit 0
+          fi
+
+          mkdir -p a b && tar xzf official.tgz -C a && tar xzf mirror.tgz -C b
+
+          # package.json is compared separately: the republish must change its
+          # own name and repository, so a textual diff of it is pure noise.
+          diff -rq --exclude=package.json a/package b/package > qdelta.txt 2>&1 || true
+          sed -E 's#^Files a/package/(.+) and b/package/.+ differ$#\1#; s#^Only in (a|b)/package/?(.*): (.+)$#\1-only \2/\3#' \
+            qdelta.txt | sed 's#//#/#' > changed.txt
+
+          echo "--- files that differ (package.json excluded) ---"
+          if [ -s changed.txt ]; then cat changed.txt; else echo "(none)"; fi
+
+          python3 - <<'PY'
+          import json
+          a = json.load(open("a/package/package.json"))
+          b = json.load(open("b/package/package.json"))
+          diffs = [k for k in sorted(set(a) | set(b)) if a.get(k) != b.get(k)]
+          print("package.json keys that differ: " + (", ".join(diffs) if diffs else "(none)"))
+          unexpected = [k for k in diffs if k not in ("name", "repository")]
+          if unexpected:
+              print("::error::unexpected package.json divergence: " + ", ".join(unexpected))
+              raise SystemExit(1)
+          PY
+
+          # README.md is expected to differ; anything else is a real divergence.
+          CODE_CHANGED=$(grep -vxE 'README\.md' changed.txt || true)
+          if [ -n "$CODE_CHANGED" ]; then
+            echo "::error::the npm republish diverges from official SheetJS in files other than README.md"
+            while IFS= read -r f; do
+              [ -f "a/package/$f" ] && [ -f "b/package/$f" ] || continue
+              diff "a/package/$f" "b/package/$f" | head -40
+            done <<<"$CODE_CHANGED"
+            exit 1
+          fi
+
+          echo
+          echo "=================================================="
+          echo "  integrity   : OK (matches bun.lock)"
+          echo "  equivalence : OK (code identical to official $VERSION)"
+          echo "=================================================="

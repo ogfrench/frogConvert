@@ -1,6 +1,10 @@
-// `xlsx` is pinned to the SheetJS CDN tarball in package.json because the
-// community `xlsx` npm package is abandoned. `bun update` won't bump it.
-// When updating SheetJS, change the URL in package.json by hand.
+// `xlsx` is an alias for `@e965/xlsx`, an npm republish of SheetJS. SheetJS
+// self-hosts from 0.19 onward and the `xlsx` package on npm is frozen at
+// 0.18.5, which carries two high-severity advisories that 0.20.3 patches;
+// the CDN tarball it used to be pinned to cannot be fetched from a
+// restricted network at all. The `xlsx-provenance` CI job proves on every
+// run that the republish is byte-identical to the official release.
+// When updating SheetJS, bump the aliased version in package.json.
 import * as XLSX from "xlsx";
 import { DOMParser } from "@xmldom/xmldom";
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';

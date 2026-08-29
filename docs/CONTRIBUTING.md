@@ -184,11 +184,13 @@ confirmation.
 
 It also shares the `optionalDeps.ts` gate, so it skips where `xlsx` or the
 `image-to-txt` submodule are missing: it runs a real production build, and that
-build cannot resolve them. Since 2026-08-29 the submodule half is usually
-satisfied - it moved off `git.sr.ht`, which no restricted network here could
-reach, onto the author's GitHub mirror - so `xlsx` is normally the one left, and
-it installs from `cdn.sheetjs.com` rather than npm. The skip message names
-whichever is actually absent.
+build cannot resolve them. As of 2026-08-29 both halves are satisfied on a
+restricted network - the submodule moved off `git.sr.ht` onto the author's
+GitHub mirror, and `xlsx` moved off `cdn.sheetjs.com` onto the `@e965/xlsx`
+republish on npm - so `bun run test:shell` now runs anywhere `bun install`
+does. It had never run outside CI before that, which is how a service worker
+that could not install reached a release. The skip message names whichever
+dependency is actually absent.
 
 ### Writing a handler test
 

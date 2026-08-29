@@ -1,9 +1,12 @@
 /**
  * Dependencies that a restrictive network policy can leave absent:
  *
- *   - `xlsx` installs from cdn.sheetjs.com; SheetJS does not publish to npm, so
- *     an allowlist proxy that permits only the npm registry answers 403 and
- *     `bun install` completes without it.
+ *   - `xlsx` was installed from cdn.sheetjs.com, which an allowlist proxy
+ *     permitting only the npm registry answers 403 - and `bun install`
+ *     completed without it, silently. Since 2026-08-29 it is an alias for
+ *     `@e965/xlsx`, a republish of the same release on npm, so it now
+ *     installs anywhere. Kept as a probe because a working tree can still
+ *     be missing node_modules.
  *   - `src/handlers/image-to-txt` is a git submodule. It is on GitHub as of
  *     2026-08-29 (it was on git.sr.ht, which no sandbox here can reach), so it
  *     is now normally present - but a working tree where nobody ran
@@ -63,5 +66,5 @@ if (inGitHubActions && !hasFullRegistry) {
 
 /** Message shown next to a skip so the reason is never a mystery. */
 export const MISSING_DEPS_REASON =
-    `needs xlsx${hasXlsx ? "" : " (missing: installs from cdn.sheetjs.com, not npm)"}` +
+    `needs xlsx${hasXlsx ? "" : " (missing: run bun install)"}` +
     ` and the image-to-txt submodule${hasImageToTxt ? "" : " (missing: run git submodule update --init --recursive)"}`;
