@@ -207,16 +207,31 @@ jobs:
 
           mkdir -p a b && tar xzf official.tgz -C a && tar xzf mirror.tgz -C b
 
-          # 2. Code. package.json is excluded and handled separately below:
-          #    the mirror is published under a different name, so it always
-          #    differs, and the two are formatted differently (tabs vs spaces)
-          #    so a textual diff of them prints both files in full and buries
-          #    everything else.
-          if diff -r --exclude=package.json a/package b/package > delta.txt 2>&1; then
-            CODE_VERDICT="IDENTICAL"
+          # 2. Which files differ, by name. `diff -rq` prints one line per file,
+          #    so the answer stays legible however large the content difference
+          #    is. Reporting content instead hid this: the mirror rewrites
+          #    relative links in README.md to absolute ones, which is enough to
+          #    fill any sample and bury whether a code file differed too.
+          #    package.json is excluded and handled separately - the mirror is
+          #    published under a different name, so it always differs.
+          diff -rq --exclude=package.json a/package b/package > qdelta.txt 2>&1 || true
+          sed -E 's#^Files a/package/(.+) and b/package/.+ differ$#\1#; s#^Only in (a|b)/package/?(.*): (.+)$#\1-only \2/\3#' \
+            qdelta.txt | sed 's#//#/#' > changed.txt
+
+          # Documentation may differ without disqualifying the mirror; the
+          # republish necessarily rewrites the readme. Anything else is code.
+          CODE_CHANGED=$(grep -vxE 'README\.md|CHANGELOG\.md' changed.txt || true)
+
+          if [ ! -s changed.txt ]; then
+            VERDICT="IDENTICAL"
+          elif [ -z "$CODE_CHANGED" ]; then
+            VERDICT="DOCS ONLY (code identical)"
           else
-            CODE_VERDICT="DIFFERENT"
+            VERDICT="CODE DIFFERS"
           fi
+
+          echo "--- files that differ (package.json excluded) ---"
+          cat changed.txt
 
           # 3. package.json, compared as parsed JSON so only real differences
           #    show rather than every reindented line.
@@ -237,29 +252,30 @@ jobs:
             echo
             echo "Official tarball matches the \`bun.lock\` integrity hash."
             echo
-            if [ "$CODE_VERDICT" = "IDENTICAL" ]; then
-              echo "**Code is identical.** Every file except \`package.json\` matches byte-for-byte."
-            else
-              echo "**Code differs.** First 40 lines:"
-              echo '```'
-              head -40 delta.txt
-              echo '```'
-            fi
+            echo "**Verdict: $VERDICT**"
+            echo
+            echo "Files differing (excluding \`package.json\`):"
+            echo '```'
+            if [ -s changed.txt ]; then cat changed.txt; else echo "(none)"; fi
+            echo '```'
             echo
             echo '```'
             cat pkg.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "$CODE_VERDICT" = "DIFFERENT" ]; then
-            echo "--- code differences (first 40 lines) ---"
-            head -40 delta.txt
+          if [ -n "$CODE_CHANGED" ]; then
+            echo "--- content of differing code files (first 40 lines) ---"
+            # Only the code files, so a readme rewrite cannot crowd them out.
+            while IFS= read -r f; do
+              [ -f "a/package/$f" ] && [ -f "b/package/$f" ] || continue
+              diff "a/package/$f" "b/package/$f" | head -40
+            done <<<"$CODE_CHANGED"
           fi
 
-          # Verdict last, so a tail of the log always ends on the answer rather
-          # than on whatever diff output happened to precede it.
+          # Verdict last, so a tail of the log always ends on the answer.
           echo
           echo "=================================================="
           echo "  provenance : OK (matches bun.lock)"
-          echo "  code       : $CODE_VERDICT"
+          echo "  verdict    : $VERDICT"
           echo "=================================================="
