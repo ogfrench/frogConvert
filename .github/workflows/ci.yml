@@ -125,3 +125,31 @@ jobs:
 
       - name: Verify conversions
         run: bun run scripts/verify-conversions.ts
+
+  # nginx has never actually parsed these files. `docker/nginx/headers.test.ts`
+  # reads default.conf as text and checks a structural rule - every location
+  # that adds a header of its own re-includes the security snippet - which is a
+  # real regression guard but not a syntax check. A typo'd directive passes
+  # that test, builds a clean image, publishes to GHCR on the next master push,
+  # and fails only when someone starts a container.
+  #
+  # So hand the files to the same nginx the runtime stage runs, laid out where
+  # docker/Dockerfile puts them. `nginx -t` opens the listening sockets as well
+  # as parsing, so this also covers `listen [::]:80` being bindable.
+  #
+  # Its own job rather than a step in `build`: it needs no bun, no submodules
+  # and no dist, so it has no reason to queue behind them.
+  nginx:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Same tag as the Dockerfile runtime stage - keep the two in step.
+      - name: Validate nginx config
+        run: |
+          docker run --rm \
+            -v "$PWD/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro" \
+            -v "$PWD/docker/nginx/security-headers.conf:/etc/nginx/snippets/security-headers.conf:ro" \
+            nginx:stable-alpine nginx -t

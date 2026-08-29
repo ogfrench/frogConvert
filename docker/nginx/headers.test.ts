@@ -7,6 +7,13 @@
 //
 // So assert the structural rule instead: every location that adds a header of
 // its own must also include the shared security snippet.
+//
+// Scope: this reads default.conf as text and never asks nginx whether the
+// file is even valid. Syntax and socket binding are covered by the `nginx`
+// job in .github/workflows/ci.yml, which runs `nginx -t` against the same
+// nginx:stable-alpine image the Dockerfile runtime stage uses. Neither
+// check subsumes the other: nginx accepts a location that silently drops
+// the CSP, and this file cannot spot a typo'd directive.
 
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
