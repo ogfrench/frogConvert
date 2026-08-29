@@ -153,3 +153,82 @@ jobs:
             -v "$PWD/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro" \
             -v "$PWD/docker/nginx/security-headers.conf:/etc/nginx/snippets/security-headers.conf:ro" \
             nginx:stable-alpine nginx -t
+
+  # Measurement, not a gate on this PR's changes. #45: xlsx is pinned to a
+  # tarball on cdn.sheetjs.com because SheetJS stopped publishing to npm after
+  # 0.18.5, and 0.18.5 carries two high-severity advisories (GHSA-4r6h-8v6p-xvw6,
+  # GHSA-5pgg-2g8v-p4x9) that our pinned 0.20.3 does not. A restricted network
+  # cannot reach that CDN, and `bun install` exits 0 without the package, which
+  # is what confines six suites to CI.
+  #
+  # `@e965/xlsx` republishes 0.20.3 to npm, so switching would be a one-line
+  # fix - but it is a single-maintainer repack whose hash cannot be tied back
+  # to the official tarball. This job answers whether it is the same code,
+  # which is the fact that decides between mirroring ourselves and using it.
+  #
+  # Runs here because a GitHub runner has the open egress the CDN needs; every
+  # `bun i` in this workflow already pulls that tarball successfully.
+  xlsx-mirror-audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Compare the npm mirror against the official SheetJS tarball
+        run: |
+          set -euo pipefail
+
+          # Derived from bun.lock rather than hardcoded, so a version bump does
+          # not leave this auditing a tarball we no longer install.
+          LOCK_LINE=$(grep '"xlsx": \["xlsx@https://cdn.sheetjs.com' bun.lock)
+          OFFICIAL_URL=$(grep -o 'https://cdn\.sheetjs\.com[^"]*' <<<"$LOCK_LINE")
+          EXPECTED=$(grep -o 'sha512-[A-Za-z0-9+/=]*' <<<"$LOCK_LINE")
+          VERSION=$(sed -n 's#.*/xlsx-\([0-9.]*\)\.tgz#\1#p' <<<"$OFFICIAL_URL")
+          MIRROR_URL="https://registry.npmjs.org/@e965/xlsx/-/xlsx-${VERSION}.tgz"
+
+          echo "official : $OFFICIAL_URL"
+          echo "mirror   : $MIRROR_URL"
+          echo "version  : $VERSION"
+
+          curl -sSfL --retry 3 -o official.tgz "$OFFICIAL_URL"
+          curl -sSfL --retry 3 -o mirror.tgz   "$MIRROR_URL"
+
+          # 1. Provenance. The tarball the CDN served today must be the one
+          #    bun.lock pinned. A mismatch means the pin no longer describes
+          #    what we install, which is a real problem regardless of #45.
+          ACTUAL="sha512-$(openssl dgst -sha512 -binary official.tgz | base64 -w0)"
+          echo "expected : $EXPECTED"
+          echo "actual   : $ACTUAL"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::official tarball does not match the integrity hash in bun.lock"
+            exit 1
+          fi
+          echo "provenance OK"
+
+          mkdir -p a b && tar xzf official.tgz -C a && tar xzf mirror.tgz -C b
+
+          # 2. Contents. package.json necessarily differs - the mirror is
+          #    published under a different name - so compare everything else,
+          #    then show that delta separately rather than hiding it.
+          {
+            echo "## xlsx mirror audit ($VERSION)"
+            echo
+            echo "Official tarball matches the \`bun.lock\` integrity hash."
+            echo
+            if diff -r --exclude=package.json a/package b/package > delta.txt 2>&1; then
+              echo "**Code is identical.** Every file except \`package.json\` matches byte-for-byte."
+            else
+              echo "**Code differs.** First 40 lines:"
+              echo '```'
+              head -40 delta.txt
+              echo '```'
+            fi
+            echo
+            echo "<details><summary>package.json delta</summary>"
+            echo
+            echo '```diff'
+            diff a/package/package.json b/package/package.json || true
+            echo '```'
+            echo "</details>"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
