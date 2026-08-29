@@ -67,7 +67,7 @@ Several format handlers are third-party projects vendored as git submodules (see
 |---|---|---|
 | [envelope](https://github.com/p2r3/envelope), [sppd](https://github.com/p2r3/sppd) | p2r3 | Envelope archives, Super Pixel Paint documents |
 | [qoi-fu](https://github.com/pfusik/qoi-fu), [qoa-fu](https://github.com/pfusik/qoa-fu) | Piotr Fusik | QOI images, QOA audio (MIT) |
-| [espeakng.js](https://github.com/TheZipCreator/espeakng.js), [image-to-txt](https://git.sr.ht/~thezipcreator/image-to-txt) | TheZipCreator | Text-to-speech, image-to-text |
+| [espeakng.js](https://github.com/zipsegv/espeakng.js), [image-to-txt](https://github.com/zipsegv/image-to-txt) | zipsegv | Text-to-speech, image-to-text |
 | [gimper](https://github.com/ConnorTippets/gimper), [RPG-Maker-MV-Decrypter](https://github.com/ConnorTippets/RPG-Maker-MV-Decrypter), [terraria-world-file-ts](https://github.com/ConnorTippets/terraria-world-file-ts) | ConnorTippets | GIMP `.xcf`, RPG Maker assets, Terraria worlds |
 
 The MIDI synthesis handler uses the TimGM6mb soundfont via FluidSynth; see [src/handlers/midi/README.md](src/handlers/midi/README.md) for that credit in full.

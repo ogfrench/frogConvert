@@ -179,28 +179,68 @@ Handlers with `requiresMainThread: true` are the exception - they need browser A
 
 This section covers **how a session starts**: install, service-worker cache strategy, and the OS-level entry points (share-target, "Open with…") that bring files into frogConvert. For **how a session survives a reload mid-task**, see [Session persistence](#session-persistence) below.
 
-frogConvert installs as a Progressive Web App. The service worker (`src/pwa/sw.ts`, built via `vite-plugin-pwa` with the `injectManifest` strategy) precaches entry HTMLs, CSS, icons, and fonts; everything else is runtime-cached as the user encounters it.
+frogConvert installs as a Progressive Web App. The service worker (`src/pwa/sw.ts`, built via `vite-plugin-pwa` with the `injectManifest` strategy) precaches the **app shell**: entry HTMLs, CSS, icons, the hashed Inter subsets, and the JavaScript those HTMLs name. The ~250 lazy handler chunks stay out of it and are runtime-cached as the user encounters them, so a cold install still does not pre-pull 17 MB.
+
+Which JS counts as "the shell" is computed at build time by the `collect-shell-chunks` plugin in `vite.config.js`: every entry chunk plus the transitive closure of its *static* imports, and the workers those chunks name. Dynamic imports are deliberately not walked.
+
+Two things join it that no import graph can reach. The **service-worker registration module** (`virtual:pwa-register`) arrives as a dynamic import - it must, because that module does not exist in a desktop build and Rollup could not resolve a static import of it - and it is the thing that shows the "New version available" prompt. Left out of the precache it 404s for exactly the user it exists to serve: after a deploy the shell loads from the precache, this module does not, and the prompt that would move that user onto the new build never appears. The **fonts** join it for the same reason one level down: the CSS that `@font-face`s them is precached, so without them a returning user - and any offline user on a cold paint - renders in a fallback face.
+
+Workers count because they are structural, not lazy. `new Worker(new URL('/assets/x.js', import.meta.url))` bakes a hashed URL into a chunk exactly the way a `<script src>` bakes one into HTML, so precaching the chunk without the worker rebuilds the original bug one level down. Two are reachable this way and neither is optional: `route-search.worker` is constructed during graph init on every page load, and `conversion.worker` for every conversion. A lazy import emits `import("./x.js")` and a `__vite__mapDeps` table instead, which is what keeps the ~250 handler chunks out.
 
 ```mermaid
 flowchart LR
     Net((Network)) --> SW["Service Worker<br/>src/pwa/sw.ts"]
+    SW -->|Precache, versioned + atomic| SH["App shell<br/>entry HTML + CSS + shell JS"]
     SW -->|CacheFirst, 30 entries, 7d| WC["/wasm/ cache<br/>FFmpeg, ImageMagick, etc."]
-    SW -->|StaleWhileRevalidate, 200 entries, 30d| AC["/assets/ cache"]
-    SW -->|StaleWhileRevalidate| JC["/js/ cache - lazy chunks"]
-    SW -->|NavigationRoute| HTML["/index.html precached"]
+    SW -->|CacheFirst, 400 entries, no TTL| AC["assets-v2<br/>lazy /assets/ chunks"]
+    SW -->|StaleWhileRevalidate| JC["/js/ cache - copied workers"]
+    SW -->|StaleWhileRevalidate| DC["/docs/*.md cache"]
     SW -->|POST handler| ST["Share-target replay<br/>CacheStorage"]
 
     style SW fill:#fcd34d,stroke:#d97706,color:#000
+    style SH fill:#86efac,stroke:#16a34a,color:#000
 ```
 
 ### Cache strategy
 
 | Path | Strategy | Why |
 |------|----------|-----|
-| `/wasm/`, `*.sf2` | CacheFirst, 30 entries, 7-day TTL, status 200 only | WASM blobs are huge and content-stable. Status 200 only because opaque cross-origin responses can't be introspected - caching them would let a transient CDN error look like success. |
-| `/assets/` | StaleWhileRevalidate, 200 entries, 30-day TTL | Hashed filenames change per build, so the cache fills with versioned copies. |
-| `/js/`, `/docs/*.md` | StaleWhileRevalidate | Lazy chunks and docs serve hot from cache while revalidating. |
+| Entry HTML, CSS, shell JS, icons, fonts | **Precache** - versioned and atomic | The HTML and the JS it names must never disagree. See [Stale shell recovery](#stale-shell-recovery) for what happened when they did. |
+| `/wasm/`, `*.sf2` | CacheFirst, `wasm-v1`, 30 entries, 7-day TTL, status 200 only | WASM blobs are huge and content-stable. Status 200 only because opaque cross-origin responses can't be introspected - caching them would let a transient CDN error look like success. |
+| `/assets/` (lazy chunks) | CacheFirst, `assets-v2`, 400 entries, **no TTL** | Content-hashed, so a URL's bytes can never change - revalidating spends a round trip to re-confirm what the hash already guarantees. A TTL here is a scheduled outage: entries expire out from under HTML that still names them, and the refetch 404s once the deploy has moved on. Eviction is LRU only. |
+| `/js/` | StaleWhileRevalidate, `js-runtime-v1` | The espeakng worker files, copied unhashed by `vite-plugin-static-copy`. |
+| `/docs/*.md` | StaleWhileRevalidate, `docs-md-v1` | Docs serve hot from cache while revalidating. |
 | `/index.html` (NavigationRoute) | Precache | Single SPA entry. Denylisted: `/api`, `/.well-known`, `/docs`, `/headless`. |
+
+Every runtime cache above **and the precache itself** carries `rejectHtmlFallback` ([src/pwa/cachePolicy.ts](../src/pwa/cachePolicy.ts)): a `text/html` body arriving under a URL that does not name a document is refused rather than stored. Workbox's own cacheability check reads only the status code, so without this a host whose SPA fallback answers a deleted chunk with `200 text/html` gets that HTML written under a `.js` URL - permanently, in the precache's case, since precache entries are never revalidated.
+
+> **The URL half of that check is load-bearing.** Because `addPlugins` applies the
+> guard to the precache too, and ~125 of the ~165 precache entries *are* HTML
+> documents, a version of this guard that refused HTML on content type alone made
+> `precacheAndRoute` reject its install promise with `bad-precaching-response`.
+> The worker then went from `installing` straight to `redundant` and the
+> registration was discarded - so nothing was cached, no update ever rolled out,
+> and every returning user silently kept the worker they already had. That
+> shipped in 3.0.0. If you touch this predicate, the test that catches it is
+> `bun run test:shell`, which drives a real worker; the unit tests cannot, and did
+> not.
+
+### Stale shell recovery
+
+Every asset URL is content-hashed, so a deploy replaces the whole set. A returning user holding cached HTML that names the previous build's chunks requests URLs the server no longer has. Because that failure happens during module evaluation, there is no running app left to report it - the page renders fully and is bound to nothing.
+
+Precaching the shell atomically is the fix for the *shell*; a lazy chunk can still 404 against a newer deploy. Two handlers cover the remainder, and the split between them is deliberate:
+
+| Handler | Covers | Armed |
+|---|---|---|
+| [src/pwa/bootRecovery.js](../src/pwa/bootRecovery.js) - dependency-free IIFE, inlined into every entry `<head>` | The bundle never loaded at all | Boot only. Stands down as soon as the app sets `window.__frogShellBooted`. |
+| [src/pwa/staleShell.ts](../src/pwa/staleShell.ts) - listens for Vite's `vite:preloadError` | A lazy chunk failed while the app is running | From app start onwards. |
+
+The boot handler must not stay armed: it would also catch the `<link rel="modulepreload">` tags Vite appends for lazy chunks, and a transient network blip mid-conversion would then purge caches and reload, destroying queued files.
+
+Both purge only the shell-bearing caches and reload once. `wasm-v1` (~17 MB of engines at content-stable URLs) and the share-target cache are spared - neither is implicated in a hash mismatch, and clearing the latter would drop files a share is mid-way through handing over. `localStorage` is untouched, so the format registry, theme and any saved session survive. A shared `sessionStorage` marker with a 5-minute cooldown stops a genuinely broken deploy becoming a reload loop; the two files keep that key, the cooldown and the cache list in sync, asserted by a test.
+
+Serving is the other half. `/assets/`, `/js/` and `/wasm/` must **404** rather than fall through to the SPA rule - configured in both [netlify.toml](../netlify.toml) and [docker/nginx/default.conf](../docker/nginx/default.conf), and covered for other hosts by `rejectHtmlFallback` above. A build-time assertion in `vite.config.js` fails the build if any script named by a precached HTML file, any worker named by a precached chunk, or any font named by a precached stylesheet is not itself precached - the invariant the whole arrangement exists to hold. It is checked against the emitted bytes rather than against the closure that produced them, so a change in how Rollup renders these references fails the build instead of quietly precaching a shell with a hole in it.
 
 ### External file entry points
 
@@ -278,7 +318,8 @@ frogConvert/
 │   │   ├── utils/          ← Shared core helpers
 │   │   └── index.ts        ← Barrel re-export
 │   ├── tools/              ← PDF editor ops (merge, organize, extract, watermark, thumbnails)
-│   ├── pwa/                ← Service worker, registration, share-target, cache controls
+│   ├── pwa/                ← Service worker, registration, share-target, cache controls,
+│   │                         stale-shell recovery (staleShell.ts + inlined bootRecovery.js)
 │   ├── components/persistence/ ← IDB session store + createPersistor factory
 │   ├── workers/
 │   │   ├── conversion.worker.ts   ← Runs handlers off the main thread

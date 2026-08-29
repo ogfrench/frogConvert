@@ -129,6 +129,8 @@ In dev, the cache is optional; the app falls back to initializing all handlers a
 - **`bun run test`** runs unit and integration tests (Vitest + jsdom). **Do not use bare `bun test`**; that invokes Bun's native runner which lacks jsdom.
 - **`bun run test:watch`** runs tests in watch mode.
 - **E2E** tests live in `test/e2e/` (Puppeteer) and verify that workers mount and the UI flow works.
+- **`bun run test:shell`** runs the stale-shell recovery E2E, which is opt-in - see [The stale-shell suite](#the-stale-shell-suite-opt-in) below.
+- **`bun run test` leaves `dist/` holding a *desktop* build.** `test/e2e/electron-app.test.ts` sets `IS_DESKTOP=true` and builds into `dist/`, because that is where Electron's main process loads the app from. A desktop build has no service worker, no `sw.js` and no inlined boot handler, all gated off deliberately - so serving `dist/` after a test run and finding the PWA missing means the build is stale, not broken. Re-run `bun run build` first.
 
 ### The corpus suites (opt-in, and the ones that find real bugs)
 
@@ -156,6 +158,37 @@ Shared plumbing lives in **two** helpers, split by what they drive. Add to the r
 - **Compare by size, page count and extracted text - not by bytes.** Ghostscript stamps an XMP `ModifyDate`, so the same file compressed twice a second apart already differs. A first version of the REST-vs-MCP parity test asserted byte equality and reported the app broken for it.
 
 The two agent suites also check the surfaces against *each other*: both are thin wrappers over `compressForAgents`, and each was previously only ever compared against itself, so one drifting to different options would have gone unnoticed.
+
+### The stale-shell suite (opt-in)
+
+`test/e2e/stale-shell-recovery.test.ts` builds the app twice - a second deploy
+derived from the first, with different asset hashes - serves both, and drives
+Chromium across them to confirm a returning user on a stale shell recovers
+instead of landing on a dead UI. It is the empirical counterpart to the
+regression fixed in 3.0.0.
+
+```bash
+bun run test:shell                   # sets FROG_E2E_SHELL=1 for you
+```
+
+Opt-in for the same reason the corpus suites are, plus one of its own: it runs a
+full production build and a browser (~62s) inside a worker parallel with every
+other test file, and on a two-core CI runner that contention was enough to push
+the MCP integration suite past the SDK's 60-second request timeout.
+
+**What is not gated is the invariant itself.** Every script named by a precached
+HTML file must itself be precached, and that is asserted at *build* time by the
+`manifestTransforms` hook in `vite.config.js` - so `bun run build` fails in CI
+whether or not this suite runs. What `test:shell` adds is the browser-level
+confirmation.
+
+It also shares the `optionalDeps.ts` gate, so it skips where `xlsx` or the
+`image-to-txt` submodule are missing: it runs a real production build, and that
+build cannot resolve them. Since 2026-08-29 the submodule half is usually
+satisfied - it moved off `git.sr.ht`, which no restricted network here could
+reach, onto the author's GitHub mirror - so `xlsx` is normally the one left, and
+it installs from `cdn.sheetjs.com` rather than npm. The skip message names
+whichever is actually absent.
 
 ### Writing a handler test
 

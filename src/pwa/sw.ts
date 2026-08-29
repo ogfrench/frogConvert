@@ -92,6 +92,13 @@ registerRoute(
   new CacheFirst({
     cacheName: "wasm-v1",
     plugins: [
+      // This cache is the one nothing cleans up: it is spared by
+      // RETIRED_CACHES and by both recovery paths, on the grounds that ~17 MB
+      // of engines behind content-stable URLs are not implicated in a hashed
+      // asset mismatch. That makes a poisoned entry here the most durable of
+      // all - CacheFirst never revalidates it - so the HTML guard matters more
+      // here than anywhere else, not less.
+      rejectHtmlFallback,
       // 200 only. Status 0 (opaque cross-origin) shouldn't appear for our
       // same-origin /wasm/ assets, and accepting it would let a transient
       // CDN error cache an opaque "success" we can't introspect.

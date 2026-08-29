@@ -103,6 +103,14 @@ const isDesktopBuild = process.env.IS_DESKTOP === 'true';
 const shellChunks = new Set();
 
 /**
+ * `new URL("/assets/<file>", import.meta.url)` as Rollup leaves it in a rendered
+ * chunk - Vite's form for a worker or any other asset addressed by URL rather
+ * than imported. Deliberately narrow: it must not match `import("./x.js")`,
+ * which is how the lazily loaded handler chunks appear.
+ */
+const WORKER_URL_RE = /new URL\(\s*["'`]\/(assets\/[A-Za-z0-9._-]+\.js)["'`]\s*,\s*import\.meta\.url\s*\)/g;
+
+/**
  * Absolute build output directory, captured from the resolved config rather
  * than assumed to be ./dist, so every plugin here reads and writes the files
  * this build actually produced.
@@ -696,12 +704,78 @@ export default defineConfig({
           '*.{html,ico,webp,png,svg,json,txt,woff2}',
           '**/index.html',
           'assets/*.css',
-          'assets/*.js'
+          'assets/*.js',
+          // The hashed Inter subsets. The CSS that @font-faces them is
+          // precached, so leaving them out breaks the same invariant one more
+          // level down: after a deploy the precached CSS names seven font URLs
+          // the deploy has deleted and the app renders in a fallback face, and
+          // offline it does the same on a cold paint. ~213 KiB for all seven;
+          // the browser still only downloads the subsets a page's unicode-range
+          // actually needs, this only decides what install puts on disk.
+          'assets/*.woff2'
         ],
         manifestTransforms: [
           (entries) => {
+            /*
+             * Workers are structural, not lazy. `new Worker(new URL('/assets/
+             * x.js', import.meta.url))` bakes a hashed URL into a chunk exactly
+             * the way a <script src> bakes one into HTML, so precaching the
+             * chunk without the worker recreates the original bug one level
+             * down: after a deploy the shell loads from the precache, names the
+             * previous build's worker, and that URL is gone. Two are reachable
+             * this way and neither is optional - route-search is built during
+             * graph init on every page load, conversion for every conversion.
+             *
+             * Read off disk rather than from `chunk.code` in generateBundle:
+             * there the reference is still an unresolved Rollup placeholder, so
+             * matching it there silently finds nothing.
+             *
+             * Only this form is followed. A lazy import emits `import("./x.js")`
+             * plus a __vite__mapDeps table, and those ~250 handler chunks must
+             * stay out of the precache.
+             *
+             * `entries` is what workbox actually globbed off disk, and it is the
+             * only safe thing to read: shellChunks comes from the bundle graph,
+             * which still lists chunks Vite went on to inline into their HTML -
+             * assets/slidedeck-*.js is one - and those never exist as files.
+             */
+            const emitted = new Set(entries.map((entry) => entry.url));
+            const shell = new Set(shellChunks);
+            for (const url of shell) {
+              if (!url.endsWith('.js') || !emitted.has(url)) continue;
+              const code = fs.readFileSync(resolve(resolvedOutDir, url), 'utf8');
+              // Iterating a Set observes additions made during iteration, so a
+              // worker that itself names a worker is picked up too.
+              for (const [, ref] of code.matchAll(WORKER_URL_RE)) shell.add(ref);
+            }
+
+            /*
+             * The service-worker registration module, which is what shows the
+             * "New version available" prompt. It reaches the bundle as a
+             * dynamic import - it has to, because `virtual:pwa-register` does
+             * not exist in a desktop build and Rollup would fail to resolve a
+             * static one - so the closure above cannot see it.
+             *
+             * Left out, it 404s for exactly the user it exists to serve: after
+             * a deploy the shell loads from the precache, this module does not,
+             * registerSW never runs, and the update prompt that would have
+             * moved that user onto the new build never appears. They stay on
+             * the old shell until some unrelated lazy chunk happens to fail and
+             * trip the recovery path instead. It is ~1 KiB.
+             */
+            const REGISTER_RE = /^assets\/virtual_pwa-register-[^/]+\.js$/;
+            const register = entries.filter((entry) => REGISTER_RE.test(entry.url));
+            if (register.length !== 1) {
+              throw new Error(
+                `[pwa] expected exactly one virtual_pwa-register chunk, found ${register.length}. ` +
+                `vite-plugin-pwa has renamed it, and the update prompt is about to stop ` +
+                `surviving deploys - silently, because nothing else references this file.`
+              );
+            }
+            for (const entry of register) shell.add(entry.url);
+
             const manifest = entries.filter((entry) => (
-              !entry.url.endsWith('.js') || shellChunks.has(entry.url)
+              !entry.url.endsWith('.js') || shell.has(entry.url)
             ));
             const kept = manifest.filter((entry) => entry.url.endsWith('.js')).length;
             const dropped = entries.length - manifest.length;
@@ -719,10 +793,27 @@ export default defineConfig({
             const precached = new Set(manifest.map((entry) => entry.url));
             const missing = [];
             for (const entry of manifest) {
-              if (!entry.url.endsWith('.html')) continue;
-              const html = fs.readFileSync(resolve(resolvedOutDir, entry.url), 'utf8');
-              for (const [, url] of html.matchAll(/(?:src|href)="\/(assets\/[^"]+\.js)"/g)) {
-                if (!precached.has(url)) missing.push(`${url} (referenced by ${entry.url})`);
+              if (entry.url.endsWith('.html')) {
+                const html = fs.readFileSync(resolve(resolvedOutDir, entry.url), 'utf8');
+                for (const [, url] of html.matchAll(/(?:src|href)="\/(assets\/[^"]+\.js)"/g)) {
+                  if (!precached.has(url)) missing.push(`${url} (referenced by ${entry.url})`);
+                }
+              } else if (entry.url.endsWith('.css')) {
+                // Precached CSS must not name a font the precache lacks.
+                const css = fs.readFileSync(resolve(resolvedOutDir, entry.url), 'utf8');
+                for (const [, url] of css.matchAll(/url\(\s*["']?\/(assets\/[^")']+\.woff2)/g)) {
+                  if (!precached.has(url)) missing.push(`${url} (font of ${entry.url})`);
+                }
+              } else if (entry.url.endsWith('.js')) {
+                // The same invariant one level down: a precached chunk must not
+                // name a worker the precache does not carry. Checked against the
+                // emitted bytes rather than against the closure that produced
+                // them, so a change in how Rollup renders these URLs fails the
+                // build instead of silently precaching a shell with a hole in it.
+                const code = fs.readFileSync(resolve(resolvedOutDir, entry.url), 'utf8');
+                for (const [, url] of code.matchAll(WORKER_URL_RE)) {
+                  if (!precached.has(url)) missing.push(`${url} (worker of ${entry.url})`);
+                }
               }
             }
             if (missing.length > 0) {

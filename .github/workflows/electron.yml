@@ -88,6 +88,18 @@ jobs:
           # rolling release tracks the newest tag without a manual click. Use
           # overwrite_files so a re-run on the same tag replaces stale binaries
           # rather than uploading duplicates side-by-side.
+          # The hand-written half of the body. Without it the body is whatever
+          # generate_release_notes produces, so recutting a tag silently
+          # replaced the release notes with a bare "What's Changed" list.
+          # GitHub appends the generated PR list below this.
+          #
+          # Pinned to the same single leg as generate_release_notes below, and
+          # for a related reason: a body set on every leg races the generated
+          # list. Whichever platform finishes last wins, so a mac or windows leg
+          # landing after linux would rewrite the body to this file alone and
+          # drop the PR list linux had just added. Empty is falsy to the action,
+          # which then leaves the body untouched.
+          body_path: ${{ matrix.platform == 'linux' && '.github/RELEASE_NOTES.md' || '' }}
           # One job, and only one, generates the notes.
           #
           # This step runs once per matrix leg, and each leg that asks for

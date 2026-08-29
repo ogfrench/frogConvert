@@ -1,14 +1,17 @@
 /**
- * Two dependencies cannot be installed behind a restrictive network policy,
- * and neither is fetchable from npm:
+ * Dependencies that a restrictive network policy can leave absent:
  *
- *   - `xlsx` installs from cdn.sheetjs.com; SheetJS does not publish to npm.
- *   - `src/handlers/image-to-txt` is a git submodule hosted on git.sr.ht.
+ *   - `xlsx` installs from cdn.sheetjs.com; SheetJS does not publish to npm, so
+ *     an allowlist proxy that permits only the npm registry answers 403 and
+ *     `bun install` completes without it.
+ *   - `src/handlers/image-to-txt` is a git submodule. It is on GitHub as of
+ *     2026-08-29 (it was on git.sr.ht, which no sandbox here can reach), so it
+ *     is now normally present - but a working tree where nobody ran
+ *     `git submodule update --init` still has an empty directory.
  *
- * A sandbox with an allowlist proxy answers 403 to both, so `bun install` and
- * `git submodule update` leave them absent. Tests that need them should skip
- * with a reason rather than fail, so a red suite always means a real defect.
- * CI has unrestricted network and runs all of it.
+ * Tests that need either should skip with a reason rather than fail, so a red
+ * suite always means a real defect. CI has unrestricted network, checks out
+ * submodules recursively, and runs all of it.
  *
  * Probed by resolution, not by guessing at paths, so this stays honest if the
  * install layout ever changes.
@@ -60,5 +63,5 @@ if (inGitHubActions && !hasFullRegistry) {
 
 /** Message shown next to a skip so the reason is never a mystery. */
 export const MISSING_DEPS_REASON =
-    "needs xlsx (cdn.sheetjs.com) and/or the image-to-txt submodule (git.sr.ht); " +
-    "both are blocked by this environment's network policy";
+    `needs xlsx${hasXlsx ? "" : " (missing: installs from cdn.sheetjs.com, not npm)"}` +
+    ` and the image-to-txt submodule${hasImageToTxt ? "" : " (missing: run git submodule update --init --recursive)"}`;
