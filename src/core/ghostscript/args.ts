@@ -15,8 +15,8 @@ import { pdfSettingsFor } from "../compression/pdfSettings.ts";
  */
 
 /**
- * `-dNOPAUSE -dBATCH` stop it waiting for input; `-dQUIET` keeps its chatter
- * off our progress channel.
+ * `-dNOPAUSE -dBATCH` stop it waiting for input; `-dQUIET` silences its
+ * per-page chatter.
  *
  * No `-dSAFER`: this is Ghostscript 9.56, where SAFER is already the default,
  * and it runs against an Emscripten MEMFS holding nothing but the input file -
@@ -24,6 +24,25 @@ import { pdfSettingsFor } from "../compression/pdfSettings.ts";
  * the obvious thing to ask.
  */
 export const GS_BASE_FLAGS = ["-dNOPAUSE", "-dQUIET", "-dBATCH"] as const;
+
+/**
+ * The same flags with the chatter left on, for a caller that reads it.
+ *
+ * `-dQUIET` suppresses the one thing Ghostscript tells you about a pass in
+ * flight: "Processing pages 1 through 40." followed by a "Page n" per page.
+ * Silencing it is right for the surfaces that pipe stdout somewhere it would
+ * corrupt (the MCP server speaks JSON-RPC over stdout), and wrong for the
+ * browser, where it left a multi-minute pdfwrite pass on a phone with no
+ * evidence it was running at all.
+ *
+ * Only a caller that actually captures stdout should pass `quiet: false` - in
+ * this app that is the browser handler, which taps `console.log` across the
+ * Emscripten factory call and parses the lines in `readPageLine`
+ * (src/handlers/ghostscript.ts).
+ */
+export function gsBaseFlags(quiet = true): string[] {
+    return quiet ? [...GS_BASE_FLAGS] : ["-dNOPAUSE", "-dBATCH"];
+}
 
 /** A conversion this module knows how to build arguments for. */
 export type GsRoute = "pdf" | "pdfa" | "ps" | "eps" | "tiff";

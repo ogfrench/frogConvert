@@ -98,13 +98,17 @@ A compression run moves through phases, and the modal names each one rather than
 | `Reading your file...` | The file's bytes are coming off disk. Files are read one at a time, however large the batch, so only one is ever resident. |
 | `Compressing your file...` | The engine is working. This is where the live detail appears. |
 
-Underneath, a live line reports whatever the engine is willing to say: `Encoded 12.4s of 47.0s of media.`, `Fetching the compressor (52%)`, `Rasterising page 12 of 50`. One statement of progress, not two - a page count and a percentage derived from that same count are the same fact twice, and stacking them made the line longer without making it say more. A `ratio` is rendered as a bare percentage only for the engines that report one with no detail beside it. The reassurance sits on its own line and simply stays there; it used to take turns with the progress on a single line and that read as flicker.
+Underneath, a live line reports whatever the engine is willing to say: `Encoded 12.4s of 47.0s of media.`, `Fetching the compressor (52%)`, `Page 7 of 40`. One statement of progress, not two - a page count and a percentage derived from that same count are the same fact twice, and stacking them made the line longer without making it say more. A `ratio` is rendered as a bare percentage only for the engines that report one with no detail beside it. The reassurance sits on its own line and simply stays there; it used to take turns with the progress on a single line and that read as flicker.
 
 Once a run passes twenty seconds, a `MM:SS` elapsed clock appears on the end of the reassurance line - `keep this tab open · 02:14` - not on the engine's line. It answers a different question from everything above it: not what the engine is doing, but how long you have been waiting, which is the input to the decision to press Stop. Keeping it there leaves the engine's line free to say one thing, and means every engine gets a clock, including the ones with nothing else to report.
 
 The spinner distinguishes the two kinds of wait: a thin ring while nothing is being processed yet (engine download, file read), the gooey one while an engine is actually working.
 
 **Not every engine reports progress.** Seven do (FFmpeg, Ghostscript, comics, pdfCanvasCompress, pdftoimg, pdftotxt), which covers video, PDF and comic archives, the slow cases. Image compression through ImageMagick shows the phase, the file name and the elapsed clock, but no engine detail, because the engine does not provide one. The batch position (`Compressing file 2 of 5...`) always works, since it is counted here rather than reported by the engine.
+
+The live line never repeats the file name. The subtitle above it is already the file being worked on, so an engine that names it again spends the one row describing the *work* on something already on screen - `statusHTML` drops a live line that only restates the subtitle, matching a full name against the shortened form shown.
+
+**A PDF pass counts its pages.** Ghostscript's `pdfwrite` device is one synchronous call with no callback, and it normally runs under `-dQUIET`, which suppresses the only thing it says about a run in flight. The browser runs it with that flag off and reads its output, so a compression reports `Page 7 of 40` as it goes and then `Checking the result` for the page-count integrity guard that follows. The agent surfaces keep `-dQUIET`: the MCP server speaks JSON-RPC over the same stdout.
 
 The same status line, from the same module (`src/conversion/progressStatus.ts`), is what the Converter and the PDF editor show. A video that reports `Encoded 3.2s of 8.7s` while being converted reports it identically while being compressed.
 

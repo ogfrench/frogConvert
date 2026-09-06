@@ -144,6 +144,39 @@ export function elapsedSuffix(elapsedMs: number | null): string {
 }
 
 /**
+ * Whether the engine's live line is just restating the subtitle.
+ *
+ * The subtitle row exists to name the thing being worked on - almost always
+ * the file - and several engines name it again in their own progress detail.
+ * Stacked, the modal read:
+ *
+ *     Compressing your file...
+ *     DOC-20250501-WA0012. (1).pdf
+ *     Compressing DOC-20250501-WA0012. (1).pdf
+ *     keep this tab open
+ *
+ * which spends the one row reserved for what the engine is *doing* on the two
+ * things already on screen above it. The handlers that do this are being fixed
+ * where they emit it, but this is the choke point every progress modal in the
+ * app renders through, so the guard lives here too: a future handler cannot
+ * reintroduce the clutter on any surface.
+ *
+ * The subtitle may be a shortened name (`shortenFileName`, 32 chars) while the
+ * engine has the full one, so an ellipsised subtitle is matched on its two ends
+ * rather than whole.
+ */
+export function restatesSubtitle(live: string, subtitle: string): boolean {
+    const l = live.trim().toLowerCase();
+    const s = subtitle.trim().toLowerCase();
+    if (l.length < 4 || s.length < 4) return false;
+    const cut = s.indexOf("...");
+    if (cut < 0) return l.includes(s);
+    const head = s.slice(0, cut);
+    const tail = s.slice(cut + 3);
+    return head.length >= 2 && tail.length >= 2 && l.includes(head) && l.includes(tail);
+}
+
+/**
  * The four rows of the progress modal, rendered as one HTML string.
  *
  * Every row is emitted every time, empty ones included. The modal is
@@ -172,6 +205,8 @@ export function statusHTML(
     { main, subtitle, live = "", clock = "" }:
         { main: string; subtitle: string; live?: string; clock?: string },
 ): string {
+    // Reserved rather than removed - see the note above on the box breathing.
+    const engineRow = restatesSubtitle(live, subtitle) ? "" : live;
     return [
         main,
         `<span class="muted-text">${escapeHTML(subtitle)}</span>`,
@@ -180,7 +215,7 @@ export function statusHTML(
         // line changes once a second for the clock and faster still for a
         // percentage, which would turn a screen reader into a metronome. The
         // lines that carry meaning stay announced.
-        `<span class="status-live muted-text" aria-hidden="true">${escapeHTML(live)}</span>`,
+        `<span class="status-live muted-text" aria-hidden="true">${escapeHTML(engineRow)}</span>`,
         // The reassurance is static text, so it costs a line and nothing else
         // and is announced once rather than re-read every tick. The clock rides
         // here rather than on the live line above: the reassurance is the only

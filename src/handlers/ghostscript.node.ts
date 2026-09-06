@@ -100,13 +100,19 @@ function instantiateWith(onError: (e: unknown) => void) {
     };
 }
 
+/**
+ * No `print`/`printErr` here: this build marks both module options unsupported
+ * and never calls them, so passing them read as a stdout guard that was not one
+ * - Emscripten binds its output straight to `console.log`. What actually keeps
+ * this surface's stdout clean is `-dQUIET`, which the argv builders default to
+ * and which the MCP server's JSON-RPC transport depends on. Failures reach the
+ * caller through the non-zero return code either way.
+ */
 function createModule(create: GsFactory): Promise<GsModule> {
     return new Promise<GsModule>((resolve, reject) => {
         create({
             noInitialRun: true,
             instantiateWasm: instantiateWith(reject),
-            print: () => { /* -dQUIET still emits the odd line */ },
-            printErr: () => { /* surfaced via the return code */ },
         }).then(resolve, reject);
     });
 }

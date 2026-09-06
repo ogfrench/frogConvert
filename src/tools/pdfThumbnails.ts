@@ -54,7 +54,13 @@ async function withQueuedPage<T>(
       docCache.set(pdfBytes, pdf);
       if (docCache.size > DOC_CACHE_MAX) {
         const oldestKey = docCache.keys().next().value as Uint8Array;
-        docCache.get(oldestKey)?.destroy();
+        // `destroy()` is a promise, and it rejects when the pdf.js worker is
+        // already gone - which on a phone is exactly when this line runs, since
+        // evicting the sixth document means memory was tight enough to have
+        // killed it. Unhandled, that reached the app-wide recovery popup: an
+        // eviction the app does not even need to succeed, reported to the user
+        // as "frogConvert hit an error".
+        docCache.get(oldestKey)?.destroy().catch(() => { /* already torn down */ });
         docCache.delete(oldestKey);
       }
     }
@@ -125,7 +131,9 @@ export async function renderPageBitmap(
  */
 export function clearThumbnailCache() {
   for (const pdf of docCache.values()) {
-    pdf.destroy();
+    // Same reason as the eviction above: a rejected teardown is not worth an
+    // error popup over a cache we are throwing away regardless.
+    pdf.destroy().catch(() => { /* already torn down */ });
   }
   docCache.clear();
   if (sharedCanvas) {

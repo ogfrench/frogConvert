@@ -204,7 +204,16 @@ export function createPersistor<P extends SessionPayload>(spec: PersistorSpec<P>
     return inflightFlush;
   }
 
-  const debouncedFlush = debounce(() => { void flush(); }, 1000);
+  // Autosave is best-effort by design - every write inside `flushImpl` already
+  // reports and carries on - but `buildPayload` is the caller's own code and
+  // can still throw. Nothing is waiting on this promise, so an escape would
+  // surface as an unhandled rejection and put the app-wide recovery popup on
+  // screen over work that is perfectly fine.
+  const flushQuietly = () => flush().catch((err) => {
+    console.warn(`[${spec.kind}] auto-save flush failed:`, err);
+  });
+
+  const debouncedFlush = debounce(() => { void flushQuietly(); }, 1000);
 
   function mark(scope: 'manifest' | 'files'): void {
     if (restoring) return;
@@ -242,7 +251,11 @@ export function createPersistor<P extends SessionPayload>(spec: PersistorSpec<P>
       // persistor.flushOnHide()` from a visibilitychange / pagehide handler;
       // browsers honour outstanding work for as long as the page lives.
       debouncedFlush.flush();
-      if (inflightFlush) await inflightFlush;
+      if (inflightFlush) {
+        await inflightFlush.catch((err) => {
+          console.warn(`[${spec.kind}] auto-save flush failed:`, err);
+        });
+      }
     },
     clear: () => {
       if (!sessionId) return;
