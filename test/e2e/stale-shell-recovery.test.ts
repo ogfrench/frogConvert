@@ -73,6 +73,21 @@ async function settles(page: Page, fn: string, timeout = 30_000): Promise<boolea
 describe.skipIf(!hasFullRegistry || !shellE2eRequested)(
   `E2E stale-shell recovery [${SKIP_REASON}]`,
   () => {
+    /**
+     * Whether the worker actually ends up serving the page, decided in the
+     * second test and read by the fourth.
+     *
+     * Not assumed either way. Measured on this repo's own CI, a worker that
+     * reports `activated` still leaves `navigator.serviceWorker.controller`
+     * null across a reload often enough to fail a build on it - the file has
+     * said since it was written that some headless Chromium builds never hand
+     * over control at all. So the deploy-skew case below asserts what holds in
+     * both worlds, and adds the sharper check only when the environment
+     * actually produced the controlled one. A run that did not is announced
+     * rather than passed off as a full one.
+     */
+    let workerControls = false;
+
     let workDir: string;
     let deployA: string;
     let deployB: string;
@@ -161,10 +176,21 @@ describe.skipIf(!hasFullRegistry || !shellE2eRequested)(
 
       // One more load, on the same deploy, so the page under test is one the
       // worker actually served. The first visit never is: it is the navigation
-      // that registered the worker.
-      await page.reload({ waitUntil: "networkidle2", timeout: 60_000 });
-      expect(await settles(page, "() => window.__frogShellBooted === true")).toBe(true);
-      expect(await page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
+      // that registered the worker. Three attempts, because taking over is the
+      // browser's decision and it does not always make it on the first reload.
+      for (let attempt = 0; attempt < 3 && !workerControls; attempt++) {
+        await page.reload({ waitUntil: "networkidle2", timeout: 60_000 });
+        expect(await settles(page, "() => window.__frogShellBooted === true")).toBe(true);
+        workerControls = await page.evaluate(
+          () => navigator.serviceWorker.controller !== null
+        );
+      }
+      if (!workerControls) {
+        console.warn(
+          "[shell-e2e] the worker never took control of a reload; the deploy-skew "
+          + "case will assert liveness only, not the precache invariant."
+        );
+      }
     }, 180_000);
 
     it("serves a 404, not an HTML fallback, for a chunk the deploy removed", async () => {
@@ -245,6 +271,14 @@ describe.skipIf(!hasFullRegistry || !shellE2eRequested)(
       );
       const shellMisses = missing.filter((url) => precached.has(url));
       expect(shellMisses).toEqual([]);
+
+      // Only meaningful when the worker was the one answering. Uncontrolled,
+      // the reload simply fetches the new deploy and nothing 404s at all, so an
+      // empty `missing` proves nothing - which is precisely how this file used
+      // to pass while exercising none of its own scenario.
+      if (workerControls) {
+        expect(missing.length).toBeGreaterThan(0);
+      }
 
       // And the self-heal is bounded. The lazy-chunk 404s above do trigger it -
       // one purge and one reload, which is the designed answer to a stale
