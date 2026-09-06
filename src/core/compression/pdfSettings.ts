@@ -1,5 +1,5 @@
 import type { QualityPreset } from "../FormatHandler/FormatHandler.ts";
-import { GS_BASE_FLAGS } from "../ghostscript/args.ts";
+import { gsBaseFlags } from "../ghostscript/args.ts";
 
 /**
  * Compression engine - PDF settings. Maps a quality preset onto the
@@ -36,19 +36,24 @@ export function pdfSettingsFor(quality: QualityPreset): PdfSettingsPreset {
  * Full argv for a pdfwrite pass. CompatibilityLevel 1.4 is the
  * widest-supported output that still allows the object streams we want; the
  * shared base flags (and the story of the missing `-dSAFER`) live with
- * `GS_BASE_FLAGS` in core/ghostscript/args.ts, which builds the argv for the
+ * `gsBaseFlags` in core/ghostscript/args.ts, which builds the argv for the
  * conversion routes the same way.
  */
 export function ghostscriptArgs(opts: {
     quality: QualityPreset;
     inputPath: string;
     outputPath: string;
+    /**
+     * Leave `-dQUIET` off so the pass narrates itself, one line per page.
+     * Only for a caller that captures stdout; see `gsBaseFlags`.
+     */
+    verbose?: boolean;
 }): string[] {
     return [
         "-sDEVICE=pdfwrite",
         "-dCompatibilityLevel=1.4",
         `-dPDFSETTINGS=${pdfSettingsFor(opts.quality)}`,
-        ...GS_BASE_FLAGS,
+        ...gsBaseFlags(!opts.verbose),
         `-sOutputFile=${opts.outputPath}`,
         opts.inputPath,
     ];

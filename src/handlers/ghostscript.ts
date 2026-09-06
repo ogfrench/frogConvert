@@ -162,16 +162,73 @@ function instantiateWith(onError: (e: unknown) => void) {
     };
 }
 
-/** A fresh Emscripten instance, or a rejection - never a promise that hangs. */
+/**
+ * Where a running pass's stdout goes, or null when nothing is listening.
+ *
+ * Module-level rather than per-instance because the tap below has to be
+ * installed *before* the Emscripten factory runs and stays bound for the life
+ * of that instance. Safe as a single slot: `workerClient` serialises every job
+ * onto one worker, and `callMain` is synchronous, so two passes can never be
+ * mid-flight at once.
+ */
+let gsStdout: ((line: string) => void) | null = null;
+
+/**
+ * Emscripten's `out` is `console.log.bind(console)`, captured when the factory
+ * runs. This build drops the `print`/`printErr` module options entirely - they
+ * are marked unsupported in the minified loader - so the only way to read what
+ * Ghostscript prints is to own `console.log` across the factory call and let it
+ * bind to a tap instead.
+ *
+ * Narrow on purpose: `console.log` is restored the moment the factory
+ * resolves, and the tap it left behind forwards to the real one whenever no
+ * pass is listening.
+ */
 function createModule(create: GsFactory): Promise<GsModule> {
     return new Promise<GsModule>((resolve, reject) => {
+        const realLog = console.log;
+        const tap = (...args: unknown[]) => {
+            const sink = gsStdout;
+            if (!sink) { realLog(...args); return; }
+            sink(args.join(" "));
+        };
+        console.log = tap as typeof console.log;
+        const restore = () => { console.log = realLog; };
         create({
             noInitialRun: true,
             instantiateWasm: instantiateWith(reject),
-            print: () => { /* -dQUIET still emits the odd line */ },
-            printErr: () => { /* surfaced via the non-zero return code */ },
-        }).then(resolve, reject);
+        }).then(
+            (mod) => { restore(); resolve(mod); },
+            (err) => { restore(); reject(err); },
+        );
     });
+}
+
+/**
+ * Read a pdfwrite pass as it happens.
+ *
+ * With `-dQUIET` off, Ghostscript prints "Processing pages 1 through 40."
+ * and then a bare "Page n" as each one is written. That is the only progress
+ * the engine offers, and without it the compression pass was the longest
+ * unnarrated wait in the app: a phone grinding through a scanned document
+ * showed one unchanging line for minutes, which reads as a hang rather than
+ * as work. The lines arrive synchronously from inside `callMain`, and this
+ * runs in a Worker, so each `postMessage` the progress callback makes reaches
+ * the main thread while the pass is still running.
+ *
+ * Anything that is not a page line (the AGPL banner, warnings about the input)
+ * is dropped rather than forwarded to the console: it is a fixed four-line
+ * preamble per file and says nothing a user or a log needs.
+ */
+export function readPageLine(line: string, state: { total: number }): { n: number; total: number } | null {
+    const start = /^Processing pages (\d+) through (\d+)\.?$/.exec(line);
+    if (start) {
+        state.total = Number(start[2]) - Number(start[1]) + 1;
+        return null;
+    }
+    const page = /^Page (\d+)$/.exec(line);
+    if (!page || state.total <= 0) return null;
+    return { n: Number(page[1]), total: state.total };
 }
 
 class GhostscriptHandler implements FormatHandler {
@@ -240,12 +297,19 @@ class GhostscriptHandler implements FormatHandler {
                 // file this evaluated to exactly 0.5 and stayed there for the
                 // whole pass, painting a frozen "50%" on screen. A number that
                 // never moves reads as a stall, which is the failure the live
-                // line exists to prevent; the file name and the elapsed clock
-                // carry this case honestly instead.
+                // line exists to prevent; the page count below and the elapsed
+                // clock carry this case honestly instead.
                 ratio: inputFiles.length > 1
                     ? 0.5 + (i / inputFiles.length) * 0.5
                     : undefined,
-                detail: `${isCompression ? "Compressing" : "Converting"} ${file.name}`,
+                // The compression pass says nothing here on purpose. Every
+                // surface that runs it already shows the file name of its own
+                // accord - Compress puts it under the heading, the PDF editor
+                // has only ever one document - so "Compressing report.pdf"
+                // under a subtitle reading "report.pdf" spent the one live row
+                // saying the same thing twice. The per-page lines below take
+                // this row instead, and they say something new.
+                detail: isCompression ? undefined : `Converting ${file.name}`,
             });
 
             if (!isCompression) {
@@ -268,7 +332,24 @@ class GhostscriptHandler implements FormatHandler {
             const outPath = "/out.pdf";
             Module.FS.writeFile(inPath, file.bytes);
 
-            const rc = Module.callMain(ghostscriptArgs({ quality, inputPath: inPath, outputPath: outPath }));
+            // Batch position on the front, when there is a batch. A page count
+            // with nothing to anchor it says "Page 3 of 40" twice in a row for
+            // two different documents.
+            const prefix = inputFiles.length > 1 ? `File ${i + 1} of ${inputFiles.length} · ` : "";
+            const pageState = { total: 0 };
+            gsStdout = (line) => {
+                const at = readPageLine(line, pageState);
+                if (!at) return;
+                onProgress?.({ ratio: at.n / at.total, detail: `${prefix}Page ${at.n} of ${at.total}` });
+            };
+            let rc: number;
+            try {
+                rc = Module.callMain(ghostscriptArgs({
+                    quality, inputPath: inPath, outputPath: outPath, verbose: true,
+                }));
+            } finally {
+                gsStdout = null;
+            }
             if (rc !== 0) throw new Error(`Couldn't compress ${file.name}. The PDF may be corrupt or password-protected.`);
 
             const bytes = Module.FS.readFile(outPath);
@@ -279,6 +360,12 @@ class GhostscriptHandler implements FormatHandler {
             }
             // ...and a *readable* PDF can still be the wrong document: a damaged
             // input comes back as one blank page, which every check above passes.
+            //
+            // Announced, because it is not instant: the guard parses both
+            // documents with pdf-lib, which on a long scan is seconds of its
+            // own - and until it says so the page count sits frozen on its
+            // last page, which is the shape of a stall.
+            onProgress?.({ ratio: 1, detail: `${prefix}Checking the result` });
             await assertPdfPagesPreserved(file.bytes, bytes, file.name);
 
             outputs.push({ ...file, name: file.name, bytes });

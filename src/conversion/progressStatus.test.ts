@@ -36,6 +36,7 @@ const {
     reassuranceLine,
     startConversionStatus,
     statusHTML,
+    restatesSubtitle,
     REASSURANCE_LINE,
     KEEP_OPEN_LINE,
 } = await import("./progressStatus.ts");
@@ -339,6 +340,41 @@ describe("the row count, which is the modal's height", () => {
         const html = statusHTML({ main: "Compressing your file...", subtitle: '<img src=x onerror=1>.png' });
         expect(html).not.toContain("<img");
         expect(html).toContain("&lt;img");
+    });
+});
+
+describe("the live row, when the engine only repeats the subtitle", () => {
+    // Reported from a phone: the Compress modal read "Compressing your file..."
+    // / "DOC-20250501-WA0012. (1).pdf" / "Compressing DOC-20250501-WA0012.
+    // (1).pdf" / "keep this tab open" - four rows, two of them the file name
+    // and one of them the heading again.
+    const NAME = "DOC-20250501-WA0012. (1).pdf";
+
+    it("drops a live line that is the file name a second time", () => {
+        expect(restatesSubtitle(`Compressing ${NAME}`, NAME)).toBe(true);
+    });
+
+    it("matches a full name against the shortened one on screen", () => {
+        // The subtitle goes through shortenFileName(name, 32); the engine has
+        // the whole thing.
+        const shown = "a-very-long-scanned-do...-final-v2.pdf";
+        expect(restatesSubtitle("Compressing a-very-long-scanned-document-final-v2.pdf", shown)).toBe(true);
+    });
+
+    it("keeps a line that says something the subtitle does not", () => {
+        expect(restatesSubtitle("Page 7 of 40", NAME)).toBe(false);
+        expect(restatesSubtitle("Encoded 12.4s of 47.0s", "video.mp4")).toBe(false);
+        expect(restatesSubtitle("Fetching the PDF compressor (62%)", NAME)).toBe(false);
+    });
+
+    it("does not fire on short subtitles that could match anything", () => {
+        expect(restatesSubtitle("Page 1 of 9", "9")).toBe(false);
+    });
+
+    it("still reserves the row, so the modal does not change height", () => {
+        const html = statusHTML({ main: "Compressing your file...", subtitle: NAME, live: `Compressing ${NAME}` });
+        expect(html.split("<br>").length).toBe(4);
+        expect(html.match(/DOC-20250501/g)?.length).toBe(1);
     });
 });
 

@@ -109,6 +109,20 @@ describe("Compress, end to end, in a browser", () => {
         await input!.uploadFile(fixturePath);
         await page.waitForFunction(() => !!document.querySelector(".cw-compress"), { timeout: 30_000 });
 
+        // Every value the engine's live row ever takes, recorded from before
+        // the run starts. Polling for it would miss a fast pass entirely.
+        await page.evaluate(() => {
+            const seen: string[] = [];
+            (window as unknown as { __liveRows: string[] }).__liveRows = seen;
+            new MutationObserver(() => {
+                const row = document.querySelector("#popup .status-live");
+                const text = row?.textContent?.trim() ?? "";
+                if (text && seen[seen.length - 1] !== text) seen.push(text);
+            }).observe(document.getElementById("popup")!, {
+                subtree: true, childList: true, characterData: true,
+            });
+        });
+
         await page.click(".cw-compress");
 
         // Progress belongs in the shared modal, the one Convert uses.
@@ -158,6 +172,19 @@ describe("Compress, end to end, in a browser", () => {
         expect(result.resultsInPopup).toBe(true);
         expect(result.spinnerGone).toBe(true);
         expect(result.buttons).toEqual(["Download", "Done"]);
+
+        // Reported from a phone: the pass showed one unchanging line and read
+        // as a hang. Ghostscript ran under `-dQUIET`, which suppresses the only
+        // progress a pdfwrite pass emits, and the handler discarded its stdout
+        // besides - so a scanned document was minutes of nothing.
+        const liveRows: string[] = await page.evaluate(
+            () => (window as unknown as { __liveRows: string[] }).__liveRows);
+        expect(liveRows.some(r => /^Page \d+ of \d+$/.test(r))).toBe(true);
+
+        // And the file name is not repeated into that row: the subtitle above
+        // it is already the file name, which made three of the modal's four
+        // rows say the same two things.
+        expect(liveRows.some(r => r.includes("report.pdf"))).toBe(false);
     }, 1_200_000);
 
     /**

@@ -1,5 +1,28 @@
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import { showToast } from "../components/Toast/Toast.ts";
+
+/**
+ * A download is the last step of work the user already waited for, and every
+ * caller reaches it from a click handler that ignores the returned promise. So
+ * a failure here - a Blob the device has no memory for, a ZIP that cannot be
+ * built - used to escape as an unhandled rejection and land in the app-wide
+ * recovery popup: "frogConvert hit an error", over a finished result, saying
+ * nothing about what failed or what to do.
+ *
+ * These two report instead. The caller gets `false` and the user gets a
+ * sentence naming the step that failed; nothing above has a better answer
+ * available to it, which is why this is not simply rethrown.
+ */
+function reportDownloadFailure(what: string, err: unknown): false {
+    console.error(`[download] ${what} failed:`, err);
+    showToast(
+        `Couldn't ${what}. The file may be too large for this device's memory - try fewer files at once.`,
+        "error",
+        8000,
+    );
+    return false;
+}
 
 /**
  * Make a filename safe for Windows (and NTFS) download writes:
@@ -33,39 +56,55 @@ export function sanitizeDownloadName(name: string): string {
     return out;
 }
 
-export function downloadFile(bytes: Uint8Array, name: string) {
-    const blob = new Blob([bytes as BlobPart], { type: "application/octet-stream" });
-    const link = document.createElement("a");
-    const objectUrl = URL.createObjectURL(blob);
-    link.href = objectUrl;
-    link.download = sanitizeDownloadName(name);
-    link.click();
+export function downloadFile(bytes: Uint8Array, name: string): boolean {
+    let objectUrl: string | null = null;
+    try {
+        const blob = new Blob([bytes as BlobPart], { type: "application/octet-stream" });
+        const link = document.createElement("a");
+        objectUrl = URL.createObjectURL(blob);
+        link.href = objectUrl;
+        link.download = sanitizeDownloadName(name);
+        link.click();
+    } catch (err) {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        return reportDownloadFailure("save that file", err);
+    }
     // Five seconds is a long time for a timer nobody owns. If the page it
     // belonged to is gone there is no URL registry left to revoke from, and
     // reaching for one throws where nothing can catch it.
+    const url = objectUrl;
     setTimeout(() => {
-        if (typeof URL !== "undefined") URL.revokeObjectURL(objectUrl);
+        if (typeof URL !== "undefined") URL.revokeObjectURL(url);
     }, 5000);
+    return true;
 }
 
-export async function downloadAsZip(files: { name: string; bytes: Uint8Array }[], zipName: string) {
-    const zip = new JSZip();
-    const seen = new Set<string>();
-    for (const file of files) {
-        let safe = sanitizeDownloadName(file.name);
-        // Dedupe colliding sanitized names within the same archive.
-        if (seen.has(safe)) {
-            const dot = safe.lastIndexOf(".");
-            const [base, ext] = dot > 0 ? [safe.slice(0, dot), safe.slice(dot)] : [safe, ""];
-            let n = 1;
-            while (seen.has(`${base}_${n}${ext}`)) n++;
-            safe = `${base}_${n}${ext}`;
+export async function downloadAsZip(
+    files: { name: string; bytes: Uint8Array }[],
+    zipName: string,
+): Promise<boolean> {
+    try {
+        const zip = new JSZip();
+        const seen = new Set<string>();
+        for (const file of files) {
+            let safe = sanitizeDownloadName(file.name);
+            // Dedupe colliding sanitized names within the same archive.
+            if (seen.has(safe)) {
+                const dot = safe.lastIndexOf(".");
+                const [base, ext] = dot > 0 ? [safe.slice(0, dot), safe.slice(dot)] : [safe, ""];
+                let n = 1;
+                while (seen.has(`${base}_${n}${ext}`)) n++;
+                safe = `${base}_${n}${ext}`;
+            }
+            seen.add(safe);
+            zip.file(safe, file.bytes);
         }
-        seen.add(safe);
-        zip.file(safe, file.bytes);
+        const blob = await zip.generateAsync({ type: "blob" });
+        saveAs(blob, sanitizeDownloadName(zipName));
+    } catch (err) {
+        return reportDownloadFailure("build that ZIP", err);
     }
-    const blob = await zip.generateAsync({ type: "blob" });
-    saveAs(blob, sanitizeDownloadName(zipName));
+    return true;
 }
 
 /**

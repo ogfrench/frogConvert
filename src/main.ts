@@ -114,6 +114,25 @@ getPdfWorkspace().catch((e) => console.warn("[main] PDF workspace module load fa
 // Logs to console for dev, and shows a one-shot recovery popup so users
 // get a way out of a stuck UI instead of a silent dead tab.
 let recoveryPopupOpen = false;
+
+/**
+ * One line of what actually failed, or "" when there is nothing legible.
+ *
+ * This popup is the only thing a user on a phone can see of an error - there
+ * is no console to open and nothing to copy - so "an unexpected error" left
+ * every report of it unactionable, ours included. Truncated because the point
+ * is a name to report, not a stack to read, and text-only so a message that
+ * happens to contain markup cannot inject any.
+ */
+function errorSummary(reason: unknown): string {
+  const raw = reason instanceof Error
+    ? `${reason.name}: ${reason.message}`
+    : typeof reason === "string" ? reason : "";
+  const line = raw.replace(/\s+/g, " ").trim();
+  if (!line) return "";
+  return line.length > 160 ? line.slice(0, 157) + "..." : line;
+}
+
 function surfaceUnhandled(kind: string, reason: unknown) {
   console.error(`[main] ${kind}:`, reason);
   if (recoveryPopupOpen) return;
@@ -123,6 +142,14 @@ function surfaceUnhandled(kind: string, reason: unknown) {
     h2.textContent = "frogConvert hit an error";
     const p = document.createElement("p");
     p.textContent = "The app ran into an unexpected error. Reload to try again.";
+    const summary = errorSummary(reason);
+    if (summary) {
+      const detail = document.createElement("span");
+      detail.className = "muted-text";
+      detail.textContent = summary;
+      p.appendChild(document.createElement("br"));
+      p.appendChild(detail);
+    }
     const actions = document.createElement("div");
     actions.className = "popup-actions-footer";
     actions.appendChild(createPopupButton("Reload", "btn-primary", () => location.reload()));

@@ -36,6 +36,25 @@ describe("ghostscriptArgs", () => {
         expect(args[args.length - 1]).toBe("/in.pdf");
     });
 
+    it("stays quiet by default, for the surfaces that pipe stdout", () => {
+        // The MCP server speaks JSON-RPC over stdout; Ghostscript's per-page
+        // chatter landing there would corrupt the transport.
+        const args = ghostscriptArgs({ quality: "medium", inputPath: "/in.pdf", outputPath: "/out.pdf" });
+        expect(args).toContain("-dQUIET");
+    });
+
+    it("lets the pass narrate itself when the caller reads stdout", () => {
+        // Without this the browser had no progress at all through a pdfwrite
+        // pass - a scanned document on a phone showed one unchanging line for
+        // minutes, which reads as a hang.
+        const args = ghostscriptArgs({
+            quality: "medium", inputPath: "/in.pdf", outputPath: "/out.pdf", verbose: true,
+        });
+        expect(args).not.toContain("-dQUIET");
+        expect(args).toContain("-dNOPAUSE");
+        expect(args).toContain("-dBATCH");
+    });
+
     it("threads the chosen level through to the preset flag", () => {
         const of = (q: "low" | "high") =>
             ghostscriptArgs({ quality: q, inputPath: "/i", outputPath: "/o" })
