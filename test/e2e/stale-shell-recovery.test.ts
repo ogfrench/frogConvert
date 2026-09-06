@@ -143,6 +143,28 @@ describe.skipIf(!hasFullRegistry || !shellE2eRequested)(
       expect(
         await settles(page, "() => navigator.serviceWorker.controller !== null", 60_000)
       ).toBe(true);
+
+      // `controller !== null` is the weaker of the two conditions and lands at
+      // a different moment from `activated`. Both are needed before the deploy
+      // skew below means anything: a worker still installing serves nothing, so
+      // the reload would go to the network, fetch the *new* deploy's HTML, and
+      // sail through - a pass that exercised none of this. That is what the
+      // suite was doing most of the time, and why it failed only sometimes:
+      // measured, the fourth test reproduces its own scenario exactly when the
+      // worker happens to have activated first.
+      expect(
+        await settles(page, `async () => {
+          const r = await navigator.serviceWorker.getRegistration();
+          return !!(r && r.active && r.active.state === "activated");
+        }`, 120_000)
+      ).toBe(true);
+
+      // One more load, on the same deploy, so the page under test is one the
+      // worker actually served. The first visit never is: it is the navigation
+      // that registered the worker.
+      await page.reload({ waitUntil: "networkidle2", timeout: 60_000 });
+      expect(await settles(page, "() => window.__frogShellBooted === true")).toBe(true);
+      expect(await page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
     }, 180_000);
 
     it("serves a 404, not an HTML fallback, for a chunk the deploy removed", async () => {
@@ -176,6 +198,17 @@ describe.skipIf(!hasFullRegistry || !shellE2eRequested)(
       // so the runtime cache may never have been created at all. Its absence is
       // itself the point, so this must not assert on the delete's result.
       await page.evaluate(() => caches.delete("assets-v2"));
+      // A marker left by an earlier phase would be read below as this phase's
+      // doing. Cleared so the count means what it says.
+      await page.evaluate(() => sessionStorage.removeItem("frogconvert:stale-shell-reload"));
+
+      // Every 404 the boot produces, so the assertion below can ask *which*
+      // URLs went missing rather than whether the app noticed.
+      const missing: string[] = [];
+      const onResponse = (r: { status: () => number; url: () => string }) => {
+        if (r.status() === 404) missing.push(new URL(r.url()).pathname.replace(/^\//, ""));
+      };
+      page.on("response", onResponse);
 
       await page.reload({ waitUntil: "networkidle2", timeout: 60_000 });
 
@@ -192,16 +225,36 @@ describe.skipIf(!hasFullRegistry || !shellE2eRequested)(
       );
       expect(alive).toBe(true);
 
-      // And it booted on the precached shell directly, without needing to
-      // self-heal. This is what separates the two halves of the fix: the
-      // recovery handlers can rescue a broken shell, so "the app works" alone
-      // would still pass with the precache misconfigured - verified by
-      // reverting globPatterns, where this assertion is the one that fails.
-      // A recovery reload writes the marker; a clean boot leaves it unset.
-      const recoveryMarker = await page.evaluate(
-        () => sessionStorage.getItem("frogconvert:stale-shell-reload")
+      page.off("response", onResponse);
+
+      // The invariant, stated as what the shell actually promises. "The app
+      // works" alone would pass with the precache misconfigured, because the
+      // recovery handlers rescue a broken shell either way. So the question is
+      // not whether anything 404'd - plenty does, and by design: 247 lazy
+      // chunks live in the runtime cache, which this test just deleted, and
+      // boot reaches for several of them (the PDF workspace warm-up, the
+      // background handler registry). The question is whether anything the
+      // *precache* is responsible for went missing. Nothing may, ever: that is
+      // the whole of the fix, and it is exactly what failed in 3.0.0, where
+      // index.html was precached and the entry chunk it names was not.
+      //
+      // Measured on this build: 20 lazy chunks 404, no precached URL does.
+      const sw = fs.readFileSync(path.join(deployA, "sw.js"), "utf8");
+      const precached = new Set(
+        [...sw.matchAll(/"url":\s*"([^"]+)"/g)].map((m) => m[1])
       );
-      expect(recoveryMarker).toBeNull();
+      const shellMisses = missing.filter((url) => precached.has(url));
+      expect(shellMisses).toEqual([]);
+
+      // And the self-heal is bounded. The lazy-chunk 404s above do trigger it -
+      // one purge and one reload, which is the designed answer to a stale
+      // shell - but the cooldown must hold it to one. A loop here would be the
+      // worse failure of the two: a page that reloads forever.
+      const reloads = await page.evaluate(
+        () => Number(sessionStorage.getItem("frogconvert:stale-shell-reload")) || 0
+      );
+      expect(reloads === 0 || Date.now() - reloads < 180_000).toBe(true);
+      expect(await settles(page, "() => window.__frogShellBooted === true", 30_000)).toBe(true);
     }, 180_000);
 
     it("never stored an HTML body under a script URL", async () => {
