@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readPageLine } from "./ghostscript.ts";
+import { readPageLine, ENGINE_NAME } from "./ghostscript.ts";
 
 /**
  * Reported from a phone: compressing a PDF sat on "Compressing <name>" with no
@@ -48,5 +48,33 @@ describe("readPageLine", () => {
         // Order is guaranteed by Ghostscript, not by us; a bare "Page 3" with
         // no range would otherwise divide by zero and paint "Infinity%".
         expect(readPageLine("Page 3", { total: 0 })).toBeNull();
+    });
+});
+
+/**
+ * Reported alongside the stuck-looking pass: the same 16 MB was announced
+ * twice, seconds apart, under two names, with an unrelated phase between them.
+ * Measured on a three-file batch, the modal read:
+ *
+ *     Downloading the document compressor... | this happens once...
+ *     Reading your file...                   | DOC-20250501-WA0012. (1).pdf
+ *     Compressing file 1 of 3...             | Fetching the PDF compressor (7%)
+ *
+ * A download announced, apparently abandoned for a file read, then started
+ * again under a second name. The surfaces no longer claim a download before
+ * `init()` - see CompressWorkspace and actions.ts - and the engine answers to
+ * the same name the category vocabulary uses.
+ */
+describe("what the engine calls itself", () => {
+    it("uses the name the surfaces already use for it", () => {
+        // The Compress and Convert surfaces build "<category> <tool>" from
+        // CATEGORY_LABELS, which for a PDF is "document".
+        expect(ENGINE_NAME.compressor).toBe("document compressor");
+    });
+
+    it("keeps a separate name for the conversion routes, which are not compression", () => {
+        // Someone who dropped an EPS on the Converter is not compressing
+        // anything, and "document compressor" would be wrong there.
+        expect(ENGINE_NAME.converter).toBe("PostScript engine");
     });
 });

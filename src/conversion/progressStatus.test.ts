@@ -364,7 +364,7 @@ describe("the live row, when the engine only repeats the subtitle", () => {
     it("keeps a line that says something the subtitle does not", () => {
         expect(restatesSubtitle("Page 7 of 40", NAME)).toBe(false);
         expect(restatesSubtitle("Encoded 12.4s of 47.0s", "video.mp4")).toBe(false);
-        expect(restatesSubtitle("Fetching the PDF compressor (62%)", NAME)).toBe(false);
+        expect(restatesSubtitle("Fetching the document compressor (62%)", NAME)).toBe(false);
     });
 
     it("does not fire on short subtitles that could match anything", () => {

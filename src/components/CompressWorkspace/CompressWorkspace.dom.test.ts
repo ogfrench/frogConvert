@@ -484,15 +484,31 @@ describe('CompressWorkspace - assistive technology', () => {
     expect(message.textContent).toContain('b.png');
   });
 
-  it('names the engine download instead of calling it "reading your file"', async () => {
+  it('names the engine being readied instead of calling it "reading your file"', async () => {
     // The 32 MB fetch used to happen behind "Reading your file...", which is
     // both untrue and the longest unexplained wait in the app.
     const { engineInit } = await startStalledRun();
     engineInit('FFmpeg', { format: 'mp4', category: 'video' });
     const message = document.getElementById('popup')!.querySelector('p')!;
     expect(message.textContent).toContain('compressor');
-    expect(message.textContent).toContain('this happens once');
+    expect(message.textContent).toContain('first run only');
     expect(message.textContent).not.toContain('Reading your file');
+  });
+
+  it('does not claim a download it cannot know is happening', async () => {
+    // This fires before `init()`, and the engines disagree about what happens
+    // there: ImageMagick and FFmpeg fetch their WASM inside it, Ghostscript
+    // defers its 16 MB to first real use. Saying "Downloading" here was true
+    // for two of them and false for the third, and the PDF batch showed the
+    // cost: a download announced, then "Reading your file...", then the same
+    // 16 MB announced again with a percentage. The engine that really is
+    // downloading says so itself, on the live line, and that one is not a
+    // guess.
+    const { engineInit } = await startStalledRun();
+    engineInit('Ghostscript', { format: 'pdf', category: 'document' });
+    const message = document.getElementById('popup')!.querySelector('p')!;
+    expect(message.textContent).toContain('document compressor');
+    expect(message.textContent!.toLowerCase()).not.toContain('downloading');
   });
 
   it('says it is reading only while it is actually reading', async () => {

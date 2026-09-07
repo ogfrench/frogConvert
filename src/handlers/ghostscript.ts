@@ -79,10 +79,16 @@ let loading: Promise<GsFactory> | null = null;
  * What to call the 16 MB download while it is happening. The same binary backs
  * Compress and the PostScript conversions, and "Fetching the PDF compressor"
  * makes no sense to someone who just dropped an EPS on the Converter.
+ *
+ * "document compressor", not "PDF compressor", so the engine has one name.
+ * Both surfaces announce it readying first, from the format's category, which
+ * for a PDF is "document" - so naming the same 16 MB two ways one line apart
+ * read as two separate downloads. The category vocabulary is the shared one
+ * (image compressor, video compressor, document compressor), so it wins.
  */
 type EngineLabel = "compressor" | "converter";
-const ENGINE_NAME: Record<EngineLabel, string> = {
-    compressor: "PDF compressor",
+export const ENGINE_NAME: Record<EngineLabel, string> = {
+    compressor: "document compressor",
     converter: "PostScript engine",
 };
 
@@ -332,15 +338,20 @@ class GhostscriptHandler implements FormatHandler {
             const outPath = "/out.pdf";
             Module.FS.writeFile(inPath, file.bytes);
 
-            // Batch position on the front, when there is a batch. A page count
-            // with nothing to anchor it says "Page 3 of 40" twice in a row for
-            // two different documents.
-            const prefix = inputFiles.length > 1 ? `File ${i + 1} of ${inputFiles.length} · ` : "";
+            // No batch position on this line. Nothing reaches the compression
+            // branch with more than one file: `compressBatch` runs them one per
+            // call (compressBatch.ts:315), which is the path the browser, MCP,
+            // REST and the CLI all share, and the PDF editor's optional pass
+            // does the same. The multi-file callers in the convert pipelines
+            // take the conversion branch above and never come here. A guard for
+            // a caller that does not exist is a claim the code cannot keep, and
+            // the surfaces already put the batch position in their own heading
+            // ("Compressing file 2 of 3..."), which is where it belongs.
             const pageState = { total: 0 };
             gsStdout = (line) => {
                 const at = readPageLine(line, pageState);
                 if (!at) return;
-                onProgress?.({ ratio: at.n / at.total, detail: `${prefix}Page ${at.n} of ${at.total}` });
+                onProgress?.({ ratio: at.n / at.total, detail: `Page ${at.n} of ${at.total}` });
             };
             let rc: number;
             try {
@@ -365,7 +376,7 @@ class GhostscriptHandler implements FormatHandler {
             // documents with pdf-lib, which on a long scan is seconds of its
             // own - and until it says so the page count sits frozen on its
             // last page, which is the shape of a stall.
-            onProgress?.({ ratio: 1, detail: `${prefix}Checking the result` });
+            onProgress?.({ ratio: 1, detail: "Checking the result" });
             await assertPdfPagesPreserved(file.bytes, bytes, file.name);
 
             outputs.push({ ...file, name: file.name, bytes });

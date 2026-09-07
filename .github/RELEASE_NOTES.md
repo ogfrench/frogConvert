@@ -33,6 +33,8 @@ Compression is also available over MCP, REST and CLI (`POST /compress`, `compres
 
 **A download that fails says so, rather than looking like a crash.** Every Download button reaches a function whose returned promise nothing was watching, so a file too large for the device's memory, or a ZIP that could not be built, surfaced as the app's generic *frogConvert hit an error* popup over a finished result, naming nothing and offering only a reload. A failed download now names the step that failed and leaves your result on screen. Three other background failures fed that same popup and no longer do, and when it does appear it carries the error's own first line, because on a phone it is the only place an error is visible at all.
 
+**The engine download is announced once, under one name.** Compressing a PDF read *Downloading the document compressor...*, then *Reading your file...*, then *Fetching the PDF compressor (7%)* - the same 16 MB announced, seemingly abandoned, then started again under a second name. The first line fired before the engine was asked to load, which is honest for the image and video engines (they fetch as they initialise) and false for the PDF one (it defers its 16 MB to first real use). It now says *getting ready*, which is true either way, and only the engine that genuinely reports a download claims one, with a real percentage behind it. One name for it throughout, matching the image and video compressors.
+
 ---
 
 ## About frogConvert
