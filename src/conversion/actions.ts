@@ -197,8 +197,11 @@ async function findConversionPath(
                 const label = (cat && CATEGORY_LABELS[cat]) ? CATEGORY_LABELS[cat].toLowerCase() : "file";
                 showConversionInProgress(
                     statusHTML({
-                        main: `Downloading the ${label} ${modeCopy().toolLabel}...`,
-                        subtitle: "this happens once and may take a moment",
+                        // Same wording as the Compress surface, and for the
+                        // same reason: this fires before `init()`, and the
+                        // engines differ on whether they download there.
+                        main: `Getting the ${label} ${modeCopy().toolLabel} ready...`,
+                        subtitle: "first run only, this can take a moment",
                     }),
                     _convertingTitle,
                     "idle",

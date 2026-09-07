@@ -93,7 +93,7 @@ A compression run moves through phases, and the modal names each one rather than
 
 | Line | What is actually happening |
 |---|---|
-| `Downloading the video compressor...` | First use of an engine on this device: fetching and compiling a WASM binary. 32 MB for FFmpeg, 16 MB for Ghostscript, 14 MB for ImageMagick. Says *this happens once and may take a moment*, because it does. |
+| `Getting the video compressor ready...` | First use of an engine on this device: fetching and compiling a WASM binary. 32 MB for FFmpeg, 16 MB for Ghostscript, 14 MB for ImageMagick. Says *first run only, this can take a moment*, because it is. It does not say *downloading*: the line fires before the handler's `init()`, and only some engines fetch there - Ghostscript defers its 16 MB to first real use and reports that fetch itself, with a percentage. |
 | `Getting the engine ready` | The engine is loading inside the worker. Separate from the line above: the worker keeps its own instance, so an engine already warm on the main thread still loads here. |
 | `Reading your file...` | The file's bytes are coming off disk. Files are read one at a time, however large the batch, so only one is ever resident. |
 | `Compressing your file...` | The engine is working. This is where the live detail appears. |
@@ -178,7 +178,7 @@ The Ghostscript engine is ~16 MB of WebAssembly. It is fetched **on first PDF co
 
 The 16 MB payload needs one online moment. If it can't be reached - offline, a blocked network, a bad deploy - Compress falls back to rasterising pages and rebuilding the PDF from JPEGs, and **tells you what that cost**:
 
-> Couldn't reach the PDF compressor, so pages were turned into images. The text is no longer selectable or searchable. Reconnect and run it again for a proper compression.
+> Couldn't reach the document compressor, so pages were turned into images. The text is no longer selectable or searchable. Reconnect and run it again for a proper compression.
 
 This route is strictly worse and is never chosen while Ghostscript is available. It destroys the text layer, so selection, search, copy/paste, accessibility and links all go with it. On a text or vector PDF it usually produces a *larger* file, which the 98% keep-threshold then discards - so you get your original back rather than a damaged copy. It earns its place only on scans, where the pages were already images.
 

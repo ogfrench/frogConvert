@@ -150,7 +150,7 @@ export function resolveSameFormatHandler(
             ? {
                 handler: alt,
                 args: baseArgs,
-                warning: "Couldn't reach the PDF compressor, so pages were turned into images. "
+                warning: "Couldn't reach the document compressor, so pages were turned into images. "
                     + "The text is no longer selectable or searchable. Reconnect and run it again for a proper compression.",
             }
             : undefined;

@@ -357,6 +357,18 @@ export async function runCompression() {
       },
       // The engine has to be fetched and compiled before it can do anything.
       // Naming it is the difference between a 32 MB download and a hang.
+      //
+      // "Getting ready" rather than "Downloading", because this fires before
+      // `init()` and only some engines download there. ImageMagick and FFmpeg
+      // fetch their WASM inside `init()`, so for them this line covers a real
+      // download and is the only thing on screen during it. Ghostscript
+      // deliberately does not - it defers its 16 MB to first real use, so a
+      // PDF batch used to read "Downloading the document compressor...", then
+      // "Reading your file...", then "Fetching the document compressor (7%)":
+      // a download announced, apparently abandoned, then started again under a
+      // second name. Measured on a three-file batch. This line now claims only
+      // what is true at this moment for every engine, and the one that really
+      // does report a download owns saying so.
       onEngineInit: (_handlerName, format) => {
         const cat = Array.isArray(format?.category) ? format.category[0] : format?.category;
         // Optional chaining throughout, deliberately. This runs inside a
@@ -366,8 +378,8 @@ export async function runCompression() {
           ? CATEGORY_LABELS[cat].toLowerCase()
           : "file";
         status.setPhase(
-          `Downloading the ${label} ${modeCopy().toolLabel}...`,
-          { subtitle: "this happens once and may take a moment", phase: "idle" },
+          `Getting the ${label} ${modeCopy().toolLabel} ready...`,
+          { subtitle: "first run only, this can take a moment", phase: "idle" },
         );
       },
       // Always singular: files are read one at a time, however big the batch.
