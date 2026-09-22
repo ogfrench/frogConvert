@@ -10,7 +10,7 @@ import {
     updateCancelProgress,
 } from "./cancellation.ts";
 import { statusHTML } from "./progressStatus.ts";
-import { LIVE_CARRY_MS, LIVE_FADE_MS } from "./liveRow.ts";
+import { LIVE_CARRY_MS, LIVE_FADE_MS, createLiveCarry } from "./liveRow.ts";
 
 vi.mock("../components/Popup/Popup.ts", () => ({
     showPopup: vi.fn((content: string | Node | Node[]) => {
@@ -130,5 +130,60 @@ describe("the engine's line, across the gaps where nothing is reported", () => {
         updateCancelProgress("Rasterising page 75 of 118");
         vi.advanceTimersByTime(LIVE_CARRY_MS + LIVE_FADE_MS);
         expect(live()).toBe("Rasterising page 75 of 118");
+    });
+});
+
+/**
+ * The hold, with no opinion about where the line is drawn. The modal bridges a
+ * reserved row with it; the PDF editor, which composes its status into a single
+ * line, holds the same words the same way.
+ */
+describe("the hold itself", () => {
+    it("passes the engine's own words straight through", () => {
+        const carry = createLiveCarry();
+        expect(carry.take("Page 1 of 12", 0)).toBe("Page 1 of 12");
+        expect(carry.take("Page 2 of 12", 100)).toBe("Page 2 of 12");
+    });
+
+    it("hands back the last real line when the engine goes quiet", () => {
+        // Recorded from a real merge: Ghostscript says nothing between starting
+        // up and reaching page 1, and the line used to collapse to the
+        // reassurance alone for the ~170ms in between.
+        const carry = createLiveCarry();
+        carry.take("Starting the document compressor", 0);
+        expect(carry.take("", 170)).toBe("Starting the document compressor");
+        expect(carry.take("Page 1 of 12", 200)).toBe("Page 1 of 12");
+    });
+
+    it("lets go once the hold is spent, and stays let go", () => {
+        const carry = createLiveCarry();
+        carry.take("Page 12 of 12", 0);
+        expect(carry.take("", LIVE_CARRY_MS - 1)).toBe("Page 12 of 12");
+        expect(carry.take("", LIVE_CARRY_MS)).toBe("");
+        expect(carry.take("", LIVE_CARRY_MS + 5_000)).toBe("");
+    });
+
+    it("times the hold from the last real line, not from the last paint", () => {
+        const carry = createLiveCarry();
+        carry.take("Page 12 of 12", 0);
+        carry.take("", 500);
+        carry.take("", 1_000);
+        expect(carry.take("", LIVE_CARRY_MS)).toBe("");
+    });
+
+    it("reports what is left, which is what the fade is scheduled on", () => {
+        const carry = createLiveCarry();
+        expect(carry.remaining(0)).toBe(0);
+        carry.take("Encoded 12.4s of 47.0s", 0);
+        expect(carry.remaining(500)).toBe(LIVE_CARRY_MS - 500);
+        expect(carry.remaining(LIVE_CARRY_MS + 1)).toBe(0);
+    });
+
+    it("forgets on reset, so a new run carries nothing into it", () => {
+        const carry = createLiveCarry();
+        carry.take("Page 12 of 12", 0);
+        carry.reset();
+        expect(carry.take("", 1)).toBe("");
+        expect(carry.held()).toBe("");
     });
 });

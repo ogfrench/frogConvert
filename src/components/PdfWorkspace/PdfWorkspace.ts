@@ -37,6 +37,7 @@ import {
   wasPdfOutputCompressionCancelled,
 } from '../../conversion/compressPdfOutput.ts';
 import { formatProgress, liveLine, reassuranceLine, elapsedSuffix } from '../../conversion/progressStatus.ts';
+import { createLiveCarry } from '../../conversion/liveRow.ts';
 import type { ProgressEvent } from '../../core/FormatHandler/FormatHandler.ts';
 import { MAX_TOTAL_FILE_SIZE, ABSOLUTE_MAX_FILES } from '../../constants/ui.ts';
 
@@ -538,6 +539,15 @@ async function setPdfResult(
   let ticker: ReturnType<typeof setInterval> | null = null;
   let latest: ProgressEvent | undefined;
   let position = '';
+  // The same hold the modal's engine row gets, for the same gaps. Ghostscript
+  // goes quiet between starting up and reaching page 1, and recorded mid-merge
+  // this line dropped from "Starting the document compressor - feel free to
+  // switch tabs" to the reassurance alone for ~170ms before "Page 1 of 12"
+  // landed: the detail vanishing and coming back, which is what the row on the
+  // modal used to do. One line rather than a stack, so there is no row to
+  // reserve here - the fix is the same carry, at the one place this surface
+  // composes its line.
+  const carry = createLiveCarry();
   const paint = () => {
     if (!note) return;
     // The clock sits after the reassurance, matching the modal: the engine's
@@ -546,7 +556,7 @@ async function setPdfResult(
     // single line rather than the modal's stack, so "after" is literal here.
     // `elapsedSuffix` owns the "long enough to be worth saying" threshold, so
     // this line no longer starts its clock at 00:00 while the modal waits.
-    const live = liveLine(formatProgress(latest));
+    const live = carry.take(liveLine(formatProgress(latest)));
     const tail = reassuranceLine() + elapsedSuffix(Date.now() - startedAt);
     const line = live ? `${live} · ${tail}` : tail;
     note.textContent = position ? `${position} · ${line}` : line;

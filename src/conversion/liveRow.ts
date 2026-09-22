@@ -29,7 +29,55 @@ import { ui } from "../components/store/store.ts";
  * formatter is pure and its callers test it as such, and three of the four
  * surfaces that paint this row never go through a `StatusHandle` at all. Every
  * one of them goes through `showConversionInProgress`.
+ *
+ * The policy is {@link createLiveCarry} and the modal's DOM is only one of its
+ * renderers. The PDF editor composes its status into a single line rather than
+ * a stack of rows, so it has no row to bridge - but it has the same gap, and
+ * it showed the same hole: recorded mid-merge, "Starting the document
+ * compressor · feel free to switch tabs" dropped to "feel free to switch
+ * tabs" for a fifth of a second before "Page 1 of 12" arrived. One policy, two
+ * renderers, so neither surface can drift from the other.
  */
+
+/**
+ * The hold itself, with no opinion about where the line is drawn.
+ *
+ * `take` is the whole interface: hand it what the engine has to say this paint
+ * and it hands back what to show. Something real passes straight through and
+ * becomes what the next gap is bridged with; nothing at all gets the last real
+ * line back, until the hold runs out and it gets nothing too.
+ */
+export type LiveCarry = {
+    take: (next: string, now?: number) => string;
+    /** The last real line, or "". */
+    held: () => string;
+    /** Milliseconds left on the held line, 0 when there is nothing to hold. */
+    remaining: (now?: number) => number;
+    reset: () => void;
+};
+
+export function createLiveCarry(holdMs: number = LIVE_CARRY_MS): LiveCarry {
+    let held = "";
+    let heldAt = 0;
+    return {
+        take(next, now = Date.now()) {
+            if (next) {
+                held = next;
+                heldAt = now;
+                return next;
+            }
+            return now - heldAt < holdMs ? held : "";
+        },
+        held: () => held,
+        remaining(now = Date.now()) {
+            return held ? Math.max(0, holdMs - (now - heldAt)) : 0;
+        },
+        reset() {
+            held = "";
+            heldAt = 0;
+        },
+    };
+}
 
 /**
  * Both rows this applies to: the running modal's engine line and the
@@ -57,8 +105,8 @@ export const LIVE_FADE_MS = 250;
 /** The class that fades a carried line out. Paired with conversion.css. */
 const FADING_CLASS = "is-fading";
 
-let carried = "";
-let carriedAt = 0;
+/** The modal's own hold. The PDF editor keeps its own, for its own line. */
+const modalCarry = createLiveCarry();
 let timer: ReturnType<typeof setTimeout> | null = null;
 
 function stopTimer() {
@@ -70,7 +118,7 @@ function stopTimer() {
 
 /** A row is showing our carried text rather than the engine's own. */
 function isCarrying(row: HTMLElement, text: string): boolean {
-    return row.dataset.carried === "1" && text === carried;
+    return row.dataset.carried === "1" && text === modalCarry.held();
 }
 
 function liveRow(): HTMLElement | null {
@@ -80,8 +128,7 @@ function liveRow(): HTMLElement | null {
 /** Forget the last line. A new run has nothing to carry into it. */
 export function resetLiveCarry() {
     stopTimer();
-    carried = "";
-    carriedAt = 0;
+    modalCarry.reset();
 }
 
 /**
@@ -102,8 +149,7 @@ export function carryLiveRow(root: HTMLElement | null = ui.popupBox ?? null) {
         // The engine's own words. They are what a later gap gets bridged with,
         // and they end any bridge already running - including a fade caught
         // mid-way, which writes into the same span rather than replacing it.
-        carried = text;
-        carriedAt = Date.now();
+        modalCarry.take(text);
         delete row.dataset.carried;
         row.classList.remove(FADING_CLASS);
         stopTimer();
@@ -112,15 +158,15 @@ export function carryLiveRow(root: HTMLElement | null = ui.popupBox ?? null) {
     // Already bridging this row, and already on the clock for it.
     if (text) return;
 
-    const left = LIVE_CARRY_MS - (Date.now() - carriedAt);
-    if (!carried || left <= 0) return;
+    const bridge = modalCarry.take("");
+    if (!bridge) return;
 
-    row.textContent = carried;
+    row.textContent = bridge;
     row.dataset.carried = "1";
     stopTimer();
     // The clock runs from the last real line, not from this paint, so a phase
     // that repaints every second cannot hold a stale line open forever.
-    timer = setTimeout(fadeOut, left);
+    timer = setTimeout(fadeOut, modalCarry.remaining());
 }
 
 function fadeOut() {
