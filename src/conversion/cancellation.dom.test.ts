@@ -204,8 +204,8 @@ describe("cancellation DOM bindings", () => {
             const live = softCancel().querySelector(".cancel-live-progress");
             expect(live).not.toBeNull();
             expect(live!.textContent).toBe("");
-            // The row is empty, so it only takes a line box because
-            // conversion.css gives it a zero-width space. Announcing it would
+            // The row is empty, so what holds its line box is the waiting
+            // placeholder conversion.css draws into it. Announcing it would
             // read that out.
             expect(live!.getAttribute("aria-hidden")).toBe("true");
         });

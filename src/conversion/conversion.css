@@ -123,8 +123,19 @@
 /* The engine's own line, reserved whether or not there is anything in it.
    Two consecutive <br>s already give the strut a full line box in every
    engine we ship on, but an empty inline is exactly the case a rendering
-   engine is entitled to collapse - the zero-width space makes the row
-   unambiguously non-empty without printing anything or being selectable.
+   engine is entitled to collapse - the placeholder makes the row
+   unambiguously non-empty.
+
+   It used to be a zero-width space, which held the row open and printed
+   nothing: correct for the height, and a dead gap in the middle of a modal
+   that is otherwise all copy. Most of a run has nothing on this row - the
+   engine has not started, or is one of the ~75 handlers that never report at
+   all - so what the user mostly saw of it was a blank line between the file
+   name and the reassurance, with text blinking into it and out again. The
+   dots say the same thing the gap was trying to: this row is where the engine
+   will speak, and it has not yet. `liveRow.ts` keeps real text on the row
+   across the hand-offs, so this shows for the stretches where there is
+   genuinely nothing to say rather than for every gap between two lines.
 
    `.cancel-live-progress` is the same row on the soft-cancel notice, and
    needs this more than `.status-live` does: it sits between a <br> and a
@@ -132,7 +143,32 @@
    content to force the line at all. */
 .status-live:empty::after,
 .cancel-live-progress:empty::after {
-  content: "\200B";
+  content: "\00B7\00B7\00B7";
+  letter-spacing: 0.25em;
+  animation: live-row-wait 1.8s ease-in-out infinite;
+}
+
+/* Shallow on purpose: it sits under a spinner that is already the page's
+   motion, and a second thing pulsing at full contrast competes with it. */
+@keyframes live-row-wait {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.9; }
+}
+
+/* The same row, carried across the gaps where the engine has nothing to say -
+   see liveRow.ts. The bridge itself is content, not motion: a line only fades
+   at the far end of it, when the hold expires with nothing to replace it, so
+   what used to blink out mid-run now dissolves. Reduced motion collapses the
+   duration globally (global.css), which leaves the JS clear that follows it
+   doing the work on its own - the line goes, it just doesn't travel. */
+.status-live,
+.cancel-live-progress {
+  transition: opacity var(--transition-normal);
+}
+
+.status-live.is-fading,
+.cancel-live-progress.is-fading {
+  opacity: 0;
 }
 
 /* The elapsed clock arrives 20s into a run and then ticks. Tabular figures

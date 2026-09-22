@@ -3,6 +3,7 @@ import { ui } from "../components/store/store.ts";
 import { showPopup, hidePopup, createPopupButton, replacePopup } from "../components/Popup/Popup.ts";
 import { ModalManager } from "../components/utils/ModalManager.ts";
 import { ensureMinDuration } from "../components/utils/index.ts";
+import { carryLiveRow, resetLiveCarry } from "./liveRow.ts";
 
 export let isCancelled = false;
 let canHardCancel = true;
@@ -80,6 +81,7 @@ export function resetCancellation() {
         hardCancelTimeoutId = null;
     }
     forceCleanupCallback = null;
+    resetLiveCarry();
 }
 
 /**
@@ -178,6 +180,12 @@ export function showConversionInProgress(
             if (messageHTML !== lastShownMessage) {
                 p.innerHTML = messageHTML;
                 lastShownMessage = messageHTML;
+                // The write above is what empties the engine's row at every
+                // hand-off - a phase change, a new file, a phase that renders
+                // `statusHTML` with no `live` at all. Bridging it here, at the
+                // one point every surface paints through, is what stops the
+                // line blinking out and back in mid-run.
+                carryLiveRow(p);
             }
             // If the status paragraph was muted (from cancellation popup), make it normal
             if (p.classList.contains("muted-text")) {
@@ -200,6 +208,12 @@ export function showConversionInProgress(
         showPopup([h2, spinner, p], true);
         lastShownTitle = title;
         lastShownMessage = messageHTML;
+        // A modal built from scratch is a new run - the results modal it
+        // replaces, or a fresh open - and the previous run's last line is not
+        // its to inherit. Whatever this one opens on is, though: the first
+        // paint is the line the first hand-off gets bridged with.
+        resetLiveCarry();
+        carryLiveRow(p);
     }
 }
 
@@ -348,6 +362,10 @@ export function updateCancelProgress(detail: string) {
     const liveSpan = ui.popupBox.querySelector<HTMLElement>(".cancel-live-progress");
     if (!liveSpan) return;
     liveSpan.textContent = detail;
+    // Written straight into the span rather than through the paragraph, so the
+    // bridge is told by hand: this is a real line, and it ends any carried one
+    // still standing in for it.
+    carryLiveRow(ui.popupBox);
 }
 
 export function removeCancelButton() {
