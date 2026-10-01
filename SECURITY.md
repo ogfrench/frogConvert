@@ -8,7 +8,7 @@ desc: What this thing does and doesn't do
 
 ## What this is, and what it is not
 
-frogConvert is a hobby project, maintained in spare time, and it is provided
+frogConvert is maintained in spare time, and it is provided
 **as is**. There is no warranty of any kind - not of merchantability, not of
 fitness for a particular purpose, and not of security. Sections 15 to 17 of the
 [GPLv3](LICENSE) are the operative terms; this paragraph is the plain-English

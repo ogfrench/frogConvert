@@ -82,7 +82,7 @@ Ghostscript is AGPLv3; its licence ships alongside the binary at `/wasm/gs/LICEN
 
 ## No warranty
 
-frogConvert is a hobby project and is provided **as is**, with no warranty of
+frogConvert is provided **as is**, with no warranty of
 any kind - including no guarantee of security, correctness, or that your files
 come out the other side intact. GPLv3 sections 15 to 17 are the operative
 terms. Keep your originals, and see [SECURITY.md](SECURITY.md) for the honest
