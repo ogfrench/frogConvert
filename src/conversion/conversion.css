@@ -146,6 +146,51 @@
   white-space: nowrap;
 }
 
+/* --- Status rows: a change of text, not a change of presence ---
+   The rules above stop the *box* moving. These stop the *text* snapping on and
+   off inside it, which is the other half of the same complaint: the engine's
+   row empties the instant a phase changes and refills a beat later, and the
+   clock arrives at 20s out of nowhere.
+
+   Presence is animated; content is not. A row that appears or disappears
+   fades over 200ms, while a row whose text merely changes is written straight
+   in - the live row carries a counter that updates every second, and fading
+   that would be a strobe rather than a softening. So the transition below is
+   on opacity only, and nothing animates while the row stays visible.
+
+   `prefers-reduced-motion` needs no carve-out here: the global rule in
+   global.css caps every animation and transition in the app to 0.01ms, so a
+   motion-sensitive user gets exactly today's instant behaviour. */
+.status-live,
+.status-clock {
+  transition: opacity 200ms ease;
+}
+
+/* Hidden rather than emptied. There has to be outgoing text left to fade, so
+   `patchStatusRows` leaves the last line in place and turns this on instead of
+   clearing it. Costs nothing: the row is aria-hidden, so the invisible text is
+   never announced, and what sits there is the last true thing the engine said
+   rather than a stale guess. */
+.status-live.status-row-blank,
+.status-clock.status-row-blank {
+  opacity: 0;
+}
+
+@keyframes status-row-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* The heading and the subtitle, which swap as a block at every phase boundary -
+   "Reading your file..." to "Compressing 2 of 5..." - and always have content,
+   so there is nothing for them to fade in from. Re-triggered on change by
+   `patchStatusRows`: only the incoming text animates, which is what keeps the
+   row from double-fading through a phase change. */
+.status-main.status-row-in,
+.status-sub.status-row-in {
+  animation: status-row-in 180ms ease-out;
+}
+
 /* The floor, for the states that don't come from `statusHTML` at all - the
    soft-cancel notice, the hard-cancel popup, and whatever a later phase adds
    without reading this file. Four rows at the paragraph's own size and

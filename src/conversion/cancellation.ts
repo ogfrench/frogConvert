@@ -132,6 +132,69 @@ export type ProgressPhase = "idle" | "converting";
 let lastShownTitle: string | null = null;
 let lastShownMessage: string | null = null;
 
+/** Rows that carry a phase heading and swap wholesale when the phase changes. */
+const PHASE_ROWS = [".status-main", ".status-sub"] as const;
+/** Rows that come and go mid-run, and so fade rather than blink. */
+const TRANSIENT_ROWS = [".status-live", ".status-clock"] as const;
+const BLANK_CLASS = "status-row-blank";
+const ENTER_CLASS = "status-row-in";
+
+/**
+ * Update the status block's rows in place, instead of rebuilding the paragraph.
+ *
+ * `p.innerHTML = messageHTML` is what made every change a hard cut. It destroys
+ * all four rows and creates four new ones, and an element that did not exist a
+ * frame ago has no previous opacity to transition from - so the engine's line
+ * snapped out of existence at every phase change, the clock appeared from
+ * nowhere at 20s, and no stylesheet could have softened either. Patching the
+ * rows that changed keeps the elements alive, which is the whole precondition
+ * for the fades in conversion.css.
+ *
+ * Returns false when either side is not a four-row status block, which is the
+ * caller's cue to replace the paragraph wholesale: `showConversionInProgress`
+ * is also called with plain copy (the soft-cancel notice, and the first paint
+ * before any block exists), and those have no rows to patch.
+ */
+function patchStatusRows(p: HTMLElement, messageHTML: string): boolean {
+    const incoming = document.createElement("div");
+    incoming.innerHTML = messageHTML;
+    // Validated up front rather than row by row: a patch that bailed halfway
+    // would leave the modal showing half of each of two phases.
+    for (const sel of [...PHASE_ROWS, ...TRANSIENT_ROWS]) {
+        if (!p.querySelector(sel) || !incoming.querySelector(sel)) return false;
+    }
+
+    for (const sel of PHASE_ROWS) {
+        const el = p.querySelector<HTMLElement>(sel)!;
+        const next = incoming.querySelector(sel)!.innerHTML;
+        if (el.innerHTML === next) continue;
+        el.innerHTML = next;
+        // Remove, force a reflow, re-add: an animation restarts only once the
+        // element has been seen without the class. A phase change happens a
+        // handful of times per run, so the forced layout costs nothing - and it
+        // is deliberately not done on the rows below, which change every tick.
+        el.classList.remove(ENTER_CLASS);
+        void el.offsetWidth;
+        el.classList.add(ENTER_CLASS);
+    }
+
+    for (const sel of TRANSIENT_ROWS) {
+        const el = p.querySelector<HTMLElement>(sel)!;
+        const text = incoming.querySelector(sel)!.textContent ?? "";
+        // Emptiness is the one change not written through. The outgoing text
+        // has to survive in order to fade, so the row is hidden with its last
+        // line still in it; a new line is written while the row is still at
+        // zero opacity, so the swap itself is never seen.
+        if (text) el.textContent = text;
+        el.classList.toggle(BLANK_CLASS, !text);
+    }
+
+    // The reassurance row is deliberately untouched. It is static copy for the
+    // life of the run, and #popup is aria-atomic, so rewriting it would
+    // re-announce the whole modal on every tick.
+    return true;
+}
+
 export function showConversionInProgress(
     messageHTML: string,
     title: string = modeCopy().titleIng,
@@ -176,7 +239,7 @@ export function showConversionInProgress(
                 p.classList.add("conversion-status");
             }
             if (messageHTML !== lastShownMessage) {
-                p.innerHTML = messageHTML;
+                if (!patchStatusRows(p, messageHTML)) p.innerHTML = messageHTML;
                 lastShownMessage = messageHTML;
             }
             // If the status paragraph was muted (from cancellation popup), make it normal

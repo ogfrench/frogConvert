@@ -509,6 +509,19 @@ export function initConvertButton() {
             }
 
             const conversionStartTime = performance.now();
+            /**
+             * The same moment on the wall clock, for the elapsed counter.
+             *
+             * Deliberately not `conversionStartTime`: that is
+             * `performance.now()`, which counts from page load, and the status
+             * handle measures against `Date.now()`. Subtracting one from the
+             * other yields the epoch itself - a counter reading tens of
+             * millions of minutes. The two exist side by side because they
+             * answer different questions: `performance.now()` is the monotonic
+             * basis `ensureMinDuration` needs, and this is the one the user is
+             * shown.
+             */
+            const conversionClockStart = Date.now();
             resetCancellation();
             _lastAppliedQuality = null;
             _lastQualityApplicable = true;
@@ -637,7 +650,18 @@ export function initConvertButton() {
                 setCurrentFileProgress(fileNum, fileCount);
                 const main = `Converting file ${fileNum} of ${fileCount}...`;
 
-                const status = startConversionStatus({ main, subtitle: formatConversionPath(conversionPath), title: _convertingTitle });
+                // One clock for the whole loop, not one per file. A handle per
+                // file is still right - the retry path below replaces it, and
+                // `findConversionPath` paints the modal itself between files,
+                // so a single long-lived handle would fight it - but the
+                // *clock* belongs to the batch. See `startedAt` in
+                // progressStatus.ts.
+                const status = startConversionStatus({
+                    main,
+                    subtitle: formatConversionPath(conversionPath),
+                    title: _convertingTitle,
+                    startedAt: conversionClockStart,
+                });
 
                 let result = await attemptConvertPath(
                     [inputFileData[i]],
@@ -669,7 +693,12 @@ export function initConvertButton() {
                         return;
                     }
                     setCanHardCancel(pathSupportsHardCancel(conversionPath));
-                    const retryStatus = startConversionStatus({ main, subtitle: formatConversionPath(conversionPath), title: _convertingTitle });
+                    const retryStatus = startConversionStatus({
+                        main,
+                        subtitle: formatConversionPath(conversionPath),
+                        title: _convertingTitle,
+                        startedAt: conversionClockStart,
+                    });
 
                     result = await attemptConvertPath(
                         [inputFileData[i]],

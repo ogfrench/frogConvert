@@ -207,15 +207,31 @@ export function statusHTML(
 ): string {
     // Reserved rather than removed - see the note above on the box breathing.
     const engineRow = restatesSubtitle(live, subtitle) ? "" : live;
+    /**
+     * An empty transient row is painted already hidden, so that the first time
+     * it gains content it fades in like every later change.
+     *
+     * Without this the initial paint - which builds the block rather than
+     * patching it - left the row at full opacity with nothing in it, and the
+     * engine's first line and the clock's arrival at 20s both snapped into
+     * existence. Those are the two most visible instances of the thing this is
+     * all for, so they cannot be the two that are exempt.
+     */
+    const blank = (v: string) => (v ? "" : " status-row-blank");
     return [
-        main,
-        `<span class="muted-text">${escapeHTML(subtitle)}</span>`,
+        // Wrapped, and the subtitle classed, so that `patchStatusRows` in
+        // cancellation.ts can address one row at a time. Replacing the whole
+        // paragraph is what made every change a hard cut: a row rebuilt from
+        // scratch has no previous state to transition from, so no amount of
+        // CSS could soften it.
+        `<span class="status-main">${main}</span>`,
+        `<span class="status-sub muted-text">${escapeHTML(subtitle)}</span>`,
         // aria-hidden, deliberately. #popup is role="status" aria-live="polite"
         // aria-atomic="true", so every write re-announces the whole modal. This
         // line changes once a second for the clock and faster still for a
         // percentage, which would turn a screen reader into a metronome. The
         // lines that carry meaning stay announced.
-        `<span class="status-live muted-text" aria-hidden="true">${escapeHTML(engineRow)}</span>`,
+        `<span class="status-live muted-text${blank(engineRow)}" aria-hidden="true">${escapeHTML(engineRow)}</span>`,
         // The reassurance is static text, so it costs a line and nothing else
         // and is announced once rather than re-read every tick. The clock rides
         // here rather than on the live line above: the reassurance is the only
@@ -224,7 +240,7 @@ export function statusHTML(
         // thing. Two spans rather than one string because the sentence stays
         // announced while the ticking half does not.
         `<span class="muted-text">${reassuranceLine()}</span>`
-        + `<span class="status-clock muted-text" aria-hidden="true">${escapeHTML(clock)}</span>`,
+        + `<span class="status-clock muted-text${blank(clock)}" aria-hidden="true">${escapeHTML(clock)}</span>`,
     ].join("<br>");
 }
 
@@ -253,10 +269,23 @@ export type StatusHandle = {
 };
 
 export function startConversionStatus(
-    { main, subtitle, title, phase = "converting" }:
-        { main: string; subtitle: string; title: string; phase?: ProgressPhase },
+    { main, subtitle, title, phase = "converting", startedAt = Date.now() }:
+        {
+            main: string; subtitle: string; title: string; phase?: ProgressPhase;
+            /**
+             * When this run's clock started, for a surface whose run outlives
+             * one handle. Convert builds a handle per file, so each one used to
+             * start its own clock from zero and {@link ELAPSED_AFTER_MS} then
+             * hid it again - a five-file batch showed the elapsed time for a
+             * few seconds per file and never past 00:20, which is the clock
+             * vanishing and reappearing rather than counting. Passing the
+             * loop's own start time makes it the batch's clock, which is the
+             * question being asked: how long have I been waiting, not how long
+             * has this file been going.
+             */
+            startedAt?: number;
+        },
 ): StatusHandle {
-    const startedAt = Date.now();
     let tickTimer: ReturnType<typeof setInterval> | null = null;
     let latest: ProgressEvent | undefined;
     let lastHTML: string | null = null;
@@ -264,12 +293,33 @@ export function startConversionStatus(
     let subLine = subtitle;
     let currentPhase: ProgressPhase = phase;
     let painted = false;
+    /**
+     * The last thing the engine actually said in this phase, kept for the
+     * moments when it says nothing.
+     *
+     * A progress event with nothing to report is not news that the work
+     * stopped, and it used to be rendered as if it were: `formatProgress`
+     * returns undefined for a bare `ratio: 0`, and FFmpeg resets its bar to
+     * zero at the start of every run including its own internal recovery
+     * retries, so the row blinked out and back mid-phase with the same engine
+     * working on the same file throughout. Holding the previous line is the
+     * honest reading - it is still the most recent true thing the engine said -
+     * and it is replaced by the next real event a second later either way.
+     *
+     * Cleared by `setPhase`, because across a phase boundary it is *not* still
+     * true: "Encoded 3s of 9s" under a heading that now says "Reading your
+     * file" is worse than an empty row. The emptiness there is real, and the
+     * fade in conversion.css is what stops it reading as a glitch.
+     */
+    let sticky = "";
 
     const render = () => {
+        const fresh = formatProgress(latest);
+        if (fresh) sticky = fresh;
         const html = statusHTML({
             main: mainLine,
             subtitle: subLine,
-            live: liveLine(formatProgress(latest)),
+            live: sticky,
             clock: elapsedSuffix(Date.now() - startedAt),
         });
         if (html === lastHTML) return;
@@ -324,8 +374,10 @@ export function startConversionStatus(
             if (opts?.phase) currentPhase = opts.phase;
             // A phase change invalidates the old engine detail: "Encoded 3s of
             // 9s" under a heading that now says "Reading your file" is worse
-            // than no line at all.
+            // than no line at all. The row fades out rather than blinking out;
+            // see `sticky` above and `.status-live` in conversion.css.
             latest = undefined;
+            sticky = "";
             render();
         },
     };

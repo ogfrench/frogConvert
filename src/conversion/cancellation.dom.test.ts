@@ -18,6 +18,7 @@ import {
     completeCancellation,
     showPartialDownloadPopup,
 } from "./cancellation.ts";
+import { statusHTML } from "./progressStatus.ts";
 
 vi.mock("../components/Popup/Popup.ts", () => ({
     showPopup: vi.fn((content: string | Node | Node[]) => {
@@ -550,5 +551,122 @@ describe("cancellation DOM bindings", () => {
 
             resetCancellation();
         });
+    });
+});
+
+describe("the status rows changing without being rebuilt", () => {
+    // Reported as: "text appears and disappears as the state of a conversion
+    // changes - it zaps off and back on and that empty moment is jarring."
+    //
+    // The box was already held still. What was not was the paragraph: every
+    // change did `p.innerHTML = messageHTML`, which destroys all four rows and
+    // builds four new ones. An element that did not exist a frame ago has no
+    // previous opacity to transition from, so no stylesheet could have softened
+    // any of it. These assert the precondition rather than the pixels, which is
+    // all jsdom can see: the elements survive a change, and a row that empties
+    // is hidden rather than cleared.
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <div id="popup-bg"></div>
+            <div id="popup" class="card-base"></div>
+        `;
+        ui.popupBackground = document.getElementById("popup-bg") as HTMLDivElement;
+        ui.popupBox = document.getElementById("popup") as HTMLDivElement;
+        resetCancellation();
+    });
+
+    afterEach(() => {
+        document.body.innerHTML = "";
+        vi.restoreAllMocks();
+    });
+
+    const block = (main: string, subtitle: string, live = "", clock = "") =>
+        statusHTML({ main, subtitle, live, clock });
+
+    const row = (sel: string) => ui.popupBox.querySelector<HTMLElement>(sel)!;
+
+    it("keeps the same elements across a phase change", () => {
+        showConversionInProgress(block("Reading your file...", "clip.mp4"));
+        const before = {
+            main: row(".status-main"),
+            sub: row(".status-sub"),
+            live: row(".status-live"),
+            clock: row(".status-clock"),
+        };
+
+        showConversionInProgress(block("Compressing your file...", "clip.mp4", "Encoded 3.0s of 9.0s"));
+
+        // Identity, not equality: these must be the very same nodes, or there
+        // is nothing for a transition to run on.
+        expect(row(".status-main")).toBe(before.main);
+        expect(row(".status-sub")).toBe(before.sub);
+        expect(row(".status-live")).toBe(before.live);
+        expect(row(".status-clock")).toBe(before.clock);
+        // And the content really did change.
+        expect(row(".status-main").textContent).toBe("Compressing your file...");
+        expect(row(".status-live").textContent).toBe("Encoded 3.0s of 9.0s");
+    });
+
+    it("hides an emptied live row rather than clearing it", () => {
+        showConversionInProgress(block("Compressing your file...", "clip.mp4", "Encoded 3.0s of 9.0s"));
+        expect(row(".status-live").classList.contains("status-row-blank")).toBe(false);
+
+        showConversionInProgress(block("Reading your file...", "next.mp4"));
+
+        // The outgoing text has to survive in order to fade, so it stays put
+        // and the row is marked instead. It is aria-hidden, so nothing reads it.
+        expect(row(".status-live").classList.contains("status-row-blank")).toBe(true);
+        expect(row(".status-live").textContent).toBe("Encoded 3.0s of 9.0s");
+        expect(row(".status-live").getAttribute("aria-hidden")).toBe("true");
+    });
+
+    it("brings a row back by unhiding it, with the new text already in place", () => {
+        showConversionInProgress(block("Compressing your file...", "clip.mp4", "Encoded 3.0s of 9.0s"));
+        showConversionInProgress(block("Reading your file...", "next.mp4"));
+        showConversionInProgress(block("Compressing your file...", "next.mp4", "Encoded 0.5s of 20.0s"));
+
+        expect(row(".status-live").classList.contains("status-row-blank")).toBe(false);
+        expect(row(".status-live").textContent).toBe("Encoded 0.5s of 20.0s");
+    });
+
+    it("hides the clock until the run is long enough to have one", () => {
+        showConversionInProgress(block("Working", "a.pdf"));
+        expect(row(".status-clock").classList.contains("status-row-blank")).toBe(true);
+
+        showConversionInProgress(block("Working", "a.pdf", "", " · 00:45"));
+        expect(row(".status-clock").classList.contains("status-row-blank")).toBe(false);
+        expect(row(".status-clock").textContent).toBe(" · 00:45");
+    });
+
+    it("marks a changed phase row so its fade can be re-triggered", () => {
+        showConversionInProgress(block("Reading your file...", "clip.mp4"));
+        showConversionInProgress(block("Compressing your file...", "clip.mp4"));
+        expect(row(".status-main").classList.contains("status-row-in")).toBe(true);
+    });
+
+    it("leaves the reassurance row alone, which is what keeps it unannounced", () => {
+        // #popup is aria-atomic, so a row rewritten on every tick re-announces
+        // the whole modal. The reassurance is static for the life of the run.
+        showConversionInProgress(block("Working", "a.pdf", "Page 1 of 9"));
+        const tail = ui.popupBox.querySelector("p")!.lastElementChild!.previousElementSibling!;
+        showConversionInProgress(block("Working", "a.pdf", "Page 2 of 9"));
+        expect(ui.popupBox.querySelector("p")!.lastElementChild!.previousElementSibling).toBe(tail);
+    });
+
+    it("still replaces the paragraph wholesale for plain copy", () => {
+        // showConversionInProgress is also called with app copy that is not a
+        // status block at all - the soft-cancel notice, and the engines-loading
+        // notice. Those have no rows to patch.
+        showConversionInProgress(block("Working", "a.pdf", "Page 1 of 9"));
+        showConversionInProgress("Wrapping up...");
+        expect(ui.popupBox.querySelector("p")?.innerHTML).toBe("Wrapping up...");
+        expect(ui.popupBox.querySelector(".status-live")).toBeNull();
+    });
+
+    it("keeps the row count at four through a patch", () => {
+        showConversionInProgress(block("Reading your file...", "clip.mp4"));
+        showConversionInProgress(block("Compressing your file...", "clip.mp4", "Encoded 3.0s of 9.0s", " · 00:45"));
+        const p = ui.popupBox.querySelector("p")!;
+        expect(p.innerHTML.split("<br>").length).toBe(4);
     });
 });

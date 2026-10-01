@@ -320,7 +320,13 @@ describe("the row count, which is the modal's height", () => {
         // An omitted row and an empty one read the same to a user and differ by
         // ~22px of modal, which is the whole bug.
         const html = statusHTML({ main: "Reading your files...", subtitle: "getting ready to convert" });
-        expect(html).toContain('<span class="status-live muted-text" aria-hidden="true"></span>');
+        // Painted already hidden, so the first line the engine reports fades in
+        // rather than snapping into existence. The row is still *there*, which
+        // is what this test is about: an omitted row and an empty one read the
+        // same to a user and differ by ~22px of modal.
+        expect(html).toContain(
+            '<span class="status-live muted-text status-row-blank" aria-hidden="true"></span>',
+        );
         expect(rows(html)).toBe(4);
     });
 
@@ -402,5 +408,120 @@ describe("the status tick outliving its document", () => {
             vi.unstubAllGlobals();
             vi.useRealTimers();
         }
+    });
+});
+
+describe("the live row holding still", () => {
+    // The user-visible complaint this exists for: "text appears and disappears
+    // as the state of a conversion changes - it zaps off and back on and that
+    // empty moment is jarring." The box was already held still; the *text* in
+    // it was not.
+    const withOpenModal = (fn: () => void) => {
+        vi.useFakeTimers();
+        document.body.innerHTML = '<div id="popupBox" class="open"></div>';
+        painted.mockClear();
+        try { fn(); } finally {
+            document.body.innerHTML = "";
+            vi.useRealTimers();
+        }
+    };
+
+    const lastHTML = () => painted.mock.calls.at(-1)![0] as string;
+
+    it("keeps the last line when the engine reports nothing new", () => {
+        withOpenModal(() => {
+            const status = startConversionStatus({
+                main: "Compressing your file...", subtitle: "clip.mp4", title: "Busy",
+            });
+            status.update({ detail: "Encoded 12.4s of 47.0s" });
+            expect(lastHTML()).toContain("Encoded 12.4s of 47.0s");
+
+            // FFmpeg resets its bar to zero at the start of every run,
+            // including its own internal recovery retries. That is not news
+            // that the work stopped, and it used to blank the row.
+            status.update({ ratio: 0 });
+            expect(lastHTML()).toContain("Encoded 12.4s of 47.0s");
+
+            // An event carrying nothing at all says nothing either way.
+            status.update({});
+            expect(lastHTML()).toContain("Encoded 12.4s of 47.0s");
+            status.cancel();
+        });
+    });
+
+    it("still lets a real update through", () => {
+        withOpenModal(() => {
+            const status = startConversionStatus({
+                main: "Compressing your file...", subtitle: "clip.mp4", title: "Busy",
+            });
+            status.update({ detail: "Encoded 12.4s of 47.0s" });
+            status.update({ detail: "Encoded 31.8s of 47.0s" });
+            const html = lastHTML();
+            expect(html).toContain("Encoded 31.8s of 47.0s");
+            // Held, not accumulated: the row shows one line, not a history.
+            expect(html).not.toContain("Encoded 12.4s of 47.0s");
+            status.cancel();
+        });
+    });
+
+    it("drops the held line at a phase change, where it stops being true", () => {
+        withOpenModal(() => {
+            const status = startConversionStatus({
+                main: "Compressing your file...", subtitle: "clip.mp4", title: "Busy",
+            });
+            status.update({ detail: "Encoded 12.4s of 47.0s" });
+            // "Encoded 12.4s of 47.0s" under "Reading your file..." would be
+            // worse than an empty row. The fade is what stops the emptiness
+            // reading as a glitch; see conversion.css.
+            status.setPhase("Reading your file...", { subtitle: "next.mp4", phase: "idle" });
+            expect(lastHTML()).not.toContain("Encoded 12.4s of 47.0s");
+            // And a nothing-event after the phase change does not resurrect it.
+            status.update({ ratio: 0 });
+            expect(lastHTML()).not.toContain("Encoded 12.4s of 47.0s");
+            status.cancel();
+        });
+    });
+});
+
+describe("whose clock the elapsed counter is", () => {
+    const withOpenModal = (fn: () => void) => {
+        vi.useFakeTimers();
+        document.body.innerHTML = '<div id="popupBox" class="open"></div>';
+        painted.mockClear();
+        try { fn(); } finally {
+            document.body.innerHTML = "";
+            vi.useRealTimers();
+        }
+    };
+
+    const lastHTML = () => painted.mock.calls.at(-1)![0] as string;
+
+    it("counts from the run's start, not from this handle's", () => {
+        withOpenModal(() => {
+            // Convert builds a handle per file. Each one used to start its own
+            // clock from zero, so on a five-file batch the counter appeared for
+            // a few seconds per file and never passed 00:20 - the same
+            // disappearing text, one row down.
+            const status = startConversionStatus({
+                main: "Converting file 4 of 5...",
+                subtitle: "PNG → WEBP",
+                title: "Converting",
+                startedAt: Date.now() - (ELAPSED_AFTER_MS + 40_000),
+            });
+            expect(lastHTML()).toMatch(/01:00/);
+            status.cancel();
+        });
+    });
+
+    it("still defaults to its own start when no run clock is given", () => {
+        withOpenModal(() => {
+            const status = startConversionStatus({
+                main: "Working", subtitle: "a.pdf", title: "Busy",
+            });
+            expect(lastHTML()).not.toMatch(/\d\d:\d\d/);
+            vi.advanceTimersByTime(ELAPSED_AFTER_MS + 1_000);
+            expect(lastHTML()).toMatch(/\d\d:\d\d/);
+            status.cancel();
+        });
     });
 });

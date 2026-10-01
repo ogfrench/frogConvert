@@ -898,6 +898,12 @@ body.ws-keyboard-mode .ws-sidebar-move-row {
   font-size: var(--text-md);
   color: var(--muted-foreground);
   text-align: center;
+  /* Two lines reserved. This row grows a live progress segment once the
+     compression pass starts reporting, and at narrow widths that is the
+     difference between one wrapped line and two - so the popup used to change
+     height partway through a job it had already started. Same reasoning as
+     `.conversion-status` in conversion.css, which floors the shared modal. */
+  min-height: calc(2 * var(--leading-normal) * 1em);
 }
 
 .ws-spinner {

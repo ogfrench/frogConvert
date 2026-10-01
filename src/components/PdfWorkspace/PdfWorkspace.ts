@@ -538,6 +538,14 @@ async function setPdfResult(
   let ticker: ReturnType<typeof setInterval> | null = null;
   let latest: ProgressEvent | undefined;
   let position = '';
+  /**
+   * The last thing Ghostscript actually said, held for the ticks where it says
+   * nothing. Same reasoning as `sticky` in progressStatus.ts, and it matters
+   * more here: this surface is one centred line rather than a stack of rows, so
+   * a segment that comes and goes does not just blink, it shoves the rest of
+   * the sentence sideways.
+   */
+  let sticky = '';
   const paint = () => {
     if (!note) return;
     // The clock sits after the reassurance, matching the modal: the engine's
@@ -546,7 +554,9 @@ async function setPdfResult(
     // single line rather than the modal's stack, so "after" is literal here.
     // `elapsedSuffix` owns the "long enough to be worth saying" threshold, so
     // this line no longer starts its clock at 00:00 while the modal waits.
-    const live = liveLine(formatProgress(latest));
+    const fresh = formatProgress(latest);
+    if (fresh) sticky = fresh;
+    const live = liveLine(sticky);
     const tail = reassuranceLine() + elapsedSuffix(Date.now() - startedAt);
     const line = live ? `${live} · ${tail}` : tail;
     note.textContent = position ? `${position} · ${line}` : line;
