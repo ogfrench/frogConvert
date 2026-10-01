@@ -147,3 +147,73 @@ describe('registerPdfExtractTool', () => {
         expect(writeFile).toHaveBeenCalledTimes(2);
     });
 });
+
+describe('pdf_extract, outputDir and the names written into it', () => {
+    beforeEach(() => {
+        vi.mocked(writeFile).mockReset();
+        delete process.env.FROGCONVERT_SANDBOX_ROOT;
+    });
+
+    const extractTo = async (args: Record<string, unknown>) => {
+        const src = await makePdf(3);
+        const server = makeMockServer();
+        registerPdfExtractTool(server);
+        return getCallback(server)({
+            input: { base64Bytes: b64(src), fileName: 'src.pdf' },
+            pageNums: [1],
+            groupAsOne: false,
+            ...args,
+        });
+    };
+
+    const written = () => vi.mocked(writeFile).mock.calls.map(c => String(c[0]));
+
+    it('refuses an outputDir outside the sandbox root', async () => {
+        process.env.FROGCONVERT_SANDBOX_ROOT = '/srv/frog';
+        const result = await extractTo({ outputDir: '/etc/cron.d' });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toMatch(/escapes FROGCONVERT_SANDBOX_ROOT/);
+        expect(writeFile).not.toHaveBeenCalled();
+    });
+
+    it('keeps a traversing baseName inside outputDir', async () => {
+        // The sharper half of this: the escape rides in the *file name*, not
+        // the directory, because baseName is caller-supplied and is built into
+        // every output name. `/srv/frog/out` is a perfectly legitimate
+        // outputDir, so a sandbox check on it alone sees nothing wrong.
+        process.env.FROGCONVERT_SANDBOX_ROOT = '/srv/frog';
+        const result = await extractTo({
+            outputDir: '/srv/frog/out',
+            baseName: '../../../etc/cron.d/payload',
+        });
+        expect(result.isError).toBeFalsy();
+        for (const path of written()) {
+            expect(path.startsWith('/srv/frog/out/')).toBe(true);
+            expect(path).not.toMatch(/etc\/cron\.d/);
+        }
+        expect(written()).toEqual(['/srv/frog/out/payload_page_1.pdf']);
+    });
+
+    it('strips a traversing baseName even with no sandbox configured', async () => {
+        // The containment check is opt-in; keeping a write inside the directory
+        // the caller actually named is not.
+        const result = await extractTo({
+            outputDir: '/tmp/out',
+            baseName: '../../escaped',
+        });
+        expect(result.isError).toBeFalsy();
+        expect(written()).toEqual(['/tmp/out/escaped_page_1.pdf']);
+    });
+
+    it('writes an ordinary baseName where it was asked to', async () => {
+        const result = await extractTo({ outputDir: '/tmp/out', baseName: 'report' });
+        expect(result.isError).toBeFalsy();
+        expect(written()).toEqual(['/tmp/out/report_page_1.pdf']);
+    });
+
+    it('reports an out-of-range page as a page problem, not a library one', async () => {
+        const result = await extractTo({ pageNums: [999] });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toMatch(/Page 999 does not exist in this PDF, which has 3 pages/);
+    });
+});

@@ -8,7 +8,7 @@ import type { McpContext } from "../core/types.ts";
 
 import { findFirstPath, libreofficeHint } from "../core/utils.ts";
 import { convertViaBrowser } from "../core/browserBridge.ts";
-import { resolveBytes } from "../core/fileInput.ts";
+import { resolveBytes, enforceSandboxedPath } from "../core/fileInput.ts";
 import { resolveEffectiveQuality } from "../../core/compression/resolveEffectiveQuality.ts";
 import { appendSupportContact, toUserErrorInfo } from "../../components/utils/index.ts";
 
@@ -18,13 +18,21 @@ async function serializeResults(files: FileData[], outputFilePath?: string) {
 
     if (outputFilePath && files.length > 0) {
         const firstFile = files[0];
-        const outDir = dirname(outputFilePath);
+        // Checked once, here, rather than at each write: every path below is
+        // derived from this one. FROGCONVERT_SANDBOX_ROOT is documented as
+        // containment for untrusted clients reaching the local surfaces, and
+        // was honoured on the REST side only - so the MCP server wrote
+        // wherever the caller pointed it.
+        const safeOut = enforceSandboxedPath(outputFilePath);
+        const outDir = dirname(safeOut);
         const paths: string[] = [];
 
-        await writeFile(outputFilePath, firstFile.bytes);
-        paths.push(outputFilePath);
+        await writeFile(safeOut, firstFile.bytes);
+        paths.push(safeOut);
 
         for (let i = 1; i < files.length; i++) {
+            // basename() already here, and still right: a handler-produced
+            // name must not carry path segments out of outDir.
             const extra = join(outDir, basename(files[i].name));
             await writeFile(extra, files[i].bytes);
             paths.push(extra);

@@ -64,7 +64,13 @@ export function enforceSandboxedPath(inputPath: string): string {
     const rootResolved = resolvePath(root);
     const rel = relativePath(rootResolved, resolved);
     if (rel.startsWith("..") || isAbsolute(rel)) {
-        throw new Error("Path escapes FROGCONVERT_SANDBOX_ROOT");
+        // ValidationError, matching the relative branch above. This threw a
+        // plain Error, so the two halves of one check reported differently: a
+        // relative escape came back as its own message, while an absolute one -
+        // the likelier of the two, since both surfaces document these fields as
+        // absolute - was normalised into the generic failure text with a
+        // support-contact line stapled on.
+        throw new ValidationError("Path escapes FROGCONVERT_SANDBOX_ROOT");
     }
     return resolved;
 }

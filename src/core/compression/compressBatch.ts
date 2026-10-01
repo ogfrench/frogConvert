@@ -239,6 +239,12 @@ export async function compressBatch(
         if (!ready || !inFmt) {
             for (const { index, input } of group.items) passthrough(index, input, "unsupported");
             done += group.items.length;
+            // Reported, not just counted. Without this the surface's position
+            // never heard about a whole group - a mixed batch whose video
+            // engine failed to load sat on "file 1 of 9" until the next group's
+            // first file, then jumped - and the one engine most likely to fail
+            // to load is the 32 MB one.
+            onProgress?.(done, total, "");
             continue;
         }
 

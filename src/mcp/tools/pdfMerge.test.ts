@@ -153,3 +153,52 @@ describe('registerPdfMergeTool', () => {
         expect(writeFile).toHaveBeenCalledWith('/tmp/merged.pdf', expect.any(Uint8Array));
     });
 });
+
+describe('pdf_merge and the sandbox root', () => {
+    // SECURITY.md says FROGCONVERT_SANDBOX_ROOT "pins those paths to one root"
+    // for "the REST API and MCP". It was true of the REST routes and of exactly
+    // one MCP tool, so the claim did not hold for this one.
+    beforeEach(() => {
+        vi.mocked(writeFile).mockReset();
+        delete process.env.FROGCONVERT_SANDBOX_ROOT;
+    });
+
+    const mergeTo = async (outputFilePath: string) => {
+        const a = await makePdf(1);
+        const server = makeMockServer();
+        registerPdfMergeTool(server);
+        return getCallback(server)({
+            inputs: [{ base64Bytes: b64(a), fileName: 'a.pdf' }],
+            outputFilePath,
+        });
+    };
+
+    it('refuses a write outside the root, and writes nothing', async () => {
+        process.env.FROGCONVERT_SANDBOX_ROOT = '/srv/frog';
+        const result = await mergeTo('/etc/cron.d/payload');
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toMatch(/escapes FROGCONVERT_SANDBOX_ROOT/);
+        expect(writeFile).not.toHaveBeenCalled();
+    });
+
+    it('refuses a traversal dressed up as a path inside the root', async () => {
+        process.env.FROGCONVERT_SANDBOX_ROOT = '/srv/frog';
+        const result = await mergeTo('/srv/frog/../../etc/cron.d/payload');
+        expect(result.isError).toBe(true);
+        expect(writeFile).not.toHaveBeenCalled();
+    });
+
+    it('allows a write inside the root', async () => {
+        process.env.FROGCONVERT_SANDBOX_ROOT = '/srv/frog';
+        const result = await mergeTo('/srv/frog/out/merged.pdf');
+        expect(result.isError).toBeFalsy();
+        expect(writeFile).toHaveBeenCalledOnce();
+        expect(JSON.parse(result.content[0].text).savedTo).toEqual(['/srv/frog/out/merged.pdf']);
+    });
+
+    it('leaves any path alone when no root is configured', async () => {
+        const result = await mergeTo('/tmp/merged.pdf');
+        expect(result.isError).toBeFalsy();
+        expect(writeFile).toHaveBeenCalledOnce();
+    });
+});

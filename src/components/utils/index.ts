@@ -163,6 +163,16 @@ export function toUserErrorInfo(err: unknown): UserErrorInfo {
             kind: "input_issue",
         };
     }
+    // A page that isn't in the document. `assertPagesExist` in
+    // src/tools/pdfExtract.ts already phrases this for a person - "Page 999
+    // does not exist in this PDF, which has 3 pages." - and names the two
+    // numbers the caller needs in order to fix the request. The generic
+    // fallback at the end of this function replaced all of it with "Something
+    // went wrong while converting this file", which is how a precise message
+    // written for exactly this case never reached any surface.
+    if (/\bdoe?s? not exist in this PDF\b/i.test(text)) {
+        return { message: text, kind: "input_issue" };
+    }
     if (/^not found$/i.test(text)
         || /no conversion path|no path found|conversion isn'?t available|not found or not (readable|writable)|input format .+ not found|output format .+ not found|doesn'?t support/i.test(text)
         // WASM-handler delegate / missing-module errors are capability gaps, not

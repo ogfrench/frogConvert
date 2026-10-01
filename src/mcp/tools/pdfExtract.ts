@@ -1,9 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { writeFile } from "fs/promises";
-import { join } from "path";
+import { basename, join } from "path";
 import { extract } from "../../tools/pdfExtract.ts";
-import { resolveBytes, stripExt, fileInputSchema, ValidationError } from "../core/fileInput.ts";
+import { resolveBytes, stripExt, enforceSandboxedPath, fileInputSchema, ValidationError } from "../core/fileInput.ts";
 import { toUserErrorText, appendSupportContact, FEEDBACK_CONTACT_TEXT } from "../../components/utils/index.ts";
 
 export function registerPdfExtractTool(server: McpServer) {
@@ -24,8 +24,21 @@ export function registerPdfExtractTool(server: McpServer) {
                 const results = await extract(bytes, pageNums, effectiveBase, groupAsOne);
 
                 if (outputDir) {
+                    // Both guards, matching handlePdfExtract in
+                    // api/routes/pdf.ts. The REST route has had them since it
+                    // was written and this one never did, so FROGCONVERT_SANDBOX_ROOT
+                    // contained one of the two surfaces it is documented to
+                    // contain - and a containment control that half-holds is
+                    // worse than none, because the operator who set it believes
+                    // otherwise.
+                    const safeDir = enforceSandboxedPath(outputDir);
                     const paths = await Promise.all(results.map(async f => {
-                        const p = join(outputDir, f.name);
+                        // basename() on top of the sandbox check, because the
+                        // traversal rides in the *file name* here rather than
+                        // the directory: `baseName` is caller-supplied and is
+                        // built into every output name, so "../../x" escapes
+                        // safeDir without outputDir ever being suspicious.
+                        const p = join(safeDir, basename(f.name));
                         await writeFile(p, f.bytes);
                         return p;
                     }));

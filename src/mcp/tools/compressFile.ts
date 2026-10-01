@@ -3,7 +3,7 @@ import { z } from "zod";
 import { writeFile } from "fs/promises";
 import mime from "mime";
 import type { McpContext } from "../core/types.ts";
-import { resolveBytes } from "../core/fileInput.ts";
+import { resolveBytes, enforceSandboxedPath } from "../core/fileInput.ts";
 import { compressForAgents, type AgentCompressInput } from "../../core/compression/compressForAgents.ts";
 import { compressInBrowser } from "../../api/compressInBrowser.ts";
 
@@ -93,7 +93,11 @@ export function registerCompressFileTool(server: McpServer, initPromise: Promise
                 if (r.reason) report.reason = r.reason;
                 if (r.warning) report.warning = r.warning;
 
-                const target = single ? outputFilePath : undefined;
+                // See enforceSandboxedPath: containment was honoured on the
+                // REST side only, so this surface wrote wherever it was told.
+                const target = single && outputFilePath
+                    ? enforceSandboxedPath(outputFilePath)
+                    : undefined;
                 if (target) {
                     await writeFile(target, r.bytes);
                     report.savedTo = target;
