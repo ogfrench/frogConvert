@@ -6,7 +6,7 @@
 # Editor and the docs page with real files:
 #
 #   8 violations  starting point; compressing a JPEG never completed at all
-#   -> 6          inline `onload` handlers replaced by /async-css.js
+#   -> 6          inline `onload` handlers replaced by a hashed inline script
 #   -> 4          inline <script> blocks covered by build-time sha256
 #   -> 0          `unsafe-eval` granted
 #

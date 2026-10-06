@@ -373,9 +373,14 @@ export default defineConfig({
             '<link rel="preload" href="$1" as="style" data-async-css>' +
             '<noscript><link rel="stylesheet" href="$1"></noscript>'
           );
-          // Only pay for the script on pages that actually got a preload.
+          // Inline, not a separate file: styling must not depend on a second
+          // request. When /async-css.js failed to load (blocked, flaky network,
+          // a shell served from cache) the preloads never became stylesheets and
+          // the page rendered fully unstyled. The csp-hashes plugin hashes inline
+          // scripts, so this needs no 'unsafe-inline'. It sits last in <head>, so
+          // every link above it already exists when it runs.
           return out.includes('data-async-css')
-            ? out.replace('</head>', '  <script src="/async-css.js" defer></script>\n</head>')
+            ? out.replace('</head>', '  <script>for(const l of document.querySelectorAll("link[data-async-css]"))l.rel="stylesheet"</script>\n</head>')
             : out;
         }
       }
