@@ -356,31 +356,6 @@ export default defineConfig({
     },
     apiServerPlugin(),
     {
-      name: 'async-css',
-      transformIndexHtml: {
-        order: 'post',
-        handler(html, { filename }) {
-          // Only apply to the main page - docs/headless use DOMContentLoaded and can't handle async CSS.
-          if (filename.includes('/docs/') || filename.includes('/headless/')) return html;
-          // Convert render-blocking <link rel="stylesheet"> for built assets to async pattern.
-          // The FOUC prevention script polls for --background via rAF, so async CSS is safe.
-          // The flip to rel="stylesheet" is done by /async-css.js rather than an
-          // inline `onload` attribute. An inline handler cannot be allowed by any
-          // CSP without `unsafe-inline`, and it accounted for two of the eight
-          // violations measured when the shipped policy was tested as enforcing.
-          const out = html.replace(
-            /<link rel="stylesheet" crossorigin href="(\/assets\/[^"]+\.css)">/g,
-            '<link rel="preload" href="$1" as="style" data-async-css>' +
-            '<noscript><link rel="stylesheet" href="$1"></noscript>'
-          );
-          // Only pay for the script on pages that actually got a preload.
-          return out.includes('data-async-css')
-            ? out.replace('</head>', '  <script src="/async-css.js" defer></script>\n</head>')
-            : out;
-        }
-      }
-    },
-    {
       /**
        * Emits the static pages: one per doc, one per format hub, one per
        * conversion pair, plus per-mode copies of index.html and a generated
