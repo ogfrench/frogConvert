@@ -356,36 +356,6 @@ export default defineConfig({
     },
     apiServerPlugin(),
     {
-      name: 'async-css',
-      transformIndexHtml: {
-        order: 'post',
-        handler(html, { filename }) {
-          // Only apply to the main page - docs/headless use DOMContentLoaded and can't handle async CSS.
-          if (filename.includes('/docs/') || filename.includes('/headless/')) return html;
-          // Convert render-blocking <link rel="stylesheet"> for built assets to async pattern.
-          // The FOUC prevention script polls for --background via rAF, so async CSS is safe.
-          // The flip to rel="stylesheet" is done by /async-css.js rather than an
-          // inline `onload` attribute. An inline handler cannot be allowed by any
-          // CSP without `unsafe-inline`, and it accounted for two of the eight
-          // violations measured when the shipped policy was tested as enforcing.
-          const out = html.replace(
-            /<link rel="stylesheet" crossorigin href="(\/assets\/[^"]+\.css)">/g,
-            '<link rel="preload" href="$1" as="style" data-async-css>' +
-            '<noscript><link rel="stylesheet" href="$1"></noscript>'
-          );
-          // Inline, not a separate file: styling must not depend on a second
-          // request. When /async-css.js failed to load (blocked, flaky network,
-          // a shell served from cache) the preloads never became stylesheets and
-          // the page rendered fully unstyled. The csp-hashes plugin hashes inline
-          // scripts, so this needs no 'unsafe-inline'. It sits last in <head>, so
-          // every link above it already exists when it runs.
-          return out.includes('data-async-css')
-            ? out.replace('</head>', '  <script>for(const l of document.querySelectorAll("link[data-async-css]"))l.rel="stylesheet"</script>\n</head>')
-            : out;
-        }
-      }
-    },
-    {
       /**
        * Emits the static pages: one per doc, one per format hub, one per
        * conversion pair, plus per-mode copies of index.html and a generated
