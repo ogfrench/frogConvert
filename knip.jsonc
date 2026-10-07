@@ -14,6 +14,8 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "entry": [
+    // Referenced only by already-deployed HTML (see the file's own header).
+    "public/async-css.js",
     // The `boot-recovery` plugin in vite.config.js reads this file as text and
     // inlines it into the <head> of every HTML entry, so the only reference to
     // it is an fs.readFileSync path in the config. It has to be a standalone
