@@ -17,6 +17,8 @@ Compression is also available over MCP, REST and CLI (`POST /compress`, `compres
 
 ## Also in this recut
 
+**The app no longer loads unstyled first, and updates apply on their own.** Stylesheets were activated by a separate script while the page was revealed after a fixed 3 seconds, so on a slow connection you saw the whole app unstyled before the CSS arrived. They are now ordinary blocking stylesheets. The "New version available" banner is gone: a new version applies and reloads by itself, so nobody stays pinned to an old build. A tab that is mid-conversion when an update lands will reload and lose that work.
+
 **The documentation, every format and every conversion now has its own page.** 118 prerendered pages: one per document at `/docs/<slug>/`, 45 format hubs at `/formats/<ext>/`, 59 conversion guides at `/convert/<from>-to-<to>/`. All 13 documents previously shared a single URL whose indexable body was the word `Loading`, because the docs app fetches its markdown at runtime. `/docs/architecture/` now serves 3,157 words with no JavaScript executed, diagrams included: those are rendered to SVG at build time rather than left as diagram source.
 
 **Conversions that had never worked now do.** Native LibreOffice hung on every document conversion on Windows, because the user-profile URI was percent-encoded into `C%3A`, and LibreOffice does not reject that URI, it hangs on it. It also declared it could read EPUB, which it cannot, and that broke `md` to `pdf` as collateral. `pdf` to `docx` failed outside the browser because the pdf.js worker was resolved from a web path only a server can provide, so MCP, the REST API and the CLI could not do it at all. The conversion verifier goes from 44 pairs converting to 52, with nothing failing.
