@@ -1,5 +1,3 @@
-import { Icons } from "../components/icons.ts";
-
 export interface PwaEnv {
   isDesktop: boolean;
   hasWindow: boolean;
@@ -40,20 +38,13 @@ export function registerPWA(env: PwaEnv = defaultEnv()): void {
     try {
       const updateSW = registerSW({
         onNeedRefresh() {
-          const reload = () => {
-            void Promise.resolve(updateSW(true)).catch((e) => {
-              console.warn("[pwa] updateSW(true) failed:", e);
-            });
-          };
-          showUpdateAvailableNotice(reload);
-          // Dismissal is per-session, not permanent. registerSW only calls
-          // onNeedRefresh once per page load, so without this a user who
-          // dismissed the notice kept the old precached index.html - and
-          // therefore the old asset hashes - until they happened to reload.
-          // Re-offering when they come back to the tab bounds that to one
-          // visit rather than indefinitely.
-          document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === "visible") showUpdateAvailableNotice(reload);
+          // Applied straight away rather than offered behind a prompt. A
+          // prompt left returning users on the old shell until they clicked
+          // it, and a shell broken badly enough (an unstyled page) could not
+          // show the prompt legibly. The cost is accepted: a tab that is
+          // mid-conversion when an update lands reloads and loses that work.
+          void Promise.resolve(updateSW(true)).catch((e) => {
+            console.warn("[pwa] updateSW(true) failed:", e);
           });
         },
         onRegisterError(error) {
@@ -73,33 +64,3 @@ export function registerPWA(env: PwaEnv = defaultEnv()): void {
   });
 }
 
-function showUpdateAvailableNotice(onReload: () => void): void {
-  if (document.getElementById("pwa-update-notice")) return;
-
-  const notice = document.createElement("div");
-  notice.id = "pwa-update-notice";
-  notice.className = "convert-notice convert-notice-pwa-update";
-  notice.setAttribute("role", "status");
-  notice.setAttribute("aria-live", "polite");
-
-  notice.innerHTML = `
-    <button type="button" class="close-btn close-btn-md convert-notice-dismiss"
-            aria-label="Dismiss">${Icons.x()}</button>
-    <div class="convert-notice-body">
-      <strong class="convert-notice-title">New version available</strong>
-      <p class="convert-notice-text">Reload to get the latest converters and fixes.</p>
-    </div>
-    <button type="button" class="convert-notice-link" data-action="reload">
-      Reload now ${Icons.arrowRight()}
-    </button>
-  `;
-
-  notice.querySelector<HTMLButtonElement>("[data-action=reload]")?.addEventListener("click", () => {
-    onReload();
-  });
-  notice.querySelector<HTMLButtonElement>(".convert-notice-dismiss")?.addEventListener("click", () => {
-    notice.remove();
-  });
-
-  document.body.appendChild(notice);
-}

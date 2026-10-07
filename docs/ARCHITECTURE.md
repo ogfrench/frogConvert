@@ -257,7 +257,7 @@ The custom share-target fetch listener is installed **before** Workbox's `regist
 
 ### Update flow
 
-`registerType: 'prompt'` - the SW never silently `skipWaiting()`. When a new SW is detected, [src/pwa/registerSW.ts](../src/pwa/registerSW.ts) shows a dismissable "New version available - Reload now" banner. The user controls when reload happens.
+Updates apply automatically. `registerType` is still `'prompt'` (so the SW waits rather than calling `skipWaiting()` on install), but [src/pwa/registerSW.ts](../src/pwa/registerSW.ts) answers `onNeedRefresh` by applying the waiting SW and reloading at once, with no banner. A tab that is mid-conversion when an update lands loses that work; that cost is accepted so no returning user can stay pinned to an old shell.
 
 ### Desktop carve-out
 

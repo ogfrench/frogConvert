@@ -143,19 +143,6 @@
   }
 }
 
-/* --- PWA update banner (service-worker prompt) ---
-   Positioning + entrance for the floating "New version available" card. */
-.convert-notice-pwa-update {
-  position: fixed;
-  right: var(--space-4);
-  left: var(--space-4);
-  bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
-  max-width: 28rem;
-  margin: 0 auto;
-  z-index: var(--z-toast);
-  animation: slide-up-fade 0.35s var(--ease-out-expo) forwards;
-}
-
 @media only screen and (max-width: 800px) {
   #convert-card {
     margin: var(--space-6) auto 0;
