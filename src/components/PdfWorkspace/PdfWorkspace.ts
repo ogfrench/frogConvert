@@ -1,6 +1,6 @@
 import './PdfWorkspace.css';
 import Sortable from 'sortablejs';
-import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { PDFDocument, StandardFonts, degrees } from 'pdf-lib';
 import { loadEditablePdf } from '../../tools/pdfSource.ts';
 import type { PageEntry, SourceFile } from '../../tools/types.ts';
 import { getNextFileId, bumpNextFileId, getNextPageId, bumpNextPageId } from '../../tools/types.ts';
@@ -142,6 +142,9 @@ function syncFileDerivedState(): void {
 // derived page indices are invalid.
 function onFilesReordered(): void {
   organizeInitialized = false;
+  // Rebuilt from the new file order on the next Organize visit. Left in
+  // place, the old pages were saved and restored as if still current.
+  pages = [];
   selected.clear();
   // The Organize pages are rebuilt from the new order; an undo snapshot
   // would bring back the old order along with the old pages.
@@ -825,7 +828,9 @@ export function initPdfWorkspace() {
 }
 
 function handleGlobalKeydown(e: KeyboardEvent) {
-  if (!initialized || activeTool !== 'organize' || !pages.length) return;
+  if (!initialized || activeTool !== 'organize') return;
+  // An empty grid still answers Ctrl+Z when deleting every page emptied it.
+  if (!pages.length && !history.length) return;
   const t = e.target as HTMLElement | null;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
 
@@ -3409,23 +3414,25 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
     .filter(i => pages[i] && (pages[i].type === 'blank' || files.some(f => f.id === pages[i].sourceFileId)))
     .sort((a, b) => a - b);
   if (files.length === 0 || sorted.length === 0) return;
-  const extractCount = sorted.length;
   // Blank pages have no source file to split by, so a blank-only selection
-  // can only come out as one combined document.
+  // can only come out as one combined document, and one file per page skips
+  // them - count what is actually produced.
   if (sorted.every(i => pages[i].type === 'blank')) groupAsOne = true;
+  const extractCount = groupAsOne ? sorted.length : sorted.filter(i => pages[i].type !== 'blank').length;
   // Only the per-source branch below builds its output incrementally; the
   // combined branch produces one document and has no partial state to keep.
   const allResults: { name: string; bytes: Uint8Array }[] = [];
   const zipName = `extracted-pages-${timestampForFilename()}.zip`;
   await runWithPopup('Extracting', 'Pulling the selected pages into a new file. Almost there.', 'Extract failed. The PDF might be damaged. Try re-exporting it from the source app.',
     async (signal) => {
-      const byFile = new Map<number, number[]>();
+      const byFile = new Map<number, { pageNums: number[]; rotations: number[] }>();
       for (const idx of sorted) {
         const page = pages[idx];
         if (page.type === 'blank') continue;
-        const arr = byFile.get(page.sourceFileId) ?? [];
-        arr.push(page.sourcePageNum);
-        byFile.set(page.sourceFileId, arr);
+        const entry = byFile.get(page.sourceFileId) ?? { pageNums: [], rotations: [] };
+        entry.pageNums.push(page.sourcePageNum);
+        entry.rotations.push(page.rotation);
+        byFile.set(page.sourceFileId, entry);
       }
 
       const firstName = files[0].name.replace(/\.pdf$/i, '');
@@ -3438,7 +3445,8 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
           const page = pages[sorted[i]];
           if (page.type === 'blank') {
             const size = page.blankPageSize ?? { width: 595.28, height: 841.89 };
-            output.addPage([size.width, size.height]);
+            const blank = output.addPage([size.width, size.height]);
+            if (page.rotation) blank.setRotation(degrees(page.rotation));
             continue;
           }
           if (!loadedSources.has(page.sourceFileId)) {
@@ -3454,6 +3462,9 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
           }
           const source = loadedSources.get(page.sourceFileId)!;
           const [copied] = await output.copyPages(source, [page.sourcePageNum - 1]);
+          // Same as Export (src/tools/pdfOrganize.ts): Organize's rotation
+          // adds to the page's own.
+          if (page.rotation) copied.setRotation(degrees((copied.getRotation().angle + page.rotation) % 360));
           output.addPage(copied);
         }
         const outputBytes = new Uint8Array(await output.save());
@@ -3461,10 +3472,10 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
         const name = `${firstName}${suffix}.pdf`;
         return await setPdfResult([{ bytes: outputBytes, name }], null);
       } else {
-        for (const [fid, pageNums] of byFile) {
+        for (const [fid, { pageNums, rotations }] of byFile) {
           const sf = files.find(f => f.id === fid)!;
           const baseName = sf.name.replace(/\.pdf$/i, '');
-          const results = await extract(sf.bytes, pageNums, baseName, false, signal);
+          const results = await extract(sf.bytes, pageNums, baseName, false, signal, rotations);
           allResults.push(...results);
         }
         await setPdfResult(allResults, allResults.length > 1 ? zipName : null);
@@ -3556,11 +3567,15 @@ function insertBlankPage(clickedIdx: number) {
   // move (another insert, a delete) or be swapped out (Clear, Replace all)
   // before it lands. Anchor on the page the blank goes in front of, not on
   // the index.
-  const anchor: PageEntry | undefined = pages[clickedIdx];
+  // By pageId, not object identity: undo/redo swap in copies of every page.
+  const anchorId = pages[clickedIdx]?.pageId;
   const gen = renderGeneration;
   getAdjacentPageSize(clickedIdx).then(size => {
     if (gen !== renderGeneration) return;
-    const found = anchor ? pages.indexOf(anchor) : -1;
+    // Every document left while the size was read: a blank on its own would
+    // bring back the "0 files" grid of blanks.
+    if (!pages.some(p => p.type === 'source')) return;
+    const found = anchorId === undefined ? -1 : pages.findIndex(p => p.pageId === anchorId);
     const atIdx = found >= 0 ? found : Math.min(clickedIdx, pages.length);
     pushHistory();
     const blank: PageEntry = {
@@ -3959,12 +3974,14 @@ function queuePageThumb(p: PageEntry[], idx: number) {
     // callbacks - pasting an old document's thumbnail into the new one's
     // card would scramble the grid.
     if (gen !== renderGeneration) return;
-    // Write to the entry, not to `p[idx]`: a reorder, delete or insert while
-    // the render was queued moves pages, and the position is stale by now.
+    // Find the page by pageId, not `p[idx]`: a reorder, delete or insert
+    // while the render was queued moves pages, and undo/redo replace them
+    // with copies.
     entry.thumbnail = url;
-    if (!toolContent) return;
-    const at = pages.indexOf(entry);
+    const at = pages.findIndex(pg => pg.pageId === entry.pageId);
     if (at < 0) return;
+    pages[at].thumbnail ??= url;
+    if (!toolContent) return;
     const card = toolContent.querySelector(`[data-page-idx="${at}"] .ws-page-thumb`);
     if (card) setThumb(card, url, { alt: `Page ${entry.sourcePageNum}`, rotation: entry.rotation });
   });
@@ -4253,6 +4270,7 @@ export const __testing = {
   setWmSettings(partial: Partial<WmSettings>) { wmSettings = { ...wmSettings, ...partial }; },
   getWmSettings: () => wmSettings,
   triggerWmFilesMutated() { onFilesMutated(); },
+  triggerFilesReordered() { onFilesReordered(); },
   setFiles(fs: SourceFile[]) { files = fs; },
   getWmFlatPages: () => wmFlatPages,
   wmBadgeText: (idx: number) => wmBadgeText(idx),

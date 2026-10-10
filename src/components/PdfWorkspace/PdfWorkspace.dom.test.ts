@@ -1082,3 +1082,40 @@ describe('Organize undo and the file list', () => {
     expect([...__testing.getWmKnownFileIds()].sort()).toEqual([1, 2]);
   });
 });
+
+// Follow-ups from review of the fixes above.
+describe('Organize edge cases after undo, reorder and delete-all', () => {
+  it('a blank page sized across an undo still lands in front of the clicked page', async () => {
+    __testing.setupForTest('organize', [sf(1, 3)]);
+    __testing.deletePage(0);         // [2, 3], undoable
+    __testing.insertBlankPage(1);    // in front of page 3
+    __testing.undo();                // [1, 2, 3], as copies: page 3 moved to index 2
+    await new Promise(r => setTimeout(r, 0));
+    const order = __testing.getPages().map(p => p.type === 'blank' ? 'blank' : p.sourcePageNum);
+    expect(order).toEqual([1, 2, 'blank', 3]);
+  });
+
+  it('a blank page sized after every page was deleted is dropped', async () => {
+    __testing.setupForTest('organize', [sf(1, 2)]);
+    __testing.insertBlankPage(1);
+    __testing.deletePage(0);
+    __testing.deletePage(0);
+    await new Promise(r => setTimeout(r, 0));
+    expect(__testing.getPages()).toEqual([]);
+  });
+
+  it('a Merge reorder drops the stale Organize pages instead of saving them', () => {
+    __testing.seed([srcPage(1, 1), srcPage(2, 1)], [sf(1, 1), sf(2, 1)]);
+    __testing.setFiles([sf(2, 1), sf(1, 1)]);
+    __testing.triggerFilesReordered();
+    expect(__testing.getPages()).toEqual([]);
+  });
+
+  it('Ctrl+Z brings pages back after deleting all of them', () => {
+    __testing.seed([srcPage(1, 1), srcPage(1, 2)], [sf(1, 2)], [0, 1]);
+    __testing.handleKeydown(keydown({ key: 'Delete' }));
+    expect(__testing.getPages()).toEqual([]);
+    __testing.handleKeydown(keydown({ key: 'z', ctrlKey: true }));
+    expect(__testing.getPages().map(p => p.sourcePageNum)).toEqual([1, 2]);
+  });
+});

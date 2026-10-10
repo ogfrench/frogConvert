@@ -67,6 +67,18 @@ describe('pdfExtract', () => {
     expect(results[0].name).toBe('doc.pdf');
   });
 
+  it('adds the given rotations to each page, in both modes', async () => {
+    const pdf = await makePdf(3);
+    const [combined] = await extract(pdf, [1, 3], 'doc', true, undefined, [90, 0]);
+    const doc = await PDFDocument.load(combined.bytes);
+    expect(doc.getPages().map(p => p.getRotation().angle)).toEqual([90, 0]);
+
+    const separate = await extract(pdf, [2, 3], 'doc', false, undefined, [0, 270]);
+    const angles = await Promise.all(separate.map(async r =>
+      (await PDFDocument.load(r.bytes)).getPage(0).getRotation().angle));
+    expect(angles).toEqual([0, 270]);
+  });
+
   it('page numbers are 1-indexed', async () => {
     // Extracting page 1 should not throw (0-indexed would be out of range for copyPages)
     const bytes = await makePdf(2);
