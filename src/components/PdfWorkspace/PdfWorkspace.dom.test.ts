@@ -94,12 +94,69 @@ describe('PdfWorkspace keyboard + undo', () => {
     input.remove();
   });
 
-  it('parseSelectionRange parses "1-5, 8, 12-20"', () => {
+  it('parseSelectionRange parses "1-5, 8, 12-20" into the pageIds at those positions', () => {
     __testing.seed(Array.from({ length: 20 }, (_, i) => srcPage(1, i + 1)), [sf(1, 20)]);
     const result = __testing.parseSelectionRange('1-5, 8, 12-20');
     expect(result).not.toBeNull();
-    const indices = [...result!].sort((a, b) => a - b);
-    expect(indices).toEqual([0, 1, 2, 3, 4, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+    const pages = __testing.getPages();
+    const expected = [0, 1, 2, 3, 4, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19].map(i => pages[i].pageId);
+    expect([...result!].sort((a, b) => a - b)).toEqual(expected);
+  });
+});
+
+// `selected` holds pageIds, which only equal array positions in a fresh tab.
+// Seeded ids start at 1_000_000 so any site that still reads them as
+// positions fails here rather than after the user's second file.
+describe('Organize selection is by pageId, shown by position', () => {
+  it('range string shows the position, not the pageId', () => {
+    __testing.seed(Array.from({ length: 70 }, (_, i) => srcPage(1, i + 1)), [sf(1, 70)], [8]);
+    expect(__testing.selectedToRangeString()).toBe('9');
+  });
+
+  it('range string follows the page through a reorder', () => {
+    __testing.seed(Array.from({ length: 10 }, (_, i) => srcPage(1, i + 1)), [sf(1, 10)], [0, 1]);
+    __testing.getPages().reverse();
+    expect(__testing.selectedToRangeString()).toBe('9-10');
+  });
+
+  it('selectedOrgIndices returns positions in page order', () => {
+    __testing.seed(Array.from({ length: 5 }, (_, i) => srcPage(1, i + 1)), [sf(1, 5)], [3, 1]);
+    expect(__testing.selectedOrgIndices()).toEqual([1, 3]);
+  });
+
+  it('deleting an unselected page keeps the selection on the same pages', () => {
+    __testing.seed(Array.from({ length: 5 }, (_, i) => srcPage(1, i + 1)), [sf(1, 5)], [2, 4]);
+    __testing.deletePage(0);
+    const kept = __testing.selectedOrgIndices().map(i => __testing.getPages()[i].sourcePageNum);
+    expect(kept).toEqual([3, 5]);
+  });
+
+  it('deleting a selected page drops only that page from the selection', () => {
+    __testing.seed(Array.from({ length: 5 }, (_, i) => srcPage(1, i + 1)), [sf(1, 5)], [1, 3]);
+    __testing.deletePage(1);
+    const kept = __testing.selectedOrgIndices().map(i => __testing.getPages()[i].sourcePageNum);
+    expect(kept).toEqual([4]);
+  });
+
+  it('a second file after Clear shows its own page numbers (reported 10/10)', () => {
+    __testing.setupForTest('organize', [sf(0, 264)]);
+    const root = __testing.setupForTest('organize', [sf(1, 70)]);
+    root.querySelector<HTMLElement>('.ws-page-card[data-page-idx="8"]')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const input = document.getElementById('ws-range-input-sidebar') as HTMLInputElement;
+    expect(input.value).toBe('9');
+    expect(__testing.selectedOrgIndices()).toEqual([8]);
+  });
+
+  it('typing a range after Clear highlights the typed pages', () => {
+    __testing.setupForTest('organize', [sf(0, 264)]);
+    const root = __testing.setupForTest('organize', [sf(1, 70)]);
+    const input = document.getElementById('ws-range-input-sidebar') as HTMLInputElement;
+    input.value = '1-3';
+    input.dispatchEvent(new Event('input'));
+    const highlighted = [...root.querySelectorAll<HTMLElement>('.ws-page-card.ws-page-selected')]
+      .map(c => Number(c.dataset.pageIdx));
+    expect(highlighted).toEqual([0, 1, 2]);
   });
 });
 

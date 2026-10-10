@@ -355,11 +355,13 @@ const persistor = createPersistor<PdfWorkspacePayload>({
       if (p.pageId > maxPageId) maxPageId = p.pageId;
     }
     if (pages.length > 0) bumpNextPageId(maxPageId + 1);
-    // Selection: new payloads store pageIds, legacy payloads stored array
-    // indices. Detect by checking whether values match any current pageId.
+    // Selection: payloads whose pages carry pageIds store pageIds; older ones
+    // stored array indices. Decide from the pages, not the selected values -
+    // one stale id must not reinterpret a whole pageId set as positions.
     const rawSelected: number[] = payload.selected ?? [];
-    if (rawSelected.length > 0 && rawSelected.every(v => validPageIds.has(v))) {
-      selected = new Set(rawSelected);
+    const payloadHasPageIds = (payload.pages as any[]).some(p => typeof p.pageId === 'number');
+    if (payloadHasPageIds) {
+      selected = new Set(rawSelected.filter(v => validPageIds.has(v)));
     } else {
       // Legacy positional: translate via index lookup against the just-rebuilt
       // pages array.
@@ -2589,7 +2591,7 @@ function renderOrganizeView() {
     const moved = moveSelection(e.key === 'ArrowUp' ? 'up' : 'down');
     if (moved) {
       renderOrganizeView();
-      const firstIdx = [...selected].sort((a, b) => a - b)[0];
+      const firstIdx = selectedOrgIndices()[0];
       const next = gridEl?.querySelector<HTMLElement>(`.ws-page-card[data-page-idx="${firstIdx}"]`);
       next?.focus();
     }
@@ -2638,10 +2640,11 @@ function renderOrganizeView() {
       startAutoScroll(leftCard);
       const dragCard = evt.item.querySelector<HTMLElement>('.ws-page-card');
       const dragIdx = Number(dragCard?.dataset.pageIdx);
+      const dragPageId = pages[dragIdx]?.pageId;
       pendingMultiDrag = null;
 
-      if (!isNaN(dragIdx)) {
-        stompDragSelection(selected, dragIdx, () => {
+      if (dragPageId !== undefined) {
+        stompDragSelection(selected, dragPageId, () => {
           updateSelectionVisuals();
           updateSidebar();
           syncRangeInput();
@@ -2649,11 +2652,13 @@ function renderOrganizeView() {
       }
 
       // Multi-drag: capture state NOW (immune to mid-drag selection clearing)
-      if (selected.size > 1) {
-        const multiPages = [...selected].sort((a, b) => a - b).map(i => pages[i]);
+      if (dragPageId !== undefined && selected.size > 1) {
+        const multiPages = selectedOrgIndices().map(i => pages[i]);
         pendingMultiDrag = { pages: multiPages, dragIdx };
 
-        applyMultiDragVisuals(grid, '.ws-page-slot', el => Number(el.querySelector<HTMLElement>('.ws-page-card')?.dataset.pageIdx), dragIdx, selected);
+        const slotPageId = (slot: HTMLElement) =>
+          pages[Number(slot.querySelector<HTMLElement>('.ws-page-card')?.dataset.pageIdx)]?.pageId ?? NaN;
+        applyMultiDragVisuals(grid, '.ws-page-slot', slotPageId, dragPageId, selected);
       }
 
       grid.querySelectorAll('.ws-page-insert').forEach(b => b.remove());
@@ -2674,15 +2679,17 @@ function renderOrganizeView() {
           if (isNaN(i)) return;
           if (i === multi.dragIdx) {
             newOrder.push(...multi.pages);
-          } else if (!multiSet.has(pages[i])) {
+          } else if (pages[i] && !multiSet.has(pages[i])) {
             newOrder.push(pages[i]);
           }
         });
 
-        pushHistory();
-        pages.length = 0;
-        pages.push(...newOrder);
-        // Selection follows pageIds; no remap needed.
+        if (newOrder.length === pages.length) {
+          pushHistory();
+          pages.length = 0;
+          pages.push(...newOrder);
+          // Selection follows pageIds; no remap needed.
+        }
         renderOrganizeView();
         return;
       } else if (evt.oldIndex != null && evt.newIndex != null && evt.oldIndex !== evt.newIndex) {
@@ -3073,7 +3080,7 @@ function updateSidebarContent(sidebar: HTMLElement) {
 
   if (selected.size > 0) {
     const moveRow = el('div', { className: 'ws-sidebar-move-row' });
-    const sorted = [...selected].sort((a, b) => a - b);
+    const sorted = selectedOrgIndices();
     const atTop = sorted[0] === 0;
     const atBottom = sorted[sorted.length - 1] === pages.length - 1;
     const upBtn = el('button', { className: 'ws-btn ws-btn-small ws-move-btn', innerHTML: `${Icons.arrowUp()} Move up` });
@@ -3326,8 +3333,8 @@ function showExportSplitModal(opts: ExportSplitOpts): void {
 }
 
 async function handleExtractClick() {
-  if (selected.size === 0) return;
-  const indices = [...selected].sort((a, b) => a - b);
+  const indices = selectedOrgIndices();
+  if (indices.length === 0) return;
   if (indices.length === 1) { doExtract(indices, false); return; }
   showExtractModal(indices);
 }
@@ -3360,9 +3367,14 @@ function showExtractModal(indices: number[]) {
 const EXTRACT_CHECKPOINT_INTERVAL = 10;
 
 async function doExtract(indices: number[], groupAsOne: boolean) {
-  if (files.length === 0 || indices.length === 0) return;
-  const extractCount = indices.length;
-  const sorted = [...indices].sort((a, b) => a - b);
+  const sorted = indices
+    .filter(i => pages[i] && (pages[i].type === 'blank' || files.some(f => f.id === pages[i].sourceFileId)))
+    .sort((a, b) => a - b);
+  if (files.length === 0 || sorted.length === 0) return;
+  const extractCount = sorted.length;
+  // Blank pages have no source file to split by, so a blank-only selection
+  // can only come out as one combined document.
+  if (sorted.every(i => pages[i].type === 'blank')) groupAsOne = true;
   // Only the per-source branch below builds its output incrementally; the
   // combined branch produces one document and has no partial state to keep.
   const allResults: { name: string; bytes: Uint8Array }[] = [];
@@ -3372,6 +3384,7 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
       const byFile = new Map<number, number[]>();
       for (const idx of sorted) {
         const page = pages[idx];
+        if (page.type === 'blank') continue;
         const arr = byFile.get(page.sourceFileId) ?? [];
         arr.push(page.sourcePageNum);
         byFile.set(page.sourceFileId, arr);
@@ -3385,6 +3398,11 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
         for (let i = 0; i < sorted.length; i++) {
           if (i % EXTRACT_CHECKPOINT_INTERVAL === 0) await checkpoint(signal);
           const page = pages[sorted[i]];
+          if (page.type === 'blank') {
+            const size = page.blankPageSize ?? { width: 595.28, height: 841.89 };
+            output.addPage([size.width, size.height]);
+            continue;
+          }
           if (!loadedSources.has(page.sourceFileId)) {
             const sf = files.find(f => f.id === page.sourceFileId)!;
             // Guarded loader, not the raw one. Ignoring encryption suppresses
@@ -3438,13 +3456,7 @@ function deletePage(idx: number) {
 
   pages.splice(idx, 1);
 
-  // Re-map selected + lastClickedIdx
-  const newSelected = new Set<number>();
-  for (const s of selected) {
-    if (s === idx) continue;
-    newSelected.add(s > idx ? s - 1 : s);
-  }
-  selected = newSelected;
+  selected.delete(page.pageId);
   if (lastClickedIdx === idx) lastClickedIdx = -1;
   else if (lastClickedIdx > idx) lastClickedIdx--;
 
@@ -3700,7 +3712,6 @@ function buildMobileTrayContent(tray: HTMLElement) {
   tray.innerHTML = '';
 
   const modified = isPagesModified();
-  const multiFile = files.length > 1;
 
   // ---- BLOCK 1: file context (count + Restore + Add, then file list) ----
   const originalCount = files.reduce((s, f) => s + f.pageCount, 0);
@@ -3739,7 +3750,7 @@ function buildMobileTrayContent(tray: HTMLElement) {
     type: 'text', className: 'ws-range-input',
     name: 'page-range', id: 'ws-range-input-tray',
     autocomplete: 'off',
-    placeholder: multiFile ? 'e.g. A1-A5, B3' : 'e.g. 1-5, 8',
+    placeholder: 'e.g. 1-5, 8',
     ariaLabel: 'Page range',
   }) as HTMLInputElement;
   ri.value = selectedToRangeString();
@@ -3772,7 +3783,7 @@ function buildMobileTrayContent(tray: HTMLElement) {
     tray.appendChild(makeSidebarDivider());
     tray.appendChild(makeSectionLabel('Reorder'));
     const moveRow = el('div', { className: 'ws-sidebar-btn-row' });
-    const sorted = [...selected].sort((a, b) => a - b);
+    const sorted = selectedOrgIndices();
     const atTop = sorted[0] === 0;
     const atBottom = sorted[sorted.length - 1] === pages.length - 1;
     const upBtn = el('button', {
@@ -3845,7 +3856,7 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
   const plusBefore = el('button', { className: 'ws-page-plus ws-page-plus-before', innerHTML: Icons.plus(), ariaLabel: 'Insert blank page before selection' });
   plusBefore.addEventListener('click', (e) => {
     e.stopPropagation();
-    const sorted = [...selected].sort((a, b) => a - b);
+    const sorted = selectedOrgIndices();
     if (sorted.length) insertBlankPage(sorted[0]);
   });
   card.appendChild(plusBefore);
@@ -3853,7 +3864,7 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
   const plusAfter = el('button', { className: 'ws-page-plus ws-page-plus-after', innerHTML: Icons.plus(), ariaLabel: 'Insert blank page after selection' });
   plusAfter.addEventListener('click', (e) => {
     e.stopPropagation();
-    const sorted = [...selected].sort((a, b) => a - b);
+    const sorted = selectedOrgIndices();
     if (sorted.length) insertBlankPage(sorted[sorted.length - 1] + 1);
   });
   card.appendChild(plusAfter);
@@ -3977,16 +3988,17 @@ function syncRangeInput() {
   rangeInput.classList.remove('ws-input-error');
 }
 
+// The field shows positions in the current order; `selected` holds pageIds.
 function selectedToRangeString(): string {
-  return setToRangeString(selected, pages.length);
+  return setToRangeString(new Set(selectedOrgIndices()), pages.length);
 }
 
 function parseSelectionRange(text: string): Set<number> | null {
   const oneIndexed = parsePageRange(text, pages.length);
   if (!oneIndexed) return null;
-  const zeroIndexed = new Set<number>();
-  for (const n of oneIndexed) zeroIndexed.add(n - 1);
-  return zeroIndexed;
+  const pageIds = new Set<number>();
+  for (const n of oneIndexed) pageIds.add(pages[n - 1].pageId);
+  return pageIds;
 }
 
 // ---------------------------------------------------------------------------
@@ -4169,6 +4181,8 @@ export const __testing = {
   getSelected: () => selected,
   getHistoryLength: () => history.length,
   deleteSelected,
+  deletePage,
+  selectedOrgIndices,
   undo,
   pushHistory,
   parseSelectionRange,
