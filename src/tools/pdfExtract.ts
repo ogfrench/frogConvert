@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, degrees, type PDFPage } from 'pdf-lib';
 import { loadEditablePdf } from './pdfSource.ts';
 import type { FileData } from '../core/FormatHandler/FormatHandler.ts';
 import { checkpoint } from './cancellation.ts';
@@ -63,14 +63,22 @@ function pagesSuffix(pageNums: number[], pageCount: number): string {
  * @param pageNums 1-indexed page numbers to extract.
  * @param baseName Base name for output files (without extension).
  * @param groupAsOne When true, all pages are combined into a single PDF.
+ * @param rotations Optional extra clockwise rotation per entry of `pageNums`
+ *   (0/90/180/270), added to each page's own. The PDF editor passes its
+ *   Organize rotations; the agent surfaces have none to pass.
  */
 export async function extract(
   bytes: Uint8Array,
   pageNums: number[],
   baseName: string,
   groupAsOne = false,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  rotations?: number[],
 ): Promise<FileData[]> {
+  const rotate = (page: PDFPage, i: number) => {
+    const extra = rotations?.[i] ?? 0;
+    if (extra) page.setRotation(degrees((page.getRotation().angle + extra) % 360));
+  };
   const source = await loadEditablePdf(bytes);
   assertPagesExist(pageNums, source.getPageCount());
 
@@ -85,7 +93,7 @@ export async function extract(
     // is a 132% larger output. Coarser cancellation is the cheaper trade -
     // the `save()` below dominates the runtime anyway.
     const copied = await output.copyPages(source, pageNums.map(n => n - 1));
-    for (const page of copied) output.addPage(page);
+    copied.forEach((page, i) => { rotate(page, i); output.addPage(page); });
     const outputBytes = await output.save();
     const suffix = pagesSuffix(pageNums, source.getPageCount());
     return [{ name: `${baseName}${suffix}.pdf`, bytes: new Uint8Array(outputBytes) }];
@@ -98,6 +106,7 @@ export async function extract(
     const output = await PDFDocument.create();
     // copyPages uses 0-indexed
     const [copied] = await output.copyPages(source, [pageNum - 1]);
+    rotate(copied, i);
     output.addPage(copied);
     const outputBytes = await output.save();
     results.push({

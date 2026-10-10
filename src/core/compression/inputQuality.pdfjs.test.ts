@@ -16,7 +16,7 @@ import { describe, it, expect, vi } from "vitest";
  * Worse, the detached buffer *was the file*, so the compression that followed
  * would have been handed an empty document.
  */
-vi.mock("pdfjs-dist", () => ({
+vi.mock("pdfjs-dist/legacy/build/pdf.mjs", () => ({
   getDocument: ({ data }: { data: Uint8Array }) => {
     // Exactly what pdf.js does: take the buffer away from the caller.
     structuredClone(data, { transfer: [data.buffer] });

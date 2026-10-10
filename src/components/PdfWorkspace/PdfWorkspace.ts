@@ -1,6 +1,6 @@
 import './PdfWorkspace.css';
 import Sortable from 'sortablejs';
-import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { PDFDocument, StandardFonts, degrees } from 'pdf-lib';
 import { loadEditablePdf } from '../../tools/pdfSource.ts';
 import type { PageEntry, SourceFile } from '../../tools/types.ts';
 import { getNextFileId, bumpNextFileId, getNextPageId, bumpNextPageId } from '../../tools/types.ts';
@@ -67,8 +67,17 @@ let organizeInitialized = false; // true once pages derived from files
  *
  * Driven off `knownFileIds` so the delta is exact across mutations from any
  * tab, including ones that previously bypassed this path.
+ *
+ * Also drops the Organize undo history unless the caller is itself an
+ * Organize action that pushed history (`keepHistory`). An undo snapshot
+ * holds the file list, so undo across an add or a removal made elsewhere
+ * would silently re-add or drop a file.
  */
-function onFilesMutated(): void {
+function onFilesMutated({ keepHistory = false } = {}): void {
+  if (!keepHistory) {
+    history.length = 0;
+    redoStack.length = 0;
+  }
   const newFileIds = new Set(files.map(f => f.id));
   const removedFileIds = new Set([...knownFileIds].filter(id => !newFileIds.has(id)));
   const addedFiles = files.filter(f => !knownFileIds.has(f.id));
@@ -79,6 +88,11 @@ function onFilesMutated(): void {
   if (organizeInitialized) {
     if (removedFileIds.size > 0) {
       pages = pages.filter(p => p.type === 'blank' || !removedFileIds.has(p.sourceFileId));
+      // Blanks were inserted between pages of the documents that just left.
+      // With none of those left they belong to nothing, and keeping them
+      // would carry them into the next file (Replace all) or leave a
+      // "0 files" grid of blanks in place of the empty state.
+      if (!pages.some(p => p.type === 'source')) pages = [];
     }
     for (const f of addedFiles) {
       for (let p = 1; p <= f.pageCount; p++) {
@@ -94,6 +108,20 @@ function onFilesMutated(): void {
       }
     }
   }
+
+  syncFileDerivedState();
+}
+
+/**
+ * Bring every piece of state keyed by file id in line with `files`, without
+ * touching `pages`. onFilesMutated runs it after its page delta; undo/redo
+ * run it alone, since a snapshot's pages already match its files and
+ * appending a restored file's pages again would duplicate them.
+ */
+function syncFileDerivedState(): void {
+  const newFileIds = new Set(files.map(f => f.id));
+  const removedFileIds = new Set([...knownFileIds].filter(id => !newFileIds.has(id)));
+  const addedFiles = files.filter(f => !knownFileIds.has(f.id));
 
   // Drop pageIds whose page is gone.
   const validPageIds = new Set(pages.map(p => p.pageId));
@@ -114,7 +142,14 @@ function onFilesMutated(): void {
 // derived page indices are invalid.
 function onFilesReordered(): void {
   organizeInitialized = false;
+  // Rebuilt from the new file order on the next Organize visit. Left in
+  // place, the old pages were saved and restored as if still current.
+  pages = [];
   selected.clear();
+  // The Organize pages are rebuilt from the new order; an undo snapshot
+  // would bring back the old order along with the old pages.
+  history.length = 0;
+  redoStack.length = 0;
   // Reorder does not change file ids, so manifest-only is enough.
   markDirty('manifest');
 }
@@ -266,9 +301,13 @@ function applySnapshot(snap: HistorySnapshot) {
   selected = snap.selected;
   files = snap.files;
   lastClickedIdx = snap.lastClickedIdx;
+  // The snapshot can bring back a file the action removed. Without this its
+  // id stays out of knownFileIds (the next add would append its pages a
+  // second time) and its bytes are never re-saved (the session no longer
+  // restores).
+  syncFileDerivedState();
   renderOrganizeView();
   kickPageThumbs(pages);
-  markDirty('manifest');
 }
 
 function undo() {
@@ -288,7 +327,7 @@ function redo() {
   applySnapshot(snap);
 }
 
-// Bumped on every applyPayload. In-flight async work (thumbnail renders,
+// Bumped on every applyPayload, Clear and Replace all. In-flight async work (thumbnail renders,
 // pdfjs base bitmap renders) keys against this and bails when stale, so a
 // late callback can't write into the wrong PageEntry array.
 let renderGeneration = 0;
@@ -355,11 +394,13 @@ const persistor = createPersistor<PdfWorkspacePayload>({
       if (p.pageId > maxPageId) maxPageId = p.pageId;
     }
     if (pages.length > 0) bumpNextPageId(maxPageId + 1);
-    // Selection: new payloads store pageIds, legacy payloads stored array
-    // indices. Detect by checking whether values match any current pageId.
+    // Selection: payloads whose pages carry pageIds store pageIds; older ones
+    // stored array indices. Decide from the pages, not the selected values -
+    // one stale id must not reinterpret a whole pageId set as positions.
     const rawSelected: number[] = payload.selected ?? [];
-    if (rawSelected.length > 0 && rawSelected.every(v => validPageIds.has(v))) {
-      selected = new Set(rawSelected);
+    const payloadHasPageIds = (payload.pages as any[]).some(p => typeof p.pageId === 'number');
+    if (payloadHasPageIds) {
+      selected = new Set(rawSelected.filter(v => validPageIds.has(v)));
     } else {
       // Legacy positional: translate via index lookup against the just-rebuilt
       // pages array.
@@ -787,7 +828,9 @@ export function initPdfWorkspace() {
 }
 
 function handleGlobalKeydown(e: KeyboardEvent) {
-  if (!initialized || activeTool !== 'organize' || !pages.length) return;
+  if (!initialized || activeTool !== 'organize') return;
+  // An empty grid still answers Ctrl+Z when deleting every page emptied it.
+  if (!pages.length && !history.length) return;
   const t = e.target as HTMLElement | null;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
 
@@ -2589,7 +2632,7 @@ function renderOrganizeView() {
     const moved = moveSelection(e.key === 'ArrowUp' ? 'up' : 'down');
     if (moved) {
       renderOrganizeView();
-      const firstIdx = [...selected].sort((a, b) => a - b)[0];
+      const firstIdx = selectedOrgIndices()[0];
       const next = gridEl?.querySelector<HTMLElement>(`.ws-page-card[data-page-idx="${firstIdx}"]`);
       next?.focus();
     }
@@ -2638,10 +2681,11 @@ function renderOrganizeView() {
       startAutoScroll(leftCard);
       const dragCard = evt.item.querySelector<HTMLElement>('.ws-page-card');
       const dragIdx = Number(dragCard?.dataset.pageIdx);
+      const dragPageId = pages[dragIdx]?.pageId;
       pendingMultiDrag = null;
 
-      if (!isNaN(dragIdx)) {
-        stompDragSelection(selected, dragIdx, () => {
+      if (dragPageId !== undefined) {
+        stompDragSelection(selected, dragPageId, () => {
           updateSelectionVisuals();
           updateSidebar();
           syncRangeInput();
@@ -2649,11 +2693,13 @@ function renderOrganizeView() {
       }
 
       // Multi-drag: capture state NOW (immune to mid-drag selection clearing)
-      if (selected.size > 1) {
-        const multiPages = [...selected].sort((a, b) => a - b).map(i => pages[i]);
+      if (dragPageId !== undefined && selected.size > 1) {
+        const multiPages = selectedOrgIndices().map(i => pages[i]);
         pendingMultiDrag = { pages: multiPages, dragIdx };
 
-        applyMultiDragVisuals(grid, '.ws-page-slot', el => Number(el.querySelector<HTMLElement>('.ws-page-card')?.dataset.pageIdx), dragIdx, selected);
+        const slotPageId = (slot: HTMLElement) =>
+          pages[Number(slot.querySelector<HTMLElement>('.ws-page-card')?.dataset.pageIdx)]?.pageId ?? NaN;
+        applyMultiDragVisuals(grid, '.ws-page-slot', slotPageId, dragPageId, selected);
       }
 
       grid.querySelectorAll('.ws-page-insert').forEach(b => b.remove());
@@ -2674,15 +2720,17 @@ function renderOrganizeView() {
           if (isNaN(i)) return;
           if (i === multi.dragIdx) {
             newOrder.push(...multi.pages);
-          } else if (!multiSet.has(pages[i])) {
+          } else if (pages[i] && !multiSet.has(pages[i])) {
             newOrder.push(pages[i]);
           }
         });
 
-        pushHistory();
-        pages.length = 0;
-        pages.push(...newOrder);
-        // Selection follows pageIds; no remap needed.
+        if (newOrder.length === pages.length) {
+          pushHistory();
+          pages.length = 0;
+          pages.push(...newOrder);
+          // Selection follows pageIds; no remap needed.
+        }
         renderOrganizeView();
         return;
       } else if (evt.oldIndex != null && evt.newIndex != null && evt.oldIndex !== evt.newIndex) {
@@ -2763,6 +2811,7 @@ export function cleanup() {
 }
 
 export function resetAll() {
+  renderGeneration++;
   files = [];
   pages = [];
   selected.clear();
@@ -2928,6 +2977,7 @@ async function handleFiles(rawFiles: File[], replaceExisting = false) {
   if (accepted.length === 0) return;
 
   if (replacing) {
+    renderGeneration++;
     files = [];
     lastClickedIdx = -1;
     history.length = 0;
@@ -3073,7 +3123,7 @@ function updateSidebarContent(sidebar: HTMLElement) {
 
   if (selected.size > 0) {
     const moveRow = el('div', { className: 'ws-sidebar-move-row' });
-    const sorted = [...selected].sort((a, b) => a - b);
+    const sorted = selectedOrgIndices();
     const atTop = sorted[0] === 0;
     const atBottom = sorted[sorted.length - 1] === pages.length - 1;
     const upBtn = el('button', { className: 'ws-btn ws-btn-small ws-move-btn', innerHTML: `${Icons.arrowUp()} Move up` });
@@ -3326,8 +3376,8 @@ function showExportSplitModal(opts: ExportSplitOpts): void {
 }
 
 async function handleExtractClick() {
-  if (selected.size === 0) return;
-  const indices = [...selected].sort((a, b) => a - b);
+  const indices = selectedOrgIndices();
+  if (indices.length === 0) return;
   if (indices.length === 1) { doExtract(indices, false); return; }
   showExtractModal(indices);
 }
@@ -3360,21 +3410,29 @@ function showExtractModal(indices: number[]) {
 const EXTRACT_CHECKPOINT_INTERVAL = 10;
 
 async function doExtract(indices: number[], groupAsOne: boolean) {
-  if (files.length === 0 || indices.length === 0) return;
-  const extractCount = indices.length;
-  const sorted = [...indices].sort((a, b) => a - b);
+  const sorted = indices
+    .filter(i => pages[i] && (pages[i].type === 'blank' || files.some(f => f.id === pages[i].sourceFileId)))
+    .sort((a, b) => a - b);
+  if (files.length === 0 || sorted.length === 0) return;
+  // Blank pages have no source file to split by, so a blank-only selection
+  // can only come out as one combined document, and one file per page skips
+  // them - count what is actually produced.
+  if (sorted.every(i => pages[i].type === 'blank')) groupAsOne = true;
+  const extractCount = groupAsOne ? sorted.length : sorted.filter(i => pages[i].type !== 'blank').length;
   // Only the per-source branch below builds its output incrementally; the
   // combined branch produces one document and has no partial state to keep.
   const allResults: { name: string; bytes: Uint8Array }[] = [];
   const zipName = `extracted-pages-${timestampForFilename()}.zip`;
   await runWithPopup('Extracting', 'Pulling the selected pages into a new file. Almost there.', 'Extract failed. The PDF might be damaged. Try re-exporting it from the source app.',
     async (signal) => {
-      const byFile = new Map<number, number[]>();
+      const byFile = new Map<number, { pageNums: number[]; rotations: number[] }>();
       for (const idx of sorted) {
         const page = pages[idx];
-        const arr = byFile.get(page.sourceFileId) ?? [];
-        arr.push(page.sourcePageNum);
-        byFile.set(page.sourceFileId, arr);
+        if (page.type === 'blank') continue;
+        const entry = byFile.get(page.sourceFileId) ?? { pageNums: [], rotations: [] };
+        entry.pageNums.push(page.sourcePageNum);
+        entry.rotations.push(page.rotation);
+        byFile.set(page.sourceFileId, entry);
       }
 
       const firstName = files[0].name.replace(/\.pdf$/i, '');
@@ -3385,6 +3443,12 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
         for (let i = 0; i < sorted.length; i++) {
           if (i % EXTRACT_CHECKPOINT_INTERVAL === 0) await checkpoint(signal);
           const page = pages[sorted[i]];
+          if (page.type === 'blank') {
+            const size = page.blankPageSize ?? { width: 595.28, height: 841.89 };
+            const blank = output.addPage([size.width, size.height]);
+            if (page.rotation) blank.setRotation(degrees(page.rotation));
+            continue;
+          }
           if (!loadedSources.has(page.sourceFileId)) {
             const sf = files.find(f => f.id === page.sourceFileId)!;
             // Guarded loader, not the raw one. Ignoring encryption suppresses
@@ -3398,6 +3462,9 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
           }
           const source = loadedSources.get(page.sourceFileId)!;
           const [copied] = await output.copyPages(source, [page.sourcePageNum - 1]);
+          // Same as Export (src/tools/pdfOrganize.ts): Organize's rotation
+          // adds to the page's own.
+          if (page.rotation) copied.setRotation(degrees((copied.getRotation().angle + page.rotation) % 360));
           output.addPage(copied);
         }
         const outputBytes = new Uint8Array(await output.save());
@@ -3405,10 +3472,10 @@ async function doExtract(indices: number[], groupAsOne: boolean) {
         const name = `${firstName}${suffix}.pdf`;
         return await setPdfResult([{ bytes: outputBytes, name }], null);
       } else {
-        for (const [fid, pageNums] of byFile) {
+        for (const [fid, { pageNums, rotations }] of byFile) {
           const sf = files.find(f => f.id === fid)!;
           const baseName = sf.name.replace(/\.pdf$/i, '');
-          const results = await extract(sf.bytes, pageNums, baseName, false, signal);
+          const results = await extract(sf.bytes, pageNums, baseName, false, signal, rotations);
           allResults.push(...results);
         }
         await setPdfResult(allResults, allResults.length > 1 ? zipName : null);
@@ -3438,19 +3505,14 @@ function deletePage(idx: number) {
 
   pages.splice(idx, 1);
 
-  // Re-map selected + lastClickedIdx
-  const newSelected = new Set<number>();
-  for (const s of selected) {
-    if (s === idx) continue;
-    newSelected.add(s > idx ? s - 1 : s);
-  }
-  selected = newSelected;
+  selected.delete(page.pageId);
   if (lastClickedIdx === idx) lastClickedIdx = -1;
   else if (lastClickedIdx > idx) lastClickedIdx--;
 
   // If file has no more pages, remove it
   if (page.type === 'source' && !pages.some(p => p.sourceFileId === fid)) {
     files = files.filter(f => f.id !== fid);
+    onFilesMutated({ keepHistory: true });
   }
 
   if (pages.length === 0) {
@@ -3487,20 +3549,34 @@ function deleteSelected() {
   files = files.filter(f => remainingFileIds.has(f.id));
   selected.clear();
   lastClickedIdx = -1;
+  // onFilesMutated reconciles knownFileIds / watermark / merge state against
+  // the freshly-trimmed `files` (surgical pages update is a no-op since the
+  // removed pages are already gone, but it keeps wmSelected and knownFileIds
+  // in lockstep). It also drops blanks left with no document, so the empty
+  // check comes after it.
+  onFilesMutated({ keepHistory: true });
   if (pages.length === 0) {
     files = [];
     clearThumbnailCache();
   }
-  // onFilesMutated reconciles knownFileIds / watermark / merge state against
-  // the freshly-trimmed `files` (surgical pages update is a no-op since the
-  // removed pages are already gone, but it keeps wmSelected and knownFileIds
-  // in lockstep).
-  onFilesMutated();
   renderOrganizeView();
 }
 
-function insertBlankPage(atIdx: number) {
-  getAdjacentPageSize(atIdx).then(size => {
+function insertBlankPage(clickedIdx: number) {
+  // Sizing the blank re-parses the neighbouring source PDF, so the pages can
+  // move (another insert, a delete) or be swapped out (Clear, Replace all)
+  // before it lands. Anchor on the page the blank goes in front of, not on
+  // the index.
+  // By pageId, not object identity: undo/redo swap in copies of every page.
+  const anchorId = pages[clickedIdx]?.pageId;
+  const gen = renderGeneration;
+  getAdjacentPageSize(clickedIdx).then(size => {
+    if (gen !== renderGeneration) return;
+    // Every document left while the size was read: a blank on its own would
+    // bring back the "0 files" grid of blanks.
+    if (!pages.some(p => p.type === 'source')) return;
+    const found = anchorId === undefined ? -1 : pages.findIndex(p => p.pageId === anchorId);
+    const atIdx = found >= 0 ? found : Math.min(clickedIdx, pages.length);
     pushHistory();
     const blank: PageEntry = {
       type: 'blank', sourceFileId: -1, sourcePageNum: 0,
@@ -3700,7 +3776,6 @@ function buildMobileTrayContent(tray: HTMLElement) {
   tray.innerHTML = '';
 
   const modified = isPagesModified();
-  const multiFile = files.length > 1;
 
   // ---- BLOCK 1: file context (count + Restore + Add, then file list) ----
   const originalCount = files.reduce((s, f) => s + f.pageCount, 0);
@@ -3739,7 +3814,7 @@ function buildMobileTrayContent(tray: HTMLElement) {
     type: 'text', className: 'ws-range-input',
     name: 'page-range', id: 'ws-range-input-tray',
     autocomplete: 'off',
-    placeholder: multiFile ? 'e.g. A1-A5, B3' : 'e.g. 1-5, 8',
+    placeholder: 'e.g. 1-5, 8',
     ariaLabel: 'Page range',
   }) as HTMLInputElement;
   ri.value = selectedToRangeString();
@@ -3772,7 +3847,7 @@ function buildMobileTrayContent(tray: HTMLElement) {
     tray.appendChild(makeSidebarDivider());
     tray.appendChild(makeSectionLabel('Reorder'));
     const moveRow = el('div', { className: 'ws-sidebar-btn-row' });
-    const sorted = [...selected].sort((a, b) => a - b);
+    const sorted = selectedOrgIndices();
     const atTop = sorted[0] === 0;
     const atBottom = sorted[sorted.length - 1] === pages.length - 1;
     const upBtn = el('button', {
@@ -3845,7 +3920,7 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
   const plusBefore = el('button', { className: 'ws-page-plus ws-page-plus-before', innerHTML: Icons.plus(), ariaLabel: 'Insert blank page before selection' });
   plusBefore.addEventListener('click', (e) => {
     e.stopPropagation();
-    const sorted = [...selected].sort((a, b) => a - b);
+    const sorted = selectedOrgIndices();
     if (sorted.length) insertBlankPage(sorted[0]);
   });
   card.appendChild(plusBefore);
@@ -3853,7 +3928,7 @@ function createPageCard(page: PageEntry, idx: number): HTMLElement {
   const plusAfter = el('button', { className: 'ws-page-plus ws-page-plus-after', innerHTML: Icons.plus(), ariaLabel: 'Insert blank page after selection' });
   plusAfter.addEventListener('click', (e) => {
     e.stopPropagation();
-    const sorted = [...selected].sort((a, b) => a - b);
+    const sorted = selectedOrgIndices();
     if (sorted.length) insertBlankPage(sorted[sorted.length - 1] + 1);
   });
   card.appendChild(plusAfter);
@@ -3889,19 +3964,26 @@ function kickPageThumbs(p: PageEntry[]) {
 }
 
 function queuePageThumb(p: PageEntry[], idx: number) {
-  if (p[idx].thumbnail || p[idx].type === 'blank') return;
-  const sf = files.find(f => f.id === p[idx].sourceFileId);
+  const entry = p[idx];
+  if (!entry || entry.thumbnail || entry.type === 'blank') return;
+  const sf = files.find(f => f.id === entry.sourceFileId);
   if (!sf) return;
   const gen = renderGeneration;
-  queueRender(sf.bytes, p[idx].sourcePageNum, (url) => {
-    // applyPayload (restore) bumps renderGeneration before swapping `pages`.
-    // Drop late callbacks - both writing into a stale array and pasting an
-    // old thumbnail into a new card would scramble the grid.
+  queueRender(sf.bytes, entry.sourcePageNum, (url) => {
+    // Restore, Clear and Replace all bump renderGeneration. Drop late
+    // callbacks - pasting an old document's thumbnail into the new one's
+    // card would scramble the grid.
     if (gen !== renderGeneration) return;
-    p[idx].thumbnail = url;
+    // Find the page by pageId, not `p[idx]`: a reorder, delete or insert
+    // while the render was queued moves pages, and undo/redo replace them
+    // with copies.
+    entry.thumbnail = url;
+    const at = pages.findIndex(pg => pg.pageId === entry.pageId);
+    if (at < 0) return;
+    pages[at].thumbnail ??= url;
     if (!toolContent) return;
-    const card = toolContent.querySelector(`[data-page-idx="${idx}"] .ws-page-thumb`);
-    if (card) setThumb(card, url, { alt: `Page ${p[idx].sourcePageNum}`, rotation: p[idx].rotation });
+    const card = toolContent.querySelector(`[data-page-idx="${at}"] .ws-page-thumb`);
+    if (card) setThumb(card, url, { alt: `Page ${entry.sourcePageNum}`, rotation: entry.rotation });
   });
 }
 
@@ -3977,16 +4059,17 @@ function syncRangeInput() {
   rangeInput.classList.remove('ws-input-error');
 }
 
+// The field shows positions in the current order; `selected` holds pageIds.
 function selectedToRangeString(): string {
-  return setToRangeString(selected, pages.length);
+  return setToRangeString(new Set(selectedOrgIndices()), pages.length);
 }
 
 function parseSelectionRange(text: string): Set<number> | null {
   const oneIndexed = parsePageRange(text, pages.length);
   if (!oneIndexed) return null;
-  const zeroIndexed = new Set<number>();
-  for (const n of oneIndexed) zeroIndexed.add(n - 1);
-  return zeroIndexed;
+  const pageIds = new Set<number>();
+  for (const n of oneIndexed) pageIds.add(pages[n - 1].pageId);
+  return pageIds;
 }
 
 // ---------------------------------------------------------------------------
@@ -4169,6 +4252,10 @@ export const __testing = {
   getSelected: () => selected,
   getHistoryLength: () => history.length,
   deleteSelected,
+  deletePage,
+  insertBlankPage,
+  resetAll,
+  selectedOrgIndices,
   undo,
   pushHistory,
   parseSelectionRange,
@@ -4183,6 +4270,7 @@ export const __testing = {
   setWmSettings(partial: Partial<WmSettings>) { wmSettings = { ...wmSettings, ...partial }; },
   getWmSettings: () => wmSettings,
   triggerWmFilesMutated() { onFilesMutated(); },
+  triggerFilesReordered() { onFilesReordered(); },
   setFiles(fs: SourceFile[]) { files = fs; },
   getWmFlatPages: () => wmFlatPages,
   wmBadgeText: (idx: number) => wmBadgeText(idx),

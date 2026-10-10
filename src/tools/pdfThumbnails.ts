@@ -1,14 +1,18 @@
-import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
+import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 const _isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
-let pdfjsLib: typeof import('pdfjs-dist') | null = null;
+// The legacy build, here and at every other pdfjs import: the modern one calls
+// Map.prototype.getOrInsertComputed, Promise.try and Uint8Array#toHex natively,
+// which Safari < 26.2, Chrome/Edge < 145 and the desktop app's Electron 40
+// (Chromium 144) lack. Guarded by src/tools/pdfjsImports.test.ts.
+let pdfjsLib: typeof import('pdfjs-dist/legacy/build/pdf.mjs') | null = null;
 let pdfjsReady: Promise<void> | null = null;
 function ensurePdfjs(): Promise<void> {
   if (!pdfjsReady) {
-    pdfjsReady = import('pdfjs-dist').then(async (lib) => {
+    pdfjsReady = import('pdfjs-dist/legacy/build/pdf.mjs').then(async (lib) => {
       pdfjsLib = lib;
-      const { default: workerSrc } = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
+      const { default: workerSrc } = await import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url');
       lib.GlobalWorkerOptions.workerSrc = workerSrc;
     });
   }

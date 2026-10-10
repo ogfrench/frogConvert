@@ -1,7 +1,7 @@
 import { vi, describe, it, expect } from 'vitest';
 
 // Mock pdfjs-dist to avoid DOMMatrix error in jsdom
-vi.mock('pdfjs-dist', () => ({
+vi.mock('pdfjs-dist/legacy/build/pdf.mjs', () => ({
   GlobalWorkerOptions: { workerSrc: '' },
   getDocument: vi.fn(),
 }));

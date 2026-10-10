@@ -7,8 +7,8 @@ import { attachNotice, API_DOCS_ACTION } from "../core/compression/notices.ts";
 import { isSafari } from "../tools/pdfThumbnails.ts";
 import { rethrowIfPasswordProtected } from "./_pdfErrors.ts";
 
-import * as pdfjsLib from 'pdfjs-dist';
-import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import workerSrc from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import { encodeCanvasPalettePng } from "../tools/palettePng.ts";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;

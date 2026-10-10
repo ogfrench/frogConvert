@@ -128,23 +128,43 @@ export function createPersistor<P extends SessionPayload>(spec: PersistorSpec<P>
   async function flushImpl(): Promise<void> {
     if (!sessionId || dirty === 'none') return;
     const sid = sessionId;
-    const filesWereDirty = dirty === 'files';
+    const currentIds = spec.currentFileIds();
+    if (currentIds.length === 0) {
+      // Nothing left to resume. Writing it anyway would offer "Resume your
+      // last session? 0 files" in the next tab. Let go of the id before the
+      // await, so a file added meanwhile starts a fresh session rather than
+      // marking this one dirty just as it is deleted.
+      dirty = 'none';
+      sessionId = null;
+      clearStoredSessionId(spec.kind);
+      lastWrittenIds = new Set();
+      bytesQuotaPaused = false;
+      await clearSession(sid);
+      return;
+    }
+    // Bytes are owed for any current file this session never wrote, whatever
+    // scope the caller marked. After clear() (a finished conversion, say) the
+    // next mark is often manifest-only - picking a new target format - and
+    // trusting it wrote a manifest naming files with no bytes behind them.
+    const filesWereDirty = dirty === 'files' || currentIds.some(id => !lastWrittenIds.has(id));
     dirty = 'none';
     // Snapshot the manifest BEFORE writing bytes so we don't write a manifest
     // that references files whose bytes haven't landed yet. The flow:
-    //   1. compute byte diff (adds/removes) against lastWrittenIds
+    //   1. compute byte adds against lastWrittenIds
     //   2. write byte adds (and only adds we successfully wrote)
-    //   3. delete byte removes
-    //   4. write manifest LAST, so the manifest is always consistent with
-    //      what's actually in the byteStore. Tab kills between steps 2 and 4
-    //      leave the manifest stale (pointing at the previous state) but
-    //      every fileId it references still has bytes - no broken sessions.
+    //   3. write the manifest, only if every file it names has bytes
+    //   4. delete bytes of files the new manifest no longer names
+    //   Tab kills between any two steps leave the manifest stale (pointing at
+    //   the previous state) but every fileId it references still has bytes -
+    //   no broken sessions.
     const manifest = spec.buildPayload();
+    const attempted = new Set<number>();
     if (filesWereDirty && !bytesQuotaPaused) {
-      const ids = new Set(spec.currentFileIds());
+      const ids = new Set(currentIds);
       const adds = [...ids].filter(id => !lastWrittenIds.has(id));
       const writtenAdds: number[] = [];
       for (const id of adds) {
+        attempted.add(id);
         let bytes: Uint8Array;
         try {
           bytes = await spec.getBytesForId(id);
@@ -170,26 +190,44 @@ export function createPersistor<P extends SessionPayload>(spec: PersistorSpec<P>
           console.warn(`[${spec.kind}] file-bytes save failed for id ${id}:`, err);
         }
       }
-      const removes = [...lastWrittenIds].filter(id => !ids.has(id));
-      await Promise.all(removes.map(id => deleteFileBytes(sid, id)));
-      // lastWrittenIds = (previous - removes) + writtenAdds. If we hit quota
-      // partway through `adds`, ids we couldn't write stay OUT of the set so
-      // the next flush retries them.
-      const next = new Set<number>();
-      for (const id of lastWrittenIds) if (!removes.includes(id)) next.add(id);
-      for (const id of writtenAdds) next.add(id);
-      lastWrittenIds = next;
+      // If we hit quota partway through `adds`, ids we couldn't write stay
+      // OUT of the set so the next flush retries them.
+      lastWrittenIds = new Set([...lastWrittenIds, ...writtenAdds]);
     }
     // Manifest write is last so it cannot reference unsaved bytes. We rebuild
     // the manifest here from current state (rather than reusing the snapshot)
     // because applyPayload-and-back-to-dirty cycles can have updated state.
+    const payload = spec.buildPayload();
+    // A file whose bytes did not land - storage full, bytes unresolvable, or
+    // added while this flush awaited - must not be named yet: a manifest
+    // pointing at missing bytes cannot be restored at all, while the previous
+    // manifest still can.
+    const unsaved = payload.files.map(f => f.id).filter(id => !lastWrittenIds.has(id));
+    if (unsaved.length > 0) {
+      if (!bytesQuotaPaused) {
+        dirty = 'files';
+        // Retry on our own only for files that arrived mid-flush; one whose
+        // bytes just failed waits for the next change rather than looping.
+        if (unsaved.some(id => !attempted.has(id))) debouncedFlush();
+      }
+      return;
+    }
     try {
-      await saveSession(sid, spec.kind, spec.buildPayload());
+      await saveSession(sid, spec.kind, payload);
     } catch (err) {
       console.warn(`[${spec.kind}] manifest save failed:`, err);
       // Best-effort: keep dirty flag as-is so next call retries the manifest.
       dirty = 'manifest';
       return;
+    }
+    // Removed files' bytes go only once a manifest that no longer names them
+    // is saved; deleting first would leave the previous manifest pointing at
+    // bytes that are gone.
+    const keep = new Set(payload.files.map(f => f.id));
+    const removes = [...lastWrittenIds].filter(id => !keep.has(id));
+    if (removes.length > 0) {
+      await Promise.all(removes.map(id => deleteFileBytes(sid, id)));
+      lastWrittenIds = new Set([...lastWrittenIds].filter(id => keep.has(id)));
     }
     // Suppress "unused" warning for the captured manifest (kept for clarity).
     void manifest;

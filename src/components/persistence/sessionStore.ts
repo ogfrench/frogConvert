@@ -233,6 +233,12 @@ export async function loadMostRecentOrphan<P extends SessionPayload>(
       }
       if (row.sessionId === currentSessionId) continue;
       if (liveSessionIds.has(row.sessionId)) continue;
+      // A session with no files has nothing to resume. Older builds saved
+      // them when the last file was removed.
+      if (!row.payload?.files?.length) {
+        stale.push(row.sessionId);
+        continue;
+      }
       if (!best || row.savedAt > best.savedAt) best = row;
     }
     await Promise.all(stale.map(id => clearSession(id)));

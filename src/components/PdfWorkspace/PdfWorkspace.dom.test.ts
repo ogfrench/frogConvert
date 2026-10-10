@@ -94,12 +94,69 @@ describe('PdfWorkspace keyboard + undo', () => {
     input.remove();
   });
 
-  it('parseSelectionRange parses "1-5, 8, 12-20"', () => {
+  it('parseSelectionRange parses "1-5, 8, 12-20" into the pageIds at those positions', () => {
     __testing.seed(Array.from({ length: 20 }, (_, i) => srcPage(1, i + 1)), [sf(1, 20)]);
     const result = __testing.parseSelectionRange('1-5, 8, 12-20');
     expect(result).not.toBeNull();
-    const indices = [...result!].sort((a, b) => a - b);
-    expect(indices).toEqual([0, 1, 2, 3, 4, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+    const pages = __testing.getPages();
+    const expected = [0, 1, 2, 3, 4, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19].map(i => pages[i].pageId);
+    expect([...result!].sort((a, b) => a - b)).toEqual(expected);
+  });
+});
+
+// `selected` holds pageIds, which only equal array positions in a fresh tab.
+// Seeded ids start at 1_000_000 so any site that still reads them as
+// positions fails here rather than after the user's second file.
+describe('Organize selection is by pageId, shown by position', () => {
+  it('range string shows the position, not the pageId', () => {
+    __testing.seed(Array.from({ length: 70 }, (_, i) => srcPage(1, i + 1)), [sf(1, 70)], [8]);
+    expect(__testing.selectedToRangeString()).toBe('9');
+  });
+
+  it('range string follows the page through a reorder', () => {
+    __testing.seed(Array.from({ length: 10 }, (_, i) => srcPage(1, i + 1)), [sf(1, 10)], [0, 1]);
+    __testing.getPages().reverse();
+    expect(__testing.selectedToRangeString()).toBe('9-10');
+  });
+
+  it('selectedOrgIndices returns positions in page order', () => {
+    __testing.seed(Array.from({ length: 5 }, (_, i) => srcPage(1, i + 1)), [sf(1, 5)], [3, 1]);
+    expect(__testing.selectedOrgIndices()).toEqual([1, 3]);
+  });
+
+  it('deleting an unselected page keeps the selection on the same pages', () => {
+    __testing.seed(Array.from({ length: 5 }, (_, i) => srcPage(1, i + 1)), [sf(1, 5)], [2, 4]);
+    __testing.deletePage(0);
+    const kept = __testing.selectedOrgIndices().map(i => __testing.getPages()[i].sourcePageNum);
+    expect(kept).toEqual([3, 5]);
+  });
+
+  it('deleting a selected page drops only that page from the selection', () => {
+    __testing.seed(Array.from({ length: 5 }, (_, i) => srcPage(1, i + 1)), [sf(1, 5)], [1, 3]);
+    __testing.deletePage(1);
+    const kept = __testing.selectedOrgIndices().map(i => __testing.getPages()[i].sourcePageNum);
+    expect(kept).toEqual([4]);
+  });
+
+  it('a second file after Clear shows its own page numbers (reported 10/10)', () => {
+    __testing.setupForTest('organize', [sf(0, 264)]);
+    const root = __testing.setupForTest('organize', [sf(1, 70)]);
+    root.querySelector<HTMLElement>('.ws-page-card[data-page-idx="8"]')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const input = document.getElementById('ws-range-input-sidebar') as HTMLInputElement;
+    expect(input.value).toBe('9');
+    expect(__testing.selectedOrgIndices()).toEqual([8]);
+  });
+
+  it('typing a range after Clear highlights the typed pages', () => {
+    __testing.setupForTest('organize', [sf(0, 264)]);
+    const root = __testing.setupForTest('organize', [sf(1, 70)]);
+    const input = document.getElementById('ws-range-input-sidebar') as HTMLInputElement;
+    input.value = '1-3';
+    input.dispatchEvent(new Event('input'));
+    const highlighted = [...root.querySelectorAll<HTMLElement>('.ws-page-card.ws-page-selected')]
+      .map(c => Number(c.dataset.pageIdx));
+    expect(highlighted).toEqual([0, 1, 2]);
   });
 });
 
@@ -928,5 +985,137 @@ describe('bulk file action accessibility', () => {
     const iconBtn = document.querySelector<HTMLButtonElement>('.ws-toolbar-icon')!;
     expect(iconBtn.getAttribute('aria-expanded')).toBe('false');
     expect(document.activeElement).toBe(iconBtn);
+  });
+});
+
+// Async work captured a position and applied it after the pages had moved.
+describe('Organize async work lands on the right page', () => {
+  it('a thumbnail finishing after a delete lands on its own page, without throwing', async () => {
+    const pending = new Map<number, (url: string) => void>();
+    renderPageThumbnailMock.mockImplementation((_bytes, page) =>
+      new Promise<string>(resolve => { if (!pending.has(page)) pending.set(page, resolve); }));
+    __testing.setupForTest('organize', [sf(1, 3)]);
+    __testing.deletePage(0);
+    pending.get(3)!('thumb-3');
+    pending.get(2)!('thumb-2');
+    await new Promise(r => setTimeout(r, 0));
+    const pages = __testing.getPages();
+    expect(pages.map(p => [p.sourcePageNum, p.thumbnail])).toEqual([[2, 'thumb-2'], [3, 'thumb-3']]);
+  });
+
+  it('a thumbnail of the old document never lands after Clear', async () => {
+    const pending: Array<(url: string) => void> = [];
+    renderPageThumbnailMock.mockImplementation(() => new Promise<string>(r => { pending.push(r); }));
+    __testing.setupForTest('organize', [sf(1, 2)]);
+    const oldCount = pending.length;
+    __testing.resetAll();
+    const root = __testing.setupForTest('organize', [sf(2, 2)]);
+    for (const resolve of pending.slice(0, oldCount)) resolve('old-thumb');
+    await new Promise(r => setTimeout(r, 0));
+    expect(__testing.getPages().some(p => p.thumbnail === 'old-thumb')).toBe(false);
+    expect(root.innerHTML).not.toContain('old-thumb');
+  });
+
+  it('a blank page sized after a delete goes in front of the page that was clicked', async () => {
+    __testing.setupForTest('organize', [sf(1, 3)]);
+    __testing.insertBlankPage(2);
+    __testing.deletePage(0);
+    await new Promise(r => setTimeout(r, 0));
+    const order = __testing.getPages().map(p => p.type === 'blank' ? 'blank' : p.sourcePageNum);
+    expect(order).toEqual([2, 'blank', 3]);
+  });
+
+  it('a blank page sized after Clear is dropped', async () => {
+    __testing.setupForTest('organize', [sf(1, 3)]);
+    __testing.insertBlankPage(1);
+    __testing.resetAll();
+    await new Promise(r => setTimeout(r, 0));
+    expect(__testing.getPages()).toEqual([]);
+  });
+
+  it('Replace all does not carry blank pages into the next document', () => {
+    __testing.seed([srcPage(1, 1), { ...srcPage(-1, 0), type: 'blank' }, srcPage(1, 2)], [sf(1, 2)]);
+    __testing.setFiles([sf(2, 2)]);
+    __testing.triggerWmFilesMutated();
+    expect(__testing.getPages().map(p => [p.type, p.sourceFileId])).toEqual([['source', 2], ['source', 2]]);
+  });
+});
+
+// An undo snapshot holds the file list, so it has to stay consistent with
+// every other piece of state keyed by file id.
+describe('Organize undo and the file list', () => {
+  function twoFiles() {
+    __testing.seed(
+      [srcPage(1, 1), srcPage(1, 2), srcPage(2, 1), srcPage(2, 2)],
+      [sf(1, 2), sf(2, 2)],
+      [2, 3],
+    );
+  }
+
+  it('undoing a delete that removed a file, then adding another, does not duplicate pages', () => {
+    twoFiles();
+    __testing.deleteSelected();
+    expect(__testing.getFiles().map(f => f.id)).toEqual([1]);
+    __testing.undo();
+    expect(__testing.getFiles().map(f => f.id)).toEqual([1, 2]);
+    __testing.setFiles([...__testing.getFiles(), sf(3, 1)]);
+    __testing.triggerWmFilesMutated();
+    const perFile = (id: number) => __testing.getPages().filter(p => p.sourceFileId === id).length;
+    expect([perFile(1), perFile(2), perFile(3)]).toEqual([2, 2, 1]);
+  });
+
+  it('a file added or removed outside an Organize action clears undo', () => {
+    twoFiles();
+    __testing.pushHistory();
+    expect(__testing.getHistoryLength()).toBe(1);
+    __testing.setFiles([sf(1, 2)]);
+    __testing.triggerWmFilesMutated();
+    expect(__testing.getHistoryLength()).toBe(0);
+  });
+
+  it('deleting the last page of a file with × updates the file bookkeeping and stays undoable', () => {
+    __testing.seed([srcPage(1, 1), srcPage(2, 1)], [sf(1, 1), sf(2, 1)]);
+    __testing.deletePage(1);
+    expect([...__testing.getWmKnownFileIds()]).toEqual([1]);
+    expect(__testing.getHistoryLength()).toBe(1);
+    __testing.undo();
+    expect([...__testing.getWmKnownFileIds()].sort()).toEqual([1, 2]);
+  });
+});
+
+// Follow-ups from review of the fixes above.
+describe('Organize edge cases after undo, reorder and delete-all', () => {
+  it('a blank page sized across an undo still lands in front of the clicked page', async () => {
+    __testing.setupForTest('organize', [sf(1, 3)]);
+    __testing.deletePage(0);         // [2, 3], undoable
+    __testing.insertBlankPage(1);    // in front of page 3
+    __testing.undo();                // [1, 2, 3], as copies: page 3 moved to index 2
+    await new Promise(r => setTimeout(r, 0));
+    const order = __testing.getPages().map(p => p.type === 'blank' ? 'blank' : p.sourcePageNum);
+    expect(order).toEqual([1, 2, 'blank', 3]);
+  });
+
+  it('a blank page sized after every page was deleted is dropped', async () => {
+    __testing.setupForTest('organize', [sf(1, 2)]);
+    __testing.insertBlankPage(1);
+    __testing.deletePage(0);
+    __testing.deletePage(0);
+    await new Promise(r => setTimeout(r, 0));
+    expect(__testing.getPages()).toEqual([]);
+  });
+
+  it('a Merge reorder drops the stale Organize pages instead of saving them', () => {
+    __testing.seed([srcPage(1, 1), srcPage(2, 1)], [sf(1, 1), sf(2, 1)]);
+    __testing.setFiles([sf(2, 1), sf(1, 1)]);
+    __testing.triggerFilesReordered();
+    expect(__testing.getPages()).toEqual([]);
+  });
+
+  it('Ctrl+Z brings pages back after deleting all of them', () => {
+    __testing.seed([srcPage(1, 1), srcPage(1, 2)], [sf(1, 2)], [0, 1]);
+    __testing.handleKeydown(keydown({ key: 'Delete' }));
+    expect(__testing.getPages()).toEqual([]);
+    __testing.handleKeydown(keydown({ key: 'z', ctrlKey: true }));
+    expect(__testing.getPages().map(p => p.sourcePageNum)).toEqual([1, 2]);
   });
 });
