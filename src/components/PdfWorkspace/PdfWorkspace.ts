@@ -79,6 +79,11 @@ function onFilesMutated(): void {
   if (organizeInitialized) {
     if (removedFileIds.size > 0) {
       pages = pages.filter(p => p.type === 'blank' || !removedFileIds.has(p.sourceFileId));
+      // Blanks were inserted between pages of the documents that just left.
+      // With none of those left they belong to nothing, and keeping them
+      // would carry them into the next file (Replace all) or leave a
+      // "0 files" grid of blanks in place of the empty state.
+      if (!pages.some(p => p.type === 'source')) pages = [];
     }
     for (const f of addedFiles) {
       for (let p = 1; p <= f.pageCount; p++) {
@@ -288,7 +293,7 @@ function redo() {
   applySnapshot(snap);
 }
 
-// Bumped on every applyPayload. In-flight async work (thumbnail renders,
+// Bumped on every applyPayload, Clear and Replace all. In-flight async work (thumbnail renders,
 // pdfjs base bitmap renders) keys against this and bails when stale, so a
 // late callback can't write into the wrong PageEntry array.
 let renderGeneration = 0;
@@ -2770,6 +2775,7 @@ export function cleanup() {
 }
 
 export function resetAll() {
+  renderGeneration++;
   files = [];
   pages = [];
   selected.clear();
@@ -2935,6 +2941,7 @@ async function handleFiles(rawFiles: File[], replaceExisting = false) {
   if (accepted.length === 0) return;
 
   if (replacing) {
+    renderGeneration++;
     files = [];
     lastClickedIdx = -1;
     history.length = 0;
@@ -3511,8 +3518,17 @@ function deleteSelected() {
   renderOrganizeView();
 }
 
-function insertBlankPage(atIdx: number) {
-  getAdjacentPageSize(atIdx).then(size => {
+function insertBlankPage(clickedIdx: number) {
+  // Sizing the blank re-parses the neighbouring source PDF, so the pages can
+  // move (another insert, a delete) or be swapped out (Clear, Replace all)
+  // before it lands. Anchor on the page the blank goes in front of, not on
+  // the index.
+  const anchor: PageEntry | undefined = pages[clickedIdx];
+  const gen = renderGeneration;
+  getAdjacentPageSize(clickedIdx).then(size => {
+    if (gen !== renderGeneration) return;
+    const found = anchor ? pages.indexOf(anchor) : -1;
+    const atIdx = found >= 0 ? found : Math.min(clickedIdx, pages.length);
     pushHistory();
     const blank: PageEntry = {
       type: 'blank', sourceFileId: -1, sourcePageNum: 0,
@@ -3900,19 +3916,24 @@ function kickPageThumbs(p: PageEntry[]) {
 }
 
 function queuePageThumb(p: PageEntry[], idx: number) {
-  if (p[idx].thumbnail || p[idx].type === 'blank') return;
-  const sf = files.find(f => f.id === p[idx].sourceFileId);
+  const entry = p[idx];
+  if (!entry || entry.thumbnail || entry.type === 'blank') return;
+  const sf = files.find(f => f.id === entry.sourceFileId);
   if (!sf) return;
   const gen = renderGeneration;
-  queueRender(sf.bytes, p[idx].sourcePageNum, (url) => {
-    // applyPayload (restore) bumps renderGeneration before swapping `pages`.
-    // Drop late callbacks - both writing into a stale array and pasting an
-    // old thumbnail into a new card would scramble the grid.
+  queueRender(sf.bytes, entry.sourcePageNum, (url) => {
+    // Restore, Clear and Replace all bump renderGeneration. Drop late
+    // callbacks - pasting an old document's thumbnail into the new one's
+    // card would scramble the grid.
     if (gen !== renderGeneration) return;
-    p[idx].thumbnail = url;
+    // Write to the entry, not to `p[idx]`: a reorder, delete or insert while
+    // the render was queued moves pages, and the position is stale by now.
+    entry.thumbnail = url;
     if (!toolContent) return;
-    const card = toolContent.querySelector(`[data-page-idx="${idx}"] .ws-page-thumb`);
-    if (card) setThumb(card, url, { alt: `Page ${p[idx].sourcePageNum}`, rotation: p[idx].rotation });
+    const at = pages.indexOf(entry);
+    if (at < 0) return;
+    const card = toolContent.querySelector(`[data-page-idx="${at}"] .ws-page-thumb`);
+    if (card) setThumb(card, url, { alt: `Page ${entry.sourcePageNum}`, rotation: entry.rotation });
   });
 }
 
@@ -4182,6 +4203,8 @@ export const __testing = {
   getHistoryLength: () => history.length,
   deleteSelected,
   deletePage,
+  insertBlankPage,
+  resetAll,
   selectedOrgIndices,
   undo,
   pushHistory,

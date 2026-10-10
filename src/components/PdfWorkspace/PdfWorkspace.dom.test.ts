@@ -987,3 +987,56 @@ describe('bulk file action accessibility', () => {
     expect(document.activeElement).toBe(iconBtn);
   });
 });
+
+// Async work captured a position and applied it after the pages had moved.
+describe('Organize async work lands on the right page', () => {
+  it('a thumbnail finishing after a delete lands on its own page, without throwing', async () => {
+    const pending = new Map<number, (url: string) => void>();
+    renderPageThumbnailMock.mockImplementation((_bytes, page) =>
+      new Promise<string>(resolve => { if (!pending.has(page)) pending.set(page, resolve); }));
+    __testing.setupForTest('organize', [sf(1, 3)]);
+    __testing.deletePage(0);
+    pending.get(3)!('thumb-3');
+    pending.get(2)!('thumb-2');
+    await new Promise(r => setTimeout(r, 0));
+    const pages = __testing.getPages();
+    expect(pages.map(p => [p.sourcePageNum, p.thumbnail])).toEqual([[2, 'thumb-2'], [3, 'thumb-3']]);
+  });
+
+  it('a thumbnail of the old document never lands after Clear', async () => {
+    const pending: Array<(url: string) => void> = [];
+    renderPageThumbnailMock.mockImplementation(() => new Promise<string>(r => { pending.push(r); }));
+    __testing.setupForTest('organize', [sf(1, 2)]);
+    const oldCount = pending.length;
+    __testing.resetAll();
+    const root = __testing.setupForTest('organize', [sf(2, 2)]);
+    for (const resolve of pending.slice(0, oldCount)) resolve('old-thumb');
+    await new Promise(r => setTimeout(r, 0));
+    expect(__testing.getPages().some(p => p.thumbnail === 'old-thumb')).toBe(false);
+    expect(root.innerHTML).not.toContain('old-thumb');
+  });
+
+  it('a blank page sized after a delete goes in front of the page that was clicked', async () => {
+    __testing.setupForTest('organize', [sf(1, 3)]);
+    __testing.insertBlankPage(2);
+    __testing.deletePage(0);
+    await new Promise(r => setTimeout(r, 0));
+    const order = __testing.getPages().map(p => p.type === 'blank' ? 'blank' : p.sourcePageNum);
+    expect(order).toEqual([2, 'blank', 3]);
+  });
+
+  it('a blank page sized after Clear is dropped', async () => {
+    __testing.setupForTest('organize', [sf(1, 3)]);
+    __testing.insertBlankPage(1);
+    __testing.resetAll();
+    await new Promise(r => setTimeout(r, 0));
+    expect(__testing.getPages()).toEqual([]);
+  });
+
+  it('Replace all does not carry blank pages into the next document', () => {
+    __testing.seed([srcPage(1, 1), { ...srcPage(-1, 0), type: 'blank' }, srcPage(1, 2)], [sf(1, 2)]);
+    __testing.setFiles([sf(2, 2)]);
+    __testing.triggerWmFilesMutated();
+    expect(__testing.getPages().map(p => [p.type, p.sourceFileId])).toEqual([['source', 2], ['source', 2]]);
+  });
+});
