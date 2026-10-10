@@ -209,6 +209,47 @@ describe('createPersistor', () => {
     expect(getCurrentSessionId('convertPage')).toBeNull();
   });
 
+  it('a file whose bytes did not land is not named in the manifest', async () => {
+    const state = {
+      files: [{ id: 0, name: 'a', size: 1, bytes: new Uint8Array([1]) }],
+      targetFormat: null as string | null,
+    };
+    const spec = makeSpec(state);
+    const getBytes = spec.getBytesForId;
+    spec.getBytesForId = (id) => { if (id === 1) throw new Error('gone'); return getBytes(id); };
+    const p = track(createPersistor(spec));
+    p.markFilesDirty();
+    await p.flushOnHide();
+    const sid = getCurrentSessionId('convertPage')!;
+
+    state.files.push({ id: 1, name: 'b', size: 1, bytes: new Uint8Array([2]) });
+    p.markFilesDirty();
+    await p.flushOnHide();
+    // The previous, restorable manifest stays rather than one naming id 1.
+    expect((await loadSession<ConvertPagePayload>(sid))!.payload.files.map(f => f.id)).toEqual([0]);
+  });
+
+  it('a file added while an emptied session is being deleted is still saved', async () => {
+    const state = {
+      files: [{ id: 0, name: 'a', size: 1, bytes: new Uint8Array([1]) }],
+      targetFormat: null as string | null,
+    };
+    const p = track(createPersistor(makeSpec(state)));
+    p.markFilesDirty();
+    await p.flushOnHide();
+
+    state.files = [];
+    p.markFilesDirty();
+    const deleting = p.flushOnHide();
+    state.files = [{ id: 1, name: 'b', size: 1, bytes: new Uint8Array([2]) }];
+    p.markFilesDirty();
+    await deleting;
+    await p.flushOnHide();
+    const sid = getCurrentSessionId('convertPage');
+    expect(sid).toBeTruthy();
+    expect((await loadSession<ConvertPagePayload>(sid!))!.payload.files.map(f => f.id)).toEqual([1]);
+  });
+
   it('an orphan with no files is not offered for resume', async () => {
     await saveSession('empty-orphan', 'convertPage', { files: [], targetFormat: 'pdf' });
     setStoredSessionId('convertPage', 'new-tab-sid');
