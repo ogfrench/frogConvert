@@ -169,6 +169,54 @@ describe('createPersistor', () => {
     }
   });
 
+  it('a manifest-only mark after clear() still writes the bytes it names', async () => {
+    // Converter: a finished conversion clears the session, then picking a
+    // new target format marks the manifest only. The saved manifest must
+    // not name files whose bytes were never written.
+    const state = {
+      files: [{ id: 0, name: 'a', size: 2, bytes: new Uint8Array([3, 4]) }],
+      targetFormat: 'png' as string | null,
+    };
+    const p = track(createPersistor(makeSpec(state)));
+    p.markFilesDirty();
+    await p.flushOnHide();
+    p.clear();
+    await new Promise(r => setTimeout(r, 50));
+
+    state.targetFormat = 'webp';
+    p.markManifestDirty();
+    await p.flushOnHide();
+    const sid = getCurrentSessionId('convertPage')!;
+    expect((await loadSession<ConvertPagePayload>(sid))!.payload.files.map(f => f.id)).toEqual([0]);
+    expect(Array.from((await loadAllFileBytes(sid)).get(0)!)).toEqual([3, 4]);
+  });
+
+  it('a flush with no files deletes the session instead of saving an empty one', async () => {
+    const state = {
+      files: [{ id: 0, name: 'a', size: 1, bytes: new Uint8Array([7]) }],
+      targetFormat: null as string | null,
+    };
+    const p = track(createPersistor(makeSpec(state)));
+    p.markFilesDirty();
+    await p.flushOnHide();
+    const sid = getCurrentSessionId('convertPage')!;
+    expect(await loadSession(sid)).not.toBeNull();
+
+    state.files = [];
+    p.markFilesDirty();
+    await p.flushOnHide();
+    expect(await loadSession(sid)).toBeNull();
+    expect(getCurrentSessionId('convertPage')).toBeNull();
+  });
+
+  it('an orphan with no files is not offered for resume', async () => {
+    await saveSession('empty-orphan', 'convertPage', { files: [], targetFormat: 'pdf' });
+    setStoredSessionId('convertPage', 'new-tab-sid');
+    const p = track(createPersistor(makeSpec({ files: [], targetFormat: null })));
+    expect((await p.tryRestore()).status).toBe('none');
+    expect(await loadSession('empty-orphan')).toBeNull();
+  });
+
   it('detects tab-clone and mints fresh sessionId when a sibling claims our sessionStorage id', async () => {
     const sharedId = 'shared-id';
     setStoredSessionId('convertPage', sharedId);

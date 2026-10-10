@@ -128,7 +128,24 @@ export function createPersistor<P extends SessionPayload>(spec: PersistorSpec<P>
   async function flushImpl(): Promise<void> {
     if (!sessionId || dirty === 'none') return;
     const sid = sessionId;
-    const filesWereDirty = dirty === 'files';
+    const currentIds = spec.currentFileIds();
+    if (currentIds.length === 0) {
+      // Nothing left to resume. Writing it anyway would offer "Resume your
+      // last session? 0 files" in the next tab.
+      dirty = 'none';
+      await clearSession(sid);
+      if (sessionId === sid) {
+        clearStoredSessionId(spec.kind);
+        sessionId = null;
+        lastWrittenIds = new Set();
+      }
+      return;
+    }
+    // Bytes are owed for any current file this session never wrote, whatever
+    // scope the caller marked. After clear() (a finished conversion, say) the
+    // next mark is often manifest-only - picking a new target format - and
+    // trusting it wrote a manifest naming files with no bytes behind them.
+    const filesWereDirty = dirty === 'files' || currentIds.some(id => !lastWrittenIds.has(id));
     dirty = 'none';
     // Snapshot the manifest BEFORE writing bytes so we don't write a manifest
     // that references files whose bytes haven't landed yet. The flow:
@@ -141,7 +158,7 @@ export function createPersistor<P extends SessionPayload>(spec: PersistorSpec<P>
     //      every fileId it references still has bytes - no broken sessions.
     const manifest = spec.buildPayload();
     if (filesWereDirty && !bytesQuotaPaused) {
-      const ids = new Set(spec.currentFileIds());
+      const ids = new Set(currentIds);
       const adds = [...ids].filter(id => !lastWrittenIds.has(id));
       const writtenAdds: number[] = [];
       for (const id of adds) {
