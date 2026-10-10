@@ -6,7 +6,7 @@ import { planImage } from "../core/compression/plan.ts";
 import { isSafari } from "../tools/pdfThumbnails.ts";
 import { rethrowIfPasswordProtected } from "./_pdfErrors.ts";
 
-import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import workerSrc from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 
 /**
  * Last-resort PDF compressor: rasterise every page and rebuild the document
@@ -43,13 +43,13 @@ const MAX_TOTAL_MEGAPIXELS = 600;
  * every visitor's download to serve a path almost none of them take.
  */
 type PdfLibs = {
-    pdfjsLib: typeof import("pdfjs-dist");
+    pdfjsLib: typeof import("pdfjs-dist/legacy/build/pdf.mjs");
     PDFDocument: typeof import("pdf-lib").PDFDocument;
 };
 let libs: Promise<PdfLibs> | null = null;
 
 function loadPdfLibs(): Promise<PdfLibs> {
-    libs ??= Promise.all([import("pdfjs-dist"), import("pdf-lib")])
+    libs ??= Promise.all([import("pdfjs-dist/legacy/build/pdf.mjs"), import("pdf-lib")])
         .then(([pdfjsLib, pdfLib]) => {
             pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
             return { pdfjsLib, PDFDocument: pdfLib.PDFDocument };
