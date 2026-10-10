@@ -67,8 +67,17 @@ let organizeInitialized = false; // true once pages derived from files
  *
  * Driven off `knownFileIds` so the delta is exact across mutations from any
  * tab, including ones that previously bypassed this path.
+ *
+ * Also drops the Organize undo history unless the caller is itself an
+ * Organize action that pushed history (`keepHistory`). An undo snapshot
+ * holds the file list, so undo across an add or a removal made elsewhere
+ * would silently re-add or drop a file.
  */
-function onFilesMutated(): void {
+function onFilesMutated({ keepHistory = false } = {}): void {
+  if (!keepHistory) {
+    history.length = 0;
+    redoStack.length = 0;
+  }
   const newFileIds = new Set(files.map(f => f.id));
   const removedFileIds = new Set([...knownFileIds].filter(id => !newFileIds.has(id)));
   const addedFiles = files.filter(f => !knownFileIds.has(f.id));
@@ -100,6 +109,20 @@ function onFilesMutated(): void {
     }
   }
 
+  syncFileDerivedState();
+}
+
+/**
+ * Bring every piece of state keyed by file id in line with `files`, without
+ * touching `pages`. onFilesMutated runs it after its page delta; undo/redo
+ * run it alone, since a snapshot's pages already match its files and
+ * appending a restored file's pages again would duplicate them.
+ */
+function syncFileDerivedState(): void {
+  const newFileIds = new Set(files.map(f => f.id));
+  const removedFileIds = new Set([...knownFileIds].filter(id => !newFileIds.has(id)));
+  const addedFiles = files.filter(f => !knownFileIds.has(f.id));
+
   // Drop pageIds whose page is gone.
   const validPageIds = new Set(pages.map(p => p.pageId));
   for (const pid of selected) if (!validPageIds.has(pid)) selected.delete(pid);
@@ -120,6 +143,10 @@ function onFilesMutated(): void {
 function onFilesReordered(): void {
   organizeInitialized = false;
   selected.clear();
+  // The Organize pages are rebuilt from the new order; an undo snapshot
+  // would bring back the old order along with the old pages.
+  history.length = 0;
+  redoStack.length = 0;
   // Reorder does not change file ids, so manifest-only is enough.
   markDirty('manifest');
 }
@@ -271,9 +298,13 @@ function applySnapshot(snap: HistorySnapshot) {
   selected = snap.selected;
   files = snap.files;
   lastClickedIdx = snap.lastClickedIdx;
+  // The snapshot can bring back a file the action removed. Without this its
+  // id stays out of knownFileIds (the next add would append its pages a
+  // second time) and its bytes are never re-saved (the session no longer
+  // restores).
+  syncFileDerivedState();
   renderOrganizeView();
   kickPageThumbs(pages);
-  markDirty('manifest');
 }
 
 function undo() {
@@ -3470,6 +3501,7 @@ function deletePage(idx: number) {
   // If file has no more pages, remove it
   if (page.type === 'source' && !pages.some(p => p.sourceFileId === fid)) {
     files = files.filter(f => f.id !== fid);
+    onFilesMutated({ keepHistory: true });
   }
 
   if (pages.length === 0) {
@@ -3506,15 +3538,16 @@ function deleteSelected() {
   files = files.filter(f => remainingFileIds.has(f.id));
   selected.clear();
   lastClickedIdx = -1;
+  // onFilesMutated reconciles knownFileIds / watermark / merge state against
+  // the freshly-trimmed `files` (surgical pages update is a no-op since the
+  // removed pages are already gone, but it keeps wmSelected and knownFileIds
+  // in lockstep). It also drops blanks left with no document, so the empty
+  // check comes after it.
+  onFilesMutated({ keepHistory: true });
   if (pages.length === 0) {
     files = [];
     clearThumbnailCache();
   }
-  // onFilesMutated reconciles knownFileIds / watermark / merge state against
-  // the freshly-trimmed `files` (surgical pages update is a no-op since the
-  // removed pages are already gone, but it keeps wmSelected and knownFileIds
-  // in lockstep).
-  onFilesMutated();
   renderOrganizeView();
 }
 

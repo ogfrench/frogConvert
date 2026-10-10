@@ -1040,3 +1040,45 @@ describe('Organize async work lands on the right page', () => {
     expect(__testing.getPages().map(p => [p.type, p.sourceFileId])).toEqual([['source', 2], ['source', 2]]);
   });
 });
+
+// An undo snapshot holds the file list, so it has to stay consistent with
+// every other piece of state keyed by file id.
+describe('Organize undo and the file list', () => {
+  function twoFiles() {
+    __testing.seed(
+      [srcPage(1, 1), srcPage(1, 2), srcPage(2, 1), srcPage(2, 2)],
+      [sf(1, 2), sf(2, 2)],
+      [2, 3],
+    );
+  }
+
+  it('undoing a delete that removed a file, then adding another, does not duplicate pages', () => {
+    twoFiles();
+    __testing.deleteSelected();
+    expect(__testing.getFiles().map(f => f.id)).toEqual([1]);
+    __testing.undo();
+    expect(__testing.getFiles().map(f => f.id)).toEqual([1, 2]);
+    __testing.setFiles([...__testing.getFiles(), sf(3, 1)]);
+    __testing.triggerWmFilesMutated();
+    const perFile = (id: number) => __testing.getPages().filter(p => p.sourceFileId === id).length;
+    expect([perFile(1), perFile(2), perFile(3)]).toEqual([2, 2, 1]);
+  });
+
+  it('a file added or removed outside an Organize action clears undo', () => {
+    twoFiles();
+    __testing.pushHistory();
+    expect(__testing.getHistoryLength()).toBe(1);
+    __testing.setFiles([sf(1, 2)]);
+    __testing.triggerWmFilesMutated();
+    expect(__testing.getHistoryLength()).toBe(0);
+  });
+
+  it('deleting the last page of a file with × updates the file bookkeeping and stays undoable', () => {
+    __testing.seed([srcPage(1, 1), srcPage(2, 1)], [sf(1, 1), sf(2, 1)]);
+    __testing.deletePage(1);
+    expect([...__testing.getWmKnownFileIds()]).toEqual([1]);
+    expect(__testing.getHistoryLength()).toBe(1);
+    __testing.undo();
+    expect([...__testing.getWmKnownFileIds()].sort()).toEqual([1, 2]);
+  });
+});
