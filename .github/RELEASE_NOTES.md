@@ -9,13 +9,15 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.0.1
+## What's new in 3.0.2
 
-**PDF features work in the desktop app and in more browsers.** In 3.0.0, converting a PDF to an image or to text, and the PDF Editor's page previews, failed in the desktop app and on Safari before 26.2, Chrome and Edge before 145, and Samsung Internet: the PDF library relied on JavaScript features those engines do not have yet, and the desktop app's engine is one version short of them. The app now loads the library's build that runs everywhere.
+**The desktop app makes an exact PDF from Office files when LibreOffice is installed.** Until now the desktop app drew PowerPoint, Word and Excel files as a picture, even on a computer with LibreOffice, because the app's window cannot start other programs. It now hands them to your installed LibreOffice, so a deck comes out one page per slide with real, selectable text. Without LibreOffice, the app tells you to install it and restart.
 
-**The PDF Editor keeps track of your pages.** After Clear and a second PDF, picking page 9 could show "273" in the Pages field and make Extract fail with "The PDF might be damaged". The same mix-up could move a selection onto the wrong pages, lose pages in a multi-page drag, put a thumbnail on the wrong page, and let undo bring back a removed file or duplicate its pages. Extract now also keeps the rotations you set in Organize, as Export already did.
+**PDF to PowerPoint keeps every page.** A 4-page PDF became 2 slides, one of them empty. Each page is now its own slide.
 
-**A finished conversion no longer leaves a session that cannot be restored.** Picking another target format after a conversion made every later reload report "Saved session was incomplete", and emptying the workspace offered to "Resume 0 files".
+**Spreadsheets convert properly.** Excel files written by Python tools (openpyxl, pandas) failed or lost their text; they now read like any other. Excel to CSV and Excel to JSON return your cells rather than an internal document tree. CSV to JSON no longer drops the last row, and JSON to CSV keeps your column order.
+
+**Results say when they are pictures.** In the browser, which has no Office engine, Office to PDF draws the document as an image, and PDF to Word or PowerPoint brings each page across as a picture. The Converter now says so before you convert and on the result, instead of calling it a plain success or suggesting a LibreOffice install that cannot help in a browser.
 
 For everything new in 3.0, see the [3.0.0 release](https://github.com/ogfrench/frogConvert/releases/tag/v3.0.0). Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
