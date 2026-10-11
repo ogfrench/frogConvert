@@ -125,6 +125,8 @@ jobs:
 
       - name: Verify conversions
         run: bun run scripts/verify-conversions.ts
+        env:
+          VERIFY_STRICT: "1"
 
   # nginx has never actually parsed these files. `docker/nginx/headers.test.ts`
   # reads default.conf as text and checks a structural rule - every location

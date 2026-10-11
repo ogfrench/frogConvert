@@ -8,6 +8,17 @@ desc: Release history
 
 All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **PDF to PPTX dropped pages.** A 4-page PDF became 2 slides, one of them empty. Each page image is now its own paragraph in the HTML handed to pandoc ([src/handlers/htmlEmbed.ts](src/handlers/htmlEmbed.ts)), which is what makes its writer emit one slide per page.
+- **XLSX files from openpyxl, pandas and other generators failed or lost their text.** Pandoc rejected them as corrupt ("Entry not found: xl//xl/worksheets/sheet1.xml") because their relationship targets are absolute, and then dropped every text cell because they are inline strings. Both forms are valid OOXML; [src/handlers/ooxmlNormalize.ts](src/handlers/ooxmlNormalize.ts) rewrites them into the form Excel writes before pandoc reads the file.
+- **XLSX to CSV and XLSX to JSON returned pandoc's internal document tree** instead of the cells, because pandoc's AST JSON shared the generic JSON identity. A SheetJS handler ([src/handlers/spreadsheet.ts](src/handlers/spreadsheet.ts)) now converts the first sheet's values, and pandoc's JSON and XML are listed as what they are.
+- **CSV to JSON dropped the last row** of any file without a trailing newline, and JSON to CSV sorted the columns alphabetically. Rows are kept and the source's column order is preserved.
+- **Image-only results are labelled.** With no Office engine in the browser, Office and Markdown/HTML/EPUB to PDF draw the document as an image, and PDF to DOCX/PPTX brings each page across as a picture. The Converter now says so before converting and again on the result ([src/conversion/routeQuality.ts](src/conversion/routeQuality.ts)), instead of advising a LibreOffice install that cannot help in the browser or the desktop app. Landing-page copy that promised PDF to DOCX "extracts the text and layout" is corrected.
+- **A file a converter can't read is no longer blamed on its own.** The message now names both a damaged file and a format variant the converter doesn't understand, and the fix that works for both.
+- **The conversion check in CI fails when LibreOffice or a submodule goes missing**, rather than reporting those pairs as environmental and passing (`VERIFY_STRICT=1`). It now also tests XLSX, with an openpyxl-made sample.
+
 ## [3.0.1] - 2026-10-10
 
 Fixes for the PDF features, chiefly in the desktop app, where 3.0.0's PDF to image, PDF to text and PDF Editor page previews did not work.
