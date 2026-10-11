@@ -37,7 +37,7 @@ export function routeQualityNotice(formats: string[]): Notice | null {
     return {
       title: `This ${to} is made of pictures`,
       body: to === "PDF"
-        ? "With no Office engine in the browser, the document was drawn as an image: its text can't be selected, and layout may be lost. For an exact PDF, export it from the app that made the file."
+        ? "With no Office engine on this device, the document was drawn as an image: its text can't be selected, and layout may be lost. For an exact PDF, get the Office engine on a computer, or export from the app that made the file."
         : `Each page came across as a picture, so the text in this ${to} can't be edited.`,
     };
   }

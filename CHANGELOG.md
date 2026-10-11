@@ -10,10 +10,14 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added
+- **Exact Office to PDF in desktop browsers.** The Converter offers the browser Office engine: LibreOffice compiled to WebAssembly ([@matbee/libreoffice-converter](https://github.com/matbeedotcom/libreoffice-document-converter) 2.7.2, MPL-2.0), a one-time download of about 74 MB that stays on the device. After it, DOCX, PPTX, XLSX, ODT, ODP and ODS become real PDFs with selectable text, one page per slide, in a few seconds and without a reload. Nothing is uploaded. Not offered on phones (it needs about 1.5 GB of memory). [scripts/office-engine.ts](scripts/office-engine.ts) packages it at build time as gzipped 20 MB parts (no public CDN will host the 147 MB file); [src/core/officeEngine/](src/core/officeEngine/) downloads, rebuilds and caches it. The engine occasionally hangs in its PDF export, so each document has a short watchdog and one retry on a fresh engine, and the served engine starts 16 thread workers instead of 4, which made the hang far rarer.
+
 ### Changed
 - **The site is cross-origin isolated** (`Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`, in [netlify.toml](netlify.toml), the Docker nginx snippet, and the Vite dev and preview servers). This makes `SharedArrayBuffer` available, which the browser Office engine needs. Everything the app loads is already same-origin, so nothing else changes; the test servers send the same headers so the suites measure what users get.
 
 ### Fixed
+- **The Convert button was announced as disabled to screen readers** even once it worked: `aria-disabled` was set in the HTML and never updated.
 - **CSV to SQLite failed or mangled data.** A file called `table.csv`, or any name or column header with a space or a SQL keyword, failed with a syntax error, because names went into the SQL unquoted. Every value also lost its first character (`frog` became `rog`, a one-character value became empty), and SQLite to CSV wrote `, ` between values without quoting. Names are now quoted, values are bound as parameters, and the CSV side is written and read with a real CSV library ([src/handlers/sqlite.ts](src/handlers/sqlite.ts)).
 
 ## [3.0.2] - 2026-10-11

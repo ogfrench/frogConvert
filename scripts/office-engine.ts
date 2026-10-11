@@ -49,6 +49,23 @@ const SOURCES: Record<string, string> = {
 };
 const SPLIT = new Set<string>([OFFICE_ENGINE_FILES.sofficeWasm, OFFICE_ENGINE_FILES.sofficeData]);
 
+/**
+ * The engine starts 4 thread workers up front. Its PDF export hangs
+ * intermittently, and less often with a larger pool (measured in the app:
+ * 3 hangs in 5 runs with 4, 1 in 6 with 16), so the served soffice.js starts
+ * 16. This is the one change made to the MPL-2.0 package; NOTICE.txt says so.
+ */
+const POOL_FROM = "var pthreadPoolSize=4;";
+const POOL_TO = "var pthreadPoolSize=16;";
+
+function withLargerThreadPool(js: Uint8Array): Uint8Array {
+    const text = new TextDecoder().decode(js);
+    if (text.split(POOL_FROM).length !== 2) {
+        throw new Error(`[office-engine] expected exactly one "${POOL_FROM}" in soffice.js; the package changed`);
+    }
+    return new TextEncoder().encode(text.replace(POOL_FROM, POOL_TO));
+}
+
 function integrityOf(bytes: Uint8Array): string {
     return "sha512-" + crypto.createHash("sha512").update(bytes).digest("base64");
 }
@@ -96,8 +113,9 @@ async function main() {
         const data = byName.get(source)?.data;
         if (!data) throw new Error(`[office-engine] ${source} is missing from the package`);
         if (!SPLIT.has(name)) {
-            fs.writeFileSync(path.join(OUT, name), data);
-            files.push({ name, size: data.byteLength, gzip: false, parts: [{ name, size: data.byteLength }] });
+            const served = name === OFFICE_ENGINE_FILES.sofficeJs ? withLargerThreadPool(data) : data;
+            fs.writeFileSync(path.join(OUT, name), served);
+            files.push({ name, size: served.byteLength, gzip: false, parts: [{ name, size: served.byteLength }] });
             continue;
         }
         const gz = zlib.gzipSync(data, { level: 9 });
@@ -120,7 +138,9 @@ async function main() {
     fs.writeFileSync(path.join(OUT, "NOTICE.txt"),
         `LibreOffice compiled to WebAssembly, from @matbee/libreoffice-converter ${OFFICE_ENGINE_VERSION}.\n` +
         `Licensed under the Mozilla Public License 2.0: https://mozilla.org/MPL/2.0/\n` +
-        `Source: ${SOURCE}\nLibreOffice source: https://www.libreoffice.org/about-us/source-code/\n`);
+        `Source: ${SOURCE}\nLibreOffice source: https://www.libreoffice.org/about-us/source-code/\n` +
+        `Modified: soffice.js starts 16 thread workers instead of 4 ("${POOL_FROM}" -> "${POOL_TO}"), ` +
+        `by scripts/office-engine.ts in https://github.com/ogfrench/frogConvert.\n`);
     // Written last: its presence is what marks the directory complete.
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
     console.log(`[office-engine] wrote ${OFFICE_ENGINE_BASE}: ${(manifest.downloadSize / 1e6).toFixed(1)} MB to download`);

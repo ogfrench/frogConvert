@@ -2,8 +2,12 @@ import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/
 import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
 import { isOfficeEngineCached, openOfficeEngine, type OfficeConverter } from "../core/officeEngine/officeEngine.ts";
 
-/** Longest one document may take in the browser engine before it is abandoned. */
-const WASM_TIMEOUT_MS = 120_000;
+/**
+ * How long one document may take in the browser engine. A normal document
+ * takes about 2 s; the engine (2.7.2) occasionally hangs in its PDF export, so
+ * the watchdog is short and a hang gets one retry on a fresh engine.
+ */
+const wasmTimeoutMs = (bytes: number) => 20_000 + Math.ceil(bytes / 1e6) * 10_000;
 /** The engine holds ~1.5 GB; give it back after this long unused. */
 const WASM_IDLE_MS = 120_000;
 /** What the browser engine is trusted with. .ppt and .doc hang it, so they are not offered. */
@@ -333,38 +337,51 @@ class libreofficeHandler implements FormatHandler {
 
   async #doConvertWasm(inputFiles: FileData[], inputFormat: FileFormat): Promise<FileData[]> {
     clearTimeout(this.#idleTimer);
-    this.#engine ??= openOfficeEngine().catch(err => {
-      this.#engine = null;
-      throw err;
-    });
-    const engine = await this.#engine;
     const results: FileData[] = [];
     try {
       for (const file of inputFiles) {
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        const timeout = new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new Error(
-            `The Office engine took longer than ${WASM_TIMEOUT_MS / 1000} seconds on ${file.name} and was stopped.`,
-          )), WASM_TIMEOUT_MS);
-        });
+        let out: Uint8Array;
         try {
-          const out = await Promise.race([
-            engine.convert(file.bytes, { outputFormat: "pdf", inputFormat: inputFormat.extension }, file.name),
-            timeout,
-          ]);
-          const dot = file.name.lastIndexOf(".");
-          results.push({ name: (dot > 0 ? file.name.slice(0, dot) : file.name) + ".pdf", bytes: new Uint8Array(out.data) });
-        } finally {
-          clearTimeout(timer);
+          out = await this.#convertOnce(file, inputFormat);
+        } catch (err) {
+          // A hung or crashed engine is not reused: retry once on a fresh one.
+          console.warn(`[LibreOffice] browser engine failed on ${file.name}, retrying on a fresh engine:`, err);
+          this.#disposeEngine();
+          out = await this.#convertOnce(file, inputFormat);
         }
+        const dot = file.name.lastIndexOf(".");
+        results.push({ name: (dot > 0 ? file.name.slice(0, dot) : file.name) + ".pdf", bytes: out });
       }
     } catch (err) {
-      // A stuck or crashed engine is not reused: the next file starts a fresh one.
       this.#disposeEngine();
       throw err;
     }
     this.#idleTimer = setTimeout(() => this.#disposeEngine(), WASM_IDLE_MS);
     return results;
+  }
+
+  async #convertOnce(file: FileData, inputFormat: FileFormat): Promise<Uint8Array> {
+    this.#engine ??= openOfficeEngine().catch(err => {
+      this.#engine = null;
+      throw err;
+    });
+    const engine = await this.#engine;
+    const limit = wasmTimeoutMs(file.bytes.byteLength);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(
+        `The Office engine took longer than ${limit / 1000} seconds on ${file.name} and was stopped.`,
+      )), limit);
+    });
+    try {
+      const out = await Promise.race([
+        engine.convert(file.bytes, { outputFormat: "pdf", inputFormat: inputFormat.extension }, file.name),
+        timeout,
+      ]);
+      return new Uint8Array(out.data);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   #disposeEngine() {
