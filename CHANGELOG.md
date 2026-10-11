@@ -10,6 +10,15 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.1.1] - 2026-10-12
+
+Three data-fidelity fixes found reviewing 3.1.0.
+
+### Fixed
+- **CSV to SQLite rewrote values that only looked like numbers.** Any column whose values all parsed as numbers was stored through `Number()`, so `00501` became `501`, `0x1A` became `26`, `1.50` became `1.5` and IDs past 2^53 were rounded. The 3.1.0 entry said every character was kept; for these values it was not. A column is now numeric only when every value reads back exactly as written ([src/handlers/sqlite.ts](src/handlers/sqlite.ts)).
+- **CSV to SQLite failed on repeated headers that met a real one.** `a,a,a_2` became `a, a_2, a_2` and `CREATE TABLE` refused the duplicate. Generated names are now checked against every name already used, case-insensitively as SQLite compares them.
+- **XLSX with an empty self-closing inline-string cell came out as broken XML.** The inline-string rewrite in [src/handlers/ooxmlNormalize.ts](src/handlers/ooxmlNormalize.ts) matched `<c t="inlineStr"/>` and ran on to the next cell's `</c>`, dropping that cell's text. Self-closing cells are now left alone.
+
 ## [3.1.0] - 2026-10-11
 
 Office documents become real PDFs in desktop browsers, through an opt-in download.
