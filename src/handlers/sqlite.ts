@@ -1,6 +1,6 @@
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
-import { parse } from "papaparse";
+import { parse, unparse } from "papaparse";
 class sqlite3Handler implements FormatHandler {
 
   public name: string = "sqlite3";
@@ -81,21 +81,20 @@ class sqlite3Handler implements FormatHandler {
 
         try {
           for (const table of this.getTables(db)) {
-            const stmt = db.prepare(`SELECT * FROM ${table}`);
-            let csvStr = stmt.getColumnNames().join(",") + "\n";
+            const stmt = db.prepare(`SELECT * FROM ${quoteIdent(table)}`);
+            const fields: string[] = stmt.getColumnNames();
+            const data: unknown[][] = [];
             try {
               while (stmt.step()) {
-                const row = Array.from({ length: stmt.columnCount }, (_, j) => stmt.get(j))
-                csvStr += row.join(", ") + "\n"
+                data.push(Array.from({ length: stmt.columnCount }, (_, j) => stmt.get(j)));
               }
             } finally {
               stmt.finalize();
             }
 
-            const encoder = new TextEncoder()
             outputFiles.push({
               name: `${table}.csv`,
-              bytes: new Uint8Array(encoder.encode(csvStr))
+              bytes: new TextEncoder().encode(unparse({ fields, data }) + "\n")
             })
           }
         } finally {
@@ -104,41 +103,40 @@ class sqlite3Handler implements FormatHandler {
       }
     }
     if (inputFormat.internal === "csv" && outputFormat.internal === "sqlite3") {
-        const db = new sqlite3.oo1.DB();
-        if (!db.pointer) {
-            throw new Error("Database pointer is undefined")
-        }
-
-        
+      const db = new sqlite3.oo1.DB();
+      if (!db.pointer) {
+        throw new Error("Database pointer is undefined")
+      }
+      try {
         for (const file of inputFiles) {
-          const decoder = new TextDecoder('utf-8'); // decode as UTF-8
-          parse(decoder.decode(file.bytes), { 
+          const { data } = parse<string[]>(new TextDecoder("utf-8").decode(file.bytes), {
             header: false,
             skipEmptyLines: true,
-            complete: function(result) {
-              const tableName = file.name.replace(".csv", "")
-              const header = result.data[0] as string[];
-              const firstRow = result.data[1] as string[];
-
-              const schema = inferSchema(header, firstRow);
-                        console.log(schema);
-              db.exec(`CREATE TABLE ${tableName} (${schema.map(v => v.join(" ")).join(", ")})`)
-
-              for (const row of result.data.slice(1) as string[][]) {
-                db.exec(`INSERT INTO ${tableName} (${header}) VALUES (${row.map((v, i) => formatValue(v, schema[i][1]))})`)
-              } 
-            }
           });
+          if (data.length === 0) continue;
+          const [header, ...rows] = data;
+          const columns = columnNames(header);
+          const types = columns.map((_, i) => inferType(rows.map(r => r[i])));
+          const table = quoteIdent(file.name.replace(/\.csv$/i, "") || "data");
+
+          db.exec(`CREATE TABLE ${table} (${columns.map((c, i) => `${quoteIdent(c)} ${types[i]}`).join(", ")})`);
+          const insert = db.prepare(`INSERT INTO ${table} VALUES (${columns.map(() => "?").join(", ")})`);
+          try {
+            for (const row of rows) {
+              insert.bind(columns.map((_, i) => toValue(row[i], types[i]))).stepReset();
+            }
+          } finally {
+            insert.finalize();
+          }
         }
-        let bfr = sqlite3.capi.sqlite3_js_db_export(db);
         outputFiles.push({
-            name: "database.db",
-            bytes: bfr
+          name: "database.db",
+          bytes: sqlite3.capi.sqlite3_js_db_export(db)
         });
+      } finally {
+        db.close();
       }
-
-
-
+    }
 
     return outputFiles;
   }
@@ -146,23 +144,32 @@ class sqlite3Handler implements FormatHandler {
 
 export default sqlite3Handler;
 
-function formatValue(value: string, type: string) {
-    value = value.substring(1); // Strip of space from left
-    if (value == "") return "NULL";
-    if (type === "TEXT") return `'${value.replace(/'/g, "''")}'`;
-    return value;
-}
-function inferType(value: string): string {
-if (!isNaN(Number(value))) {
-  if (Number.isInteger(Number(value))) return "INTEGER"
-  return "REAL"
-}
-return "TEXT";
+// Table and column names come from the file name and the CSV header, so they
+// can be SQL keywords ("table", "order") or contain spaces and quotes.
+function quoteIdent(name: string): string {
+  return `"${name.replace(/"/g, '""')}"`;
 }
 
-function inferSchema(header: string[], row: string[]): string[][] {
-  return header.map((h, i) => {
-    const type = inferType(row[i]);
-    return [h, type];
-  })
+function columnNames(header: string[]): string[] {
+  const seen = new Map<string, number>();
+  return header.map((raw, i) => {
+    const base = raw.trim() || `column${i + 1}`;
+    const n = (seen.get(base.toLowerCase()) ?? 0) + 1;
+    seen.set(base.toLowerCase(), n);
+    return n === 1 ? base : `${base}_${n}`;
+  });
+}
+
+// Trimmed because this handler's own SQLite -> CSV output used to write
+// ", " between values, and those files should still import cleanly.
+function toValue(raw: string | undefined, type: string): string | number | null {
+  const value = (raw ?? "").trim();
+  if (value === "") return null;
+  return type === "TEXT" ? value : Number(value);
+}
+
+function inferType(values: (string | undefined)[]): string {
+  const present = values.map(v => (v ?? "").trim()).filter(v => v !== "");
+  if (present.length === 0 || present.some(v => isNaN(Number(v)))) return "TEXT";
+  return present.every(v => Number.isInteger(Number(v))) ? "INTEGER" : "REAL";
 }

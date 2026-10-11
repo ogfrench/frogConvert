@@ -114,6 +114,20 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         expect(o.modal).toMatch(/made of pictures/);
     }, 300_000);
 
+    it("the page is cross-origin isolated, as netlify.toml serves it", async () => {
+        const { page } = await newTrackedPage(browser, path.join(TMP, "isolation"));
+        await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
+        expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
+        await page.close();
+    }, 120_000);
+
+    // sqlite-wasm is the one engine that behaves differently once
+    // SharedArrayBuffer exists: it tries to install an OPFS VFS on start.
+    it("csv -> sqlite still works under cross-origin isolation", async () => {
+        const o = await convert(path.join(RES, "table.csv"), "sqlite3");
+        expect(read(o).subarray(0, 15).toString("latin1")).toBe("SQLite format 3");
+    }, 300_000);
+
     it("png -> jpg is a plain success with no notice", async () => {
         const o = await convert(path.join(RES, "colors_50x50.png"), "jpeg");
         expect(read(o).subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));

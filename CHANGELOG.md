@@ -10,6 +10,12 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Changed
+- **The site is cross-origin isolated** (`Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`, in [netlify.toml](netlify.toml), the Docker nginx snippet, and the Vite dev and preview servers). This makes `SharedArrayBuffer` available, which the browser Office engine needs. Everything the app loads is already same-origin, so nothing else changes; the test servers send the same headers so the suites measure what users get.
+
+### Fixed
+- **CSV to SQLite failed or mangled data.** A file called `table.csv`, or any name or column header with a space or a SQL keyword, failed with a syntax error, because names went into the SQL unquoted. Every value also lost its first character (`frog` became `rog`, a one-character value became empty), and SQLite to CSV wrote `, ` between values without quoting. Names are now quoted, values are bound as parameters, and the CSV side is written and read with a real CSV library ([src/handlers/sqlite.ts](src/handlers/sqlite.ts)).
+
 ## [3.0.2] - 2026-10-11
 
 Office and spreadsheet conversions: real fixes where the browser can do the job, honest labels where it cannot, and an exact Office to PDF in the desktop app when LibreOffice is installed.

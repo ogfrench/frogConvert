@@ -51,9 +51,9 @@ export interface DistServer {
  *  - The CSP comes from the BUILT _headers. public/_headers still holds the
  *    __CSP_SCRIPT_HASHES__ placeholder, and serving that verbatim blocks every
  *    inline script.
- *  - No COOP/COEP, because netlify.toml sets none: production has no
- *    SharedArrayBuffer and ffmpeg runs its single-threaded core. Adding them
- *    would measure a path no user reaches.
+ *  - COOP/COEP as netlify.toml sets them, so the page is cross-origin
+ *    isolated like production. Leaving them out would measure a path no user
+ *    reaches.
  *  - Port 0, not a constant. Vitest runs test files in parallel workers, and
  *    two suites sharing a hardcoded port fail with EADDRINUSE in whichever one
  *    lost the race - a failure that reads as a broken app.
@@ -74,6 +74,8 @@ export async function serveDist(): Promise<DistServer> {
         res.writeHead(200, {
             "content-type": MIME[path.extname(file).toLowerCase()] || "application/octet-stream",
             "cache-control": "no-store",
+            "cross-origin-opener-policy": "same-origin",
+            "cross-origin-embedder-policy": "require-corp",
             ...(csp ? { "content-security-policy": csp } : {}),
         });
         res.end(fs.readFileSync(file));
@@ -211,13 +213,19 @@ export async function takeModalDownload(
     dir: string,
     timeout = 600_000,
 ): Promise<{ files: { name: string; size: number }[] | null; modalText: string }> {
+    // Also stop at a modal that can only be dismissed: a failed conversion
+    // ends there, and waiting the full timeout for a Download that will never
+    // come hides the app's own error message behind a TimeoutError.
     await page.waitForFunction(
-        () => [...document.querySelectorAll(".popup-actions-footer button")]
-            .some(b => /^Download/.test(b.textContent?.trim() ?? "")),
+        () => [...document.querySelectorAll("#popup button")]
+            .some(b => /^(Download|Got it)/.test(b.textContent?.trim() ?? "")),
         { timeout },
     );
     const modalText = await page.evaluate(() =>
         document.querySelector("#popup")?.textContent?.replace(/\s+/g, " ").trim().slice(0, 400) ?? "");
+    const canDownload = await page.evaluate(() => [...document.querySelectorAll(".popup-actions-footer button")]
+        .some(b => /^Download/.test(b.textContent?.trim() ?? "")));
+    if (!canDownload) return { files: null, modalText };
     await page.evaluate(() => {
         [...document.querySelectorAll(".popup-actions-footer button")]
             .find(b => /^Download/.test(b.textContent?.trim() ?? ""))

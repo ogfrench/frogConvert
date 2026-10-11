@@ -57,6 +57,8 @@ export async function startDeployServer(initialRoot: string): Promise<DeployServ
       res.writeHead(status, {
         "Content-Type": MIME[path.extname(file).toLowerCase()] || "application/octet-stream",
         "Content-Length": body.length,
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp",
         // The SW must never be HTTP-cached, or an update cannot roll out.
         ...(urlPath === "/sw.js" ? { "Cache-Control": "no-cache" } : {}),
       });
