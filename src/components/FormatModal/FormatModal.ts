@@ -318,10 +318,11 @@ const LIBREOFFICE_INPUT_EXTS = new Set([
 ]);
 
 /**
- * Show the "install LibreOffice for best results" notice when the user is
- * about to convert an office document to PDF but the libreoffice handler
- * isn't available (either no local binary AND no localhost API server with
- * libreoffice enabled). Otherwise hide it.
+ * Warn, before converting, that an office document -> PDF conversion will be
+ * an image-only PDF when the libreoffice handler isn't available (no local
+ * binary and no localhost API server with libreoffice enabled), which is
+ * every hosted visit and the desktop app. It used to say "Install
+ * LibreOffice", which can't help in either.
  */
 let libreofficeNoticeDismissed = false;
 let mobileHintShown = false;
@@ -371,7 +372,7 @@ function updateLibreofficeNoticeVisibility(fromIdx: number | null, toIdx: number
     if (shouldShow && !mobileHintShown) {
       mobileHintShown = true;
       showToast(
-        "You're on mobile, so this conversion will happen without LibreOffice. Your PDF may not match your slides.",
+        "This PDF will be a picture of your document: the text won't be selectable and the layout may be lost. For an exact PDF, export it from the app that made the file.",
         "warn",
         12000,
       );

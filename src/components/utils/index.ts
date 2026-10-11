@@ -197,7 +197,10 @@ export function toUserErrorInfo(err: unknown): UserErrorInfo {
         return { message: "The converter finished, but came back empty. Try another file or format.", kind: "input_issue" };
     }
     if (/invalid base64|could not be read|failed to parse|malformed|corrupt|damaged/i.test(text)) {
-        return { message: "This file couldn't be read. Try re-exporting it or uploading a fresh copy.", kind: "input_issue" };
+        // A reader rejecting the file is as often the reader's gap as real
+        // damage: openpyxl-made spreadsheets were refused this way while
+        // opening fine in Excel. Name both, and the fix that works for both.
+        return { message: "This file couldn't be read. It may be damaged, or saved in a way this converter doesn't understand. Re-saving it from the app that made it usually fixes it.", kind: "input_issue" };
     }
     if (/too large|safety cap|decompress/i.test(text)) {
         return { message: text.length > 200 ? text.slice(0, 197).trimEnd() + "..." : text, kind: "input_issue" };

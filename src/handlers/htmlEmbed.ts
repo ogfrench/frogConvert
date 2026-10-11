@@ -51,20 +51,25 @@ class htmlEmbedHandler implements FormatHandler {
         html += `<pre>${text}</pre>`;
       }
     } else {
+      // One block per file, not inline elements separated by <br>: pandoc
+      // reads a run of <img><br> as a single paragraph, and its pptx writer
+      // then put the first page on a slide and dropped the rest (a 4-page PDF
+      // became 2 slides, one of them empty). A paragraph each gives one slide
+      // per page in pptx and one paragraph per page in docx.
       for (const inputFile of inputFiles) {
 
         const base64 = htmlEmbedHandler.bytesToBase64(inputFile.bytes);
 
         if (inputFormat.mime.startsWith("image/")) {
-          html += `<img src="data:${inputFormat.mime};base64,${base64}"><br>`;
+          html += `<p><img src="data:${inputFormat.mime};base64,${base64}"></p>`;
         } else if (inputFormat.mime.startsWith("audio/")) {
-          html += `<audio controls>
+          html += `<p><audio controls>
             <source src="data:${inputFormat.mime};base64,${base64}" type="${inputFormat.mime}"></source>
-          </audio><br>`;
+          </audio></p>`;
         } else {
-          html += `<video controls>
+          html += `<p><video controls>
             <source src="data:${inputFormat.mime};base64,${base64}" type="${inputFormat.mime}"></source>
-          </video><br>`;
+          </video></p>`;
         }
 
       }

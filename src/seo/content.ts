@@ -260,12 +260,12 @@ export const FORMAT_CONTENT: Record<string, FormatContent> = {
 export const PAIR_CONTENT: Record<string, PairContent> = {
   // --- documents ---
   "pdf→docx": {
-    summary: "Extracts the text and layout from a fixed-page PDF and rebuilds it as an editable Word document.",
-    caveat: "A PDF stores positioned glyphs, not paragraphs, so the structure is inferred rather than recovered. Expect to fix up columns, tables and headings. PDFs of scanned pages contain no text at all and will come through empty.",
+    summary: "Turns a fixed-page PDF into a Word document.",
+    caveat: "In the browser each page arrives as a picture, so nothing in the document is editable. The command-line tools and MCP server extract the text instead, but not its layout: a PDF stores positioned glyphs, not paragraphs, so columns, tables and headings are not rebuilt. To edit a PDF's layout, open it in Word, which reconstructs it.",
   },
   "docx→pdf": {
     summary: "Renders a Word document to fixed pages so it looks identical wherever it opens, and can no longer be casually edited.",
-    caveat: "Faithful output needs LibreOffice installed locally; frogConvert calls it and never uploads the file. Without it, slide layouts, images and formatting are lost.",
+    caveat: "In the browser the PDF is a picture of the document: its text can't be selected, and images and formatting may be lost. The command-line tools and MCP server use LibreOffice when it is installed, which gives a faithful PDF without uploading the file.",
   },
   "docx→txt": {
     summary: "Pulls the raw text out of a Word document and discards everything else.",
@@ -281,7 +281,7 @@ export const PAIR_CONTENT: Record<string, PairContent> = {
   },
   "html→pdf": {
     summary: "Renders a web page to fixed pages, turning reflowable markup into a paginated document.",
-    caveat: "HTML has no page concept, so page breaks are invented. Anything that depends on scrolling, hover or scripting does not survive.",
+    caveat: "HTML has no page concept, so page breaks are invented. Anything that depends on scrolling, hover or scripting does not survive. In the browser the PDF is drawn as an image, so its text can't be selected or searched.",
   },
   "html→md": {
     summary: "Converts HTML back to Markdown, keeping headings, links, lists and emphasis as plain-text conventions.",
@@ -293,7 +293,7 @@ export const PAIR_CONTENT: Record<string, PairContent> = {
   },
   "md→pdf": {
     summary: "Renders Markdown to a paginated PDF, applying default typography for headings, code blocks and lists.",
-    caveat: "Page breaks are chosen automatically and can land awkwardly inside long code blocks or tables.",
+    caveat: "Page breaks are chosen automatically and can land awkwardly inside long code blocks or tables. In the browser the PDF is drawn as an image, so its text can't be selected or searched.",
   },
   "md→txt": {
     summary: "Strips Markdown's syntax to leave the underlying prose.",
@@ -305,19 +305,19 @@ export const PAIR_CONTENT: Record<string, PairContent> = {
   },
   "txt→pdf": {
     summary: "Lays plain text out on fixed pages with default typography.",
-    caveat: "Line wrapping and page breaks are chosen for you. Text with meaningful alignment, such as ASCII tables, may not survive the wrap.",
+    caveat: "Line wrapping and page breaks are chosen for you. Text with meaningful alignment, such as ASCII tables, may not survive the wrap. In the browser the PDF is drawn as an image, so its text can't be selected or searched.",
   },
   "pdf→txt": {
     summary: "Extracts the text layer from a PDF and discards all layout.",
     caveat: "Reading order is inferred from position, so multi-column pages often interleave. A scanned PDF has no text layer and returns nothing.",
   },
   "pptx→pdf": {
-    summary: "Renders each PowerPoint slide to a PDF page, which is the usual way to share a deck that must look right everywhere.",
-    caveat: "Needs LibreOffice installed for faithful layout. Animations, transitions and speaker notes do not carry over.",
+    summary: "Renders a PowerPoint deck to PDF, the usual way to share slides that must look right everywhere.",
+    caveat: "A page per slide with the real layout needs LibreOffice, which the command-line tools and MCP server use when it is installed. In the browser the deck becomes one picture of its text, without slide layouts or images. Animations, transitions and speaker notes never carry over.",
   },
   "epub→pdf": {
     summary: "Converts a reflowable e-book to fixed pages.",
-    caveat: "EPUB has no pages, so pagination is invented. This trades the format's main advantage, text that adapts to the reader's screen, for a fixed layout.",
+    caveat: "EPUB has no pages, so pagination is invented. This trades the format's main advantage, text that adapts to the reader's screen, for a fixed layout. In the browser the PDF is drawn as an image, so its text can't be selected or searched.",
   },
   "xlsx→csv": {
     summary: "Exports spreadsheet cell values as comma-separated text.",

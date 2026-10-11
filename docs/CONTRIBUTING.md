@@ -118,6 +118,16 @@ Both need a production build first, since they drive the built site:
 bun run build && bun run cache:refresh
 ```
 
+**That refreshes new handlers only.** The built site loads the committed cache,
+so every handler already in it is a cache hit and is serialised unchanged; only
+handlers missing from it run `init()`. After *changing* an existing handler's
+formats, delete `dist/cache.json` before `cache:refresh` so every handler
+re-initialises. Then check the diff: a full regeneration records handlers in
+the order they finish initialising, which is not stable, and handler order is
+part of the route cost (`HANDLER_PRIORITY_COST` in
+[TraversionGraph.ts](../src/core/TraversionGraph/TraversionGraph.ts)). Keep the
+committed order and take only the entries you meant to change.
+
 In dev, the cache is optional; the app falls back to initializing all handlers at startup with a loading screen.
 
 ---

@@ -77,6 +77,7 @@ const HANDLER_SPECS: Array<[string, string, string?]> = [
   ["txtToInfiniteCraft", "handlers/txtToInfiniteCraft.ts"],
   ["envelope", "handlers/envelope.ts"],
   ["tmx", "handlers/tmx.ts"],
+  ["spreadsheet", "handlers/spreadsheet.ts"],
   ["sevenZip", "handlers/sevenZip.ts"],
   ["json5", "handlers/json5.ts"],
   ["jsonToC", "handlers/jsonToC.ts"],
@@ -202,6 +203,9 @@ samples.set("png", load("colors_50x50.png"));
 samples.set("mp3", load("gaster.mp3"));
 samples.set("mp4", load("doom.mp4"));
 samples.set("docx", load("word.docx"));
+// Written by openpyxl, deliberately: absolute relationship targets and inline
+// strings, the shape pandoc could not read until src/handlers/ooxmlNormalize.ts.
+samples.set("xlsx", load("sheet.xlsx"));
 samples.set("md", load("markdown.md"));
 samples.set("txt", text("frogConvert sample text.\nSecond line.\n"));
 samples.set("csv", text("name,qty,price\nwidget,3,9.99\ngasket,12,0.45\n"));
@@ -242,6 +246,16 @@ function environmental(detail: string): boolean {
   return /LibreOffice produced no output|no path found|requires.*browser|not installed/i.test(detail);
 }
 
+/**
+ * Pairs whose only routes need a browser-only handler, so ENV is their correct
+ * result even in CI. VERIFY_STRICT=1 (set in CI, which has LibreOffice and
+ * every submodule) turns any other ENV into FAIL: without it, LibreOffice
+ * dropping out of the image would turn every office pair ENV and the job would
+ * stay green.
+ */
+const BROWSER_ONLY = new Set(["png→svg"]);
+const STRICT = process.env.VERIFY_STRICT === "1";
+
 const rows: Row[] = [];
 for (const pair of pairs) {
   const [from, to] = pair.split("→");
@@ -254,7 +268,8 @@ for (const pair of pairs) {
     rows.push({ pair, status: "PASS", detail: `${out.length} file(s), ${bytes.length} bytes` });
   } catch (e) {
     const detail = message(e).slice(0, 90);
-    rows.push({ pair, status: environmental(detail) ? "ENV" : "FAIL", detail });
+    const env = environmental(detail) && (!STRICT || BROWSER_ONLY.has(pair));
+    rows.push({ pair, status: env ? "ENV" : "FAIL", detail });
   }
 }
 

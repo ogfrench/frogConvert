@@ -2,6 +2,7 @@ import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/
 import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
 import mime from "mime";
 import normalizeMimeType from "../core/utils/normalizeMimeType.ts";
+import { normalizeOoxmlForPandoc } from "./ooxmlNormalize.ts";
 
 class pandocHandler implements FormatHandler {
 
@@ -224,6 +225,15 @@ class pandocHandler implements FormatHandler {
     const htmlFormat = this.supportedFormats[htmlIndex];
     this.supportedFormats.splice(htmlIndex, 1);
     this.supportedFormats.unshift(htmlFormat);
+    // Pandoc's `json` and `xml` are its own document tree, not data. Sharing
+    // the generic JSON/XML identity let the router use them as JSON: xlsx ->
+    // json returned the AST and xlsx -> csv flattened it. Their own `format`
+    // keeps them out of the generic JSON/XML nodes; a JSON or XML file is
+    // never valid pandoc input anyway.
+    for (const f of this.supportedFormats) {
+      if (f.internal === "json") { f.format = "pandoc-json"; f.name = "Pandoc document tree (JSON)"; }
+      if (f.internal === "xml") { f.format = "pandoc-xml"; f.name = "Pandoc document tree (XML)"; }
+    }
     // pandoc internal formats is almost always never what the user wants
     const jsonXmlFormats = this.supportedFormats.filter(c =>
       c.mime === "application/json"
@@ -253,8 +263,10 @@ class pandocHandler implements FormatHandler {
 
     for (const inputFile of inputFiles) {
 
+      const isOoxml = ["docx", "pptx", "xlsx"].includes(inputFormat.internal);
+      const inputBytes = isOoxml ? normalizeOoxmlForPandoc(inputFile.bytes) : inputFile.bytes;
       const files = {
-        [inputFile.name]: new Blob([inputFile.bytes as BlobPart])
+        [inputFile.name]: new Blob([inputBytes as BlobPart])
       };
 
       let options = {
