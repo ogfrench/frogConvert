@@ -37,7 +37,10 @@ export class toJsonHandler extends TextFormatHandler {
             arr.pop(); // remove empty final match that exists for some reason (I'm not good at regex)
             return arr;
           });
-          data.pop(); // remove empty end entry
+          // Drop trailing blank lines only. This used to pop unconditionally,
+          // which removed the last data row of any CSV that does not end in
+          // a newline - what SheetJS, many exporters and hand-typed files write.
+          while (data.length > 0 && data[data.length - 1].length === 0) data.pop();
           const keys = data.shift() ?? [];
           object = [];
           for (const entry of data) {
@@ -119,7 +122,9 @@ export class fromJsonHandler extends TextFormatHandler {
                 keySet.add(key);
             }
           }
-          keys = [...keySet].sort();
+          // First-seen order, which is the source's column order. Sorting
+          // put "Region" after "Q2" and "Q3" on a spreadsheet round trip.
+          keys = [...keySet];
           text += keys.map(x => csvEscape(x)).join(",") + "\n";
           for (const value of object) {
             text += keys.map(key => {

@@ -116,6 +116,7 @@ export async function loadBackgroundHandlers() {
     lazy('rgba', () => import("./rgba.ts")),
     lazy('har', () => import("./har.ts")),
     lazy('tmx', () => import("./tmx.ts")),
+    lazy('spreadsheet', () => import("./spreadsheet.ts")),
   ];
 
   await Promise.all(loaders.map(loader => loader()));

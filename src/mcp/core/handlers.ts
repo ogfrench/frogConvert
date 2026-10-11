@@ -44,6 +44,7 @@ import textToSourceHandler from "../../handlers/textToSource.ts";
 import txtToInfiniteCraftHandler from "../../handlers/txtToInfiniteCraft.ts";
 import envelopeHandler from "../../handlers/envelope.ts";
 import TMXHandler from "../../handlers/tmx.ts";
+import SpreadsheetHandler from "../../handlers/spreadsheet.ts";
 import sevenZipHandler from "../../handlers/sevenZip.ts";
 import json5Handler from "../../handlers/json5.ts";
 import jsonToCHandler from "../../handlers/jsonToC.ts";
@@ -94,6 +95,7 @@ export const loadMcpHandlers = async (): Promise<{ ready: FormatHandler[]; all: 
     try { handlers.push(new txtToInfiniteCraftHandler()); } catch (e) { console.error("[MCP] Failed to load txtToInfiniteCraft:", e); }
     try { handlers.push(new envelopeHandler()); } catch (e) { console.error("[MCP] Failed to load envelope:", e); }
     try { handlers.push(new TMXHandler()); } catch (e) { console.error("[MCP] Failed to load TMX:", e); }
+    try { handlers.push(new SpreadsheetHandler()); } catch (e) { console.error("[MCP] Failed to load spreadsheet:", e); }
     try { handlers.push(new sevenZipHandler()); } catch (e) { console.error("[MCP] Failed to load sevenZip:", e); }
     try { handlers.push(new json5Handler()); } catch (e) { console.error("[MCP] Failed to load json5:", e); }
     try { handlers.push(new jsonToCHandler()); } catch (e) { console.error("[MCP] Failed to load jsonToC:", e); }
