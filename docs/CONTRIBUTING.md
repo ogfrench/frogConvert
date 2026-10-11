@@ -14,16 +14,16 @@ For **authoring a new format handler**, see [HANDLERS.md](HANDLERS.md). For **sy
 
 ---
 
-## Reporting bugs and giving feedback
+## Reporting bugs, giving feedback, and contributing
 
-Found a bug, want a new format added, or have feedback on the converter or PDF editor? Email **francois.prevot@frog.co**. Include:
+Found a bug, want a new format added, have feedback on the converter or PDF editor, or want to contribute? Email **francois.prevot@frog.co**. For a bug or feedback, include:
 
 - The input file format (and output format, for conversion bugs).
 - The browser and OS you're on.
 - A short description of what you expected vs. what happened.
 - If possible, a sample file that reproduces the issue (do not send anything sensitive, frogConvert is fully client-side, but email isn't).
 
-Same address for security reports. See [../SECURITY.md](../SECURITY.md).
+For a contribution, say what you would like to change before you start, so it fits the three subsystems and the rules in [../AGENTS.md](../AGENTS.md); the PR workflow is in section 6 below. Same address for security reports. See [../SECURITY.md](../SECURITY.md).
 
 ---
 

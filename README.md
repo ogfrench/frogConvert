@@ -46,6 +46,10 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 | [SUBMODULES.md](SUBMODULES.md) | Vendored submodules, pinned revisions, review dates |
 | [docs/ADDING_A_MODE.md](docs/ADDING_A_MODE.md) | Playbook for shipping a new top-level surface |
 
+## Feedback and contributions
+
+Found a bug, want a format added, or want to contribute? Email **francois.prevot@frog.co**. Details on what to include, and the PR workflow, are in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
+
 ## Credits
 
 The **conversion pipeline** (route finder, format handlers, Dijkstra routing) is forked from [Convert to it!](https://p2r3.github.io/convert/) by p2r3 ([original repo](https://github.com/p2r3/convert)). Full credit for the core conversion engine goes to the original author. The fork reimagines the UI/UX with quality-of-life improvements.
