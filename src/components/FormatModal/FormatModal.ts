@@ -365,6 +365,7 @@ function updateLibreofficeNoticeVisibility(fromIdx: number | null, toIdx: number
   const libreofficeAvailable = Array.isArray(lofmts) && lofmts.length > 0;
 
   const shouldShow = !libreofficeAvailable;
+  if (shouldShow) applyDesktopLibreofficeCopy(notice);
 
   if (isTouchUi()) {
     // On mobile, the banner takes too much space, show a one-time toast instead.
@@ -380,6 +381,27 @@ function updateLibreofficeNoticeVisibility(fromIdx: number | null, toIdx: number
   } else {
     notice.hidden = !shouldShow;
   }
+}
+
+/**
+ * The desktop app converts through an installed LibreOffice
+ * (src/electron-office.cjs), so there, unlike in a browser, installing it is
+ * the fix. Swap the banner's advice once; the browser copy stays in index.html.
+ */
+function applyDesktopLibreofficeCopy(notice: HTMLElement) {
+  if (!navigator.userAgent.includes("Electron") || notice.dataset.desktop) return;
+  notice.dataset.desktop = "1";
+  const title = notice.querySelector(".convert-notice-title");
+  const text = notice.querySelector(".convert-notice-text");
+  if (title) title.textContent = "Install LibreOffice for an exact PDF";
+  if (text) text.textContent = "Without it this PDF will be a picture of your document, with no selectable text. frogConvert uses LibreOffice when it is installed on this computer: install it, then restart frogConvert. Nothing is uploaded.";
+  const link = document.createElement("a");
+  link.className = "convert-notice-link";
+  link.href = "https://www.libreoffice.org/download/download-libreoffice/";
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.textContent = "Get LibreOffice \u2192";
+  notice.appendChild(link);
 }
 
 // --- Format list rendering ---

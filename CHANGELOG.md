@@ -10,6 +10,10 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added
+- **The desktop app uses an installed LibreOffice for Office documents.** Office to PDF in the desktop app used the browser's image-only route even with LibreOffice installed, because the app's renderer cannot run programs. The main process now answers the LibreOffice handler's `/api/health` and `/api/convert` on the app's own origin ([src/electron-office.cjs](src/electron-office.cjs)), so a PPTX comes out one page per slide with real text. Without LibreOffice, the desktop app's pre-convert notice says to install it and restart.
+- **A conversion matrix runs in CI** ([test/e2e/convert-matrix.test.ts](test/e2e/convert-matrix.test.ts), `bun run test:matrix`): everyday conversions through the real Converter on the built site, judged on what comes out.
+
 ### Fixed
 - **PDF to PPTX dropped pages.** A 4-page PDF became 2 slides, one of them empty. Each page image is now its own paragraph in the HTML handed to pandoc ([src/handlers/htmlEmbed.ts](src/handlers/htmlEmbed.ts)), which is what makes its writer emit one slide per page.
 - **XLSX files from openpyxl, pandas and other generators failed or lost their text.** Pandoc rejected them as corrupt ("Entry not found: xl//xl/worksheets/sheet1.xml") because their relationship targets are absolute, and then dropped every text cell because they are inline strings. Both forms are valid OOXML; [src/handlers/ooxmlNormalize.ts](src/handlers/ooxmlNormalize.ts) rewrites them into the form Excel writes before pandoc reads the file.

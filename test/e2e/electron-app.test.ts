@@ -227,4 +227,33 @@ describe.skipIf(!canRun)(`Electron desktop app [${WHY}]`, () => {
 
         fs.rmSync(jpeg, { force: true });
     }, 600_000);
+    it("converts Office files through an installed LibreOffice", async () => {
+        // The desktop app answers app://-/api/health and /api/convert itself
+        // (src/electron-office.cjs), which turns on the libreoffice handler's
+        // remote mode. Without it, desktop Office -> PDF drew the document as
+        // one picture even with LibreOffice installed.
+        await open("convert");
+        const health = await page.evaluate(async () => (await fetch("/api/health")).json());
+        const installed = health.handlers.includes("libreoffice");
+        if (!installed) return; // runner without LibreOffice: health says so, nothing to convert
+
+        await page.waitForFunction(
+            () => ((window as unknown as { supportedFormatCache?: Map<string, unknown[]> })
+                .supportedFormatCache?.get("libreoffice")?.length ?? 0) > 0,
+            { timeout: 60_000 },
+        );
+        const deck = fs.readFileSync(path.join(ROOT, "test/resources/deck.pptx")).toString("base64");
+        const out = await page.evaluate(async (b64) => {
+            const r = await fetch("/api/convert", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ fileName: "deck.pptx", base64Bytes: b64, outputExt: "pdf" }),
+            });
+            return { status: r.status, body: await r.json() };
+        }, deck);
+        expect(out.status).toBe(200);
+        const pdf = Buffer.from(out.body[0].base64Bytes, "base64");
+        const { PDFDocument } = await import("pdf-lib");
+        expect((await PDFDocument.load(pdf)).getPageCount()).toBe(4);
+    }, 300_000);
 });
