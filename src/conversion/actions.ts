@@ -52,6 +52,7 @@ import {
 import { runInWorker, WORKER_TIMEOUT_MS } from "./workerClient.ts";
 import { hopQualityArgs, resolveAutoQuality } from "../core/compression/hopQuality.ts";
 import { startConversionStatus, statusHTML, type StatusHandle } from "./progressStatus.ts";
+import { routeQualityNotice } from "./routeQuality.ts";
 // Re-exported rather than moved outright: the Compress surface and the tests
 // have imported it from here since it existed, and its home is an
 // implementation detail of where the status line lives.
@@ -721,6 +722,10 @@ export function initConvertButton() {
                     }
                 }
 
+                const routeNotice = routeQualityNotice(result.path.map(n => n.format.format));
+                if (routeNotice) {
+                    for (const f of result.files) f.notices = [...(f.notices ?? []), routeNotice];
+                }
                 allOutputFiles.push(...result.files);
                 if (isCancelled) break;
             }

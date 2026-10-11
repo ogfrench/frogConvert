@@ -73,7 +73,8 @@ Two things worth knowing:
 ## Known limitations
 
 - **PDF input on Safari.** Safari's JavaScript engine cannot handle PDF input for conversions (PDF to PNG, PDF to TXT, etc.). Use Chrome or Firefox for PDF input. Other formats work normally on Safari.
-- **Office documents (DOCX, PPTX, XLSX, ODT, ODP, ODS).** Converting to PDF via LibreOffice requires [LibreOffice](https://www.libreoffice.org/) installed locally. The UI surfaces an install prompt when needed.
+- **Office documents (DOCX, PPTX, XLSX, ODT, ODP, ODS) to PDF.** A faithful PDF needs [LibreOffice](https://www.libreoffice.org/), which only the command-line tools, MCP server and REST API can use (see [INTEGRATIONS.md](INTEGRATIONS.md)). In the browser and the desktop app the PDF is a picture of the document's text: not selectable, and slide layouts and images may be lost. The Converter says so before you convert and again on the result. Legacy `.doc` and `.ppt` are not supported in the browser.
+- **Lossy routes are labelled.** When the only route to a document format passes through an image (a PDF to DOCX or PPTX arrives as one picture per page) or through plain text, the result says so. See [src/conversion/routeQuality.ts](../src/conversion/routeQuality.ts).
 - **Encrypted files** are not supported. Remove the password first.
 
 ## See also
