@@ -7,7 +7,7 @@ import { isOfficeEngineCached, openOfficeEngine, type OfficeConverter } from "..
  * takes about 2 s; the engine (2.7.2) occasionally hangs in its PDF export, so
  * the watchdog is short and a hang gets one retry on a fresh engine.
  */
-const wasmTimeoutMs = (bytes: number) => 20_000 + Math.ceil(bytes / 1e6) * 10_000;
+const wasmTimeoutMs = (bytes: number) => 15_000 + Math.ceil(bytes / 1e6) * 10_000;
 /** The engine holds ~1.5 GB; give it back after this long unused. */
 const WASM_IDLE_MS = 120_000;
 /** What the browser engine is trusted with. .ppt and .doc hang it, so they are not offered. */
