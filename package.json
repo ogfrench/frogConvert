@@ -31,6 +31,7 @@
     "test:watch": "bun x vitest",
     "test:corpus": "FROG_CORPUS=1 bun x vitest run test/e2e/corpus-*.test.ts",
     "test:shell": "FROG_E2E_SHELL=1 bun x vitest run test/e2e/stale-shell-recovery.test.ts",
+    "test:matrix": "FROG_E2E_MATRIX=1 bun x vitest run test/e2e/convert-matrix.test.ts",
     "cache:build": "bun run scripts/buildCache.js dist/cache.json --minify",
     "cache:build:dev": "bun run scripts/buildCache.js dist/cache.json",
     "cache:refresh": "bun run scripts/buildCache.js public/cache.json --minify",
