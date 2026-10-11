@@ -51,6 +51,13 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    # Cross-origin isolation, so the page can use SharedArrayBuffer: the
+    # browser Office engine is LibreOffice built with threads and does not run
+    # without it. require-corp rather than credentialless because Safari only
+    # supports the former; everything the app loads is same-origin anyway
+    # (CSP default-src 'self'), so nothing needs a CORP header.
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"
     # No Content-Security-Policy here on purpose. public/_headers carries it,
     # and the csp-hashes plugin stamps that file with a sha256 for every inline
     # script it finds in the built output, so the policy needs no

@@ -81,6 +81,10 @@ function apiServerPlugin() {
 }
 
 const isDesktopBuild = process.env.IS_DESKTOP === 'true';
+const CROSS_ORIGIN_ISOLATION = {
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Embedder-Policy': 'require-corp',
+};
 
 /**
  * Emitted file names of the app shell: every entry chunk plus the transitive
@@ -326,7 +330,11 @@ export default defineConfig({
     ]
   },
   base: "/",
+  // Same cross-origin isolation as production (netlify.toml), so dev and
+  // preview exercise the SharedArrayBuffer path users get.
+  preview: { headers: CROSS_ORIGIN_ISOLATION },
   server: {
+    headers: CROSS_ORIGIN_ISOLATION,
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:3000',
