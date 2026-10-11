@@ -53,6 +53,7 @@ import { runInWorker, WORKER_TIMEOUT_MS } from "./workerClient.ts";
 import { hopQualityArgs, resolveAutoQuality } from "../core/compression/hopQuality.ts";
 import { startConversionStatus, statusHTML, type StatusHandle } from "./progressStatus.ts";
 import { routeQualityNotice } from "./routeQuality.ts";
+import { dismissToast } from "../components/Toast/Toast.ts";
 // Re-exported rather than moved outright: the Compress surface and the tests
 // have imported it from here since it existed, and its home is an
 // implementation detail of where the status line lives.
@@ -485,6 +486,7 @@ export function initConvertButton() {
         isConverting = true;
 
         const allOutputFiles: FileData[] = [];
+        let degradedRoute = false;
 
         try {
             const inputFiles = currentFiles.value;
@@ -724,6 +726,7 @@ export function initConvertButton() {
 
                 const routeNotice = routeQualityNotice(result.path.map(n => n.format.format));
                 if (routeNotice) {
+                    degradedRoute = true;
                     for (const f of result.files) f.notices = [...(f.notices ?? []), routeNotice];
                 }
                 allOutputFiles.push(...result.files);
@@ -759,7 +762,12 @@ export function initConvertButton() {
             // Title follows user intent (_activeMode), not byte shrinkage. A
             // cross-format convert that happens to shrink shouldn't rename
             // itself "File compressed!" on the success popup.
-            const successTitle = isBatch ? modeCopy().successTitleBatch : modeCopy().successTitleSingle;
+            // A result the route degraded (a document drawn as pictures, or
+            // reduced to its text) is not one to celebrate: the notice below
+            // says what was lost, and a party popper above it says otherwise.
+            const successTitle = degradedRoute
+                ? (isBatch ? "Files converted, with limits" : "File converted, with limits")
+                : isBatch ? modeCopy().successTitleBatch : modeCopy().successTitleSingle;
             const resultText = conversionResultText({
                 fileCount,
                 outCount: allOutputFiles.length,
@@ -869,7 +877,10 @@ export function initConvertButton() {
             clearConvertSession();
             // Show confetti faster for immediate celebration. Confetti is
             // popup-anchored, so skip it if the user already dismissed.
-            celebrateOnPopup(ui.popupBox);
+            if (!degradedRoute) celebrateOnPopup(ui.popupBox);
+            // The pre-convert warning toast (touch UIs) repeats what the
+            // result's notice now says, and sat over its Download button.
+            dismissToast();
 
             // Deliberately no automatic download.
             //

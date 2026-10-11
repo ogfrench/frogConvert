@@ -40,6 +40,11 @@ function ensureEl(): HTMLDivElement {
   return d;
 }
 
+/** Close any visible toast, e.g. when a modal now says the same thing in place. */
+export function dismissToast(): void {
+  dismiss();
+}
+
 function dismiss(): void {
   if (!el) return;
   el.classList.remove("open");
