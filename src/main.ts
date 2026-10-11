@@ -832,6 +832,19 @@ async function refreshUI() {
   }
 }
 
+// The browser Office engine finished downloading (FormatModal's notice). Its
+// handler was initialised at startup with nothing to offer, so initialise it
+// again now that the engine is in Cache Storage, and rebuild the graph so
+// Office -> PDF routes through it from the next conversion on.
+window.addEventListener("frog:office-engine-ready", async () => {
+  const lo = handlers.find(h => h.name === "libreoffice");
+  if (!lo || lo.supportedFormats?.length) return;
+  window.supportedFormatCache.delete("libreoffice");
+  await initCacheMissHandlers([lo]);
+  if (getIsConverting()) setOnConversionEnd(refreshUI);
+  else await refreshUI();
+});
+
 // --- Init ---
 
 // Identifies the build that produced a persisted format cache. Injected by

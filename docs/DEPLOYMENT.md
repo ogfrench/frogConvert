@@ -111,6 +111,16 @@ Native single-binary builds without Electron are available via `bun run compile:
 
 A `netlify.toml` at the repo root configures Netlify deployment. Point Netlify at the repo, pick the `main` branch, and default settings will build and deploy the static site.
 
+### The browser Office engine
+
+The build command is `bun run build && bun run build:office-engine`. The second step ([scripts/office-engine.ts](../scripts/office-engine.ts)) fetches LibreOffice compiled to WebAssembly (`@matbee/libreoffice-converter`, MPL-2.0, pinned by integrity hash) and writes it to `dist/office-engine/<version>/` as gzipped parts of at most 20 MB. Skip it and the site works as before: the Converter never offers the engine. Self-hosting it needs:
+
+- **Cross-origin isolation** on every page: `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` (set in `netlify.toml` and the nginx snippet).
+- **`connect-src 'self' blob:`** in the CSP, because the engine is handed its two big files as `blob:` URLs once the browser has rebuilt them.
+- **Bandwidth.** Each first download is about 78 MB from your host. On a metered host that is the cost to watch: on Netlify's credit-based plans, roughly 200 first downloads a month fit the free allowance.
+
+It is excluded from the service-worker precache and from the desktop app, which converts through an installed LibreOffice instead.
+
 ## Service worker / PWA serving
 
 The web build emits a service worker (`sw.js`) and a Web App Manifest (`manifest.webmanifest`). Serving them with the right headers is non-optional - bad caching pins users to old SW code, and a missing `Service-Worker-Allowed` blocks root-scope registration.
@@ -175,6 +185,7 @@ in `vite.config.js`) so packaged binaries are unaffected.
 Two things are not obvious:
 
 - **`script-src` includes per-script sha256 hashes**, substituted at build time by the `csp-hashes` plugin in `vite.config.js` in place of a `__CSP_SCRIPT_HASHES__` placeholder. Two inline `<script>` blocks have to stay inline - the first applies `.dark` before the first paint, so making it an external file adds a round trip and reintroduces the white flash it exists to prevent. **Serving `public/_headers` verbatim will not work**; serve the built `dist/_headers`, or the inline scripts are blocked.
+- **`connect-src` is `'self' blob:`.** `blob:` is for the browser Office engine (above); a `blob:` URL names bytes already in the tab, so it reaches nothing off the device.
 - **`'unsafe-eval'` is granted deliberately.** Three bundled libraries (`ts-flp`, `font`, `turbowarp`) build functions from strings at init, and `'wasm-unsafe-eval'` does not permit that. The trade was made to get `connect-src 'self'` genuinely enforced, which is what mechanically backs the claim that files never leave the device. The reasoning is recorded in full at the top of `public/_headers`.
 
 Verified by serving the built policy as enforcing and driving Convert, Compress, the PDF Editor and this docs site with real files: **zero violations**. If you change the policy or an inline script, re-run that check rather than trusting the build log - a wrong hash looks correct and silently blocks the script it was meant to allow.

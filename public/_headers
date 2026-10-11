@@ -48,9 +48,15 @@
 #
 # ## connect-src
 #
-# Kept exactly `'self'`. It previously allowed https://cdn.sheetjs.com, which
-# nothing in the shipped bundle ever called - xlsx is bundled at install time -
-# so the allowance was granting reach the app does not use.
+# `'self'` plus `blob:`, and no other origin. It previously allowed
+# https://cdn.sheetjs.com, which nothing in the shipped bundle ever called -
+# xlsx is bundled at install time - so the allowance was granting reach the app
+# does not use.
+#
+# `blob:` is for the browser Office engine: its two big files are rebuilt in
+# the browser from gzipped parts and handed to the engine as blob: URLs, which
+# `'self'` does not match. A blob: URL names bytes already in this tab, so it
+# reaches nothing outside the device.
 #
 # ## If you change this
 #
@@ -58,4 +64,4 @@
 # JPEG compression sitting forever with no message. Re-run the enforcing
 # measurement across all three surfaces before trusting an edit.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' __CSP_SCRIPT_HASHES__; worker-src 'self' blob:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' __CSP_SCRIPT_HASHES__; worker-src 'self' blob:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
