@@ -60,7 +60,8 @@
     },
     "files": [
       "dist/**/*",
-      "src/electron.cjs"
+      "src/electron.cjs",
+      "src/electron-office.cjs"
     ],
     "win": {
       "target": "nsis"

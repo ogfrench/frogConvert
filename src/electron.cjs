@@ -1,6 +1,7 @@
 const { app, BrowserWindow, protocol, net, shell } = require('electron');
 const { URL, pathToFileURL } = require('node:url');
 const path = require('path');
+const { handleOfficeApi } = require('./electron-office.cjs');
 
 const DIST_PATH = path.join(__dirname, '..', 'dist');
 const ICON_PATH = path.join(DIST_PATH, 'icon-512.png');
@@ -57,6 +58,10 @@ app.whenReady().then(() => {
       if (urlPath.startsWith('/')) {
         urlPath = urlPath.slice(1);
       }
+      // Installed LibreOffice, served to the libreoffice handler's remote mode.
+      const officeResponse = await handleOfficeApi(request, urlPath);
+      if (officeResponse) return officeResponse;
+
       // SPA fallback: route paths like convert, convert/image, pdf, pdf/split → index.html.
       // These must stay in step with MODE_PATHS in src/router.ts - `compress` was
       // added there in v3 and missed here, which 404s any app://-/compress load.
