@@ -9,10 +9,6 @@
     }
   },
   "enabledPlugins": {
-    "frog-writing@ogfrench": true,
-    "caveman@ogfrench": true,
-    "ponytail@ogfrench": true,
-    "21st@ogfrench": true,
     "superpowers@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
     "code-review@claude-plugins-official": true,
