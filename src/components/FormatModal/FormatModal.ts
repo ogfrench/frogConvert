@@ -11,6 +11,8 @@ import { AI_FLATTENING_NOTICE } from "../../core/ghostscript/postscriptInput.ts"
 import { ModalManager } from "../utils/ModalManager.ts";
 import { isTouchUi } from "../../core/utils/touchUi.ts";
 import { showToast } from "../Toast/Toast.ts";
+import { officeEngineSupport, officeEngineDownloadSize, downloadOfficeEngine } from "../../core/officeEngine/officeEngine.ts";
+import { formatBytes } from "../utils/index.ts";
 
 let _searchTimeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -253,6 +255,9 @@ export function updateConvertButtonState(selectedFromIndex: number | null, selec
   // exactly how it reads on a slow connection, where this state can last a
   // minute or more with nothing on screen changing.
   ui.convertButton.classList.toggle("is-waiting", !bothPicked && isLoadingHandlers.value);
+  // index.html ships it disabled; without this, assistive tech announced
+  // Convert as disabled even once it worked.
+  ui.convertButton.setAttribute("aria-disabled", String(!bothPicked));
 
   if (samePick) {
     // Two different situations share this signpost. If Compress can shrink
@@ -365,7 +370,10 @@ function updateLibreofficeNoticeVisibility(fromIdx: number | null, toIdx: number
   const libreofficeAvailable = Array.isArray(lofmts) && lofmts.length > 0;
 
   const shouldShow = !libreofficeAvailable;
-  if (shouldShow) applyDesktopLibreofficeCopy(notice);
+  if (shouldShow) {
+    applyDesktopLibreofficeCopy(notice);
+    applyBrowserEngineOffer(notice);
+  }
 
   if (isTouchUi()) {
     // On mobile, the banner takes too much space, show a one-time toast instead.
@@ -402,6 +410,67 @@ function applyDesktopLibreofficeCopy(notice: HTMLElement) {
   link.rel = "noopener noreferrer";
   link.textContent = "Get LibreOffice \u2192";
   notice.appendChild(link);
+}
+
+/**
+ * On a desktop browser where the site ships the browser Office engine, the
+ * banner offers it: one explicit download, after which the libreoffice
+ * handler converts Office documents to real PDFs (src/core/officeEngine).
+ * Never offered on phones or unisolated browsers; officeEngineSupport()
+ * decides, and the banner keeps its index.html copy there.
+ */
+let engineOfferStarted = false;
+
+function applyBrowserEngineOffer(notice: HTMLElement) {
+  if (engineOfferStarted || navigator.userAgent.includes("Electron")) return;
+  engineOfferStarted = true;
+  void (async () => {
+    if (await officeEngineSupport() !== "available") return;
+    const bytes = await officeEngineDownloadSize();
+    if (!bytes) return;
+    const size = formatBytes(bytes);
+    const title = notice.querySelector(".convert-notice-title");
+    const text = notice.querySelector(".convert-notice-text");
+    const offerText = `Download the Office engine once (${size}) and Office files become real PDFs with selectable text, right here. It stays on this device and nothing is uploaded. Or just convert now and get a picture of your document.`;
+    if (title) title.textContent = "Get an exact PDF";
+    if (text) text.textContent = offerText;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "convert-notice-link";
+    button.id = "office-engine-download";
+    button.textContent = `Download (${size})`;
+    notice.appendChild(button);
+
+    let controller: AbortController | null = null;
+    button.addEventListener("click", async () => {
+      if (controller) {
+        controller.abort();
+        return;
+      }
+      controller = new AbortController();
+      button.textContent = "Cancel";
+      if (text) text.textContent = "Downloading the Office engine...";
+      try {
+        await downloadOfficeEngine(({ loaded, total }) => {
+          if (text) text.textContent = `Downloading the Office engine: ${Math.floor((loaded / total) * 100)}% of ${size}. You can keep using the app.`;
+        }, controller.signal);
+        button.remove();
+        if (title) title.textContent = "Office engine ready";
+        if (text) text.textContent = "Office files now convert to exact PDFs on this device.";
+        window.dispatchEvent(new CustomEvent("frog:office-engine-ready"));
+        showToast("Office engine ready. Office files now become real PDFs.", "info", 6000);
+      } catch (err) {
+        const cancelled = controller.signal.aborted;
+        button.textContent = cancelled ? `Download (${size})` : "Try again";
+        if (text) text.textContent = cancelled
+          ? offerText
+          : `The download didn't finish: ${err instanceof Error ? err.message : String(err)}`;
+      } finally {
+        controller = null;
+      }
+    });
+  })();
 }
 
 // --- Format list rendering ---

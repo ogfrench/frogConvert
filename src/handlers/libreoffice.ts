@@ -1,5 +1,13 @@
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
+import { isOfficeEngineCached, openOfficeEngine, type OfficeConverter } from "../core/officeEngine/officeEngine.ts";
+
+/** Longest one document may take in the browser engine before it is abandoned. */
+const WASM_TIMEOUT_MS = 120_000;
+/** The engine holds ~1.5 GB; give it back after this long unused. */
+const WASM_IDLE_MS = 120_000;
+/** What the browser engine is trusted with. .ppt and .doc hang it, so they are not offered. */
+const WASM_INPUTS = new Set(["pptx", "docx", "xlsx", "odt", "odp", "ods"]);
 
 class libreofficeHandler implements FormatHandler {
 
@@ -21,9 +29,21 @@ class libreofficeHandler implements FormatHandler {
    *   - "remote": running in a browser that has a localhost API server on
    *               /api with libreoffice available. doConvert() POSTs to
    *               /api/convert and the API server runs soffice natively.
-   *   - "disabled": neither available, graph gets no libreoffice edges.
+   *   - "wasm":   a desktop browser where the user has downloaded the
+   *               browser Office engine (src/core/officeEngine). Office
+   *               documents to PDF only.
+   *   - "disabled": none of these, graph gets no libreoffice edges.
    */
-  #mode: "native" | "remote" | "disabled" = "disabled";
+  #mode: "native" | "remote" | "wasm" | "disabled" = "disabled";
+  #engine: Promise<OfficeConverter> | null = null;
+  #idleTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // The browser engine reads its files from this page's Cache Storage and runs
+  // in its own worker, so the conversion worker is the wrong place for it: its
+  // separate handler instance never sees the download.
+  get requiresMainThread(): boolean {
+    return this.#mode === "wasm";
+  }
 
   #sofficeBinary: string = "soffice";
   #tempDir: string = "";
@@ -64,6 +84,13 @@ class libreofficeHandler implements FormatHandler {
       if (await this.#probeRemoteApi()) {
         this.#mode = "remote";
         this.#populateFormats();
+        this.ready = true;
+        return;
+      }
+      if (await isOfficeEngineCached()) {
+        this.#mode = "wasm";
+        this.#populateFormats();
+        this.supportedFormats = this.supportedFormats.filter(f => f.to || WASM_INPUTS.has(f.format));
         this.ready = true;
         return;
       }
@@ -297,8 +324,54 @@ class libreofficeHandler implements FormatHandler {
     if (this.#mode === "remote") {
       return this.#doConvertRemote(inputFiles, inputFormat, outputFormat);
     }
+    if (this.#mode === "wasm") {
+      return this.#enqueue(() => this.#doConvertWasm(inputFiles, inputFormat));
+    }
     // Native mode: serialize via mutex (LibreOffice can't run concurrent instances)
     return this.#enqueue(() => this.#doConvertInner(inputFiles, inputFormat, outputFormat));
+  }
+
+  async #doConvertWasm(inputFiles: FileData[], inputFormat: FileFormat): Promise<FileData[]> {
+    clearTimeout(this.#idleTimer);
+    this.#engine ??= openOfficeEngine().catch(err => {
+      this.#engine = null;
+      throw err;
+    });
+    const engine = await this.#engine;
+    const results: FileData[] = [];
+    try {
+      for (const file of inputFiles) {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const timeout = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(
+            `The Office engine took longer than ${WASM_TIMEOUT_MS / 1000} seconds on ${file.name} and was stopped.`,
+          )), WASM_TIMEOUT_MS);
+        });
+        try {
+          const out = await Promise.race([
+            engine.convert(file.bytes, { outputFormat: "pdf", inputFormat: inputFormat.extension }, file.name),
+            timeout,
+          ]);
+          const dot = file.name.lastIndexOf(".");
+          results.push({ name: (dot > 0 ? file.name.slice(0, dot) : file.name) + ".pdf", bytes: new Uint8Array(out.data) });
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+    } catch (err) {
+      // A stuck or crashed engine is not reused: the next file starts a fresh one.
+      this.#disposeEngine();
+      throw err;
+    }
+    this.#idleTimer = setTimeout(() => this.#disposeEngine(), WASM_IDLE_MS);
+    return results;
+  }
+
+  #disposeEngine() {
+    clearTimeout(this.#idleTimer);
+    const engine = this.#engine;
+    this.#engine = null;
+    engine?.then(e => e.destroy()).catch(() => {});
   }
 
   /**

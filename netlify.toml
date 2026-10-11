@@ -1,5 +1,5 @@
 [build]
-  command = "bun run build"
+  command = "bun run build && bun run build:office-engine"
   publish = "dist"
 
 # Explicit 404 for reserved prefixes — avoids the SPA fallback masking
@@ -33,6 +33,13 @@
 
 [[redirects]]
   from = "/wasm/*"
+  to = "/404.html"
+  status = 404
+
+# The browser Office engine. Absent when the build skipped
+# build:office-engine, and then the Converter must see a 404, not index.html.
+[[redirects]]
+  from = "/office-engine/*"
   to = "/404.html"
   status = 404
 
@@ -96,6 +103,13 @@
 # docker/nginx/default.conf.
 [[headers]]
   for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# The browser Office engine lives under a versioned path, so its files never
+# change in place.
+[[headers]]
+  for = "/office-engine/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 

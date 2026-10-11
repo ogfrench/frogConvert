@@ -816,6 +816,9 @@ export default defineConfig({
         ],
         globIgnores: [
           '**/wasm/**',
+          // The browser Office engine (~78 MB) is downloaded only on request
+          // and kept in its own cache (src/core/officeEngine).
+          '**/office-engine/**',
           '**/js/turbowarp-scaffolding/**',
           '**/*.sf2',
           '**/docs/*.md',
