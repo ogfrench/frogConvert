@@ -9,15 +9,13 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.0.2
+## What's new in 3.1.0
 
-**The desktop app makes an exact PDF from Office files when LibreOffice is installed.** Until now the desktop app drew PowerPoint, Word and Excel files as a picture, even on a computer with LibreOffice, because the app's window cannot start other programs. It now hands them to your installed LibreOffice, so a deck comes out one page per slide with real, selectable text. Without LibreOffice, the app tells you to install it and restart.
+**Exact Office to PDF in your browser.** On a computer, the Converter now offers to download an Office engine once (about 74 MB). After that, Word, PowerPoint, Excel and OpenDocument files become real PDFs with selectable text, one page per slide, in a few seconds. It stays on your device and nothing is uploaded. Phones keep the old behaviour: a PDF made of pictures, labelled as such. The engine can occasionally stall on a document; frogConvert stops it after a few seconds and tries again on a fresh one, and if that fails too you still get the picture PDF.
 
-**PDF to PowerPoint keeps every page.** A 4-page PDF became 2 slides, one of them empty. Each page is now its own slide.
+**CSV to SQLite works with any file name.** A file called `table.csv` failed, every value lost its first character, and names with spaces or SQL keywords broke the conversion. Fixed, and SQLite to CSV now quotes values properly.
 
-**Spreadsheets convert properly.** Excel files written by Python tools (openpyxl, pandas) failed or lost their text; they now read like any other. Excel to CSV and Excel to JSON return your cells rather than an internal document tree. CSV to JSON no longer drops the last row, and JSON to CSV keeps your column order.
-
-**Results say when they are pictures.** In the browser, which has no Office engine, Office to PDF draws the document as an image, and PDF to Word or PowerPoint brings each page across as a picture. The Converter now says so before you convert and on the result, instead of calling it a plain success or suggesting a LibreOffice install that cannot help in a browser.
+**Cross-origin isolation.** The site now sends the headers that let the engine run, with no change you will notice elsewhere.
 
 For everything new in 3.0, see the [3.0.0 release](https://github.com/ogfrench/frogConvert/releases/tag/v3.0.0). Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
