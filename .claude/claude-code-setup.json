@@ -1,0 +1,9 @@
+{
+  "source": "https://github.com/ogfrench/claude-code-setup",
+  "note": "Written by sync-to-repos.sh. Edit the source repo, not these copies.",
+  "copied": [
+    ".claude/skills/deslopify",
+    ".claude/skills/frogify",
+    ".claude/skills/humanizer"
+  ]
+}
