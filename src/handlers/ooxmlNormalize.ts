@@ -63,7 +63,9 @@ function inlineStringsToShared(entries: Record<string, Uint8Array>): boolean {
     const xml = strFromU8(entries[name]);
     if (!xml.includes('t="inlineStr"')) continue;
     // Cells never nest, so a lazy match from <c to </c> is exactly one cell.
-    const next = xml.replace(/<c\b([^>]*?)\bt="inlineStr"([^>]*)>([\s\S]*?)<\/c>/g, (_all, pre: string, post: string, inner: string) => {
+    // A self-closing <c .../> has no </c>, so it is excluded or the match would
+    // run on into the next cell.
+    const next = xml.replace(/<c\b([^>]*?)\bt="inlineStr"([^>]*?)(?<!\/)>([\s\S]*?)<\/c>/g, (_all, pre: string, post: string, inner: string) => {
       const is = inner.match(/<is>([\s\S]*?)<\/is>/);
       if (!is) return _all;
       added.push(`<si>${is[1]}</si>`);

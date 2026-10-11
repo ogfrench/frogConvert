@@ -151,12 +151,15 @@ function quoteIdent(name: string): string {
 }
 
 function columnNames(header: string[]): string[] {
-  const seen = new Map<string, number>();
+  // SQLite compares identifiers case-insensitively, and a generated "a_2" can
+  // collide with a real "a_2" header, so check every candidate against all.
+  const used = new Set<string>();
   return header.map((raw, i) => {
     const base = raw.trim() || `column${i + 1}`;
-    const n = (seen.get(base.toLowerCase()) ?? 0) + 1;
-    seen.set(base.toLowerCase(), n);
-    return n === 1 ? base : `${base}_${n}`;
+    let name = base;
+    for (let n = 2; used.has(name.toLowerCase()); n++) name = `${base}_${n}`;
+    used.add(name.toLowerCase());
+    return name;
   });
 }
 
@@ -168,8 +171,15 @@ function toValue(raw: string | undefined, type: string): string | number | null 
   return type === "TEXT" ? value : Number(value);
 }
 
+// A column is numeric only if every value reads back exactly as written, so
+// 00501, 0x1A, 1.50 and IDs past 2^53 stay TEXT instead of being rewritten.
+function isExactNumber(v: string): boolean {
+  const n = Number(v);
+  return Number.isFinite(n) && String(n) === v && (!Number.isInteger(n) || Number.isSafeInteger(n));
+}
+
 function inferType(values: (string | undefined)[]): string {
   const present = values.map(v => (v ?? "").trim()).filter(v => v !== "");
-  if (present.length === 0 || present.some(v => isNaN(Number(v)))) return "TEXT";
+  if (present.length === 0 || !present.every(isExactNumber)) return "TEXT";
   return present.every(v => Number.isInteger(Number(v))) ? "INTEGER" : "REAL";
 }
