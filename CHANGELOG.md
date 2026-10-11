@@ -10,6 +10,10 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.0.2] - 2026-10-11
+
+Office and spreadsheet conversions: real fixes where the browser can do the job, honest labels where it cannot, and an exact Office to PDF in the desktop app when LibreOffice is installed.
+
 ### Added
 - **The desktop app uses an installed LibreOffice for Office documents.** Office to PDF in the desktop app used the browser's image-only route even with LibreOffice installed, because the app's renderer cannot run programs. The main process now answers the LibreOffice handler's `/api/health` and `/api/convert` on the app's own origin ([src/electron-office.cjs](src/electron-office.cjs)), so a PPTX comes out one page per slide with real text. Without LibreOffice, the desktop app's pre-convert notice says to install it and restart.
 - **A conversion matrix runs in CI** ([test/e2e/convert-matrix.test.ts](test/e2e/convert-matrix.test.ts), `bun run test:matrix`): everyday conversions through the real Converter on the built site, judged on what comes out.
