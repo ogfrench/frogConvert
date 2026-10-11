@@ -74,6 +74,13 @@ jobs:
       - name: Stale-shell E2E (service-worker install + deploy skew)
         run: bun run test:shell
 
+      # Everyday conversions through the real Converter on the built site,
+      # judged on the content that comes out and on what the result modal
+      # says. The route graph and the Node verifier both passed while the site
+      # turned a 4-page PDF into 2 slides and xlsx -> csv into pandoc's AST.
+      - name: Conversion matrix E2E
+        run: bun run test:matrix
+
   # Runs the conversions rather than trusting the route graph. The graph
   # answers "is there a path", which has been true for pairs that then threw on
   # the real bytes: a handler that rejects the file, a format token that
