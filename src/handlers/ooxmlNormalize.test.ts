@@ -85,4 +85,14 @@ describe('normalizeOoxmlForPandoc: inline strings', () => {
     expect(strFromU8(out['xl/worksheets/sheet1.xml'])).toContain('<c r="B1" t="s"><v>1</v></c>');
     expect(strFromU8(out['xl/sharedStrings.xml'])).toBe('<sst><si><t>Old</t></si><si><t>New</t></si></sst>');
   });
+
+  it('leaves an empty self-closing inline cell alone instead of swallowing the next cell', () => {
+    const out = unzipSync(normalizeOoxmlForPandoc(zipSync({
+      ...base(),
+      'xl/worksheets/sheet1.xml': sheet('<c r="A1" t="inlineStr"/><c r="B1" t="inlineStr"><is><t>Kept</t></is></c>'),
+    })));
+    const ws = strFromU8(out['xl/worksheets/sheet1.xml']);
+    expect(ws).toContain('<c r="A1" t="inlineStr"/><c r="B1" t="s"><v>0</v></c>');
+    expect(strFromU8(out['xl/sharedStrings.xml'])).toContain('<si><t>Kept</t></si>');
+  });
 });

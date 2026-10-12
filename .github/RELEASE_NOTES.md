@@ -9,15 +9,15 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.1.0
+## What's fixed in 3.1.1
 
-**Exact Office to PDF in your browser.** On a computer, the Converter now offers to download an Office engine once (about 74 MB). After that, Word, PowerPoint, Excel and OpenDocument files become real PDFs with selectable text, one page per slide, in a few seconds. It stays on your device and nothing is uploaded. Phones keep the old behaviour: a PDF made of pictures, labelled as such. The engine can occasionally stall on a document; frogConvert stops it after a few seconds and tries again on a fresh one, and if that fails too you still get the picture PDF.
+**CSV to SQLite keeps your values as written.** Zip codes lost their leading zeros (`00501` became `501`), hex values like `0x1A` became `26`, and IDs longer than 16 digits were rounded. A column is now stored as a number only when every value reads back exactly as it was written; anything else stays text.
 
-**CSV to SQLite works with any file name.** A file called `table.csv` failed, every value lost its first character, and names with spaces or SQL keywords broke the conversion. Fixed, and SQLite to CSV now quotes values properly.
+**Repeated CSV headers no longer fail the conversion.** A header such as `a,a,a_2` produced two columns called `a_2` and the database could not be created.
 
-**Cross-origin isolation.** The site now sends the headers that let the engine run, with no change you will notice elsewhere.
+**Excel files with empty inline-text cells convert again.** An empty cell written as `<c t="inlineStr"/>` (some generators do this) swallowed the cell after it and left the sheet as broken XML.
 
-For everything new in 3.0, see the [3.0.0 release](https://github.com/ogfrench/frogConvert/releases/tag/v3.0.0). Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
+For the browser Office engine and everything else new in 3.1, see the [3.1.0 release](https://github.com/ogfrench/frogConvert/releases/tag/v3.1.0). Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
 ---
 
