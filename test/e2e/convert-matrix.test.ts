@@ -128,6 +128,33 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         expect(read(o).subarray(0, 15).toString("latin1")).toBe("SQLite format 3");
     }, 300_000);
 
+    // #65: the head stylesheet was dropped, so a styled page came out as
+    // black text on white. The body background is the cheapest proof the
+    // stylesheet applied.
+    it("html -> png keeps the page's stylesheet, at a fixed width and 2x", async () => {
+        const o = await convert(path.join(RES, "styled-page.html"), "png");
+        const UPNG = (await import("upng-js")).default;
+        const png = UPNG.decode(read(o));
+        expect(png.width).toBe(2048);
+        const rgba = new Uint8Array(UPNG.toRGBA8(png)[0]);
+        expect([...rgba.subarray(0, 3)]).toEqual([0x10, 0x20, 0x30]);
+    }, 300_000);
+
+    it("html -> pdf is A4 pages, labelled as pictures", async () => {
+        const o = await convert(path.join(RES, "styled-page.html"), "pdf");
+        const shape = await inspectPdf(read(o));
+        expect(shape.pageCount).toBeGreaterThan(1);
+        expect(shape.sizes.every(s => s.w === 595 && s.h === 842)).toBe(true);
+        expect(o.modal).toMatch(/made of pictures/);
+        expect(o.modal).toMatch(/Save as PDF/);
+    }, 300_000);
+
+    it("markdown -> pdf goes through HTML, not plain text, and is labelled", async () => {
+        const o = await convert(path.join(RES, "markdown.md"), "pdf");
+        expect(o.modal).toMatch(/made of pictures/);
+        expect((await inspectPdf(read(o))).sizes[0]).toMatchObject({ w: 595, h: 842 });
+    }, 300_000);
+
     it("png -> jpg is a plain success with no notice", async () => {
         const o = await convert(path.join(RES, "colors_50x50.png"), "jpeg");
         expect(read(o).subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));

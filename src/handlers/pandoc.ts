@@ -211,7 +211,10 @@ class pandocHandler implements FormatHandler {
         to: outputFormats.includes(internal),
         internal,
         category: categories.length === 1 ? categories[0] : categories,
-        lossless: !isOfficeDocument
+        // Plain text drops every heading, list and table. Called lossless, it
+        // tied with HTML, and Markdown to PNG went through it and came out as
+        // the raw source drawn on a canvas.
+        lossless: !isOfficeDocument && format !== "text"
       });
     }
 
@@ -269,13 +272,25 @@ class pandocHandler implements FormatHandler {
         [inputFile.name]: new Blob([inputBytes as BlobPart])
       };
 
-      let options = {
-        from: inputFormat.internal,
+      const baseName = inputFile.name.split(".").slice(0, -1).join(".") || inputFile.name;
+      let options: Record<string, unknown> = {
+        // A .md file is detected as CommonMark, which has no tables, task
+        // lists or strikethrough: a pipe table came out as a line of "|---|".
+        // GFM is CommonMark plus those, so nothing CommonMark reads changes.
+        from: inputFormat.internal === "commonmark" ? "gfm" : inputFormat.internal,
         to: outputFormat.internal,
         "input-files": [inputFile.name],
         "output-file": "output",
         "embed-resources": true,
         "html-math-method": "mathjax",
+      }
+
+      // A whole page with pandoc's own stylesheet, not a bare fragment that
+      // renders in the browser's default Times: HTML is also the step every
+      // document takes on its way to PNG or PDF.
+      if (outputFormat.internal === "html") {
+        options.standalone = true;
+        options.metadata = { pagetitle: baseName };
       }
 
       // Set flag for outputting mathml

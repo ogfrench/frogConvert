@@ -148,6 +148,11 @@ export interface FileData {
    * `.convert-notice` card in the post-conversion result area.
    */
   notices?: Notice[];
+  /**
+   * Set by a handler that wrote a document as pictures in one step (HTML to
+   * PDF in a browser), so the route alone can't tell the text was lost.
+   */
+  drawnAsImage?: boolean;
 }
 
 /**
