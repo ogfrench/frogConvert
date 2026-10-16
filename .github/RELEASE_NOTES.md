@@ -9,13 +9,17 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's fixed in 3.1.1
+## What's fixed in 3.1.2
 
-**CSV to SQLite keeps your values as written.** Zip codes lost their leading zeros (`00501` became `501`), hex values like `0x1A` became `26`, and IDs longer than 16 digits were rounded. A column is now stored as a number only when every value reads back exactly as it was written; anything else stays text.
+**HTML keeps its styling.** Converting an HTML page to an image or PDF dropped every stylesheet in its `<head>`, so a styled page came out as black text on white. The whole page is rendered now: colours, backgrounds, layout, tables, fonts you have installed.
 
-**Repeated CSV headers no longer fail the conversion.** A header such as `a,a,a_2` produced two columns called `a_2` and the database could not be created.
+**HTML to PDF gives real pages.** It used to be one page as tall as the document (a long page came out 45 by 89 cm), at screen resolution. It is now A4 pages, broken between lines of text, at twice the resolution. Images and PDFs are laid out at a fixed width, so the same file gives the same result on every screen.
 
-**Excel files with empty inline-text cells convert again.** An empty cell written as `<c t="inlineStr"/>` (some generators do this) swallowed the cell after it and left the sheet as broken XML.
+**In the desktop app, HTML to PDF has real text.** It prints the page with Chromium's own PDF printer, like Print, then Save as PDF: selectable, searchable text. In a browser the PDF is still made of pictures, and the result says so.
+
+**Markdown looks like Markdown.** Markdown to PNG or PDF drew the raw source (`#`, `**`, `|---|`) and called it a success. It now renders headings, lists, tables and code, with pandoc's clean default style, and tables in `.md` files are recognised.
+
+Converting still never touches the network: external stylesheets, web fonts and images in a page are not fetched, so a page that depends on them looks plainer.
 
 For the browser Office engine and everything else new in 3.1, see the [3.1.0 release](https://github.com/ogfrench/frogConvert/releases/tag/v3.1.0). Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
