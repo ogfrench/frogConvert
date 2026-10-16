@@ -724,7 +724,10 @@ export function initConvertButton() {
                     }
                 }
 
-                const routeNotice = routeQualityNotice(result.path.map(n => n.format.format));
+                const routeNotice = routeQualityNotice(
+                    result.path.map(n => n.format.format),
+                    result.files.some(f => f.drawnAsImage),
+                );
                 if (routeNotice) {
                     degradedRoute = true;
                     for (const f of result.files) f.notices = [...(f.notices ?? []), routeNotice];

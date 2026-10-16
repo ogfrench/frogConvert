@@ -256,4 +256,57 @@ describe.skipIf(!canRun)(`Electron desktop app [${WHY}]`, () => {
         const { PDFDocument } = await import("pdf-lib");
         expect((await PDFDocument.load(pdf)).getPageCount()).toBe(4);
     }, 300_000);
+
+    it("prints HTML to a PDF with real text, and keeps the page off the disk", async () => {
+        // src/electron-print.cjs: Chromium's own PDF printer, so the text is
+        // selectable. A browser can only draw the page as pictures.
+        await open("convert");
+        const html = "<!doctype html><html><head><style>h1{color:#1f6f43}</style></head>" +
+            "<body><h1>Hello frog</h1><img src=\"../../../../etc/hostname\">" +
+            "<p>" + "Words on a page. ".repeat(2000) + "</p></body></html>";
+        const out = await page.evaluate(async (h) => {
+            const r = await fetch("/api/html-to-pdf", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ html: h }),
+            });
+            return { status: r.status, body: await r.json() };
+        }, html);
+        expect(out.status).toBe(200);
+        const pdf = Buffer.from(out.body.base64Bytes, "base64");
+        const { PDFDocument } = await import("pdf-lib");
+        const doc = await PDFDocument.load(pdf);
+        expect(doc.getPageCount()).toBeGreaterThan(1);
+        const { width, height } = doc.getPage(0).getSize();
+        // A4; Chromium rounds it to whole device units (595.9 x 842.9).
+        expect(Math.abs(width - 595.28)).toBeLessThan(2);
+        expect(Math.abs(height - 841.89)).toBeLessThan(2);
+        const { pdfPageTexts } = await import("../helpers/corpusBrowser.ts");
+        expect((await pdfPageTexts(pdf))[0]).toMatch(/Hello frog/);
+    }, 120_000);
+
+    it("converts an HTML file to a real PDF from the Converter", async () => {
+        await open("convert");
+        const file = path.join(os.tmpdir(), `frog-e2e-${Date.now()}.html`);
+        fs.writeFileSync(file, "<!doctype html><html><head><style>h1{color:#1f6f43}</style></head><body><h1>Hello frog</h1></body></html>");
+        const input = await page.waitForSelector("#file-input");
+        await (input as unknown as { uploadFile(p: string): Promise<void> }).uploadFile(file);
+        await page.waitForSelector("#format-selector", { visible: true });
+        await page.click("#format-selector");
+        await page.waitForSelector("#format-modal.open");
+        await page.waitForFunction(() => [...document.querySelectorAll(".format-option")]
+            .some(o => /^PDF\b/.test(o.textContent?.trim() ?? "") && !o.classList.contains("unavailable")), { timeout: 60_000 });
+        await page.evaluate(() => ([...document.querySelectorAll<HTMLElement>(".format-option")]
+            .find(o => /^PDF\b/.test(o.textContent?.trim() ?? "") && !o.classList.contains("unavailable")))!.click());
+        await page.$eval("#convert-button", b => (b as HTMLButtonElement).click());
+        // The result modal: Download on success, Got it on failure.
+        const modal = await page.waitForFunction(() => {
+            const done = [...document.querySelectorAll("#popup button")]
+                .some(b => /^(Download|Got it)/.test(b.textContent?.trim() ?? ""));
+            return done ? document.querySelector("#popup")!.textContent!.replace(/\s+/g, " ") : null;
+        }, { timeout: 120_000 }).then(h => h.jsonValue());
+        expect(modal).toMatch(/File converted!/);
+        expect(modal).not.toMatch(/made of pictures|with limits/);
+        fs.rmSync(file, { force: true });
+    }, 300_000);
 });

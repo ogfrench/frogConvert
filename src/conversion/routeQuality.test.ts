@@ -32,6 +32,16 @@ describe('routeQualityNotice', () => {
     expect(n.body).not.toMatch(/Office engine/);
   });
 
+  it('labels a document a handler drew as pictures in one step', () => {
+    expect(routeQualityNotice(['html', 'pdf'])).toBeNull();
+    expect(routeQualityNotice(['html', 'pdf'], true)!.title).toBe('This PDF is made of pictures');
+    expect(routeQualityNotice(['commonmark', 'html', 'pdf'], true)!.body).not.toMatch(/Office engine/);
+  });
+
+  it('knows pandoc names for Markdown', () => {
+    expect(classifyRoute(['commonmark', 'text', 'png', 'pdf'])).toBe('image-only');
+  });
+
   it('is silent for a faithful route', () => {
     expect(routeQualityNotice(['pptx', 'pdf'])).toBeNull();
   });

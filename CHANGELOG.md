@@ -13,6 +13,12 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 ### Fixed
 - **HTML to image or PDF lost all styling** ([#65](https://github.com/ogfrench/frogConvert/issues/65)). The renderer kept only the body's inner HTML, so every `<style>` in `<head>` and the body's own class and style were dropped, and a page came out as bare text. It now renders the whole document, so `body`, `html` and `:root` rules apply and the body background fills the picture. A stylesheet that `@import`s a web font from a CDN keeps its rules; only the external fetch is removed, so converting still makes no network request ([src/handlers/svgForeignObject.ts](src/handlers/svgForeignObject.ts)).
 - **HTML to PDF told people to get the Office engine**, which does not read HTML. The notice now suggests the browser's Print, then Save as PDF, for selectable text.
+- **HTML to PDF was one giant page at screen resolution**, as wide as the app window (a long page came out 45 by 89 cm). It is now cut into A4 pages, breaking between lines of text, and drawn at twice the resolution. HTML to PNG is drawn at twice the resolution too, and both lay the page out at a fixed width instead of the window's, so the same file gives the same picture on every screen ([src/handlers/svgForeignObject.ts](src/handlers/svgForeignObject.ts)).
+- **Markdown to PNG or PDF came out as the raw source.** It went through plain text, so headings, bold, lists and tables were drawn as `#`, `**` and `|---|`, and the result said "File converted!" with no warning. It now goes through HTML. Pandoc's HTML is a whole page with its own stylesheet instead of an unstyled fragment, and `.md` is read as GitHub-Flavored Markdown, so tables and task lists come across ([src/handlers/pandoc.ts](src/handlers/pandoc.ts)).
+- **Markdown, reStructuredText, LaTeX and other markup drawn as pictures were never labelled.** The quality check knew Markdown as `md`, but the app calls it `commonmark`.
+
+### Added
+- **The desktop app prints HTML and Markdown to a real PDF**, with Chromium's own PDF printer: selectable text, A4 pages, the page's print styles. The page loads with JavaScript off, in a session that refuses every request but the page itself ([src/electron-print.cjs](src/electron-print.cjs)).
 
 ## [3.1.1] - 2026-10-12
 

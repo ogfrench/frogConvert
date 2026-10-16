@@ -64,6 +64,7 @@
       "dist/**/*",
       "src/electron.cjs",
       "src/electron-office.cjs",
+      "src/electron-print.cjs",
       "!dist/office-engine/**"
     ],
     "win": {
