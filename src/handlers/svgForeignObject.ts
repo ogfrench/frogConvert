@@ -28,8 +28,22 @@ function isExternalUrl(url: string): boolean {
 const DROP_TAGS = new Set(["script", "iframe", "object", "embed"]);
 const EXTERNAL_URL_RE = /(^|,)\s*(https?:)?\/\//i;
 const STYLE_EXTERNAL_RE = /url\(\s*["']?\s*(https?:)?\/\//i;
+const EXTERNAL_IMPORT_RE = /@import\s+(url\()?\s*["']?\s*(https?:|file:)?\/\/[^;]*;?/gi;
+const EXTERNAL_CSS_URL_RE = /url\(\s*["']?\s*((https?:)?\/\/|file:)[^)]*\)/gi;
 
-function sanitizeHTML(html: string): string {
+/**
+ * Neutralise a stylesheet's external fetches but keep its rules. Dropping the
+ * whole <style> because one web font was @imported from a CDN lost every rule
+ * in it. `:root` would match the app's own document, not the converted one.
+ */
+function sanitizeCSS(css: string): string {
+    return css
+        .replace(EXTERNAL_IMPORT_RE, "")
+        .replace(EXTERNAL_CSS_URL_RE, "none")
+        .replace(/:root\b/g, "html");
+}
+
+function sanitizeHTML(html: string): Document {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
 
@@ -58,18 +72,25 @@ function sanitizeHTML(html: string): string {
 
         const style = el.getAttribute("style");
         if (style && STYLE_EXTERNAL_RE.test(style)) {
-            el.setAttribute("style", style.replace(/url\(\s*["']?\s*(https?:)?\/\/[^)]*\)/gi, "none"));
+            el.setAttribute("style", style.replace(EXTERNAL_CSS_URL_RE, "none"));
         }
 
-        if (tag === "style") {
-            const css = el.textContent ?? "";
-            if (/@import\s+(url\()?\s*["']?\s*(https?:)?\/\//i.test(css) || STYLE_EXTERNAL_RE.test(css)) {
-                el.remove();
-            }
-        }
+        if (tag === "style") el.textContent = sanitizeCSS(el.textContent ?? "");
     }
 
-    return doc.body.innerHTML;
+    return doc;
+}
+
+/**
+ * The page as real <html>, <head> and <body> elements, so `body { ... }` and
+ * `html { ... }` rules match the way they do in a browser tab. This used to
+ * keep only body.innerHTML, which threw away every <style> in <head> and the
+ * body's own class and style: the output was the bare text (#65).
+ */
+function importDocument(doc: Document): HTMLElement {
+    const root = document.importNode(doc.documentElement, true) as HTMLElement;
+    root.querySelectorAll("link, meta, title, base").forEach(el => el.remove());
+    return root;
 }
 
 class svgForeignObjectHandler implements FormatHandler {
@@ -101,20 +122,30 @@ class svgForeignObjectHandler implements FormatHandler {
 
     // Add a DOM shadow to the dummy to "sterilize" it.
     const shadow = dummy.attachShadow({ mode: "closed" });
-    const style = document.createElement("style");
-    style.textContent = ":host>div{display:flow-root;}";
-    shadow.appendChild(style);
 
-    // Create a div within the shadow DOM to act as
-    // a container for our HTML payload.
-    const container = document.createElement("div");
-    container.innerHTML = sanitizeHTML(html);
+    // Inline, not a shadow stylesheet, so the SVG lays out the same way:
+    // flow-root keeps the body's margins inside the measured box.
+    const container = importDocument(sanitizeHTML(html));
+    container.style.display = "flow-root";
     shadow.appendChild(container);
+
+    // A browser paints the body's background over the whole canvas. Inside
+    // the SVG there is no canvas, so give it to <html> when <html> has none.
+    const body = container.querySelector("body");
+    if (body) {
+      const rootStyle = getComputedStyle(container);
+      const bodyStyle = getComputedStyle(body);
+      if (rootStyle.backgroundColor === "rgba(0, 0, 0, 0)" && rootStyle.backgroundImage === "none") {
+        container.style.backgroundColor = bodyStyle.backgroundColor;
+        container.style.backgroundImage = bodyStyle.backgroundImage;
+      }
+    }
 
     // Wait for all images to finish loading. This is required for layout
     // changes, not because we actually care about the image contents.
-    const images = container.querySelectorAll("img, video");
-    const promises = Array.from(images).map(image => new Promise(resolve => {
+    const images = Array.from(container.querySelectorAll("img, video"))
+      .filter(el => !(el instanceof HTMLImageElement && el.complete));
+    const promises = images.map(image => new Promise(resolve => {
       image.addEventListener("load", resolve);
       image.addEventListener("loadeddata", resolve);
       image.addEventListener("error", resolve);

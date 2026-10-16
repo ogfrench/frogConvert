@@ -26,6 +26,12 @@ describe('routeQualityNotice', () => {
     expect(n.body).toMatch(/can't be selected/);
   });
 
+  it('points an HTML page at Print, not at the Office engine', () => {
+    const n = routeQualityNotice(['html', 'svg', 'png', 'pdf'])!;
+    expect(n.body).toMatch(/Save as PDF/);
+    expect(n.body).not.toMatch(/Office engine/);
+  });
+
   it('is silent for a faithful route', () => {
     expect(routeQualityNotice(['pptx', 'pdf'])).toBeNull();
   });

@@ -34,12 +34,13 @@ export function routeQualityNotice(formats: string[]): Notice | null {
   const quality = classifyRoute(formats);
   const to = formats[formats.length - 1]?.toUpperCase() ?? "";
   if (quality === "image-only") {
-    return {
-      title: `This ${to} is made of pictures`,
-      body: to === "PDF"
-        ? "With no Office engine on this device, the document was drawn as an image: its text can't be selected, and layout may be lost. For an exact PDF, get the Office engine on a computer, or export from the app that made the file."
-        : `Each page came across as a picture, so the text in this ${to} can't be edited.`,
-    };
+    let body = `Each page came across as a picture, so the text in this ${to} can't be edited.`;
+    if (to === "PDF" && formats[0].toLowerCase() === "html") {
+      body = "The page was drawn as an image, so its text can't be selected. For a PDF with selectable text, open the file in your browser and use Print, then Save as PDF.";
+    } else if (to === "PDF") {
+      body = "With no Office engine on this device, the document was drawn as an image: its text can't be selected, and layout may be lost. For an exact PDF, get the Office engine on a computer, or export from the app that made the file.";
+    }
+    return { title: `This ${to} is made of pictures`, body };
   }
   if (quality === "text-only") {
     return {

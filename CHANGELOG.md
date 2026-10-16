@@ -10,6 +10,10 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Fixed
+- **HTML to image or PDF lost all styling** ([#65](https://github.com/ogfrench/frogConvert/issues/65)). The renderer kept only the body's inner HTML, so every `<style>` in `<head>` and the body's own class and style were dropped, and a page came out as bare text. It now renders the whole document, so `body`, `html` and `:root` rules apply and the body background fills the picture. A stylesheet that `@import`s a web font from a CDN keeps its rules; only the external fetch is removed, so converting still makes no network request ([src/handlers/svgForeignObject.ts](src/handlers/svgForeignObject.ts)).
+- **HTML to PDF told people to get the Office engine**, which does not read HTML. The notice now suggests the browser's Print, then Save as PDF, for selectable text.
+
 ## [3.1.1] - 2026-10-12
 
 Three data-fidelity fixes found reviewing 3.1.0.
