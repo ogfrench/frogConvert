@@ -21,8 +21,6 @@
     // it is an fs.readFileSync path in the config. It has to be a standalone
     // non-module file precisely because it must run when the bundle did not load.
     "src/pwa/bootRecovery.js",
-    "src/docs/docs.ts",
-    "src/headless/index.ts",
     "src/workers/conversion.worker.ts",
     "scripts/*.{ts,js,mjs}"
   ],
@@ -38,6 +36,16 @@
     "src/handlers/sppd/**",
     "src/handlers/terraria-wld-parser/**"
   ],
+  "ignoreIssues": {
+    // Vendored MIDI library, kept whole rather than trimmed to what we call.
+    "src/handlers/midi/midifilelib.js": ["exports"],
+    // Mirrors the BSOR file-format spec; every member is part of the format
+    // whether or not the parser branches on it.
+    "src/handlers/bsor/replay.ts": ["enumMembers"],
+    // findSoffice is consumed by test/electron-office.test.ts through
+    // createRequire, which knip does not trace.
+    "src/electron-office.cjs": ["exports"]
+  },
   "ignoreDependencies": [
     "@jspawn/ghostscript-wasm",
     "@bokuweb/zstd-wasm",
