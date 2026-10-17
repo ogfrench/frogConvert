@@ -111,14 +111,30 @@ function morphPopup(apply: () => void) {
 export function createPopupButton(
   text: string,
   className: string,
-  onClick: () => void,
+  onClick: () => void | Promise<unknown>,
 ): HTMLButtonElement {
   const btn = document.createElement("button");
   btn.className = className;
   btn.textContent = text;
-  btn.addEventListener("click", onClick);
+  // A double-click ran the action twice: two copies of a download, a batch
+  // zipped twice at once. Ignored while the action runs and for a moment
+  // after; a deliberate second press a second later still works.
+  let running = false;
+  let doneAt = -Infinity;
+  btn.addEventListener("click", async () => {
+    if (running || performance.now() - doneAt < REPEAT_CLICK_MS) return;
+    running = true;
+    try {
+      await onClick();
+    } finally {
+      running = false;
+      doneAt = performance.now();
+    }
+  });
   return btn;
 }
+
+const REPEAT_CLICK_MS = 700;
 
 /**
  * Show a simple alert popup with a title, message, and dismiss button.

@@ -1,7 +1,7 @@
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 import { shortenFileName, safeLocalStorageSet } from "../utils/index.ts";
 import normalizeMimeType from "../../core/utils/normalizeMimeType.ts";
-import { fileExtensionOf } from "../../core/FormatHandler/detectFormat.ts";
+import { fileExtensionsOf, aliasesOf } from "../../core/FormatHandler/detectFormat.ts";
 // --- DOM element references (lazy-initialized to allow testing) ---
 const uiInternal: Record<string, any> = {};
 
@@ -544,7 +544,12 @@ export function buildAcceptString(
   for (const { format } of allOptions) {
     if (!format.from) continue;
     if (format.mime) mimes.add(format.mime);
-    if (format.extension) exts.add(`.${format.extension.toLowerCase()}`);
+    if (format.extension) {
+      const ext = format.extension.toLowerCase();
+      exts.add(`.${ext}`);
+      // Or the picker greys out a .tif, .yaml or .midi it would accept.
+      for (const alias of aliasesOf(ext)) exts.add(`.${alias}`);
+    }
   }
   return [...mimes, ...exts].join(",");
 }
@@ -555,11 +560,11 @@ export function isFileSupported(
   allOptions: Array<{ format: FileFormat; handler: FormatHandler }>
 ): boolean {
   const mime = normalizeMimeType(file.type);
-  const ext  = fileExtensionOf(file.name) ?? "";
+  const exts = fileExtensionsOf(file.name);
   for (const { format } of allOptions) {
     if (!format.from) continue;
     if (format.mime && format.mime === mime) return true;
-    if (format.extension && format.extension.toLowerCase() === ext) return true;
+    if (format.extension && exts.includes(format.extension.toLowerCase())) return true;
   }
   return false;
 }

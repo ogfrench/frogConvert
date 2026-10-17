@@ -17,6 +17,24 @@ describe('findMatchingFormat', () => {
     expect(findMatchingFormat([new File(['<p>x</p>'], 'PAGE.HTM')], options)).toBe(1);
   });
 
+  it('reads the other common spellings of a declared extension', () => {
+    const opts = [
+      { format: CommonFormats.JPEG.supported('jpeg', true, false), handler },
+      { format: CommonFormats.TIFF.supported('tiff', true, false), handler },
+    ];
+    // JPEG declares .jpg; Windows often saves .jfif. TIFF declares .tiff.
+    expect(findMatchingFormat([new File(['x'], 'photo.jfif')], opts)).toBe(0);
+    expect(findMatchingFormat([new File(['x'], 'scan.TIF')], opts)).toBe(1);
+  });
+
+  it('prefers a format that declares the spelling itself over its alias', () => {
+    const opts = [
+      { format: CommonFormats.HTML.supported('html', true, false), handler },
+      { format: { ...CommonFormats.HTML.supported('htm', true, false), extension: 'htm', format: 'legacy-htm' }, handler },
+    ];
+    expect(findMatchingFormat([new File(['x'], 'page.htm')], opts)).toBe(1);
+  });
+
   it('still refuses an extension nothing claims', () => {
     expect(findMatchingFormat([new File(['x'], 'thing.zzz')], options)).toBe(-1);
   });

@@ -39,7 +39,10 @@ describe('svgForeignObject', () => {
       '<body background="https://example.com/bg.png"><video poster="https://example.com/p.png"></video>' +
       '<svg><image xlink:href="https://example.com/i.png"/></svg>' +
       '<form action="https://example.com/f"><button formaction="https://example.com/g">x</button></form>' +
-      '<a href="#here" ping="https://example.com/ping">a</a></body>');
+      '<a href="#here" ping="https://example.com/ping">a</a>' +
+      '<div style="background-image: image-set(\'https://example.com/a.png\' 1x)">x</div>' +
+      '<img data-src="//example.com/lazy.png" src="ftp://example.com/f.png"></body>' +
+      '<style>.h { background: image-set("https://example.com/b.png" 1x) }</style>');
     expect(svg).not.toMatch(/example\.com/);
   });
 

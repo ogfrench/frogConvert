@@ -24,13 +24,14 @@ const INLINE_TRANSPARENT_PX =
 
 function isExternalUrl(url: string): boolean {
     const trimmed = url.trim();
-    return /^(https?:)?\/\//i.test(trimmed) || /^file:/i.test(trimmed);
+    return /^((https?|ftp|wss?):)?\/\//i.test(trimmed) || /^file:/i.test(trimmed);
 }
 
+/** A quoted URL to another site in CSS: image-set("https://...") fetches without url(). */
+const QUOTED_EXTERNAL_CSS_RE = /(["'])\s*(((https?|ftp):)?\/\/|file:)[^"']*\1/gi;
+
 const DROP_TAGS = new Set(["script", "iframe", "object", "embed"]);
-const FETCHING_ATTRS = new Set(["poster", "background", "xlink:href", "data", "action", "formaction", "ping"]);
 const EXTERNAL_URL_RE = /(^|,)\s*(https?:)?\/\//i;
-const STYLE_EXTERNAL_RE = /url\(\s*["']?\s*(https?:)?\/\//i;
 const EXTERNAL_IMPORT_RE = /@import\s+(url\()?\s*["']?\s*(https?:|file:)?\/\/[^;]*;?/gi;
 const EXTERNAL_CSS_URL_RE = /url\(\s*["']?\s*((https?:)?\/\/|file:)[^)]*\)/gi;
 
@@ -43,6 +44,7 @@ function sanitizeCSS(css: string): string {
     return css
         .replace(EXTERNAL_IMPORT_RE, "")
         .replace(EXTERNAL_CSS_URL_RE, "none")
+        .replace(QUOTED_EXTERNAL_CSS_RE, '""')
         .replace(/:root\b/g, "html");
 }
 
@@ -70,10 +72,13 @@ function sanitizeHTML(html: string): Document {
             el.removeAttribute("href");
         }
 
-        // Every other attribute that can make the browser fetch: a video
-        // poster, a legacy body/table background, SVG's xlink:href.
+        // Any other attribute holding a URL to another site, whatever it is
+        // called. Naming the fetching attributes (poster, background,
+        // xlink:href, ...) missed whichever one came next; an attribute that
+        // only describes, like an alt text that is a URL, loses nothing that
+        // renders.
         for (const attr of [...el.attributes]) {
-            if (FETCHING_ATTRS.has(attr.name) && isExternalUrl(attr.value)) el.removeAttribute(attr.name);
+            if (isExternalUrl(attr.value)) el.removeAttribute(attr.name);
         }
 
         const srcset = el.getAttribute("srcset");
@@ -82,8 +87,9 @@ function sanitizeHTML(html: string): Document {
         }
 
         const style = el.getAttribute("style");
-        if (style && STYLE_EXTERNAL_RE.test(style)) {
-            el.setAttribute("style", style.replace(EXTERNAL_CSS_URL_RE, "none"));
+        if (style) {
+            const clean = style.replace(EXTERNAL_CSS_URL_RE, "none").replace(QUOTED_EXTERNAL_CSS_RE, '""');
+            if (clean !== style) el.setAttribute("style", clean);
         }
 
         if (tag === "style") el.textContent = sanitizeCSS(el.textContent ?? "");
@@ -379,12 +385,24 @@ class svgForeignObjectHandler implements FormatHandler {
   }
 
   /**
-   * The desktop app prints the page with Chromium's own PDF printer, the same
-   * as Print, then Save as PDF: real text, real pages. Null anywhere else, or
-   * when that fails, and the caller draws the page instead.
+   * The desktop app, and the MCP/REST bridge, print the page with Chromium's
+   * own PDF printer, the same as Print, then Save as PDF: real text, real
+   * pages. Null in a browser tab, or when that fails, and the caller draws
+   * the page instead.
    */
   static async printToPdf(html: string, title: string): Promise<Uint8Array | null> {
-    if (typeof location === "undefined" || location.protocol !== "app:") return null;
+    if (typeof window === "undefined") return null;
+    // The MCP/REST bridge's headless Chrome exposes its printer to the page.
+    const bridgePrint = (window as { __frogPrintToPdf?: (html: string) => Promise<string> }).__frogPrintToPdf;
+    if (typeof bridgePrint === "function") {
+      try {
+        const b64 = await bridgePrint(printableDocument(html, title));
+        return Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      } catch {
+        return null;
+      }
+    }
+    if (location.protocol !== "app:") return null;
     try {
       const resp = await fetch("/api/html-to-pdf", {
         method: "POST",

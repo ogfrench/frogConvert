@@ -1,10 +1,6 @@
-import { hopQualityArgs } from "../../core/compression/hopQuality.ts";
-import type { FormatHandler, FileData, QualityPreset } from "../../core/FormatHandler/FormatHandler.ts";
+import type { FormatHandler, QualityPreset } from "../../core/FormatHandler/FormatHandler.ts";
 import type { TraversionGraph } from "../../core/TraversionGraph/TraversionGraph.ts";
-import { findFirstPath, libreofficeHint } from "../../mcp/core/utils.ts";
-import { convertViaBrowser } from "../../mcp/core/browserBridge.ts";
-import { resolveEffectiveQuality } from "../../core/compression/resolveEffectiveQuality.ts";
-import { appendSupportContact, toUserErrorInfo } from "../../components/utils/index.ts";
+import { convertForAgents } from "../../mcp/core/convert.ts";
 import mime from "mime";
 
 function parseQuality(raw: unknown): QualityPreset | undefined {
@@ -23,60 +19,9 @@ async function runConversion(
     outputExt: string,
     quality?: QualityPreset,
     allHandlers?: FormatHandler[]
-): Promise<{ files: FileData[]; error?: never } | { error: string; status: number }> {
-    const resolved = await resolveEffectiveQuality(quality, bytes, inputMime, outputMime);
-    if (resolved === null) {
-        // Already-minimal: return the input unchanged.
-        return { files: [{ name: fileName, bytes }] };
-    }
-    const effectiveQuality: QualityPreset = resolved;
-    let nativeFailure: unknown = null;
-
-    // Try native first. findFirstPath resolves both tokens and searches, trying
-    // the next reading of an ambiguous one rather than giving up on the first.
-    // simpleMode=true: accept any handler for the final step. Without it the
-    // resolver can name e.g. ImageMagick for PDF output while libreoffice
-    // provides the actual pptx→pdf edge, and the handler-name constraint would
-    // reject the libreoffice path, costing a 15s timeout searching for a
-    // non-existent ImageMagick-terminated one.
-    const path = await findFirstPath(graph, handlers, inputMime, inputExt, outputMime, outputExt, true);
-    if (path) {
-        let currentFiles: FileData[] = [{ name: fileName, bytes }];
-        try {
-            for (let i = 1; i < path.length; i++) {
-                const stepHandler = path[i].handler;
-                const prevFormat = path[i - 1].format;
-                const nextFormat = path[i].format;
-                currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat,
-                            hopQualityArgs({ target: nextFormat, isLastHop: i === path.length - 1, requested: effectiveQuality }));
-            }
-            return { files: currentFiles };
-        } catch (nativeErr) {
-            nativeFailure = nativeErr;
-            // Native execution failed, fall through to browser bridge
-        }
-    }
-
-    // No native path, format unknown to native registry, or native execution failed.
-    // The bridge loads ALL handlers including browser-only ones (requiresMainThread=true).
-    try {
-        const b64 = Buffer.from(bytes).toString("base64");
-        const bridgeResults = await convertViaBrowser(fileName, b64, inputMime, inputExt, outputMime, outputExt, effectiveQuality);
-        const files: FileData[] = bridgeResults.map(r => ({
-            name: r.fileName,
-            bytes: new Uint8Array(Buffer.from(r.base64Bytes, "base64"))
-        }));
-        return { files };
-    } catch (bridgeErr: any) {
-        const bridgeInfo = toUserErrorInfo(bridgeErr);
-        const nativeInfo = nativeFailure ? toUserErrorInfo(nativeFailure) : null;
-        let msg = nativeInfo?.kind === "unknown" || nativeInfo?.kind === "runtime_failure"
-            ? "Something went wrong while converting this file."
-            : bridgeInfo.message || "Something went wrong while converting this file.";
-        const hint = allHandlers && libreofficeHint(allHandlers, inputExt, outputExt);
-        if (hint) msg += ` ${hint}`;
-        return { error: appendSupportContact(msg), status: 422 };
-    }
+) {
+    // Shared with MCP convert_file, so the two surfaces cannot drift again.
+    return convertForAgents({ handlers, graph, allHandlers, fileName, bytes, inputMime, inputExt, outputMime, outputExt, quality });
 }
 
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB ?? 4096);
@@ -138,6 +83,11 @@ export async function handleConvert(
                 "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(first.name)}`,
                 ...(result.files.length > 1
                     ? { "X-Extra-Files": JSON.stringify(result.files.slice(1).map(f => f.name)) }
+                    : {}),
+                // A binary body has no room for them, so the warnings ride in a
+                // header (e.g. that a PDF is made of pictures).
+                ...(result.warnings.length > 0
+                    ? { "X-Warnings": encodeURIComponent(JSON.stringify(result.warnings)) }
                     : {})
             }
         });
@@ -172,9 +122,12 @@ export async function handleConvert(
             return Response.json({ error: result.error }, { status: result.status });
         }
 
+        // Warnings were dropped here while MCP returned them, so an agent on
+        // REST was told nothing when a PDF came out as pictures.
         const output = result.files.map(f => ({
             fileName: f.name,
-            base64Bytes: Buffer.from(f.bytes).toString("base64")
+            base64Bytes: Buffer.from(f.bytes).toString("base64"),
+            ...(result.warnings.length > 0 ? { warnings: result.warnings } : {}),
         }));
         return Response.json(output);
     }

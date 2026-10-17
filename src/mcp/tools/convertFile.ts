@@ -1,4 +1,3 @@
-import { hopQualityArgs } from "../../core/compression/hopQuality.ts";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { writeFile } from "fs/promises";
@@ -6,15 +5,12 @@ import { basename, dirname, join } from "path";
 import type { FileData } from "../../core/FormatHandler/FormatHandler.ts";
 import type { McpContext } from "../core/types.ts";
 
-import { findFirstPath, libreofficeHint } from "../core/utils.ts";
-import { convertViaBrowser } from "../core/browserBridge.ts";
+import { convertForAgents } from "../core/convert.ts";
 import { resolveBytes, enforceSandboxedPath } from "../core/fileInput.ts";
-import { resolveEffectiveQuality } from "../../core/compression/resolveEffectiveQuality.ts";
-import { appendSupportContact, toUserErrorInfo } from "../../components/utils/index.ts";
 
-async function serializeResults(files: FileData[], outputFilePath?: string) {
-    // Collect warnings from all files (deduped).
-    const warnings = Array.from(new Set(files.flatMap(f => f.warnings ?? [])));
+async function serializeResults(files: FileData[], outputFilePath?: string, extraWarnings: string[] = []) {
+    // The files' own warnings and the route's (deduped).
+    const warnings = Array.from(new Set([...files.flatMap(f => f.warnings ?? []), ...extraWarnings]));
 
     if (outputFilePath && files.length > 0) {
         const firstFile = files[0];
@@ -46,7 +42,7 @@ async function serializeResults(files: FileData[], outputFilePath?: string) {
     const results = files.map(f => ({
         fileName: f.name,
         base64Bytes: Buffer.from(f.bytes).toString('base64'),
-        ...(f.warnings?.length ? { warnings: f.warnings } : {}),
+        ...(warnings.length ? { warnings } : {}),
     }));
     return { content: [{ type: "text" as const, text: JSON.stringify(results) }] };
 }
@@ -81,78 +77,15 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
             }
 
             const { handlers, allHandlers, graph } = await initPromise;
-
-            let nativeFailure: unknown = null;
-
-            const resolved = await resolveEffectiveQuality(quality, bytes, inputMime, outputMime);
-            if (resolved === null) {
-                return await serializeResults([{ name: resolvedName, bytes }], outputFilePath);
+            // Shared with REST /convert, so the two surfaces cannot drift again.
+            const result = await convertForAgents({
+                handlers, graph, allHandlers, fileName: resolvedName, bytes,
+                inputMime, inputExt: inputExtension, outputMime, outputExt: outputExtension, quality,
+            });
+            if ("error" in result) {
+                return { content: [{ type: "text", text: `Error: ${result.error}` }], isError: true };
             }
-
-            // Try native first. findFirstPath resolves both tokens and searches,
-            // trying the next reading of an ambiguous one rather than giving up
-            // on the first - see findFormatCandidates for what one reading cost.
-            // simpleMode=true, the same as the REST /convert route. The graph
-            // keys its nodes by format, not by handler, so the handler name on
-            // the target node buys no precision - it only rejects paths whose
-            // last hop comes from a different handler that writes the same
-            // format, and the graph then returns whatever longer route survives.
-            // Measured against the Node handler set, false gave
-            // pdf -> txt as Ghostscript -> tiff -> png -> html -> pandoc, and
-            // docx -> pdf as libreoffice -> zip -> png -> imageToPdf. With true
-            // they are Ghostscript -> pdfparse and libreoffice -> libreoffice.
-            const path = await findFirstPath(graph, handlers, inputMime, inputExtension, outputMime, outputExtension, true);
-            if (path) {
-                let currentFiles: FileData[] = [{ name: resolvedName, bytes }];
-
-                try {
-                    // path[0] is the source node (no conversion step); steps start at index 1
-                    for (let i = 1; i < path.length; i++) {
-                        const stepHandler = path[i].handler;
-                        const prevFormat = path[i - 1].format;
-                        const nextFormat = path[i].format;
-                        currentFiles = await stepHandler.doConvert(currentFiles, prevFormat, nextFormat,
-                            hopQualityArgs({ target: nextFormat, isLastHop: i === path.length - 1, requested: resolved }));
-                    }
-
-                    return await serializeResults(currentFiles, outputFilePath);
-                } catch (nativeErr: any) {
-                    nativeFailure = nativeErr;
-                    // Native execution failed, log for diagnostics and fall through to browser bridge
-                    process.stderr.write(`[mcp] Native conversion failed, trying browser bridge: ${nativeErr?.message ?? nativeErr}\n`);
-                }
-            }
-
-            // No native path, format unknown to native registry, or native execution failed.
-            // The bridge loads ALL handlers including browser-only ones (requiresMainThread=true).
-            try {
-                const bridgeBase64 = Buffer.from(bytes).toString('base64');
-                const bridgeResults = await convertViaBrowser(
-                    resolvedName, bridgeBase64, inputMime, inputExtension, outputMime, outputExtension, resolved
-                );
-                if (outputFilePath && bridgeResults.length > 0) {
-                    return await serializeResults(
-                        bridgeResults.map((r: { fileName: string; base64Bytes: string }) => ({
-                            name: r.fileName,
-                            bytes: new Uint8Array(Buffer.from(r.base64Bytes, 'base64'))
-                        })),
-                        outputFilePath
-                    );
-                }
-                return { content: [{ type: "text", text: JSON.stringify(bridgeResults) }] };
-            } catch (bridgeErr: any) {
-                const bridgeInfo = toUserErrorInfo(bridgeErr);
-                const nativeInfo = nativeFailure ? toUserErrorInfo(nativeFailure) : null;
-                let msg = nativeInfo?.kind === "unknown" || nativeInfo?.kind === "runtime_failure"
-                    ? "Something went wrong while converting this file."
-                    : bridgeInfo.message || "Something went wrong while converting this file.";
-                const hint = allHandlers && libreofficeHint(allHandlers, inputExtension, outputExtension);
-                if (hint) msg += `\n${hint}`;
-                return {
-                    content: [{ type: "text", text: `Error: ${appendSupportContact(msg)}` }],
-                    isError: true
-                };
-            }
+            return await serializeResults(result.files, outputFilePath, result.warnings);
         }
     );
 }

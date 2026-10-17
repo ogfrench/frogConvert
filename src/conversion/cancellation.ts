@@ -221,8 +221,6 @@ function patchStatusRows(p: HTMLElement, messageHTML: string): boolean {
         // zero opacity, so the swap itself is never seen.
         if (text) el.textContent = text;
         el.classList.toggle(BLANK_CLASS, !text);
-        // The engine line shares its row with the reassurance (statusHTML).
-        if (sel === ".status-live") el.parentElement?.classList.toggle("status-slot-live", !!text);
     }
 
     // The reassurance row is deliberately untouched. It is static copy for the

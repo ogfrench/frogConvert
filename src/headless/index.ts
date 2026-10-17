@@ -14,6 +14,7 @@
  * in parallel in the background so WASM is compiled before the first conversion.
  */
 
+import { routeQualityNotice } from "../conversion/routeQuality.ts";
 import { hopQualityArgs } from "../core/compression/hopQuality.ts";
 import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
 import { TraversionGraph } from "../core/TraversionGraph/TraversionGraph.ts";
@@ -113,7 +114,12 @@ async function ensureHandlerReady(handler: FormatHandler): Promise<void> {
     if (handler.ready) return;
     if (!handler.init) return;
     if (!handlerInitPromises.has(handler)) {
-        handlerInitPromises.set(handler, handler.init());
+        // A failed init is not remembered: the bridge lives as long as the
+        // MCP/REST server, so a remembered failure disabled the handler for good.
+        handlerInitPromises.set(handler, handler.init().catch((e) => {
+            handlerInitPromises.delete(handler);
+            throw e;
+        }));
     }
     await handlerInitPromises.get(handler);
     if (!handler.ready) {
@@ -143,10 +149,15 @@ async function ensureHandlerReady(handler: FormatHandler): Promise<void> {
     if (!inputMatch)  throw new Error(`Input format ${inputMime} (${inputExt}) not found`);
     if (!outputMatch) throw new Error(`Output format ${outputMime} (${outputExt}) not found`);
 
+    // simpleMode=true, as the native side (findFirstPath) already uses. The
+    // graph keys nodes by format, so pinning the last hop to whichever handler
+    // the cache lookup happened to name first only rejected good routes: HTML
+    // to PDF was "no conversion path" here because the PDF entry found first
+    // belonged to another handler than the one that renders HTML.
     const pathsGen = graph.searchPath(
         { format: inputMatch.format,  handler: inputMatch.handler  },
         { format: outputMatch.format, handler: outputMatch.handler },
-        false
+        true
     );
 
     const pathResult = await pathsGen.next();
@@ -187,11 +198,15 @@ async function ensureHandlerReady(handler: FormatHandler): Promise<void> {
                                 hopQualityArgs({ target: nextFormat, isLastHop: i === path.length - 1, requested: validQuality }));
         }
 
-        const allWarnings = Array.from(new Set(currentFiles.flatMap(f => f.warnings ?? [])));
+        const allWarnings = currentFiles.flatMap(f => f.warnings ?? []);
+        // A document that came out as pictures says so, as the web UI does.
+        const notice = routeQualityNotice(path.map(n => n.format.format), currentFiles.some(f => f.drawnAsImage));
+        if (notice) allWarnings.push(`${notice.title}. ${notice.body}`);
+        const warnings = Array.from(new Set(allWarnings));
         return currentFiles.map(f => ({
             fileName:    f.name,
             base64Bytes: uint8ToBase64(f.bytes),
-            ...(allWarnings.length > 0 ? { warnings: allWarnings } : {}),
+            ...(warnings.length > 0 ? { warnings } : {}),
         }));
     })();
 
@@ -282,10 +297,15 @@ async function ensureHandlerReady(handler: FormatHandler): Promise<void> {
 
     if (!inputMatch || !outputMatch) return false;
 
+    // simpleMode=true, as the native side (findFirstPath) already uses. The
+    // graph keys nodes by format, so pinning the last hop to whichever handler
+    // the cache lookup happened to name first only rejected good routes: HTML
+    // to PDF was "no conversion path" here because the PDF entry found first
+    // belonged to another handler than the one that renders HTML.
     const pathsGen = graph.searchPath(
         { format: inputMatch.format,  handler: inputMatch.handler  },
         { format: outputMatch.format, handler: outputMatch.handler },
-        false
+        true
     );
 
     const pathResult = await pathsGen.next();

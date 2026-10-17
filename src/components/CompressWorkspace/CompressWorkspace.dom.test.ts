@@ -538,10 +538,10 @@ describe('CompressWorkspace - assistive technology', () => {
     const { emit, engine } = await startStalledRun();
     emit(0, 3, 'b.png');
     engine({ ratio: 0.34, detail: 'Encoded 12.4s of 47.0s of video.' });
-    const hidden = document.getElementById('popup')!
-      .querySelector('p [aria-hidden="true"]');
-    expect(hidden).not.toBeNull();
-    expect(hidden!.textContent).toContain('Encoded 12.4s of 47.0s of video.');
+    const hidden = [...document.getElementById('popup')!
+      .querySelectorAll('p [aria-hidden="true"]')]
+      .find(el => el.textContent?.includes('Encoded 12.4s of 47.0s of video.'));
+    expect(hidden).toBeDefined();
   });
 
   it('replaces the progress modal with the results, in place', async () => {

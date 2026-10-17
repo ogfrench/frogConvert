@@ -196,43 +196,22 @@
   to { opacity: 0; }
 }
 
-/* A status block from `statusHTML`: three rows, centred in the four-row
-   floor, so it is the same height as every other phase. The third row is a
-   slot shared by the engine's line and the reassurance, overlaid and
-   crossfaded (see statusHTML): no empty line, and nothing moves, only
-   opacity changes. */
+/* A status block from `statusHTML`: four rows at fixed positions, top to
+   bottom - main line, subtitle, reassurance, and the engine's line last, so
+   an empty engine row is room at the bottom of the block rather than a gap
+   between lines. Nothing moves; rows only fade. Scoped with :has() to the
+   four-row block, so the soft-cancel notice and plain messages keep their
+   ordinary flow; without :has() the rows still stack the same way. */
 .conversion-status:has(> .status-main) {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
 }
 .conversion-status:has(> .status-main) > br {
   display: none;
 }
 .conversion-status:has(> .status-main) > span {
   display: block;
-}
-.status-slot {
-  display: grid;
-}
-.status-slot > * {
-  grid-area: 1 / 1;
-}
-.status-reassure {
-  transition: opacity 200ms ease;
-}
-/* Same line box as the engine line it crossfades with: `.muted-text` is
-   0.85em, so the row takes that size and its children keep it, rather than
-   the row sitting on the paragraph's full-size strut 2px lower. */
-.status-reassure {
-  font-size: 0.85em;
-}
-.status-reassure > .muted-text {
-  font-size: 1em;
-}
-/* A class, not :has(): where :has() is missing the two lines would overlap. */
-.status-slot.status-slot-live > .status-reassure {
-  opacity: 0;
 }
 
 /* The heading and the subtitle, which swap as a block at every phase boundary -

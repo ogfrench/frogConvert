@@ -185,7 +185,7 @@ curl -X POST http://127.0.0.1:3000/convert \
 ```
 - Input MIME/extension are auto-detected from the uploaded filename.
 - `quality` is optional (`"low"`, `"medium"`, `"high"`, `"lossless"`). See [Quality preset](#quality-preset) for what happens when it is omitted.
-- Response: raw binary of the first output file with `Content-Disposition: attachment; filename*=UTF-8''...` header. If conversion produces multiple files, the remaining filenames are listed in an `X-Extra-Files` JSON header - use the JSON API instead if you need all files.
+- Response: raw binary of the first output file with `Content-Disposition: attachment; filename*=UTF-8''...` header. If conversion produces multiple files, the remaining filenames are listed in an `X-Extra-Files` JSON header - use the JSON API instead if you need all files. Warnings (see below) ride in an `X-Warnings` header: a URI-encoded JSON array of strings.
 
 **Option B - application/json**:
 ```bash
@@ -446,6 +446,8 @@ The first call is slow because headless Chromium must launch and the specific ha
   - MCP: returns text `"No native path found. A browser-assisted path is available - use convert_file to convert via the browser bridge."`
   - REST: returns `{ "browserAssisted": true, "message": "..." }` (HTTP 200)
 - `convert_file` / `POST /convert`: the fallback is automatic - if the native path fails, the browser bridge is tried silently. The caller gets back the converted file(s) just like a native conversion.
+- **HTML to PDF** (and Markdown or any document that reaches PDF through HTML) prints through the bridge's Chromium: selectable text, A4 pages, the page's own CSS, the same as Print, then Save as PDF. The page is sanitized first and printed in a tab with JavaScript off and every network request refused. A native LibreOffice, which loses most CSS, is used only when the bridge cannot run.
+- **A result that is only pictures says so.** When a document reaches PDF as images (an Office file with no LibreOffice, for example), `warnings` carries "This PDF is made of pictures..." - the same notice the web UI shows. `POST /convert` JSON responses carry `warnings` on each file, as `convert_file` does.
 
 ### General fallback strategy for agents
 

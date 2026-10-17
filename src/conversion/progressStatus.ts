@@ -177,8 +177,8 @@ export function restatesSubtitle(live: string, subtitle: string): boolean {
 }
 
 /**
- * The rows of the progress modal, rendered as one HTML string: the main line,
- * the subtitle, and a third row the engine's line and the reassurance share.
+ * The four rows of the progress modal, rendered as one HTML string: the main
+ * line, the subtitle, the reassurance and, last, the engine's own line.
  *
  * Every row is emitted every time, empty ones included. The modal is
  * auto-height, so a row that is omitted rather than left blank takes ~22px of
@@ -232,23 +232,18 @@ export function statusHTML(
         // line changes once a second for the clock and faster still for a
         // percentage, which would turn a screen reader into a metronome. The
         // lines that carry meaning stay announced.
-        // The engine's line and the reassurance share one row and crossfade:
-        // the reassurance while the engine has nothing to say, the engine's
-        // line once it does. A row of its own left an empty line in the middle
-        // of the block until the first report (and at every phase change);
-        // folding it away moved every row when it arrived, and that layout
-        // animation stuttered on exactly the busy main thread it was reporting
-        // on. Overlaid, only opacity animates, and nothing moves.
-        //
-        // The engine line is aria-hidden: #popup is aria-live and aria-atomic,
-        // and a line that ticks would re-announce the whole modal. The
-        // reassurance is announced once; the clock rides on it, in its own
-        // aria-hidden span.
-        `<span class="status-slot${engineRow ? " status-slot-live" : ""}">`
-        + `<span class="status-live muted-text${blank(engineRow)}" aria-hidden="true">${escapeHTML(engineRow)}</span>`
-        + `<span class="status-reassure"><span class="muted-text">${reassuranceLine()}</span>`
-        + `<span class="status-clock muted-text${blank(clock)}" aria-hidden="true">${escapeHTML(clock)}</span></span>`
-        + `</span>`,
+        // The reassurance, announced once; the clock rides on it in its own
+        // aria-hidden span, so the sentence is not re-read every second.
+        `<span class="status-reassure"><span class="muted-text">${reassuranceLine()}</span>`
+        + `<span class="status-clock muted-text${blank(clock)}" aria-hidden="true">${escapeHTML(clock)}</span></span>`,
+        // The engine's own line, last. Between the subtitle and the
+        // reassurance it left an empty line until the engine first spoke (and
+        // again at every phase change); last, an empty row is just room at the
+        // bottom of the block. It is reserved either way, so nothing moves:
+        // its text only fades in and out. aria-hidden: #popup is aria-live
+        // and aria-atomic, and a line that ticks would re-announce the whole
+        // modal.
+        `<span class="status-live muted-text${blank(engineRow)}" aria-hidden="true">${escapeHTML(engineRow)}</span>`,
     ].join("<br>");
 }
 

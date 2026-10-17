@@ -17,7 +17,11 @@ automatically, so do not paste one here.
 
 **Smoother progress.** The progress window no longer shows an empty line or jumps: lines fade into each other, nothing moves, and the result grows into place instead of popping in.
 
-**Sturdier HTML conversion.** A page with a video can no longer hang the conversion, wide tables are no longer cut off, `.htm` files are accepted, long documents show which page they are on, and a few more ways a page could reach the network during conversion are closed.
+**Sturdier HTML conversion.** A page with a video can no longer hang the conversion, wide tables are no longer cut off, long documents show which page they are on, and converting a page can no longer reach the network through any link or style in it.
+
+**Fewer "unsupported" surprises.** Files named `.htm`, `.tif`, `.yaml`, `.jfif`, `.midi`, `.markdown` and similar are recognised even when your system does not say what they are, and a feature that fails to load once (say, a dropped connection) loads again on the next try instead of staying broken until you reload.
+
+**For agents (MCP and REST).** HTML and Markdown to PDF now come out with real text and the page's own layout, REST returns warnings like MCP does, and a PDF made of pictures says so on every surface.
 
 For HTML and Markdown that look like the original (3.1.2), see the [3.1.2 release](https://github.com/ogfrench/frogConvert/releases/tag/v3.1.2). For the browser Office engine and everything else new in 3.1, see the [3.1.0 release](https://github.com/ogfrench/frogConvert/releases/tag/v3.1.0). Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 

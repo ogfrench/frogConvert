@@ -4165,13 +4165,13 @@ function offerPartialPdfResult(done: { bytes: Uint8Array; name: string }[], zipN
   replacePopup([h2, p, actions]);
 }
 
-function redownloadLastPdfResult() {
+function redownloadLastPdfResult(): Promise<unknown> | void {
   if (lastPdfResult.length === 0) return;
   if (lastPdfResult.length === 1) downloadFile(lastPdfResult[0].bytes, lastPdfResult[0].name);
-  // `downloadAsZip` reports its own failures and never rejects; `void` says so
-  // rather than leaving a bare floating promise for the next reader to wonder
-  // about.
-  else void downloadAsZip(lastPdfResult, lastPdfZipName!);
+  // Returned so the button's repeat-click guard (createPopupButton) holds
+  // until the ZIP is built. `downloadAsZip` reports its own failures and
+  // never rejects.
+  else return downloadAsZip(lastPdfResult, lastPdfZipName!);
 }
 
 function showPdfSuccessModal(title: string, resultHTML: string) {

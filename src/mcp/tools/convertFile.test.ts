@@ -383,4 +383,54 @@ describe('registerConvertFileTool', () => {
         expect(result.content[0].text).not.toContain('file:///');
         expect(result.content[0].text).not.toContain('bun run build');
     });
+
+    describe('documents to PDF', () => {
+        const pptx: FileFormat = { name: 'PPTX', mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', extension: 'pptx', from: true, to: false, format: 'pptx', internal: 'pptx' };
+        const html: FileFormat = { name: 'HTML', mime: 'text/html', extension: 'html', from: true, to: true, format: 'html', internal: 'html' };
+        const png: FileFormat = { ...pngFormat };
+        const pdf: FileFormat = { name: 'PDF', mime: 'application/pdf', extension: 'pdf', from: false, to: true, format: 'pdf', internal: 'pdf' };
+
+        it('says a PDF drawn as pictures is made of pictures', async () => {
+            // The web UI said so; MCP and REST returned the picture PDF silently.
+            const h = makeHandler('H', [pptx, html, png, pdf]);
+            const path = [{ format: pptx, handler: h }, { format: html, handler: h }, { format: png, handler: h }, { format: pdf, handler: h }];
+            const server = makeMockServer();
+            registerConvertFileTool(server, Promise.resolve({ handlers: [h], graph: makeGraph(path) }));
+            const result = await getCallback(server)({
+                fileName: 'deck.pptx', base64Bytes: 'aGVsbG8=',
+                inputMime: pptx.mime, inputExtension: 'pptx', outputMime: 'application/pdf', outputExtension: 'pdf',
+            });
+            const parsed = JSON.parse(result.content[0].text);
+            expect(parsed[0].warnings.join(' ')).toMatch(/made of pictures/);
+        });
+
+        it('prints the HTML step through the bridge, not the native last hop', async () => {
+            const h = makeHandler('H', [html, pdf]);
+            vi.mocked(convertViaBrowser).mockResolvedValue([{ fileName: 'page.pdf', base64Bytes: 'JVBERg==' }]);
+            const path = [{ format: html, handler: h }, { format: pdf, handler: h }];
+            const server = makeMockServer();
+            registerConvertFileTool(server, Promise.resolve({ handlers: [h], graph: makeGraph(path) }));
+            const result = await getCallback(server)({
+                fileName: 'page.html', base64Bytes: 'aGVsbG8=',
+                inputMime: 'text/html', inputExtension: 'html', outputMime: 'application/pdf', outputExtension: 'pdf',
+            });
+            expect(JSON.parse(result.content[0].text)[0].fileName).toBe('page.pdf');
+            expect(convertViaBrowser).toHaveBeenCalledWith('page.html', expect.any(String), 'text/html', 'html', 'application/pdf', 'pdf', expect.anything());
+            expect(h.doConvert).not.toHaveBeenCalled();
+        });
+
+        it('finishes natively when the bridge cannot print', async () => {
+            const h = makeHandler('H', [html, pdf]);
+            vi.mocked(convertViaBrowser).mockRejectedValue(new Error('no Chrome here'));
+            const path = [{ format: html, handler: h }, { format: pdf, handler: h }];
+            const server = makeMockServer();
+            registerConvertFileTool(server, Promise.resolve({ handlers: [h], graph: makeGraph(path) }));
+            const result = await getCallback(server)({
+                fileName: 'page.html', base64Bytes: 'aGVsbG8=',
+                inputMime: 'text/html', inputExtension: 'html', outputMime: 'application/pdf', outputExtension: 'pdf',
+            });
+            expect(result.isError).toBeFalsy();
+            expect(h.doConvert).toHaveBeenCalledTimes(1);
+        });
+    });
 });
