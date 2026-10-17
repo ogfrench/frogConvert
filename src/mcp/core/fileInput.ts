@@ -29,7 +29,7 @@ export class ValidationError extends Error {
     }
 }
 
-export function enforceSize(byteLength: number) {
+function enforceSize(byteLength: number) {
     const maxMb = Number(process.env.MAX_UPLOAD_MB ?? 4096);
     if (byteLength > maxMb * 1024 * 1024) {
         throw new ValidationError(`File too large (max ${maxMb} MB)`);

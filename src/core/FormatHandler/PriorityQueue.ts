@@ -197,5 +197,4 @@ class PriorityQueue<T extends object> {
   }
 }
 
-export default PriorityQueue;
 export { PriorityQueue };

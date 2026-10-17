@@ -10,7 +10,7 @@ export type QualityPresetConfig = {
   pngCnum: number;
 };
 
-export const PRESETS: Record<QualityPreset, QualityPresetConfig> = {
+const PRESETS: Record<QualityPreset, QualityPresetConfig> = {
   low:      { pdfDpi: 96,  pdfMp: 1.2, pngCnum: 128 },
   medium:   { pdfDpi: 160, pdfMp: 2.5, pngCnum: 256 },
   high:     { pdfDpi: 240, pdfMp: 5.0, pngCnum: 0   },

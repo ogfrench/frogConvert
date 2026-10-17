@@ -55,11 +55,6 @@ import { startConversionStatus, statusHTML, type StatusHandle } from "./progress
 import { routeQualityNotice, PRINT_ACTION_LABEL } from "./routeQuality.ts";
 import { printPage } from "./printPage.ts";
 import { dismissToast } from "../components/Toast/Toast.ts";
-// Re-exported rather than moved outright: the Compress surface and the tests
-// have imported it from here since it existed, and its home is an
-// implementation detail of where the status line lives.
-export { REASSURANCE_LINE } from "./progressStatus.ts";
-
 // --- Helpers ---
 
 const waitForPaint = () => new Promise<void>(resolve =>
@@ -128,7 +123,7 @@ export function setLastConvertedFiles(files: { name: string; bytes: Uint8Array }
     lastConvertedFiles = files;
 }
 
-export async function downloadAllConvertedFiles() {
+async function downloadAllConvertedFiles() {
     if (lastConvertedFiles.length > 1) {
         await downloadAsZip(lastConvertedFiles, `frogConvert-${timestampForFilename()}.zip`);
     } else {

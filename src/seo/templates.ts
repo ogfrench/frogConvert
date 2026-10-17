@@ -12,7 +12,7 @@
 // wrong hash there fails silently, blocking the script while the build reports
 // success. A visitor arriving from a search result has no stored theme anyway.
 
-export const SITE = "https://frogconvert.xyz";
+const SITE = "https://frogconvert.xyz";
 
 export interface Crumb { name: string; path: string }
 

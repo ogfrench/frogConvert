@@ -77,7 +77,7 @@ export interface ApiServer {
  */
 export async function startApi(timeoutMs = 300_000): Promise<ApiServer> {
     const log = new TailLog();
-    const proc = spawn("bun", ["src/api/index.ts"], {
+    const proc = spawn("bun", [path.join(ROOT, "src/api/index.ts")], {
         cwd: ROOT,
         env: { ...process.env, PORT: "0" },
         stdio: ["ignore", "pipe", "pipe"],

@@ -113,7 +113,7 @@ export function isShellCache(name: string): boolean {
  * theme and any persisted conversion session, none of which are implicated in
  * a shell/chunk mismatch and all of which are annoying to lose.
  */
-export async function purgeShellCaches(): Promise<void> {
+async function purgeShellCaches(): Promise<void> {
   const jobs: Promise<unknown>[] = [];
   if (typeof caches !== "undefined") {
     jobs.push(

@@ -3,7 +3,7 @@ import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/
 import { SimpleTTS } from "./espeakng.js/js/espeakng-simple.js";
 import { WaveFile } from "wavefile";
 
-export class espeakngHandler implements FormatHandler {
+class espeakngHandler implements FormatHandler {
   public name: string = "espeakng";
   public ready: boolean = true;
   public requiresMainThread = true;

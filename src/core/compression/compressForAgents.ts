@@ -70,7 +70,7 @@ function findOption(
  * compressor itself, so it wants every handler/format pair, not just the one
  * matching the input.
  */
-export function agentCompressOptions(handlers: readonly FormatHandler[]): HandlerOption[] {
+function agentCompressOptions(handlers: readonly FormatHandler[]): HandlerOption[] {
     const options: HandlerOption[] = [];
     for (const handler of handlers) {
         for (const format of handler.supportedFormats ?? []) options.push({ format, handler });

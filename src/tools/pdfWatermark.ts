@@ -15,7 +15,7 @@ export type WatermarkPlacement =
   | 'bottom-left'
   | 'bottom-right';
 
-export type WatermarkSource =
+type WatermarkSource =
   | {
       type: 'text';
       text: string;
@@ -335,26 +335,6 @@ async function embedImageFromBytes(doc: PDFDocument, imageBytes: Uint8Array): Pr
       `Image could not be embedded (unsupported variant, e.g. CMYK JPEG): ${e?.message ?? e}`
     );
   }
-}
-
-/**
- * Apply a watermark in place to a single PDFPage. Shared by full-document
- * export and the single-page preview pipeline.
- */
-export async function applyWatermarkToPage(
-  doc: PDFDocument,
-  page: PDFPage,
-  opts: Omit<PdfWatermarkOptions, 'pageNums'>
-): Promise<void> {
-  const repeat = !!opts.repeat;
-  const placement = opts.placement ?? 'center';
-  if (opts.source.type === 'text') {
-    const font = await doc.embedFont(StandardFonts.Helvetica);
-    applyTextWatermark(page, font, opts.source, opts.opacity, opts.rotationDegrees, placement, repeat);
-    return;
-  }
-  const image = await embedImageFromBytes(doc, opts.source.imageBytes);
-  applyImageWatermark(page, image, opts.source, opts.opacity, opts.rotationDegrees, placement, repeat);
 }
 
 /**

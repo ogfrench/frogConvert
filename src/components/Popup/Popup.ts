@@ -283,7 +283,7 @@ export function showFileTypeMismatchPopup(files: File[], onProceed: (filtered: F
 
 // --- Upload summary (read-only list of which files were added / skipped) ---
 
-export type UploadSkipReason = "unsupported" | "too-large" | "page-limit" | "file-limit" | "load-error";
+type UploadSkipReason = "unsupported" | "too-large" | "page-limit" | "file-limit" | "load-error";
 
 export type UploadResult =
   | { name: string; status: "added" }

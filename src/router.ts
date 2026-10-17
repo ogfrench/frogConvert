@@ -23,12 +23,12 @@ const PATH_MODES: Record<string, AppMode> = Object.fromEntries(
     .map(([mode, path]) => [path.replace(/^\//, ''), mode]),
 );
 
-export function parseURL(pathname = location.pathname): RouteState {
+function parseURL(pathname = location.pathname): RouteState {
   const base = pathname.replace(/^\/+|\/+$/g, '').split('/')[0];
   return { mode: PATH_MODES[base] ?? 'converter' };
 }
 
-export function buildPath(mode: string): string {
+function buildPath(mode: string): string {
   return MODE_PATHS[mode as AppMode] ?? MODE_PATHS.converter;
 }
 

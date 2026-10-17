@@ -5,7 +5,6 @@ import { describe, it, expect, vi } from "vitest";
 let coarsePointer = false;
 vi.mock("../core/utils/touchUi.ts", () => ({
     isTouchUi: () => coarsePointer,
-    subscribeTouchUi: () => () => {},
 }));
 
 // The status tick reaches the DOM two ways, and the test below is about what

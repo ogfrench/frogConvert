@@ -66,7 +66,7 @@ export type CompressOutcome = {
     warning?: string;
 };
 
-export type RunHandler = (
+type RunHandler = (
     handlerName: string,
     files: FileData[],
     inputFormat: FileFormat,

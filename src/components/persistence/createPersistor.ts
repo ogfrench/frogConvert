@@ -39,7 +39,7 @@ export interface PersistorSpec<P extends SessionPayload> {
   isPristine?: () => boolean;
 }
 
-export type RestoreOutcome<P extends SessionPayload> =
+type RestoreOutcome<P extends SessionPayload> =
   | { status: 'silent' }
   | { status: 'orphan'; stored: StoredSession<P> }
   | { status: 'none' };

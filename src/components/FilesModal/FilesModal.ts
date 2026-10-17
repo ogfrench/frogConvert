@@ -113,7 +113,7 @@ export function openFilesModal(source: FilesModalSource = converterSource) {
   window.addEventListener("resize", filesModalResizeHandler.value);
 }
 
-export function closeFilesModal() {
+function closeFilesModal() {
   ModalManager.close(ui.filesModal, ui.filesModalBg);
   ui.filesModal.style.minHeight = "";
   ui.filesList.style.height = "";

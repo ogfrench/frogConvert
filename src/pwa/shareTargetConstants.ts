@@ -7,7 +7,6 @@
 import { ABSOLUTE_MAX_FILES, MAX_TOTAL_FILE_SIZE } from '../constants/ui.ts';
 
 export const SHARE_TARGET_CACHE = 'share-target-files-v1';
-export const SHARE_TARGET_PATH = '/?share-target=1';
 export const SHARE_TARGET_READY_PATH = '/?share-target=ready';
 
 // File-count + total-bytes caps mirror the converter / PDF Workspace.

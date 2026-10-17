@@ -21,7 +21,7 @@ export function closeFormatModal() {
   ModalManager.close(ui.formatModal, ui.formatModalBg);
 }
 
-export function openFormatModal() {
+function openFormatModal() {
   const label = CATEGORY_LABELS[activeCategory.value];
   ui.formatModalTitle.textContent = label ? `Choose ${label.toLowerCase()} format` : "Choose format";
   ui.formatSearch.value = "";

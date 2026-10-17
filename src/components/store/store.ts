@@ -164,7 +164,7 @@ export function getMaxFiles(files: File[]): number {
 }
 
 
-export const CATEGORY_MAP: Record<string, string[]> = {
+const CATEGORY_MAP: Record<string, string[]> = {
   image: ["image", "vector"],
   audio: ["audio"],
   video: ["video"],
@@ -188,9 +188,9 @@ export const CATEGORY_LABELS: Record<string, string> = {
 };
 
 /** Categories hidden in Core (Standard) mode. */
-export const CORE_HIDDEN_CATEGORIES = ["data", "font", "code", "other"];
+const CORE_HIDDEN_CATEGORIES = ["data", "font", "code", "other"];
 /** Categories hidden in Plus mode. */
-export const PLUS_HIDDEN_CATEGORIES = ["code", "other"];
+const PLUS_HIDDEN_CATEGORIES = ["code", "other"];
 
 export type FormatMode = "core" | "plus" | "all";
 
@@ -203,7 +203,7 @@ export function isCategoryVisible(category: string, mode: FormatMode): boolean {
 
 // --- Mode format whitelists ---
 
-export const CORE_FORMATS = new Set([
+const CORE_FORMATS = new Set([
   // Image
   "png", "jpeg", "gif", "webp", "svg",
   // Audio
@@ -216,7 +216,7 @@ export const CORE_FORMATS = new Set([
   "zip"
 ]);
 
-export const PLUS_FORMATS = new Set([
+const PLUS_FORMATS = new Set([
   ...CORE_FORMATS,
   "lzh", "tar", "gz",
   // Image
