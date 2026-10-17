@@ -35,17 +35,19 @@ function popupContent(): HTMLDivElement {
  * Prefer the Node | Node[] overload to avoid innerHTML entirely.
  */
 export function showPopup(content: string | Node | Node[], persistent = false, onEscape?: () => void) {
-  const scroll = popupContent();
-  if (typeof content === "string") {
-    scroll.innerHTML = content;
-  } else {
-    scroll.innerHTML = "";
-    if (Array.isArray(content)) {
-      content.forEach(node => scroll.appendChild(node));
+  morphPopup(() => {
+    const scroll = popupContent();
+    if (typeof content === "string") {
+      scroll.innerHTML = content;
     } else {
-      scroll.appendChild(content);
+      scroll.innerHTML = "";
+      if (Array.isArray(content)) {
+        content.forEach(node => scroll.appendChild(node));
+      } else {
+        scroll.appendChild(content);
+      }
     }
-  }
+  });
   ModalManager.open(ui.popupBox, ui.popupBackground, hidePopup, persistent, onEscape);
 }
 
@@ -54,10 +56,53 @@ export function hidePopup() {
 }
 
 export function replacePopup(content: Node[], persistent = false, onEscape?: () => void) {
-  const scroll = popupContent();
-  scroll.innerHTML = "";
-  content.forEach(node => scroll.appendChild(node));
+  morphPopup(() => {
+    const scroll = popupContent();
+    scroll.innerHTML = "";
+    content.forEach(node => scroll.appendChild(node));
+  });
   ModalManager.replaceTop(ui.popupBox, ui.popupBackground, hidePopup, persistent, onEscape);
+}
+
+const MORPH_MS = 280;
+let endMorph: (() => void) | null = null;
+
+/**
+ * Swap what an open popup shows without the box jumping. Progress to result
+ * went from 394px to 564px in one frame: the box now eases from its old height
+ * to its new one (it is centred with a transform, so it grows evenly up and
+ * down) while the new content fades in. A closed popup, or a reduced-motion
+ * user, gets the swap as before.
+ */
+function morphPopup(apply: () => void) {
+  const box = ui.popupBox;
+  endMorph?.();
+  if (!box.classList.contains("open") || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    apply();
+    return;
+  }
+  const from = box.getBoundingClientRect().height;
+  apply();
+  const scroll = box.querySelector<HTMLElement>(":scope > .popup-scroll");
+  if (scroll) {
+    scroll.classList.remove("popup-content-in");
+    void scroll.offsetWidth;
+    scroll.classList.add("popup-content-in");
+  }
+  const to = box.getBoundingClientRect().height;
+  if (Math.abs(to - from) < 2) return;
+
+  box.style.height = `${from}px`;
+  void box.offsetHeight;
+  box.style.transition = `height ${MORPH_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1)`;
+  box.style.height = `${to}px`;
+  const timer = setTimeout(() => endMorph?.(), MORPH_MS + 60);
+  endMorph = () => {
+    clearTimeout(timer);
+    box.style.height = "";
+    box.style.transition = "";
+    endMorph = null;
+  };
 }
 
 // --- Helpers ---

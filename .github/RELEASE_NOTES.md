@@ -15,6 +15,10 @@ automatically, so do not paste one here.
 
 **Cleaner result notices.** Notes on the result screen are now easy to read, with their action as a quiet button underneath, so Download stays the one obvious next step.
 
+**Smoother progress.** The progress window no longer shows an empty line or jumps: lines fade into each other, nothing moves, and the result grows into place instead of popping in.
+
+**Sturdier HTML conversion.** A page with a video can no longer hang the conversion, wide tables are no longer cut off, `.htm` files are accepted, long documents show which page they are on, and a few more ways a page could reach the network during conversion are closed.
+
 For HTML and Markdown that look like the original (3.1.2), see the [3.1.2 release](https://github.com/ogfrench/frogConvert/releases/tag/v3.1.2). For the browser Office engine and everything else new in 3.1, see the [3.1.0 release](https://github.com/ogfrench/frogConvert/releases/tag/v3.1.0). Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
 ---

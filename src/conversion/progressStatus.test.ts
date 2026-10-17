@@ -254,8 +254,10 @@ describe("where the rendered lines put the clock", () => {
 describe("the row count, which is the modal's height", () => {
     // The modal is auto-height and its message is one <br>-delimited paragraph,
     // so the row count *is* the height. Everything here is really one
-    // assertion - that it is four, whatever the run is doing - because a row
+    // assertion - that it is three, whatever the run is doing - because a row
     // that comes and goes moves the box under whatever the user is reading.
+    // Three, not four: the engine's line shares the last row with the
+    // reassurance and crossfades with it, so no row is ever left empty.
     //
     // The one state that does not come from statusHTML is the soft-cancel
     // notice, which cancellation.ts builds itself; its row count is asserted in
@@ -274,12 +276,12 @@ describe("the row count, which is the modal's height", () => {
 
     const lastHTML = () => painted.mock.calls.at(-1)![0] as string;
 
-    it("is four before the engine has said anything", () => {
+    it("is three before the engine has said anything", () => {
         withOpenModal(() => {
             const status = startConversionStatus({
                 main: "Converting file 1 of 3...", subtitle: "PNG → WEBP", title: "Converting your files",
             });
-            expect(rows(lastHTML())).toBe(4);
+            expect(rows(lastHTML())).toBe(3);
             status.cancel();
         });
     });
@@ -304,14 +306,14 @@ describe("the row count, which is the modal's height", () => {
         });
     });
 
-    it("is four when the clock arrives, because the clock costs no row", () => {
+    it("is three when the clock arrives, because the clock costs no row", () => {
         withOpenModal(() => {
             const status = startConversionStatus({
                 main: "Working", subtitle: "a.pdf", title: "Busy",
             });
             vi.advanceTimersByTime(ELAPSED_AFTER_MS + 1_000);
             expect(lastHTML()).toMatch(/\d\d:\d\d/);
-            expect(rows(lastHTML())).toBe(4);
+            expect(rows(lastHTML())).toBe(3);
             status.cancel();
         });
     });
@@ -327,10 +329,13 @@ describe("the row count, which is the modal's height", () => {
         expect(html).toContain(
             '<span class="status-live muted-text status-row-blank" aria-hidden="true"></span>',
         );
-        expect(rows(html)).toBe(4);
+        // In the reassurance's row, which shows while the engine has nothing
+        // to say: no empty line.
+        expect(html).toMatch(/<span class="status-slot"><span class="status-live[^>]*><\/span><span class="status-reassure">/);
+        expect(rows(html)).toBe(3);
     });
 
-    it("gives the phases that own no status handle the same four rows", () => {
+    it("gives the phases that own no status handle the same three rows", () => {
         // Warming up, downloading an engine and packing a ZIP paint the modal
         // directly. They used to render two rows of a different shape, so the
         // box changed height on the way into and out of every conversion.
@@ -339,7 +344,7 @@ describe("the row count, which is the modal's height", () => {
             statusHTML({ main: "Downloading the image converter...", subtitle: "this happens once and may take a moment" }),
             statusHTML({ main: "Creating a ZIP folder", subtitle: "packing your files" }),
         ];
-        for (const html of phases) expect(rows(html)).toBe(4);
+        for (const html of phases) expect(rows(html)).toBe(3);
     });
 
     it("escapes the subtitle, which is a file name on the Compress surface", () => {
@@ -379,7 +384,7 @@ describe("the live row, when the engine only repeats the subtitle", () => {
 
     it("still reserves the row, so the modal does not change height", () => {
         const html = statusHTML({ main: "Compressing your file...", subtitle: NAME, live: `Compressing ${NAME}` });
-        expect(html.split("<br>").length).toBe(4);
+        expect(html.split("<br>").length).toBe(3);
         expect(html.match(/DOC-20250501/g)?.length).toBe(1);
     });
 });

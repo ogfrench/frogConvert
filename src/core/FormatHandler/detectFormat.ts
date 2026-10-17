@@ -6,6 +6,20 @@ import type { FileFormat, FormatHandler } from "./FormatHandler.ts";
  * extension. Lives in core so any surface (Converter, Compress) can identify
  * a file without importing the convert pipeline.
  */
+/**
+ * Spellings no format declares but people's files use. A `.htm` with no MIME
+ * type (some drag-and-drop paths and OSes send none) matched nothing and was
+ * refused as unsupported.
+ */
+const EXTENSION_ALIASES: Record<string, string> = { htm: "html" };
+
+/** A file's extension, lower-cased and with aliases resolved; undefined without a dot. */
+export function fileExtensionOf(name: string): string | undefined {
+    const dotIdx = name.lastIndexOf(".");
+    const ext = dotIdx > 0 ? name.slice(dotIdx + 1).toLowerCase() : undefined;
+    return ext && (EXTENSION_ALIASES[ext] ?? ext);
+}
+
 export function findMatchingFormat(
     files: File[],
     allOptions: Array<{ format: FileFormat; handler: FormatHandler }>,
@@ -18,9 +32,7 @@ export function findMatchingFormat(
     // in the filename. Otherwise `"photo".split(".").pop()` returns the whole
     // name, which would accidentally match a format whose extension happened
     // to equal the filename.
-    const name = files[0].name;
-    const dotIdx = name.lastIndexOf(".");
-    const fileExtension = dotIdx > 0 ? name.slice(dotIdx + 1).toLowerCase() : undefined;
+    const fileExtension = fileExtensionOf(files[0].name);
     // Best match: MIME + extension
     let mimeMatch = -1;
     for (let i = 0; i < allOptions.length; i++) {

@@ -1,6 +1,7 @@
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
-import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import type { FileData, FileFormat, FormatHandler, ProgressEvent } from "../core/FormatHandler/FormatHandler.ts";
 import { PDFDocument, rgb } from "pdf-lib";
+import { waitAtMost } from "../core/utils/waitAtMost.ts";
 
 /**
  * Strip on* event handlers AND rewrite external-resource URLs.
@@ -47,7 +48,9 @@ function sanitizeCSS(css: string): string {
 
 function sanitizeHTML(html: string): Document {
     const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
+    // <base> is dropped before parsing: parsed, it is checked against the
+    // app's CSP and logs a violation for every page that has one.
+    const doc = parser.parseFromString(html.replace(/<base\b[^>]*>/gi, ""), "text/html");
 
     // Array.from so removals during iteration don't skip siblings.
     for (const el of Array.from(doc.querySelectorAll("*"))) {
@@ -120,7 +123,16 @@ const PRINT_CSS = "@page { size: A4; margin: 10mm; "
  * becomes the file name the print dialog suggests.
  */
 export function printableDocument(html: string, title?: string): string {
-    const doc = sanitizeHTML(html);
+    // Sanitized until reading it back changes nothing. Markup that mutates
+    // when re-parsed (an <img onerror> hidden in <math>/<style> nesting)
+    // came back to life in the printed copy on one pass. The print frame
+    // runs no scripts anyway; this is the second lock.
+    let doc = sanitizeHTML(html);
+    for (let pass = 0; pass < 3; pass++) {
+        const before = doc.documentElement.outerHTML;
+        doc = sanitizeHTML(before);
+        if (doc.documentElement.outerHTML === before) break;
+    }
     doc.querySelectorAll("link, base, meta[http-equiv]").forEach(el => el.remove());
     if (title) doc.title = title;
     const style = doc.createElement("style");
@@ -131,6 +143,8 @@ export function printableDocument(html: string, title?: string): string {
 
 /** The width an HTML page is laid out at for an image: a desktop window, whatever the app's. */
 const IMAGE_WIDTH = 1024;
+/** How far a picture widens for content wider than the layout width. */
+const MAX_WIDEN = 4;
 /** Longest the layout waits for images and fonts before measuring anyway. */
 const MEDIA_WAIT_MS = 10_000;
 /** The window height `vh` units and height media queries see. */
@@ -262,19 +276,21 @@ class svgForeignObjectHandler implements FormatHandler {
       // and waiting on it hung the conversion for good. Capped all the same.
       const images = Array.from(container.querySelectorAll("img"))
         .filter(img => !img.complete);
-      await Promise.race([
-        Promise.all(images.map(img => new Promise(resolve => {
-          img.addEventListener("load", resolve);
-          img.addEventListener("error", resolve);
-        }))),
-        new Promise(resolve => setTimeout(resolve, MEDIA_WAIT_MS)),
-      ]);
-      await Promise.race([doc.fonts?.ready, new Promise(resolve => setTimeout(resolve, MEDIA_WAIT_MS))]);
+      await waitAtMost(Promise.all(images.map(img => new Promise(resolve => {
+        img.addEventListener("load", resolve);
+        img.addEventListener("error", resolve);
+      }))), MEDIA_WAIT_MS);
+      await waitAtMost(doc.fonts?.ready, MEDIA_WAIT_MS);
 
       // Make sure the browser has had time to render.
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-      const bbox = { width, height: Math.max(1, Math.ceil(container.getBoundingClientRect().height)) };
+      // Content wider than the page (a wide table) used to be cut off at the
+      // right. Widen the picture to show it, within reason; a PDF then
+      // shrinks it to fit the page, as a browser's print does.
+      const contentWidth = Math.min(Math.max(width, Math.ceil(doc.documentElement.scrollWidth)), width * MAX_WIDEN);
+      container.style.width = `${width}px`;
+      const bbox = { width: contentWidth, height: Math.max(1, Math.ceil(container.getBoundingClientRect().height)) };
       const background = view.getComputedStyle(container).backgroundColor;
       const xml = new XMLSerializer().serializeToString(container);
       return { xml, bbox, background };
@@ -312,7 +328,7 @@ class svgForeignObjectHandler implements FormatHandler {
    * its size. Still pictures: a browser has no API that turns HTML into a PDF
    * with text in it short of its print dialog.
    */
-  static async toImagePdf(html: string): Promise<Uint8Array> {
+  static async toImagePdf(html: string, onProgress?: (p: ProgressEvent) => void): Promise<Uint8Array> {
     const { xml, bbox, background } = await svgForeignObjectHandler.normalizeHTML(html, PDF_LAYOUT_WIDTH);
     const image = await loadSvgImage(svgForeignObjectHandler.toSvg(xml, bbox));
     const fill = parseCssColor(background);
@@ -321,19 +337,22 @@ class svgForeignObjectHandler implements FormatHandler {
     const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
     const slice = document.createElement("canvas");
     const sliceCtx = slice.getContext("2d")!;
-    const width = bbox.width;
-    canvas.width = slice.width = width * RENDER_SCALE;
+    // Wider than the layout (a wide table): shrink to the page width.
+    const fit = PDF_LAYOUT_WIDTH / bbox.width;
+    const pxPerSource = fit * RENDER_SCALE;
+    canvas.width = slice.width = PDF_LAYOUT_WIDTH * RENDER_SCALE;
+    const pageSource = PDF_PAGE_HEIGHT / fit;
 
     // Less than a pixel left over would be a zero-height canvas, which can't be encoded.
-    for (let top = 0; bbox.height - top >= 1;) {
+    for (let top = 0; (bbox.height - top) * pxPerSource >= 1;) {
       const remaining = bbox.height - top;
-      let height = Math.min(PDF_PAGE_HEIGHT, remaining);
-      canvas.height = height * RENDER_SCALE;
-      ctx.drawImage(image, 0, top, width, height, 0, 0, canvas.width, canvas.height);
+      canvas.height = Math.round(Math.min(pageSource, remaining) * pxPerSource);
+      let height = canvas.height / pxPerSource;
+      ctx.drawImage(image, 0, top, bbox.width, height, 0, 0, canvas.width, canvas.height);
       let rows = canvas.height;
-      if (remaining > PDF_PAGE_HEIGHT) {
+      if (remaining > pageSource) {
         rows = findPageBreak(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
-        height = rows / RENDER_SCALE;
+        height = rows / pxPerSource;
       }
       slice.height = rows;
       sliceCtx.drawImage(canvas, 0, 0);
@@ -341,14 +360,20 @@ class svgForeignObjectHandler implements FormatHandler {
       const page = doc.addPage([A4_WIDTH_PT, A4_HEIGHT_PT]);
       if (fill) page.drawRectangle({ x: 0, y: 0, width: A4_WIDTH_PT, height: A4_HEIGHT_PT, color: rgb(...fill) });
       const png = await doc.embedPng(await canvasToPng(slice));
-      const drawHeight = height * PT_PER_CSS_PX;
+      const drawHeight = rows / RENDER_SCALE * PT_PER_CSS_PX;
       page.drawImage(png, {
         x: PAGE_MARGIN_PT,
         y: A4_HEIGHT_PT - PAGE_MARGIN_PT - drawHeight,
-        width: width * PT_PER_CSS_PX,
+        width: PDF_LAYOUT_WIDTH * PT_PER_CSS_PX,
         height: drawHeight,
       });
       top += height;
+      // A long page takes a while (165 pages: about a minute); say where it is.
+      onProgress?.({
+        ratio: Math.min(top / bbox.height, 1),
+        // Page breaks land early, so the estimate can fall short: never below the count.
+        detail: `Drawing page ${doc.getPageCount()} of about ${Math.max(doc.getPageCount(), Math.ceil(bbox.height / (pageSource * 0.97)))}`,
+      });
     }
     return new Uint8Array(await doc.save());
   }
@@ -378,7 +403,9 @@ class svgForeignObjectHandler implements FormatHandler {
   async doConvert(
     inputFiles: FileData[],
     inputFormat: FileFormat,
-    outputFormat: FileFormat
+    outputFormat: FileFormat,
+    _args?: string[],
+    onProgress?: (p: ProgressEvent) => void,
   ): Promise<FileData[]> {
 
     if (inputFormat.internal !== "html") throw "Invalid input format.";
@@ -406,7 +433,7 @@ class svgForeignObjectHandler implements FormatHandler {
           ? { name: newName, bytes: printed }
           : {
             name: newName,
-            bytes: await svgForeignObjectHandler.toImagePdf(html),
+            bytes: await svgForeignObjectHandler.toImagePdf(html, onProgress),
             drawnAsImage: true,
             printableHtml: printableDocument(html, title),
           });

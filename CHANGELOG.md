@@ -17,7 +17,16 @@ A PDF with real text from HTML and Markdown in the browser, through its print wi
 ### Added
 - **Print as PDF for HTML and Markdown in the browser.** When an HTML or Markdown to PDF conversion comes out as pictures, the result offers Print as PDF: the browser's own print window opens on the page, already set to A4, with backgrounds printed and no date or address stamped on each page, and suggests the file's own name. Choose Save as PDF for a PDF with selectable text ([src/conversion/printPage.ts](src/conversion/printPage.ts)). The page prints from a frame with scripts off.
 
+### Fixed
+- **An HTML page with a `<video>` could hang its conversion forever.** A video with only a poster fires neither a load nor an error, and the layout waited on it. It now waits only for images, for at most 10 seconds.
+- **Some attributes in an HTML page could still reach the network** during conversion: a video `poster`, a legacy `background`, SVG `xlink:href`, form `action` and link `ping` pointing at another site are now stripped. The print-ready copy is also sanitized until reading it back changes nothing, so markup that turns dangerous when re-parsed stays inert (the print frame runs no scripts either way).
+- **Content wider than the page was cut off.** A wide table lost everything past the right edge in HTML to PNG and PDF. The picture now widens to show it, up to four times the page width, and a PDF shrinks it to fit, as a browser's print does.
+- **A `.htm` file with no MIME type was refused** as unsupported; `.htm` is now read as HTML.
+- **Long HTML to PDF looked frozen.** A 165-page document took over a minute with no sign of life; it now says "Drawing page 12 of about 165".
+- **Pressing Print as PDF twice opened two print dialogs.**
+
 ### Changed
+- **The progress popup moves smoothly.** No empty line: the engine's own line and "feel free to switch tabs" share one row and crossfade, so the rows never move. A phase change fades the old line out before the new one fades in, instead of cutting it; the muted subtitle no longer flashes to full strength at the end of its fade; the spinner fades between its two shapes; and the popup eases to its new height when the result replaces the progress, instead of jumping (394 to 564 px in one frame).
 - **Result notices read as a note.** In the result popup a notice is left-aligned and full width, with its action as an outlined button under the text, instead of a centred column with a second black button beside Download.
 
 ## [3.1.2] - 2026-10-16

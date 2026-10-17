@@ -1,6 +1,7 @@
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 import { shortenFileName, safeLocalStorageSet } from "../utils/index.ts";
 import normalizeMimeType from "../../core/utils/normalizeMimeType.ts";
+import { fileExtensionOf } from "../../core/FormatHandler/detectFormat.ts";
 // --- DOM element references (lazy-initialized to allow testing) ---
 const uiInternal: Record<string, any> = {};
 
@@ -554,7 +555,7 @@ export function isFileSupported(
   allOptions: Array<{ format: FileFormat; handler: FormatHandler }>
 ): boolean {
   const mime = normalizeMimeType(file.type);
-  const ext  = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const ext  = fileExtensionOf(file.name) ?? "";
   for (const { format } of allOptions) {
     if (!format.from) continue;
     if (format.mime && format.mime === mime) return true;

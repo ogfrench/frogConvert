@@ -663,10 +663,12 @@ describe("the status rows changing without being rebuilt", () => {
         expect(ui.popupBox.querySelector(".status-live")).toBeNull();
     });
 
-    it("keeps the row count at four through a patch", () => {
+    it("keeps the row count at three through a patch", () => {
         showConversionInProgress(block("Reading your file...", "clip.mp4"));
         showConversionInProgress(block("Compressing your file...", "clip.mp4", "Encoded 3.0s of 9.0s", " · 00:45"));
         const p = ui.popupBox.querySelector("p")!;
-        expect(p.innerHTML.split("<br>").length).toBe(4);
+        expect(p.innerHTML.split("<br>").length).toBe(3);
+        // The engine's line is up, so it takes the shared row from the reassurance.
+        expect(p.querySelector(".status-slot")!.classList.contains("status-slot-live")).toBe(true);
     });
 });

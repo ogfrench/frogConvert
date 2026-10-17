@@ -138,6 +138,44 @@ const PHASE_ROWS = [".status-main", ".status-sub"] as const;
 const TRANSIENT_ROWS = [".status-live", ".status-clock"] as const;
 const BLANK_CLASS = "status-row-blank";
 const ENTER_CLASS = "status-row-in";
+const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+
+/**
+ * Swap a phase row's text as a crossfade. Written straight in, the old line
+ * vanished in one frame and only the new one faded, which read as a flash.
+ *
+ * The new text goes into the row at once, so the popup (an aria-live region)
+ * and anything reading it are never behind. The old text fades out from a
+ * copy laid over the row from outside the popup, aria-hidden, so it is never
+ * part of what is announced. Not done when the row is not rendered (nothing to
+ * see) or for reduced motion.
+ */
+function swapPhaseRow(el: HTMLElement, html: string) {
+    if (!reducedMotion() && el.getClientRects().length > 0 && el.textContent) {
+        const rect = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        const ghost = document.createElement("span");
+        ghost.className = "status-row-ghost";
+        ghost.setAttribute("aria-hidden", "true");
+        ghost.innerHTML = el.innerHTML;
+        Object.assign(ghost.style, {
+            left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`,
+            font: cs.font, lineHeight: cs.lineHeight, letterSpacing: cs.letterSpacing,
+            color: cs.color, opacity: cs.opacity, textAlign: cs.textAlign,
+        });
+        document.body.appendChild(ghost);
+        ghost.addEventListener("animationend", () => ghost.remove(), { once: true });
+        // In case the animation never runs (a background tab, a stylesheet that
+        // failed): the copy must not outlive the fade.
+        setTimeout(() => ghost.remove(), 500);
+    }
+    el.innerHTML = html;
+    // Remove, force a reflow, re-add: an animation restarts only once the
+    // element has been seen without the class.
+    el.classList.remove(ENTER_CLASS);
+    void el.offsetWidth;
+    el.classList.add(ENTER_CLASS);
+}
 
 /**
  * Update the status block's rows in place, instead of rebuilding the paragraph.
@@ -168,14 +206,10 @@ function patchStatusRows(p: HTMLElement, messageHTML: string): boolean {
         const el = p.querySelector<HTMLElement>(sel)!;
         const next = incoming.querySelector(sel)!.innerHTML;
         if (el.innerHTML === next) continue;
-        el.innerHTML = next;
-        // Remove, force a reflow, re-add: an animation restarts only once the
-        // element has been seen without the class. A phase change happens a
-        // handful of times per run, so the forced layout costs nothing - and it
-        // is deliberately not done on the rows below, which change every tick.
-        el.classList.remove(ENTER_CLASS);
-        void el.offsetWidth;
-        el.classList.add(ENTER_CLASS);
+        // A phase change happens a handful of times per run, so the forced
+        // layout inside costs nothing - and it is deliberately not done on the
+        // rows below, which change every tick.
+        swapPhaseRow(el, next);
     }
 
     for (const sel of TRANSIENT_ROWS) {
@@ -187,6 +221,8 @@ function patchStatusRows(p: HTMLElement, messageHTML: string): boolean {
         // zero opacity, so the swap itself is never seen.
         if (text) el.textContent = text;
         el.classList.toggle(BLANK_CLASS, !text);
+        // The engine line shares its row with the reassurance (statusHTML).
+        if (sel === ".status-live") el.parentElement?.classList.toggle("status-slot-live", !!text);
     }
 
     // The reassurance row is deliberately untouched. It is static copy for the
@@ -214,8 +250,10 @@ export function showConversionInProgress(
         : null;
     if (existingSpinner) {
         if (!existingSpinner.classList.contains(targetClass)) {
-            existingSpinner.classList.remove("loader-gooey", "loader-spinner");
+            existingSpinner.classList.remove("loader-gooey", "loader-spinner", "loader-swap-in");
             existingSpinner.classList.add(targetClass);
+            void (existingSpinner as HTMLElement).offsetWidth;
+            existingSpinner.classList.add("loader-swap-in");
         }
 
         // Hot path: pathfinding fires every "searching" tick with constant

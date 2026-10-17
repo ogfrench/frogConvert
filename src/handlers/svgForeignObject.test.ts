@@ -50,6 +50,14 @@ describe('svgForeignObject', () => {
     expect(svg).toContain('after');
   });
 
+  it('a printed copy stays inert when read back (mutation XSS)', () => {
+    const doc = printableDocument('<math><mtext><table><mglyph><style><img src=x onerror="alert(1)"></style></mglyph></table></mtext></math>');
+    // Parse it again as the print frame would, and look for live handlers.
+    const reparsed = new DOMParser().parseFromString(doc, 'text/html');
+    const live = [...reparsed.querySelectorAll('*')].filter(el => [...el.attributes].some(a => a.name.startsWith('on')));
+    expect(live).toHaveLength(0);
+  });
+
   it('breaks a page on the lowest flat row in its bottom quarter', () => {
     // 4 px wide, 8 rows: row 6 is flat, rows 5 and 7 have a dark pixel in them.
     const w = 4, h = 8;

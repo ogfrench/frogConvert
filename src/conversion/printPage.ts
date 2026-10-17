@@ -1,3 +1,5 @@
+import { waitAtMost } from "../core/utils/waitAtMost.ts";
+
 /**
  * Open the browser's print dialog for a page, for Print, then Save as PDF.
  *
@@ -10,7 +12,20 @@
  * sanitized; the sandbox is the second lock. `allow-modals` is what lets a
  * sandboxed frame open the print dialog at all.
  */
+let printing = false;
+
 export async function printPage(html: string, title: string): Promise<void> {
+    // A second click while the dialog is opening opened a second dialog.
+    if (printing) return;
+    printing = true;
+    try {
+        await openPrintDialog(html, title);
+    } finally {
+        printing = false;
+    }
+}
+
+async function openPrintDialog(html: string, title: string): Promise<void> {
     const frame = document.createElement("iframe");
     frame.setAttribute("sandbox", "allow-same-origin allow-modals");
     frame.setAttribute("aria-hidden", "true");
@@ -26,12 +41,11 @@ export async function printPage(html: string, title: string): Promise<void> {
 
     // Capped: a print dialog that never opens is worse than one a moment early.
     const images = Array.from(doc.images).filter(img => !img.complete);
-    const cap = () => new Promise(resolve => setTimeout(resolve, 10_000));
-    await Promise.race([Promise.all(images.map(img => new Promise(resolve => {
+    await waitAtMost(Promise.all(images.map(img => new Promise(resolve => {
         img.addEventListener("load", resolve);
         img.addEventListener("error", resolve);
-    }))), cap()]);
-    await Promise.race([doc.fonts?.ready, cap()]);
+    }))), 10_000);
+    await waitAtMost(doc.fonts?.ready, 10_000);
 
     // Chrome suggests the file name from the top page's title, not the frame's.
     const appTitle = document.title;

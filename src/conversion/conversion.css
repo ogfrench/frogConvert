@@ -176,9 +176,63 @@
   opacity: 0;
 }
 
+/* No `to`: the fade ends at the row's own opacity. Ending at 1 made the muted
+   subtitle fade up to full strength and then snap back to muted in one frame,
+   at every phase change. */
 @keyframes status-row-in {
   from { opacity: 0; }
-  to { opacity: 1; }
+}
+
+/* The outgoing phase text, a copy laid over its row (swapPhaseRow in
+   cancellation.ts), fading while the new text fades in underneath. */
+.status-row-ghost {
+  position: fixed;
+  z-index: calc(var(--z-modal) + 1);
+  margin: 0;
+  pointer-events: none;
+  animation: status-row-ghost-out 110ms ease-in forwards;
+}
+@keyframes status-row-ghost-out {
+  to { opacity: 0; }
+}
+
+/* A status block from `statusHTML`: three rows, centred in the four-row
+   floor, so it is the same height as every other phase. The third row is a
+   slot shared by the engine's line and the reassurance, overlaid and
+   crossfaded (see statusHTML): no empty line, and nothing moves, only
+   opacity changes. */
+.conversion-status:has(> .status-main) {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.conversion-status:has(> .status-main) > br {
+  display: none;
+}
+.conversion-status:has(> .status-main) > span {
+  display: block;
+}
+.status-slot {
+  display: grid;
+}
+.status-slot > * {
+  grid-area: 1 / 1;
+}
+.status-reassure {
+  transition: opacity 200ms ease;
+}
+/* Same line box as the engine line it crossfades with: `.muted-text` is
+   0.85em, so the row takes that size and its children keep it, rather than
+   the row sitting on the paragraph's full-size strut 2px lower. */
+.status-reassure {
+  font-size: 0.85em;
+}
+.status-reassure > .muted-text {
+  font-size: 1em;
+}
+/* A class, not :has(): where :has() is missing the two lines would overlap. */
+.status-slot.status-slot-live > .status-reassure {
+  opacity: 0;
 }
 
 /* The heading and the subtitle, which swap as a block at every phase boundary -
@@ -188,7 +242,11 @@
    row from double-fading through a phase change. */
 .status-main.status-row-in,
 .status-sub.status-row-in {
-  animation: status-row-in 180ms ease-out;
+  /* Starts once the outgoing copy has faded (status-row-ghost-out), so the
+     two lines are never on screen at once: overlapped mid-fade, two phase
+     names of different lengths read as one garbled line. `backwards` keeps
+     the new text invisible through the delay. */
+  animation: status-row-in 180ms ease-out 110ms backwards;
 }
 
 /* The floor, for the states that don't come from `statusHTML` at all - the
@@ -249,4 +307,17 @@
   #popup .convert-notice-link {
     align-self: stretch;
   }
+}
+
+/* The spinner changes shape between phases (ring while getting ready, dots
+   while converting); fading the new one in keeps that from being a jump cut. */
+@keyframes loader-swap-in {
+  from { opacity: 0; }
+}
+#popup .loader-swap-in {
+  animation: loader-swap-in 220ms ease-out;
+}
+/* The ring spins the element itself: keep the spin running beside the fade. */
+#popup .loader-spinner.loader-swap-in {
+  animation: loader-swap-in 220ms ease-out, spin-complex 2.4s cubic-bezier(0.45, 0.15, 0.55, 0.85) infinite;
 }
