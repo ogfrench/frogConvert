@@ -820,7 +820,8 @@ function showResultsModal() {
     actions.appendChild(createPopupButton(
       n === 1 ? "Download" : `Download ${n} files (.zip)`,
       "btn-primary",
-      () => { void downloadResults(); },
+      // Returned, so the repeat-click guard holds until the ZIP is built.
+      () => downloadResults(),
     ));
   }
   actions.appendChild(createPopupButton("Done", "btn-secondary", () => {

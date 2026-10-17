@@ -177,7 +177,8 @@ export function restatesSubtitle(live: string, subtitle: string): boolean {
 }
 
 /**
- * The four rows of the progress modal, rendered as one HTML string.
+ * The four rows of the progress modal, rendered as one HTML string: the main
+ * line, the subtitle, the reassurance and, last, the engine's own line.
  *
  * Every row is emitted every time, empty ones included. The modal is
  * auto-height, so a row that is omitted rather than left blank takes ~22px of
@@ -231,16 +232,18 @@ export function statusHTML(
         // line changes once a second for the clock and faster still for a
         // percentage, which would turn a screen reader into a metronome. The
         // lines that carry meaning stay announced.
+        // The reassurance, announced once; the clock rides on it in its own
+        // aria-hidden span, so the sentence is not re-read every second.
+        `<span class="status-reassure"><span class="muted-text">${reassuranceLine()}</span>`
+        + `<span class="status-clock muted-text${blank(clock)}" aria-hidden="true">${escapeHTML(clock)}</span></span>`,
+        // The engine's own line, last. Between the subtitle and the
+        // reassurance it left an empty line until the engine first spoke (and
+        // again at every phase change); last, an empty row is just room at the
+        // bottom of the block. It is reserved either way, so nothing moves:
+        // its text only fades in and out. aria-hidden: #popup is aria-live
+        // and aria-atomic, and a line that ticks would re-announce the whole
+        // modal.
         `<span class="status-live muted-text${blank(engineRow)}" aria-hidden="true">${escapeHTML(engineRow)}</span>`,
-        // The reassurance is static text, so it costs a line and nothing else
-        // and is announced once rather than re-read every tick. The clock rides
-        // here rather than on the live line above: the reassurance is the only
-        // other line about the waiting rather than about the work, and hanging
-        // the elapsed time off it leaves the engine's own line to say one
-        // thing. Two spans rather than one string because the sentence stays
-        // announced while the ticking half does not.
-        `<span class="muted-text">${reassuranceLine()}</span>`
-        + `<span class="status-clock muted-text${blank(clock)}" aria-hidden="true">${escapeHTML(clock)}</span>`,
     ].join("<br>");
 }
 

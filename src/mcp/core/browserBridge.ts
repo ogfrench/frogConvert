@@ -44,6 +44,7 @@ const MIME_TYPES: Record<string, string> = {
 export interface BridgeResult {
     fileName: string;
     base64Bytes: string;
+    warnings?: string[];
 }
 
 // Maximum time a single page.evaluate() conversion may run before the queue is unblocked.
@@ -178,6 +179,10 @@ async function ensureInitialized(): Promise<void> {
                 return puppeteer.launch({ headless: true, args: PUPPETEER_ARGS });
             });
         bridgePage = await browser.newPage();
+        // Chromium's own PDF printer, for svgForeignObject's HTML -> PDF: real
+        // text and pages, where the page itself can only draw pictures. The
+        // same role the desktop app's src/electron-print.cjs plays.
+        await bridgePage.exposeFunction("__frogPrintToPdf", printDocument);
 
         // Reset ALL singleton state if the page dies so the next caller gets a
         // completely fresh initialization attempt. Critically: staticServer and
@@ -234,6 +239,35 @@ async function ensureInitialized(): Promise<void> {
     });
 
     return initPromise;
+}
+
+const PRINT_TIMEOUT_MS = 30_000;
+
+/**
+ * Print an HTML document to PDF with Chromium, in a tab of its own.
+ *
+ * The document has already been sanitized in the page (printableDocument).
+ * This tab is the second lock: JavaScript off, and every request refused but
+ * data: URLs, so nothing in the page can run or reach the network. Returns
+ * the PDF as base64.
+ */
+async function printDocument(html: string): Promise<string> {
+    if (!browser) throw new Error("Bridge browser is not running");
+    const tab = await browser.newPage();
+    try {
+        await tab.setJavaScriptEnabled(false);
+        await tab.setRequestInterception(true);
+        tab.on("request", req => {
+            const url = req.url();
+            if (url.startsWith("data:") || url === "about:blank") req.continue().catch(() => {});
+            else req.abort().catch(() => {});
+        });
+        await tab.setContent(html, { waitUntil: "load", timeout: PRINT_TIMEOUT_MS });
+        const pdf = await tab.pdf({ preferCSSPageSize: true, printBackground: true, timeout: PRINT_TIMEOUT_MS });
+        return Buffer.from(pdf).toString("base64");
+    } finally {
+        await tab.close().catch(() => {});
+    }
 }
 
 /**

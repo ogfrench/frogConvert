@@ -20,6 +20,9 @@ function loadScript(src: string): Promise<void> {
     document.head.appendChild(script);
   });
   scriptCache.set(src, p);
+  // A failed load (offline for a moment) must not be cached, or the handler
+  // can never load again until the page is reloaded.
+  p.catch(() => scriptCache.delete(src));
   return p;
 }
 
@@ -62,9 +65,11 @@ function loadFluidSynth(): Promise<{ JSSynth: any; sfontBin: ArrayBuffer }> {
       JSSynth.Synthesizer.initializeWithFluidSynthModule(fluidModule);
       await JSSynth.Synthesizer.waitForWasmInitialized();
 
-      const sfontBin = await fetch("/wasm/TimGM6mb.sf2").then(r => r.arrayBuffer());
+      const sfontResp = await fetch("/wasm/TimGM6mb.sf2");
+      if (!sfontResp.ok) throw new Error(`Soundfont answered ${sfontResp.status}`);
+      const sfontBin = await sfontResp.arrayBuffer();
       return { JSSynth, sfontBin };
-    })();
+    })().catch((e) => { midiInitPromise = null; throw e; });
   }
   return midiInitPromise;
 }

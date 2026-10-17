@@ -253,3 +253,22 @@ describe('handleConvert (JSON mode)', () => {
         expect(body.error).not.toContain('bun run build');
     });
 });
+
+describe('handleConvert (warnings)', () => {
+    beforeEach(() => vi.mocked(convertViaBrowser).mockReset());
+
+    it('returns the warnings in the JSON response, as MCP does', async () => {
+        // REST dropped every warning; an agent was not told a PDF was pictures.
+        const pptx: FileFormat = { name: 'PPTX', mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', extension: 'pptx', from: true, to: false, format: 'pptx', internal: 'pptx' };
+        const html: FileFormat = { name: 'HTML', mime: 'text/html', extension: 'html', from: true, to: true, format: 'html', internal: 'html' };
+        const pdf: FileFormat = { name: 'PDF', mime: 'application/pdf', extension: 'pdf', from: false, to: true, format: 'pdf', internal: 'pdf' };
+        const h = makeHandler('H', [pptx, html, pngFormat, pdf]);
+        const path = [{ format: pptx, handler: h }, { format: html, handler: h }, { format: pngFormat, handler: h }, { format: pdf, handler: h }];
+        const res = await handleConvert(makeJsonRequest({
+            fileName: 'deck.pptx', base64Bytes: 'aGVsbG8=',
+            inputMime: pptx.mime, inputExt: 'pptx', outputMime: 'application/pdf', outputExt: 'pdf',
+        }), [h], makeGraph(path));
+        const body = await res.json();
+        expect(body[0].warnings.join(' ')).toMatch(/made of pictures/);
+    });
+});

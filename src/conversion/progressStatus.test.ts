@@ -327,6 +327,8 @@ describe("the row count, which is the modal's height", () => {
         expect(html).toContain(
             '<span class="status-live muted-text status-row-blank" aria-hidden="true"></span>',
         );
+        // Last, so an empty engine row is never a gap between two lines.
+        expect(html.split("<br>").at(-1)).toMatch(/^<span class="status-live/);
         expect(rows(html)).toBe(4);
     });
 

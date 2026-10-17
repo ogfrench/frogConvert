@@ -1,6 +1,7 @@
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
-import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import type { FileData, FileFormat, FormatHandler, ProgressEvent } from "../core/FormatHandler/FormatHandler.ts";
 import { PDFDocument, rgb } from "pdf-lib";
+import { waitAtMost } from "../core/utils/waitAtMost.ts";
 
 /**
  * Strip on* event handlers AND rewrite external-resource URLs.
@@ -23,12 +24,14 @@ const INLINE_TRANSPARENT_PX =
 
 function isExternalUrl(url: string): boolean {
     const trimmed = url.trim();
-    return /^(https?:)?\/\//i.test(trimmed) || /^file:/i.test(trimmed);
+    return /^((https?|ftp|wss?):)?\/\//i.test(trimmed) || /^file:/i.test(trimmed);
 }
+
+/** A quoted URL to another site in CSS: image-set("https://...") fetches without url(). */
+const QUOTED_EXTERNAL_CSS_RE = /(["'])\s*(((https?|ftp):)?\/\/|file:)[^"']*\1/gi;
 
 const DROP_TAGS = new Set(["script", "iframe", "object", "embed"]);
 const EXTERNAL_URL_RE = /(^|,)\s*(https?:)?\/\//i;
-const STYLE_EXTERNAL_RE = /url\(\s*["']?\s*(https?:)?\/\//i;
 const EXTERNAL_IMPORT_RE = /@import\s+(url\()?\s*["']?\s*(https?:|file:)?\/\/[^;]*;?/gi;
 const EXTERNAL_CSS_URL_RE = /url\(\s*["']?\s*((https?:)?\/\/|file:)[^)]*\)/gi;
 
@@ -41,12 +44,15 @@ function sanitizeCSS(css: string): string {
     return css
         .replace(EXTERNAL_IMPORT_RE, "")
         .replace(EXTERNAL_CSS_URL_RE, "none")
+        .replace(QUOTED_EXTERNAL_CSS_RE, '""')
         .replace(/:root\b/g, "html");
 }
 
 function sanitizeHTML(html: string): Document {
     const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
+    // <base> is dropped before parsing: parsed, it is checked against the
+    // app's CSP and logs a violation for every page that has one.
+    const doc = parser.parseFromString(html.replace(/<base\b[^>]*>/gi, ""), "text/html");
 
     // Array.from so removals during iteration don't skip siblings.
     for (const el of Array.from(doc.querySelectorAll("*"))) {
@@ -66,14 +72,24 @@ function sanitizeHTML(html: string): Document {
             el.removeAttribute("href");
         }
 
+        // Any other attribute holding a URL to another site, whatever it is
+        // called. Naming the fetching attributes (poster, background,
+        // xlink:href, ...) missed whichever one came next; an attribute that
+        // only describes, like an alt text that is a URL, loses nothing that
+        // renders.
+        for (const attr of [...el.attributes]) {
+            if (isExternalUrl(attr.value)) el.removeAttribute(attr.name);
+        }
+
         const srcset = el.getAttribute("srcset");
         if (srcset && EXTERNAL_URL_RE.test(srcset)) {
             el.setAttribute("srcset", INLINE_TRANSPARENT_PX);
         }
 
         const style = el.getAttribute("style");
-        if (style && STYLE_EXTERNAL_RE.test(style)) {
-            el.setAttribute("style", style.replace(EXTERNAL_CSS_URL_RE, "none"));
+        if (style) {
+            const clean = style.replace(EXTERNAL_CSS_URL_RE, "none").replace(QUOTED_EXTERNAL_CSS_RE, '""');
+            if (clean !== style) el.setAttribute("style", clean);
         }
 
         if (tag === "style") el.textContent = sanitizeCSS(el.textContent ?? "");
@@ -94,8 +110,49 @@ function importDocument(doc: Document, into: Document): HTMLElement {
     return root;
 }
 
+/**
+ * Instructions a browser follows when the page is printed: A4 with Chrome's
+ * default margins, and backgrounds printed, which browsers otherwise drop
+ * unless the user ticks "Background graphics". The empty margin boxes keep
+ * Chrome from stamping the date, title and app URL on every page when its
+ * "Headers and footers" box is ticked (measured: it is by default). First in
+ * <head>, so a page's own print styles still win.
+ */
+const PRINT_CSS = "@page { size: A4; margin: 10mm; "
+    + ["top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"]
+        .map(box => `@${box} { content: ""; }`).join(" ")
+    + " } html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }";
+
+/**
+ * The page, sanitized, as a whole document ready to print: what the desktop
+ * app sends to Chromium's PDF printer and what the web UI prints. `title`
+ * becomes the file name the print dialog suggests.
+ */
+export function printableDocument(html: string, title?: string): string {
+    // Sanitized until reading it back changes nothing. Markup that mutates
+    // when re-parsed (an <img onerror> hidden in <math>/<style> nesting)
+    // came back to life in the printed copy on one pass. The print frame
+    // runs no scripts anyway; this is the second lock.
+    let doc = sanitizeHTML(html);
+    for (let pass = 0; pass < 3; pass++) {
+        const before = doc.documentElement.outerHTML;
+        doc = sanitizeHTML(before);
+        if (doc.documentElement.outerHTML === before) break;
+    }
+    doc.querySelectorAll("link, base, meta[http-equiv]").forEach(el => el.remove());
+    if (title) doc.title = title;
+    const style = doc.createElement("style");
+    style.textContent = PRINT_CSS;
+    doc.head.prepend(style);
+    return "<!doctype html>\n" + doc.documentElement.outerHTML;
+}
+
 /** The width an HTML page is laid out at for an image: a desktop window, whatever the app's. */
 const IMAGE_WIDTH = 1024;
+/** How far a picture widens for content wider than the layout width. */
+const MAX_WIDEN = 4;
+/** Longest the layout waits for images and fonts before measuring anyway. */
+const MEDIA_WAIT_MS = 10_000;
 /** The window height `vh` units and height media queries see. */
 const VIEWPORT_HEIGHT = 768;
 /** Rendered at twice its CSS size, like a screenshot on a high-density screen. */
@@ -220,21 +277,26 @@ class svgForeignObjectHandler implements FormatHandler {
         }
       }
 
-      // Wait for all images to finish loading. This is required for layout
-      // changes, not because we actually care about the image contents.
-      const images = Array.from(container.querySelectorAll("img, video"))
-        .filter(el => !(el.tagName === "IMG" && (el as HTMLImageElement).complete));
-      await Promise.all(images.map(image => new Promise(resolve => {
-        image.addEventListener("load", resolve);
-        image.addEventListener("loadeddata", resolve);
-        image.addEventListener("error", resolve);
-      })));
-      await doc.fonts?.ready;
+      // Wait for images to load, for their size, not their pixels. Only
+      // images: a <video> with just a poster fires neither load nor error,
+      // and waiting on it hung the conversion for good. Capped all the same.
+      const images = Array.from(container.querySelectorAll("img"))
+        .filter(img => !img.complete);
+      await waitAtMost(Promise.all(images.map(img => new Promise(resolve => {
+        img.addEventListener("load", resolve);
+        img.addEventListener("error", resolve);
+      }))), MEDIA_WAIT_MS);
+      await waitAtMost(doc.fonts?.ready, MEDIA_WAIT_MS);
 
       // Make sure the browser has had time to render.
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-      const bbox = { width, height: Math.max(1, Math.ceil(container.getBoundingClientRect().height)) };
+      // Content wider than the page (a wide table) used to be cut off at the
+      // right. Widen the picture to show it, within reason; a PDF then
+      // shrinks it to fit the page, as a browser's print does.
+      const contentWidth = Math.min(Math.max(width, Math.ceil(doc.documentElement.scrollWidth)), width * MAX_WIDEN);
+      container.style.width = `${width}px`;
+      const bbox = { width: contentWidth, height: Math.max(1, Math.ceil(container.getBoundingClientRect().height)) };
       const background = view.getComputedStyle(container).backgroundColor;
       const xml = new XMLSerializer().serializeToString(container);
       return { xml, bbox, background };
@@ -272,7 +334,7 @@ class svgForeignObjectHandler implements FormatHandler {
    * its size. Still pictures: a browser has no API that turns HTML into a PDF
    * with text in it short of its print dialog.
    */
-  static async toImagePdf(html: string): Promise<Uint8Array> {
+  static async toImagePdf(html: string, onProgress?: (p: ProgressEvent) => void): Promise<Uint8Array> {
     const { xml, bbox, background } = await svgForeignObjectHandler.normalizeHTML(html, PDF_LAYOUT_WIDTH);
     const image = await loadSvgImage(svgForeignObjectHandler.toSvg(xml, bbox));
     const fill = parseCssColor(background);
@@ -281,19 +343,22 @@ class svgForeignObjectHandler implements FormatHandler {
     const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
     const slice = document.createElement("canvas");
     const sliceCtx = slice.getContext("2d")!;
-    const width = bbox.width;
-    canvas.width = slice.width = width * RENDER_SCALE;
+    // Wider than the layout (a wide table): shrink to the page width.
+    const fit = PDF_LAYOUT_WIDTH / bbox.width;
+    const pxPerSource = fit * RENDER_SCALE;
+    canvas.width = slice.width = PDF_LAYOUT_WIDTH * RENDER_SCALE;
+    const pageSource = PDF_PAGE_HEIGHT / fit;
 
     // Less than a pixel left over would be a zero-height canvas, which can't be encoded.
-    for (let top = 0; bbox.height - top >= 1;) {
+    for (let top = 0; (bbox.height - top) * pxPerSource >= 1;) {
       const remaining = bbox.height - top;
-      let height = Math.min(PDF_PAGE_HEIGHT, remaining);
-      canvas.height = height * RENDER_SCALE;
-      ctx.drawImage(image, 0, top, width, height, 0, 0, canvas.width, canvas.height);
+      canvas.height = Math.round(Math.min(pageSource, remaining) * pxPerSource);
+      let height = canvas.height / pxPerSource;
+      ctx.drawImage(image, 0, top, bbox.width, height, 0, 0, canvas.width, canvas.height);
       let rows = canvas.height;
-      if (remaining > PDF_PAGE_HEIGHT) {
+      if (remaining > pageSource) {
         rows = findPageBreak(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
-        height = rows / RENDER_SCALE;
+        height = rows / pxPerSource;
       }
       slice.height = rows;
       sliceCtx.drawImage(canvas, 0, 0);
@@ -301,32 +366,48 @@ class svgForeignObjectHandler implements FormatHandler {
       const page = doc.addPage([A4_WIDTH_PT, A4_HEIGHT_PT]);
       if (fill) page.drawRectangle({ x: 0, y: 0, width: A4_WIDTH_PT, height: A4_HEIGHT_PT, color: rgb(...fill) });
       const png = await doc.embedPng(await canvasToPng(slice));
-      const drawHeight = height * PT_PER_CSS_PX;
+      const drawHeight = rows / RENDER_SCALE * PT_PER_CSS_PX;
       page.drawImage(png, {
         x: PAGE_MARGIN_PT,
         y: A4_HEIGHT_PT - PAGE_MARGIN_PT - drawHeight,
-        width: width * PT_PER_CSS_PX,
+        width: PDF_LAYOUT_WIDTH * PT_PER_CSS_PX,
         height: drawHeight,
       });
       top += height;
+      // A long page takes a while (165 pages: about a minute); say where it is.
+      onProgress?.({
+        ratio: Math.min(top / bbox.height, 1),
+        // Page breaks land early, so the estimate can fall short: never below the count.
+        detail: `Drawing page ${doc.getPageCount()} of about ${Math.max(doc.getPageCount(), Math.ceil(bbox.height / (pageSource * 0.97)))}`,
+      });
     }
     return new Uint8Array(await doc.save());
   }
 
   /**
-   * The desktop app prints the page with Chromium's own PDF printer, the same
-   * as Print, then Save as PDF: real text, real pages. Null anywhere else, or
-   * when that fails, and the caller draws the page instead.
+   * The desktop app, and the MCP/REST bridge, print the page with Chromium's
+   * own PDF printer, the same as Print, then Save as PDF: real text, real
+   * pages. Null in a browser tab, or when that fails, and the caller draws
+   * the page instead.
    */
-  static async printToPdf(html: string): Promise<Uint8Array | null> {
-    if (typeof location === "undefined" || location.protocol !== "app:") return null;
-    const doc = sanitizeHTML(html);
-    doc.querySelectorAll("link, base").forEach(el => el.remove());
+  static async printToPdf(html: string, title: string): Promise<Uint8Array | null> {
+    if (typeof window === "undefined") return null;
+    // The MCP/REST bridge's headless Chrome exposes its printer to the page.
+    const bridgePrint = (window as { __frogPrintToPdf?: (html: string) => Promise<string> }).__frogPrintToPdf;
+    if (typeof bridgePrint === "function") {
+      try {
+        const b64 = await bridgePrint(printableDocument(html, title));
+        return Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      } catch {
+        return null;
+      }
+    }
+    if (location.protocol !== "app:") return null;
     try {
       const resp = await fetch("/api/html-to-pdf", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ html: "<!doctype html>\n" + doc.documentElement.outerHTML }),
+        body: JSON.stringify({ html: printableDocument(html, title) }),
       });
       if (!resp.ok) return null;
       const { base64Bytes } = await resp.json() as { base64Bytes?: string };
@@ -340,7 +421,9 @@ class svgForeignObjectHandler implements FormatHandler {
   async doConvert(
     inputFiles: FileData[],
     inputFormat: FileFormat,
-    outputFormat: FileFormat
+    outputFormat: FileFormat,
+    _args?: string[],
+    onProgress?: (p: ProgressEvent) => void,
   ): Promise<FileData[]> {
 
     if (inputFormat.internal !== "html") throw "Invalid input format.";
@@ -362,10 +445,16 @@ class svgForeignObjectHandler implements FormatHandler {
       } else if (target === "png") {
         outputFiles.push({ name: newName, bytes: await svgForeignObjectHandler.toPng(html) });
       } else {
-        const printed = await svgForeignObjectHandler.printToPdf(html);
+        const title = newName.replace(/\.pdf$/i, "");
+        const printed = await svgForeignObjectHandler.printToPdf(html, title);
         outputFiles.push(printed
           ? { name: newName, bytes: printed }
-          : { name: newName, bytes: await svgForeignObjectHandler.toImagePdf(html), drawnAsImage: true });
+          : {
+            name: newName,
+            bytes: await svgForeignObjectHandler.toImagePdf(html, onProgress),
+            drawnAsImage: true,
+            printableHtml: printableDocument(html, title),
+          });
       }
     }
 

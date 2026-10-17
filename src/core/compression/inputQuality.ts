@@ -160,7 +160,10 @@ export async function probeImage(bytes: ArrayBuffer | Uint8Array, mime: string):
 // Cache the in-flight import so concurrent probes share one load.
 let _pdfjsPromise: Promise<typeof import("pdfjs-dist/legacy/build/pdf.mjs")> | null = null;
 function loadPdfjs() {
-  if (!_pdfjsPromise) _pdfjsPromise = import(/* @vite-ignore */ "pdfjs-dist/legacy/build/pdf.mjs");
+  if (!_pdfjsPromise) {
+    _pdfjsPromise = import(/* @vite-ignore */ "pdfjs-dist/legacy/build/pdf.mjs")
+      .catch((e) => { _pdfjsPromise = null; throw e; });
+  }
   return _pdfjsPromise;
 }
 

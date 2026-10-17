@@ -58,6 +58,8 @@ async function htmlToPdf(html) {
     ]);
     return await win.webContents.printToPDF({
       pageSize: 'A4',
+      // The page's own @page rules (printableDocument sets A4, 10 mm) win.
+      preferCSSPageSize: true,
       printBackground: true,
       margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 },
     });

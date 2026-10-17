@@ -29,3 +29,6 @@ __*.mjs
 
 # Empirical corpus: fetched by scripts/fetch-corpus.ts, never committed (large, upstream-owned).
 test/corpus/
+
+# Agent worktrees (Claude Code): full checkouts of this repo
+.claude/worktrees/

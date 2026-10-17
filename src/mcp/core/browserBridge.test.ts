@@ -26,6 +26,7 @@ const _mockPage = {
     goto: vi.fn().mockResolvedValue(undefined),
     waitForFunction: vi.fn().mockResolvedValue(undefined),
     evaluate: vi.fn(),
+    exposeFunction: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
 };
 
@@ -144,6 +145,8 @@ describe('convertViaBrowser, successful path through mocked Puppeteer', () => {
             '__frogConvertHeadless',
             'test.jpg', 'aGVsbG8=', 'image/jpeg', 'jpeg', 'image/png', 'png', undefined
         );
+        // Chrome's PDF printer, for HTML to PDF with real text.
+        expect(_mockPage.exposeFunction).toHaveBeenCalledWith('__frogPrintToPdf', expect.any(Function));
     });
 });
 

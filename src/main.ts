@@ -7,14 +7,17 @@ type PdfWorkspaceModule = typeof import("./components/PdfWorkspace/PdfWorkspace.
 let _pdfWsPromise: Promise<PdfWorkspaceModule> | null = null;
 let _pdfWsModule: PdfWorkspaceModule | null = null;
 function getPdfWorkspace(): Promise<PdfWorkspaceModule> {
-  _pdfWsPromise ??= import("./components/PdfWorkspace/PdfWorkspace.ts").then(m => { _pdfWsModule = m; return m; });
+  // A failed chunk load is not remembered, so the next visit tries again.
+  _pdfWsPromise ??= import("./components/PdfWorkspace/PdfWorkspace.ts").then(m => { _pdfWsModule = m; return m; })
+    .catch((e) => { _pdfWsPromise = null; throw e; });
   return _pdfWsPromise;
 }
 type CompressWorkspaceModule = typeof import("./components/CompressWorkspace/CompressWorkspace.ts");
 let _compressWsPromise: Promise<CompressWorkspaceModule> | null = null;
 let _compressWsModule: CompressWorkspaceModule | null = null;
 function getCompressWorkspace(): Promise<CompressWorkspaceModule> {
-  _compressWsPromise ??= import("./components/CompressWorkspace/CompressWorkspace.ts").then(m => { _compressWsModule = m; return m; });
+  _compressWsPromise ??= import("./components/CompressWorkspace/CompressWorkspace.ts").then(m => { _compressWsModule = m; return m; })
+    .catch((e) => { _compressWsPromise = null; throw e; });
   return _compressWsPromise;
 }
 import { initRouter, navigateTo, type RouteState, type AppMode } from "./router.ts";

@@ -311,6 +311,8 @@ export default defineConfig({
       // Submodule tests - run by the submodule's own test suite, not ours
       'src/handlers/terraria-wld-parser/**',
       'src/handlers/gimper/**',
+      // Agent worktrees (Claude Code) are whole checkouts of this repo.
+      '.claude/**',
     ],
     setupFiles: ['./test/setup.ts'],
     testTimeout: 20000,

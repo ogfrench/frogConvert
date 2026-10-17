@@ -9,19 +9,21 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's fixed in 3.1.2
+## What's new in 3.1.3
 
-**HTML keeps its styling.** Converting an HTML page to an image or PDF dropped every stylesheet in its `<head>`, so a styled page came out as black text on white. The whole page is rendered now: colours, backgrounds, layout, tables, fonts you have installed.
+**Print as PDF.** When you convert an HTML or Markdown file to PDF in the browser, the PDF is made of pictures, so its text can't be selected. The result now offers **Print as PDF**: your browser's print window opens on the page, already set to A4 with backgrounds printed and no date or web address stamped on the pages. Choose Save as PDF and you get a PDF with real, selectable text. (A website can't save a PDF with text without that window; browsers don't allow it. The desktop app does it in one click.)
 
-**HTML to PDF gives real pages.** It used to be one page as tall as the document (a long page came out 45 by 89 cm), at screen resolution. It is now A4 pages, broken between lines of text, at twice the resolution. Images and PDFs are laid out at a fixed width, so the same file gives the same result on every screen.
+**Cleaner result notices.** Notes on the result screen are now easy to read, with their action as a quiet button underneath, so Download stays the one obvious next step.
 
-**In the desktop app, HTML to PDF has real text.** It prints the page with Chromium's own PDF printer, like Print, then Save as PDF: selectable, searchable text. In a browser the PDF is still made of pictures, and the result says so.
+**Smoother progress.** The progress window no longer shows an empty line or jumps: lines fade into each other, nothing moves, and the result grows into place instead of popping in.
 
-**Markdown looks like Markdown.** Markdown to PNG or PDF drew the raw source (`#`, `**`, `|---|`) and called it a success. It now renders headings, lists, tables and code, with pandoc's clean default style, and tables in `.md` files are recognised.
+**Sturdier HTML conversion.** A page with a video can no longer hang the conversion, wide tables are no longer cut off, long documents show which page they are on, and converting a page can no longer reach the network through any link or style in it.
 
-Converting still never touches the network: external stylesheets, web fonts and images in a page are not fetched, so a page that depends on them looks plainer.
+**Fewer "unsupported" surprises.** Files named `.htm`, `.tif`, `.yaml`, `.jfif`, `.midi`, `.markdown` and similar are recognised even when your system does not say what they are, and a feature that fails to load once (say, a dropped connection) loads again on the next try instead of staying broken until you reload.
 
-For the browser Office engine and everything else new in 3.1, see the [3.1.0 release](https://github.com/ogfrench/frogConvert/releases/tag/v3.1.0). Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
+**For agents (MCP and REST).** HTML and Markdown to PDF now come out with real text and the page's own layout, REST returns warnings like MCP does, and a PDF made of pictures says so on every surface.
+
+For HTML and Markdown that look like the original (3.1.2), see the [3.1.2 release](https://github.com/ogfrench/frogConvert/releases/tag/v3.1.2). For the browser Office engine and everything else new in 3.1, see the [3.1.0 release](https://github.com/ogfrench/frogConvert/releases/tag/v3.1.0). Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
 ---
 

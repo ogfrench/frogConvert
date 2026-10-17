@@ -14,7 +14,7 @@ function ensurePdfjs(): Promise<void> {
       pdfjsLib = lib;
       const { default: workerSrc } = await import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url');
       lib.GlobalWorkerOptions.workerSrc = workerSrc;
-    });
+    }).catch((e) => { pdfjsReady = null; throw e; });
   }
   return pdfjsReady;
 }

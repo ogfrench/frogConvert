@@ -6,6 +6,36 @@ import type { FileFormat, FormatHandler } from "./FormatHandler.ts";
  * extension. Lives in core so any surface (Converter, Compress) can identify
  * a file without importing the convert pipeline.
  */
+/**
+ * Other spellings of an extension a format declares. A format declares one
+ * extension, so a file spelled the other way matched nothing whenever the
+ * browser sent no MIME type (some drag-and-drop paths and OSes send none) and
+ * was refused as unsupported: `.htm`, `.tif`, `.yaml`, `.jfif` (what Windows
+ * often saves JPEGs as), and the rest below. Only true synonyms belong here.
+ */
+const EXTENSION_ALIASES: Record<string, string> = {
+    htm: "html", tif: "tiff", yaml: "yml", midi: "mid", markdown: "md", mkd: "md",
+    mpeg: "mpg", aiff: "aif", jfif: "jpg", wave: "wav", oga: "ogg",
+};
+
+/** The other spellings of a declared extension, for a file picker's accept list. */
+export function aliasesOf(ext: string): string[] {
+    return Object.keys(EXTENSION_ALIASES).filter(a => EXTENSION_ALIASES[a] === ext);
+}
+
+/**
+ * The extensions a file name may be matched on, most specific first: its own
+ * (lower-cased), then the declared spelling it is an alias of. Empty without a
+ * dot.
+ */
+export function fileExtensionsOf(name: string): string[] {
+    const dotIdx = name.lastIndexOf(".");
+    if (dotIdx <= 0) return [];
+    const ext = name.slice(dotIdx + 1).toLowerCase();
+    const alias = EXTENSION_ALIASES[ext];
+    return alias ? [ext, alias] : [ext];
+}
+
 export function findMatchingFormat(
     files: File[],
     allOptions: Array<{ format: FileFormat; handler: FormatHandler }>,
@@ -18,9 +48,7 @@ export function findMatchingFormat(
     // in the filename. Otherwise `"photo".split(".").pop()` returns the whole
     // name, which would accidentally match a format whose extension happened
     // to equal the filename.
-    const name = files[0].name;
-    const dotIdx = name.lastIndexOf(".");
-    const fileExtension = dotIdx > 0 ? name.slice(dotIdx + 1).toLowerCase() : undefined;
+    const fileExtensions = fileExtensionsOf(files[0].name);
     // Best match: MIME + extension
     let mimeMatch = -1;
     for (let i = 0; i < allOptions.length; i++) {
@@ -30,7 +58,7 @@ export function findMatchingFormat(
         // Lower-cased on both sides, matching the extension-only pass below -
         // the two used to disagree, so a format declared with an upper-case
         // extension could only ever be found by the fallback.
-        if (fileExtension && format.extension.toLowerCase() === fileExtension) return i;
+        if (fileExtensions.includes(format.extension.toLowerCase())) return i;
         if (mimeMatch === -1) mimeMatch = i; // First MIME-only match as fallback
     }
 
@@ -44,10 +72,12 @@ export function findMatchingFormat(
     // fine, and silently lost its Illustrator payload. Nothing is lost the
     // other way round: a MIME with no matching extension still falls through
     // to `mimeMatch` below.
-    if (fileExtension) {
+    // The file's own spelling first, so a format that declares it outranks
+    // one that declares the spelling it is an alias of.
+    for (const ext of fileExtensions) {
         for (let i = 0; i < allOptions.length; i++) {
             const { format } = allOptions[i];
-            if (format.from && format.extension.toLowerCase() === fileExtension) {
+            if (format.from && format.extension.toLowerCase() === ext) {
                 return i;
             }
         }

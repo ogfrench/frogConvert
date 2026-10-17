@@ -27,7 +27,13 @@ const RES = path.resolve(__dirname, "../resources");
 const requested = process.env.FROG_E2E_MATRIX === "1";
 const TMP = path.join(os.tmpdir(), "frog-convert-matrix");
 
-type Outcome = { files: { name: string; size: number }[]; dir: string; modal: string };
+type Outcome = {
+    files: { name: string; size: number }[]; dir: string; modal: string;
+    /** Requests to anywhere but the app's own server: a conversion must make none. */
+    external: string[];
+    /** Set by any script in the input that managed to run. */
+    pwned: unknown;
+};
 
 describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_MATRIX=1)", () => {
     let server: DistServer;
@@ -43,15 +49,34 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         await server?.close();
     });
 
-    async function convert(input: string, target: string): Promise<Outcome> {
+    async function convert(input: string, target: string, opts: { noMime?: boolean } = {}): Promise<Outcome> {
         const dir = path.join(TMP, `${path.basename(input)}-to-${target}`);
         const { page } = await newTrackedPage(browser, dir);
+        const external: string[] = [];
+        page.on("request", r => {
+            const u = r.url();
+            if (!u.startsWith(server.base) && !/^(data|blob|about):/.test(u)) external.push(u);
+        });
         await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
         // "All" shows data targets (CSV, JSON) that the default Core list hides.
         await page.evaluate(() => (document.querySelector('#format-mode-menu [data-value="all"]') as HTMLElement | null)?.click());
         await waitForRegistry(page);
-        const fileInput = await page.$("#file-input");
-        await (fileInput as unknown as { uploadFile(p: string): Promise<void> }).uploadFile(input);
+        if (opts.noMime) {
+            // A File with no type, as some drag-and-drop paths deliver one: the
+            // app has only the extension to go on.
+            await page.evaluate((name, b64) => {
+                const bin = atob(b64);
+                const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+                const dt = new DataTransfer();
+                dt.items.add(new File([bytes], name));
+                const el = document.querySelector<HTMLInputElement>("#file-input")!;
+                el.files = dt.files;
+                el.dispatchEvent(new Event("change", { bubbles: true }));
+            }, path.basename(input), fs.readFileSync(input).toString("base64"));
+        } else {
+            const fileInput = await page.$("#file-input");
+            await (fileInput as unknown as { uploadFile(p: string): Promise<void> }).uploadFile(input);
+        }
         await page.waitForSelector("#format-selector", { visible: true });
         await page.click("#format-selector");
         await page.waitForSelector("#format-modal.open");
@@ -67,9 +92,10 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         await sleep(600);
         await page.$eval("#convert-button", b => (b as HTMLButtonElement).click());
         const { files, modalText } = await takeModalDownload(page, dir, 240_000);
+        const pwned = await page.evaluate(() => (window as unknown as { __pwned?: unknown }).__pwned ?? null);
         await page.close();
         if (!files?.length) throw new Error(`no download; modal said: ${modalText}`);
-        return { files, dir, modal: modalText };
+        return { files, dir, modal: modalText, external, pwned };
     }
 
     const read = (o: Outcome) => fs.readFileSync(path.join(o.dir, o.files[0].name));
@@ -146,13 +172,42 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         expect(shape.pageCount).toBeGreaterThan(1);
         expect(shape.sizes.every(s => s.w === 595 && s.h === 842)).toBe(true);
         expect(o.modal).toMatch(/made of pictures/);
-        expect(o.modal).toMatch(/Save as PDF/);
+        // The result card offers the browser's own PDF printer for real text.
+        expect(o.modal).toMatch(/press Print as PDF and choose Save as PDF/);
     }, 300_000);
 
     it("markdown -> pdf goes through HTML, not plain text, and is labelled", async () => {
         const o = await convert(path.join(RES, "markdown.md"), "pdf");
         expect(o.modal).toMatch(/made of pictures/);
         expect((await inspectPdf(read(o))).sizes[0]).toMatchObject({ w: 595, h: 842 });
+    }, 300_000);
+
+    // Inputs written to break it, kept so the bugs they found stay fixed.
+    it("a hostile page converts, runs nothing and fetches nothing", async () => {
+        // Scripts, event handlers, <base>, meta refresh, mutation-XSS markup,
+        // and URLs to another site in src, srcset, poster, style, @import and
+        // image-set. Its <video> with only a poster used to hang the
+        // conversion for good: it fires neither load nor error.
+        const o = await convert(path.join(RES, "hostile.html"), "pdf");
+        expect(o.pwned).toBeNull();
+        expect(o.external).toEqual([]);
+        expect(o.modal).toMatch(/press Print as PDF/);
+    }, 300_000);
+
+    it("a table wider than the page comes through whole", async () => {
+        // Its right side was cut off at the layout width.
+        const o = await convert(path.join(RES, "wide-table.html"), "png");
+        const UPNG = (await import("upng-js")).default;
+        expect(UPNG.decode(read(o)).width).toBeGreaterThan(2048);
+    }, 300_000);
+
+    it("a .htm with no MIME type is accepted as HTML", async () => {
+        // Refused as unsupported: no format declares .htm.
+        const htm = path.join(TMP, "page.htm");
+        fs.mkdirSync(TMP, { recursive: true });
+        fs.copyFileSync(path.join(RES, "styled-page.html"), htm);
+        const o = await convert(htm, "png", { noMime: true });
+        expect(o.files[0].name).toMatch(/\.png$/);
     }, 300_000);
 
     it("png -> jpg is a plain success with no notice", async () => {

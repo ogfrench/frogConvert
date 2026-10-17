@@ -176,9 +176,42 @@
   opacity: 0;
 }
 
+/* No `to`: the fade ends at the row's own opacity. Ending at 1 made the muted
+   subtitle fade up to full strength and then snap back to muted in one frame,
+   at every phase change. */
 @keyframes status-row-in {
   from { opacity: 0; }
-  to { opacity: 1; }
+}
+
+/* The outgoing phase text, a copy laid over its row (swapPhaseRow in
+   cancellation.ts), fading while the new text fades in underneath. */
+.status-row-ghost {
+  position: fixed;
+  z-index: calc(var(--z-modal) + 1);
+  margin: 0;
+  pointer-events: none;
+  animation: status-row-ghost-out 110ms ease-in forwards;
+}
+@keyframes status-row-ghost-out {
+  to { opacity: 0; }
+}
+
+/* A status block from `statusHTML`: four rows at fixed positions, top to
+   bottom - main line, subtitle, reassurance, and the engine's line last, so
+   an empty engine row is room at the bottom of the block rather than a gap
+   between lines. Nothing moves; rows only fade. Scoped with :has() to the
+   four-row block, so the soft-cancel notice and plain messages keep their
+   ordinary flow; without :has() the rows still stack the same way. */
+.conversion-status:has(> .status-main) {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+.conversion-status:has(> .status-main) > br {
+  display: none;
+}
+.conversion-status:has(> .status-main) > span {
+  display: block;
 }
 
 /* The heading and the subtitle, which swap as a block at every phase boundary -
@@ -188,7 +221,11 @@
    row from double-fading through a phase change. */
 .status-main.status-row-in,
 .status-sub.status-row-in {
-  animation: status-row-in 180ms ease-out;
+  /* Starts once the outgoing copy has faded (status-row-ghost-out), so the
+     two lines are never on screen at once: overlapped mid-fade, two phase
+     names of different lengths read as one garbled line. `backwards` keeps
+     the new text invisible through the delay. */
+  animation: status-row-in 180ms ease-out 110ms backwards;
 }
 
 /* The floor, for the states that don't come from `statusHTML` at all - the
@@ -205,4 +242,61 @@
    the course of removing one. */
 .conversion-status {
   min-height: calc(4 * var(--leading-normal) * 1em);
+}
+
+/* Result notices. The card was designed for the Convert page (dismiss button
+   on the right, action beside the text); inside the result popup it picked
+   up the popup's centred text and paragraph margin, kept padding for a
+   dismiss button it doesn't have, and put a second black button next to
+   Download. Here it reads as a note: left-aligned, full width, with any
+   action as a quiet outlined button under the text. */
+#popup .convert-notice {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+  margin-top: 0;
+  padding: var(--space-4);
+  text-align: left;
+}
+
+#popup .convert-notice + .convert-notice {
+  margin-top: var(--space-3);
+}
+
+#popup .convert-notice-text {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+#popup .convert-notice-link {
+  align-self: flex-start;
+  padding: var(--space-2) var(--space-4);
+  background-color: transparent;
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+
+#popup .convert-notice-link:hover {
+  opacity: 1;
+  background-color: var(--background);
+}
+
+@media only screen and (max-width: 800px) {
+  #popup .convert-notice-link {
+    align-self: stretch;
+  }
+}
+
+/* The spinner changes shape between phases (ring while getting ready, dots
+   while converting); fading the new one in keeps that from being a jump cut. */
+@keyframes loader-swap-in {
+  from { opacity: 0; }
+}
+#popup .loader-swap-in {
+  animation: loader-swap-in 220ms ease-out;
+}
+/* The ring spins the element itself: keep the spin running beside the fade. */
+#popup .loader-spinner.loader-swap-in {
+  animation: loader-swap-in 220ms ease-out, spin-complex 2.4s cubic-bezier(0.45, 0.15, 0.55, 0.85) infinite;
 }
