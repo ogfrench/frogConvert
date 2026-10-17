@@ -42,23 +42,25 @@ jobs:
       - name: Generate cache
         run: bun run cache:build
 
-      # Enforced: a file nothing imports is dead weight, and a dependency that
-      # only resolves transitively is one lockfile change away from a broken
-      # build. Both checks are unambiguous, so this one fails the build. Files
-      # was advisory for its whole life, which is how `src/core/index.ts` and
-      # `tarCompressed/xz.ts` sat unreferenced, and how four pieces of dead
-      # code accumulated in a single 1,000-line component without anyone
-      # hearing about it. Unlisted moved here once the 9 packages that were
-      # only resolving transitively got declared for real.
-      - name: Dead files & unlisted dependencies
-        run: bun x knip --include files,unlisted
+      # Enforced: every knip category that is clean, listed explicitly so a
+      # knip release that adds a category cannot fail the build on its own.
+      # A file nothing imports is dead weight, a dependency that only resolves
+      # transitively is one lockfile change away from a broken build, and an
+      # unresolved import, duplicate export or unused dependency is never
+      # intended. Files was advisory for its whole life, which is how
+      # `src/core/index.ts` and `tarCompressed/xz.ts` sat unreferenced.
+      # Unresolved imports depend on the submodules being checked out, which
+      # this job does (`submodules: recursive`); without them every submodule
+      # import reads as unresolved.
+      - name: Knip (enforced categories)
+        run: bun x knip --include files,dependencies,devDependencies,unlisted,binaries,unresolved,duplicates,enumMembers
 
-      # Advisory, for now. The remaining categories are real but noisy - 30
-      # unused exports. Clearing them means touching source across many
-      # files, which is not a thing to do next to a release. Tracked, with
-      # the full list, rather than left invisible.
-      - name: Unused exports (advisory)
-        run: bun x knip --no-exit-code
+      # Advisory, for now. The unused exports and types left are in files
+      # under active work (store.ts, src/conversion/, Popup.ts, src/mcp/) and
+      # MOBILE_BREAKPOINT, which AGENTS.md names. Fold these into the step
+      # above once they are cleared.
+      - name: Unused exports and types (advisory)
+        run: bun x knip --include exports,types --no-exit-code
 
       - name: Run tests
         run: bun run test
