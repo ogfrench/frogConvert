@@ -19,9 +19,11 @@
 
 
 /* New content fading in as the box eases to its new height (morphPopup). No
-   `to`, so nothing in it ends brighter than its own opacity. */
+   `to`, so nothing in it ends brighter than its own opacity. From a quarter,
+   not from nothing: from 0 the first frame was an empty white box between
+   the progress and the result. */
 @keyframes popup-content-in {
-  from { opacity: 0; }
+  from { opacity: 0.25; }
 }
 #popup > .popup-scroll.popup-content-in {
   animation: popup-content-in 220ms ease-out;
