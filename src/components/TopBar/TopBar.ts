@@ -141,11 +141,6 @@ function setMenuOpen(open: boolean) {
   }
 }
 
-export function closeMenu() {
-  if (!ui.topControls.classList.contains("menu-open")) return;
-  setMenuOpen(false);
-}
-
 export function initResponsiveMenu() {
   ui.hamburgerBtn.addEventListener("click", () => {
     setMenuOpen(!ui.topControls.classList.contains("menu-open"));

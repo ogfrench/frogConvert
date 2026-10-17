@@ -27,7 +27,7 @@ const STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type SessionKind = 'pdfWorkspace' | 'convertPage' | 'compressPage';
 
-export interface PersistedFileMeta {
+interface PersistedFileMeta {
   id: number;
   name: string;
   size: number;

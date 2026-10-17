@@ -20,7 +20,7 @@ export interface Frame {
 	};
 }
 
-export enum ScoringType {
+enum ScoringType {
 	NORMAL = 0,
 	IGNORE,
 	NO_SCORE,
@@ -31,7 +31,7 @@ export enum ScoringType {
 	BURST_SLIDER_ELEMENT
 }
 
-export enum Saber {
+enum Saber {
 	LEFT = 0,
 	RIGHT = 1
 }
@@ -61,7 +61,7 @@ export enum CutDirection {
 	NONE
 }
 
-export interface NoteBase {
+interface NoteBase {
 	scoringType: ScoringType;
 	lineIndex: number;
 	lineLayer: number;
@@ -70,7 +70,7 @@ export interface NoteBase {
 	time: number;
 	spawnTime: number;
 }
-export interface CutInfo {
+interface CutInfo {
 	ok: {
 		speed: boolean,
 		direction: boolean,
@@ -93,23 +93,23 @@ export interface CutInfo {
 		afterCutRating: number
 	};
 }
-export interface GoodCut extends NoteBase {
+interface GoodCut extends NoteBase {
 	type: CutType.GOOD;
 	info: CutInfo;
 }
-export interface BadCut extends NoteBase {
+interface BadCut extends NoteBase {
 	type: CutType.BAD;
 	info: CutInfo;
 }
-export interface Miss extends NoteBase {
+interface Miss extends NoteBase {
 	type: CutType.MISS;
 }
-export interface Bomb extends NoteBase {
+interface Bomb extends NoteBase {
 	type: CutType.BOMB;
 }
 export type Note = GoodCut | BadCut | Miss | Bomb;
 
-export enum ObstacleType {
+enum ObstacleType {
 	FullHeight = 0,
 	Top,
 	Free

@@ -66,7 +66,7 @@ function writeFourCC (bytes: Uint8Array, offset: number, value: string): void {
   bytes[offset + 3] = value.charCodeAt(3);
 }
 
-export function parsePngDimensions (pngBytes: Uint8Array): { width: number, height: number } {
+function parsePngDimensions (pngBytes: Uint8Array): { width: number, height: number } {
   if (!isPng(pngBytes)) throw "Input is not a PNG file.";
   if (pngBytes.length < 24) throw "Input PNG is truncated.";
   const ihdr = readFourCC(pngBytes, 12);
@@ -77,7 +77,7 @@ export function parsePngDimensions (pngBytes: Uint8Array): { width: number, heig
   };
 }
 
-export function resolveLargestIconSize (maxDimension: number): number {
+function resolveLargestIconSize (maxDimension: number): number {
   const normalized = Math.max(1, Math.round(maxDimension));
   for (const size of ICON_SIZES) {
     if (normalized <= size) return size;
@@ -85,7 +85,7 @@ export function resolveLargestIconSize (maxDimension: number): number {
   return ICON_SIZES[ICON_SIZES.length - 1];
 }
 
-export function extractBestPngFromIcns (icnsBytes: Uint8Array): Uint8Array {
+function extractBestPngFromIcns (icnsBytes: Uint8Array): Uint8Array {
   if (icnsBytes.length < 8) throw "Input is too small for an ICNS file.";
   if (readFourCC(icnsBytes, 0) !== ICNS_MAGIC) throw "Invalid ICNS signature.";
 
