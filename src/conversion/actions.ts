@@ -52,7 +52,8 @@ import {
 import { runInWorker, WORKER_TIMEOUT_MS } from "./workerClient.ts";
 import { hopQualityArgs, resolveAutoQuality } from "../core/compression/hopQuality.ts";
 import { startConversionStatus, statusHTML, type StatusHandle } from "./progressStatus.ts";
-import { routeQualityNotice } from "./routeQuality.ts";
+import { routeQualityNotice, PRINT_ACTION_LABEL } from "./routeQuality.ts";
+import { printPage } from "./printPage.ts";
 import { dismissToast } from "../components/Toast/Toast.ts";
 // Re-exported rather than moved outright: the Compress surface and the tests
 // have imported it from here since it existed, and its home is an
@@ -727,6 +728,7 @@ export function initConvertButton() {
                 const routeNotice = routeQualityNotice(
                     result.path.map(n => n.format.format),
                     result.files.some(f => f.drawnAsImage),
+                    result.files.some(f => f.printableHtml),
                 );
                 if (routeNotice) {
                     degradedRoute = true;
@@ -850,9 +852,23 @@ export function initConvertButton() {
                 return card;
             };
 
+            // HTML drawn as a picture PDF: offer the browser's own PDF printer
+            // for real text, on the card that says the text was lost. One
+            // file only; a print dialog per file in a batch is not an offer.
+            const printable = allOutputFiles.length === 1 ? allOutputFiles[0].printableHtml : undefined;
             const noticeCards: HTMLElement[] = [];
             for (const { notice, files } of noticeMap.values()) {
-                noticeCards.push(buildNoticeCard(notice.title, notice.body, files, notice.action));
+                const card = buildNoticeCard(notice.title, notice.body, files, notice.action);
+                if (printable && notice.body.includes(PRINT_ACTION_LABEL)) {
+                    const button = document.createElement("button");
+                    button.type = "button";
+                    button.className = "convert-notice-link";
+                    button.textContent = PRINT_ACTION_LABEL;
+                    const title = allOutputFiles[0].name.replace(/\.pdf$/i, "");
+                    button.addEventListener("click", () => { void printPage(printable, title); });
+                    card.appendChild(button);
+                }
+                noticeCards.push(card);
             }
             for (const [body, files] of legacyWarnings) {
                 noticeCards.push(buildNoticeCard(null, body, files));

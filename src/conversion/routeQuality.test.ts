@@ -38,6 +38,12 @@ describe('routeQualityNotice', () => {
     expect(routeQualityNotice(['commonmark', 'html', 'pdf'], true)!.body).not.toMatch(/Office engine/);
   });
 
+  it('points at the Print as PDF button when the page can be printed', () => {
+    const n = routeQualityNotice(['html', 'pdf'], true, true)!;
+    expect(n.body).toMatch(/press Print as PDF and choose Save as PDF/);
+    expect(routeQualityNotice(['commonmark', 'html', 'pdf'], true, true)!.body).toMatch(/The document was drawn/);
+  });
+
   it('knows pandoc names for Markdown', () => {
     expect(classifyRoute(['commonmark', 'text', 'png', 'pdf'])).toBe('image-only');
   });

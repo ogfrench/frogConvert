@@ -94,6 +94,34 @@ function importDocument(doc: Document, into: Document): HTMLElement {
     return root;
 }
 
+/**
+ * Instructions a browser follows when the page is printed: A4 with Chrome's
+ * default margins, and backgrounds printed, which browsers otherwise drop
+ * unless the user ticks "Background graphics". The empty margin boxes keep
+ * Chrome from stamping the date, title and app URL on every page when its
+ * "Headers and footers" box is ticked (measured: it is by default). First in
+ * <head>, so a page's own print styles still win.
+ */
+const PRINT_CSS = "@page { size: A4; margin: 10mm; "
+    + ["top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"]
+        .map(box => `@${box} { content: ""; }`).join(" ")
+    + " } html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }";
+
+/**
+ * The page, sanitized, as a whole document ready to print: what the desktop
+ * app sends to Chromium's PDF printer and what the web UI prints. `title`
+ * becomes the file name the print dialog suggests.
+ */
+export function printableDocument(html: string, title?: string): string {
+    const doc = sanitizeHTML(html);
+    doc.querySelectorAll("link, base, meta[http-equiv]").forEach(el => el.remove());
+    if (title) doc.title = title;
+    const style = doc.createElement("style");
+    style.textContent = PRINT_CSS;
+    doc.head.prepend(style);
+    return "<!doctype html>\n" + doc.documentElement.outerHTML;
+}
+
 /** The width an HTML page is laid out at for an image: a desktop window, whatever the app's. */
 const IMAGE_WIDTH = 1024;
 /** The window height `vh` units and height media queries see. */
@@ -318,15 +346,13 @@ class svgForeignObjectHandler implements FormatHandler {
    * as Print, then Save as PDF: real text, real pages. Null anywhere else, or
    * when that fails, and the caller draws the page instead.
    */
-  static async printToPdf(html: string): Promise<Uint8Array | null> {
+  static async printToPdf(html: string, title: string): Promise<Uint8Array | null> {
     if (typeof location === "undefined" || location.protocol !== "app:") return null;
-    const doc = sanitizeHTML(html);
-    doc.querySelectorAll("link, base").forEach(el => el.remove());
     try {
       const resp = await fetch("/api/html-to-pdf", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ html: "<!doctype html>\n" + doc.documentElement.outerHTML }),
+        body: JSON.stringify({ html: printableDocument(html, title) }),
       });
       if (!resp.ok) return null;
       const { base64Bytes } = await resp.json() as { base64Bytes?: string };
@@ -362,10 +388,16 @@ class svgForeignObjectHandler implements FormatHandler {
       } else if (target === "png") {
         outputFiles.push({ name: newName, bytes: await svgForeignObjectHandler.toPng(html) });
       } else {
-        const printed = await svgForeignObjectHandler.printToPdf(html);
+        const title = newName.replace(/\.pdf$/i, "");
+        const printed = await svgForeignObjectHandler.printToPdf(html, title);
         outputFiles.push(printed
           ? { name: newName, bytes: printed }
-          : { name: newName, bytes: await svgForeignObjectHandler.toImagePdf(html), drawnAsImage: true });
+          : {
+            name: newName,
+            bytes: await svgForeignObjectHandler.toImagePdf(html),
+            drawnAsImage: true,
+            printableHtml: printableDocument(html, title),
+          });
       }
     }
 

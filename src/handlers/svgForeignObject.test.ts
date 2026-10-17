@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import svgForeignObjectHandler, { findPageBreak } from './svgForeignObject.ts';
+import svgForeignObjectHandler, { findPageBreak, printableDocument } from './svgForeignObject.ts';
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 
 const HTML = CommonFormats.HTML.supported('html', true, false);
@@ -43,5 +43,18 @@ describe('svgForeignObject', () => {
     // No flat row low enough: break at the page height.
     for (const y of [6]) px.set([0, 0, 0, 255], (y * w + 1) * 4);
     expect(findPageBreak(px, w, h)).toBe(h);
+  });
+
+  it('makes a print-ready page: A4, backgrounds on, no Chrome stamps, no scripts', () => {
+    const doc = printableDocument(
+      '<html><head><style>p{color:red}</style><script>alert(1)</script></head>' +
+      '<body onload="x()"><p>Hi</p><img src="https://example.com/t.gif"></body></html>', 'notes');
+    expect(doc).toMatch(/^<!doctype html>/);
+    expect(doc).toContain('<title>notes</title>');
+    expect(doc).toMatch(/@page \{ size: A4; margin: 10mm; @top-left \{ content: ""; \}/);
+    expect(doc).toContain('print-color-adjust: exact');
+    // Ours first, so the page's own print styles still win.
+    expect(doc.indexOf('@page')).toBeLessThan(doc.indexOf('p{color:red}'));
+    expect(doc).not.toMatch(/<script|onload|example\.com/);
   });
 });

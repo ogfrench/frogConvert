@@ -10,6 +10,9 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added
+- **Print as PDF for HTML and Markdown in the browser.** When an HTML or Markdown to PDF conversion comes out as pictures, the result offers Print as PDF: the browser's own print window opens on the page, already set to A4, with backgrounds printed and no date or address stamped on each page, and suggests the file's own name. Choose Save as PDF for a PDF with selectable text ([src/conversion/printPage.ts](src/conversion/printPage.ts)). The page prints from a frame with scripts off.
+
 ## [3.1.2] - 2026-10-16
 
 HTML and Markdown come out looking like the page you started with.

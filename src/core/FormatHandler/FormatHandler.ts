@@ -153,6 +153,11 @@ export interface FileData {
    * PDF in a browser), so the route alone can't tell the text was lost.
    */
   drawnAsImage?: boolean;
+  /**
+   * With `drawnAsImage`: the page as a document the browser can print, so
+   * the web UI can offer Print, then Save as PDF, for a PDF with real text.
+   */
+  printableHtml?: string;
 }
 
 /**

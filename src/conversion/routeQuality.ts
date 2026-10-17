@@ -9,6 +9,9 @@ const DOCUMENT_FORMATS = new Set([
   "rst", "latex", "org", "textile", "mediawiki", "ipynb", "asciidoc", "djot", "typst",
   "docbook", "jats", "fb2", "muse", "creole", "dokuwiki", "tikiwiki", "twiki", "vimwiki", "t2t",
 ]);
+/** The result-card button that prints the page (actions.ts). */
+export const PRINT_ACTION_LABEL = "Print as PDF";
+
 /** Formats the Office engine can turn into a real PDF. */
 const OFFICE_FORMATS = new Set(["docx", "doc", "pptx", "ppt", "xlsx", "odt", "odp", "ods", "rtf"]);
 const RASTER_FORMATS = new Set(["png", "jpeg", "jpg", "webp", "bmp", "gif", "tiff", "avif"]);
@@ -37,8 +40,12 @@ export function classifyRoute(formats: string[], drawnAsImage = false): RouteQua
   return "faithful";
 }
 
-/** The success-modal notice for a lossy route, or null when the route keeps the document. */
-export function routeQualityNotice(formats: string[], drawnAsImage = false): Notice | null {
+/**
+ * The success-modal notice for a lossy route, or null when the route keeps
+ * the document. `printable`: the web UI offers to print the page itself
+ * (printPage.ts), so the notice points at that button.
+ */
+export function routeQualityNotice(formats: string[], drawnAsImage = false, printable = false): Notice | null {
   const quality = classifyRoute(formats, drawnAsImage);
   const to = formats[formats.length - 1]?.toUpperCase() ?? "";
   if (quality === "image-only") {
@@ -46,6 +53,8 @@ export function routeQualityNotice(formats: string[], drawnAsImage = false): Not
     let body = `Each page came across as a picture, so the text in this ${to} can't be edited.`;
     if (to === "PDF" && OFFICE_FORMATS.has(from)) {
       body = "With no Office engine on this device, the document was drawn as an image: its text can't be selected, and layout may be lost. For an exact PDF, get the Office engine on a computer, or export from the app that made the file.";
+    } else if (to === "PDF" && printable) {
+      body = `The ${from === "html" ? "page" : "document"} was drawn as an image, so its text can't be selected. For a PDF with selectable text, press ${PRINT_ACTION_LABEL} and choose Save as PDF.`;
     } else if (to === "PDF" && from === "html") {
       body = "The page was drawn as an image, so its text can't be selected. For a PDF with selectable text, open the file in your browser and use Print, then Save as PDF, or use the desktop app.";
     } else if (to === "PDF") {

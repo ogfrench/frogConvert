@@ -146,7 +146,8 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         expect(shape.pageCount).toBeGreaterThan(1);
         expect(shape.sizes.every(s => s.w === 595 && s.h === 842)).toBe(true);
         expect(o.modal).toMatch(/made of pictures/);
-        expect(o.modal).toMatch(/Save as PDF/);
+        // The result card offers the browser's own PDF printer for real text.
+        expect(o.modal).toMatch(/press Print as PDF and choose Save as PDF/);
     }, 300_000);
 
     it("markdown -> pdf goes through HTML, not plain text, and is labelled", async () => {
