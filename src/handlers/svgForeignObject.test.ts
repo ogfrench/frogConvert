@@ -34,6 +34,22 @@ describe('svgForeignObject', () => {
     expect(svg).toContain('p { color: blue }');
   });
 
+  it('strips every attribute that would fetch from another site', async () => {
+    const svg = await toSvg(
+      '<body background="https://example.com/bg.png"><video poster="https://example.com/p.png"></video>' +
+      '<svg><image xlink:href="https://example.com/i.png"/></svg>' +
+      '<form action="https://example.com/f"><button formaction="https://example.com/g">x</button></form>' +
+      '<a href="#here" ping="https://example.com/ping">a</a></body>');
+    expect(svg).not.toMatch(/example\.com/);
+  });
+
+  it('does not wait forever on a video that never loads', async () => {
+    // A <video> with only a poster fires neither load nor error; waiting on
+    // it hung the conversion for good.
+    const svg = await toSvg('<body><video poster="data:image/png;base64,AA=="></video><p>after</p></body>');
+    expect(svg).toContain('after');
+  });
+
   it('breaks a page on the lowest flat row in its bottom quarter', () => {
     // 4 px wide, 8 rows: row 6 is flat, rows 5 and 7 have a dark pixel in them.
     const w = 4, h = 8;

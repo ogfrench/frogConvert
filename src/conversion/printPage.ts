@@ -24,12 +24,14 @@ export async function printPage(html: string, title: string): Promise<void> {
     doc.write(html);
     doc.close();
 
+    // Capped: a print dialog that never opens is worse than one a moment early.
     const images = Array.from(doc.images).filter(img => !img.complete);
-    await Promise.all(images.map(img => new Promise(resolve => {
+    const cap = () => new Promise(resolve => setTimeout(resolve, 10_000));
+    await Promise.race([Promise.all(images.map(img => new Promise(resolve => {
         img.addEventListener("load", resolve);
         img.addEventListener("error", resolve);
-    })));
-    await doc.fonts?.ready;
+    }))), cap()]);
+    await Promise.race([doc.fonts?.ready, cap()]);
 
     // Chrome suggests the file name from the top page's title, not the frame's.
     const appTitle = document.title;

@@ -27,6 +27,7 @@ function isExternalUrl(url: string): boolean {
 }
 
 const DROP_TAGS = new Set(["script", "iframe", "object", "embed"]);
+const FETCHING_ATTRS = new Set(["poster", "background", "xlink:href", "data", "action", "formaction", "ping"]);
 const EXTERNAL_URL_RE = /(^|,)\s*(https?:)?\/\//i;
 const STYLE_EXTERNAL_RE = /url\(\s*["']?\s*(https?:)?\/\//i;
 const EXTERNAL_IMPORT_RE = /@import\s+(url\()?\s*["']?\s*(https?:|file:)?\/\/[^;]*;?/gi;
@@ -64,6 +65,12 @@ function sanitizeHTML(html: string): Document {
         if (href && isExternalUrl(href)) {
             if (tag === "link") { el.remove(); continue; }
             el.removeAttribute("href");
+        }
+
+        // Every other attribute that can make the browser fetch: a video
+        // poster, a legacy body/table background, SVG's xlink:href.
+        for (const attr of [...el.attributes]) {
+            if (FETCHING_ATTRS.has(attr.name) && isExternalUrl(attr.value)) el.removeAttribute(attr.name);
         }
 
         const srcset = el.getAttribute("srcset");
@@ -124,6 +131,8 @@ export function printableDocument(html: string, title?: string): string {
 
 /** The width an HTML page is laid out at for an image: a desktop window, whatever the app's. */
 const IMAGE_WIDTH = 1024;
+/** Longest the layout waits for images and fonts before measuring anyway. */
+const MEDIA_WAIT_MS = 10_000;
 /** The window height `vh` units and height media queries see. */
 const VIEWPORT_HEIGHT = 768;
 /** Rendered at twice its CSS size, like a screenshot on a high-density screen. */
@@ -248,16 +257,19 @@ class svgForeignObjectHandler implements FormatHandler {
         }
       }
 
-      // Wait for all images to finish loading. This is required for layout
-      // changes, not because we actually care about the image contents.
-      const images = Array.from(container.querySelectorAll("img, video"))
-        .filter(el => !(el.tagName === "IMG" && (el as HTMLImageElement).complete));
-      await Promise.all(images.map(image => new Promise(resolve => {
-        image.addEventListener("load", resolve);
-        image.addEventListener("loadeddata", resolve);
-        image.addEventListener("error", resolve);
-      })));
-      await doc.fonts?.ready;
+      // Wait for images to load, for their size, not their pixels. Only
+      // images: a <video> with just a poster fires neither load nor error,
+      // and waiting on it hung the conversion for good. Capped all the same.
+      const images = Array.from(container.querySelectorAll("img"))
+        .filter(img => !img.complete);
+      await Promise.race([
+        Promise.all(images.map(img => new Promise(resolve => {
+          img.addEventListener("load", resolve);
+          img.addEventListener("error", resolve);
+        }))),
+        new Promise(resolve => setTimeout(resolve, MEDIA_WAIT_MS)),
+      ]);
+      await Promise.race([doc.fonts?.ready, new Promise(resolve => setTimeout(resolve, MEDIA_WAIT_MS))]);
 
       // Make sure the browser has had time to render.
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
