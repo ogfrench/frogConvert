@@ -61,7 +61,7 @@ export const FEEDBACK_CONTACT_TEXT = `Still stuck, or want to share feedback? Em
 export const CONVERSION_NOT_AVAILABLE_TEXT = "This conversion isn't available yet.";
 export const GENERIC_CONVERSION_ERROR_TEXT = "Something went wrong while converting this file.";
 
-export type UserErrorKind =
+type UserErrorKind =
     | "not_available"
     | "input_issue"
     | "runtime_failure"
@@ -98,11 +98,17 @@ function cleanErrorText(err: unknown): string {
 }
 
 /**
- * Normalises an arbitrary thrown value into a short, user-facing string
- * suitable for display in popups. Strips stack frames, file URLs, and the
- * "Error:" prefix; maps a few known error shapes to friendlier copy; and
- * truncates to ~200 chars. Returns "" if nothing meaningful remains.
+ * Said when the converter could not be fetched.
+ *
+ * This is not the offline case: the browser has a connection, it just did not
+ * survive a 16 MB download. Diagnosed as "unknown" it produced "didn't
+ * complete this time - try a different target format or another file", which
+ * is advice that cannot possibly work, aimed at a file that was never the
+ * problem. Reported on a real EPS to PDF over a weak connection.
  */
+const ENGINE_DOWNLOAD_FAILED_TEXT =
+    "The converter for this format couldn't finish downloading. It's a one-time ~16 MB file and a weak connection will drop it. Your file is fine - try again, ideally on a steadier network.";
+
 /**
  * Whether the browser is certain there is no network.
  *
@@ -119,18 +125,6 @@ function cleanErrorText(err: unknown): string {
  * questions offline, and a failure that says nothing about the network sends
  * people looking for a problem with their file.
  */
-/**
- * Said when the converter could not be fetched.
- *
- * This is not the offline case: the browser has a connection, it just did not
- * survive a 16 MB download. Diagnosed as "unknown" it produced "didn't
- * complete this time - try a different target format or another file", which
- * is advice that cannot possibly work, aimed at a file that was never the
- * problem. Reported on a real EPS to PDF over a weak connection.
- */
-export const ENGINE_DOWNLOAD_FAILED_TEXT =
-    "The converter for this format couldn't finish downloading. It's a one-time ~16 MB file and a weak connection will drop it. Your file is fine - try again, ideally on a steadier network.";
-
 export function isOffline(): boolean {
     return typeof navigator !== "undefined" && navigator.onLine === false;
 }
@@ -139,6 +133,12 @@ export function isOffline(): boolean {
 export const OFFLINE_MESSAGE =
     "You're offline. frogConvert keeps working without a connection, but each converter downloads once the first time you use it, and this one hasn't been downloaded yet. Reconnect and try again.";
 
+/**
+ * Normalises an arbitrary thrown value into a short, user-facing string
+ * suitable for display in popups. Strips stack frames, file URLs, and the
+ * "Error:" prefix; maps a few known error shapes to friendlier copy; and
+ * truncates to ~200 chars. Returns "" if nothing meaningful remains.
+ */
 export function toUserErrorInfo(err: unknown): UserErrorInfo {
     let text = cleanErrorText(err);
 
