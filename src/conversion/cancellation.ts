@@ -14,9 +14,6 @@ let _activeMode: ConversionMode = "convert";
 export function setActiveConversionMode(mode: ConversionMode) {
     _activeMode = mode;
 }
-export function getActiveConversionMode(): ConversionMode {
-    return _activeMode;
-}
 /**
  * One verb for stopping, everywhere.
  *

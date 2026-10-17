@@ -39,7 +39,7 @@ function reportDownloadFailure(what: string, err: unknown): false {
  * to guarantee the same output everywhere.
  */
 const WIN_RESERVED = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$/i;
-export function sanitizeDownloadName(name: string): string {
+function sanitizeDownloadName(name: string): string {
     let out = name.replace(/[\x00-\x1f<>:"/\\|?*]/g, "_");
     out = out.replace(/[. ]+$/g, "");
     if (!out) out = "file";
