@@ -12,7 +12,7 @@
 // red, because the submodule is unreachable from a sandboxed environment and
 // present in CI. Cross-check `.gitmodules` before removing any ignore here.
 {
-  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
     // Referenced only by already-deployed HTML (see the file's own header).
     "public/async-css.js",
