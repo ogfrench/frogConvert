@@ -206,3 +206,47 @@
 .conversion-status {
   min-height: calc(4 * var(--leading-normal) * 1em);
 }
+
+/* Result notices. The card was designed for the Convert page (dismiss button
+   on the right, action beside the text); inside the result popup it picked
+   up the popup's centred text and paragraph margin, kept padding for a
+   dismiss button it doesn't have, and put a second black button next to
+   Download. Here it reads as a note: left-aligned, full width, with any
+   action as a quiet outlined button under the text. */
+#popup .convert-notice {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+  margin-top: 0;
+  padding: var(--space-4);
+  text-align: left;
+}
+
+#popup .convert-notice + .convert-notice {
+  margin-top: var(--space-3);
+}
+
+#popup .convert-notice-text {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+#popup .convert-notice-link {
+  align-self: flex-start;
+  padding: var(--space-2) var(--space-4);
+  background-color: transparent;
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+
+#popup .convert-notice-link:hover {
+  opacity: 1;
+  background-color: var(--background);
+}
+
+@media only screen and (max-width: 800px) {
+  #popup .convert-notice-link {
+    align-self: stretch;
+  }
+}
