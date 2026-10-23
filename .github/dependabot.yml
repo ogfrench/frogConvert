@@ -1,11 +1,12 @@
-# Keep the Bun lockfile, GitHub Actions, and Docker base images up to date.
+# Disable routine version-update PRs; security-update PRs remain available
+# when enabled in repository security settings.
 version: 2
 updates:
   - package-ecosystem: "bun"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     groups:
       bun-minor:
         update-types: ["minor", "patch"]
@@ -14,8 +15,10 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
+    open-pull-requests-limit: 0
 
   - package-ecosystem: "docker"
     directory: "/docker"
     schedule:
       interval: "monthly"
+    open-pull-requests-limit: 0
