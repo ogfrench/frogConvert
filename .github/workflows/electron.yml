@@ -53,6 +53,9 @@ jobs:
         run: bun i --frozen-lockfile
 
       - name: Build Distribution for ${{ matrix.platform }}
+        env:
+          # Vite can exhaust Node's default ~2 GB heap on macOS runners.
+          NODE_OPTIONS: ${{ matrix.platform == 'mac' && '--max-old-space-size=4096' || '' }}
         run: ${{ matrix.dist_cmd }}
 
       - name: Upload Artifacts

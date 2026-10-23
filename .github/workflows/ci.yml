@@ -98,7 +98,8 @@ jobs:
   # no sample to bootstrap from), so a red job here is a conversion that
   # actually broke.
   verify:
-    runs-on: ubuntu-latest
+    # Keep LibreOffice conversion verification on a stable runner image.
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
@@ -127,9 +128,19 @@ jobs:
       # office pairs report ENV and pass silently, which is the failure mode
       # this job exists to remove.
       - name: Install LibreOffice
+        timeout-minutes: 12
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          # On hosted runners, APT's Azure mirror intermittently trickles large
+          # LibreOffice packages at <100 KB/s. Prefer Canonical's archive and
+          # keep Azure plus the security archive as fallback mirrors.
+          # The runner's apt sources reference this mirror+file list.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            printf 'https://archive.ubuntu.com/ubuntu/\tpriority:1\nhttp://azure.archive.ubuntu.com/ubuntu/\tpriority:2\nhttps://security.ubuntu.com/ubuntu/\tpriority:3\n' |
+              sudo tee /etc/apt/apt-mirrors.txt
+          fi
+          # Retry the next mirror instead of waiting on the same stalled host.
+          sudo apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y --no-install-recommends \
             libreoffice-writer libreoffice-impress libreoffice-calc
 
       - name: Verify conversions
@@ -271,3 +282,32 @@ jobs:
           echo "  integrity   : OK (matches bun.lock)"
           echo "  equivalence : OK (code identical to official $VERSION)"
           echo "=================================================="
+
+  # Publish v3.1.5 only after all master CI jobs pass. This is intentionally
+  # scoped to one patch release, not an automatic release on every push.
+  release-v3-1-5:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [build, verify, nginx, xlsx-provenance]
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Dispatch v3.1.5 desktop release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "$version" != "3.1.5" ]; then
+            echo "Package version is $version; skipping v3.1.5 release"
+            exit 0
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v3.1.5" >/dev/null 2>&1; then
+            echo "v3.1.5 tag already exists; skipping"
+            exit 0
+          fi
+          gh workflow run electron.yml --ref master -f tag=v3.1.5
