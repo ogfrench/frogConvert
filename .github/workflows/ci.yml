@@ -98,7 +98,8 @@ jobs:
   # no sample to bootstrap from), so a red job here is a conversion that
   # actually broke.
   verify:
-    runs-on: ubuntu-latest
+    # Keep LibreOffice conversion verification on a stable runner image.
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
@@ -127,9 +128,10 @@ jobs:
       # office pairs report ENV and pass silently, which is the failure mode
       # this job exists to remove.
       - name: Install LibreOffice
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends \
             libreoffice-writer libreoffice-impress libreoffice-calc
 
       - name: Verify conversions
