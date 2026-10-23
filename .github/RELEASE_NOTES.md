@@ -9,21 +9,13 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.1.3
+## What's new in 3.1.4
 
-**Print as PDF.** When you convert an HTML or Markdown file to PDF in the browser, the PDF is made of pictures, so its text can't be selected. The result now offers **Print as PDF**: your browser's print window opens on the page, already set to A4 with backgrounds printed and no date or web address stamped on the pages. Choose Save as PDF and you get a PDF with real, selectable text. (A website can't save a PDF with text without that window; browsers don't allow it. The desktop app does it in one click.)
+**Security maintenance.** Updated DOMPurify, fflate, the MCP TypeScript SDK, and the XML parser to patched versions. The XML parser stays on its compatible 0.8.x line to avoid breaking TMX conversions.
 
-**Cleaner result notices.** Notes on the result screen are now easy to read, with their action as a quiet button underneath, so Download stays the one obvious next step.
+**Dependency and build updates.** Updated marked and opentype.js, refreshed GitHub Actions used for CI, Docker builds and desktop releases, and tightened unused-code checks.
 
-**Smoother progress.** The progress window no longer shows an empty line or jumps: lines fade into each other, nothing moves, and the result grows into place instead of popping in.
-
-**Sturdier HTML conversion.** A page with a video can no longer hang the conversion, wide tables are no longer cut off, long documents show which page they are on, and converting a page can no longer reach the network through any link or style in it.
-
-**Fewer "unsupported" surprises.** Files named `.htm`, `.tif`, `.yaml`, `.jfif`, `.midi`, `.markdown` and similar are recognised even when your system does not say what they are, and a feature that fails to load once (say, a dropped connection) loads again on the next try instead of staying broken until you reload.
-
-**For agents (MCP and REST).** HTML and Markdown to PDF now come out with real text and the page's own layout, REST returns warnings like MCP does, and a PDF made of pictures says so on every surface.
-
-For HTML and Markdown that look like the original (3.1.2), see the [3.1.2 release](https://github.com/ogfrench/frogConvert/releases/tag/v3.1.2). For the browser Office engine and everything else new in 3.1, see the [3.1.0 release](https://github.com/ogfrench/frogConvert/releases/tag/v3.1.0). Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
+This is a maintenance release rather than a feature release. Full history is available in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
 ---
 

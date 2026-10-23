@@ -10,6 +10,21 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.1.4] - 2026-10-23
+
+Security and dependency maintenance release.
+
+### Security
+- Update DOMPurify to 3.4.17, addressing sanitization vulnerabilities.
+- Update the MCP TypeScript SDK to 1.32.1 for upstream security fixes. frogConvert's MCP integration uses stdio transport.
+- Update fflate to 0.8.3 to address malformed ZIP processing.
+- Update @xmldom/xmldom to patched 0.8.15 without adopting incompatible 0.9.x typings.
+
+### Changed
+- Update marked to 18.1.1 and opentype.js to 2.0.0.
+- Refresh GitHub Actions dependencies used by CI, Docker builds, and Electron releases.
+- Tighten static analysis and remove unused code.
+
 ## [3.1.3] - 2026-10-17
 
 A PDF with real text from HTML and Markdown in the browser, through its print window.
