@@ -1,0 +1,46 @@
+name: Refresh Electron security lockfile
+
+on:
+  pull_request:
+    paths:
+      - package.json
+      - .github/workflows/update-electron-lock.yml
+
+permissions:
+  contents: write
+
+jobs:
+  update-lockfile:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'fix/electron-macos-vite-heap-20261023'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
+          persist-credentials: true
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Regenerate lockfile without running install scripts
+        run: |
+          node -e "if(require('./package.json').devDependencies.electron !== '44.9.3')process.exit(1)"
+          bun install --lockfile-only --ignore-scripts
+          bun install --frozen-lockfile --dry-run
+
+      - name: Commit lockfile if updated
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if git diff --quiet -- bun.lock; then
+            echo "Bun lockfile already up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bun.lock
+          git commit -m "chore(security): refresh Bun lockfile for Electron 44.9.3"
+          git push origin "HEAD:${HEAD_REF}"
