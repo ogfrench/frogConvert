@@ -6,7 +6,7 @@
 // run that the republish is byte-identical to the official release.
 // When updating SheetJS, bump the aliased version in package.json.
 import * as XLSX from "xlsx";
-import { DOMParser } from "@xmldom/xmldom";
+import { DOMParser, type Element as XMLElement } from "@xmldom/xmldom";
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 import type { FileData, FileFormat } from "../core/FormatHandler/FormatHandler.ts";
 import { BaseHandler } from "../core/FormatHandler/BaseHandler.ts";
@@ -84,7 +84,7 @@ export default class TMXHandler extends BaseHandler {
       const doc = new DOMParser().parseFromString(text, "text/xml");
 
       // Collect unique language codes from <tuv xml:lang="...">
-      const getLang = (el: Element) => el.getAttributeNS(XML_NS, "lang") || el.getAttribute("xml:lang") || "";
+      const getLang = (el: XMLElement) => el.getAttributeNS(XML_NS, "lang") || el.getAttribute("xml:lang") || "";
       const tuvs = Array.from(doc.getElementsByTagName("tuv"));
       const langs = [...new Set(tuvs.map(getLang))].filter(Boolean);
 
