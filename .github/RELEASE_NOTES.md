@@ -9,13 +9,13 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.1.4
+## What's new in 3.1.5
 
-**Security maintenance.** Updated DOMPurify, fflate, the MCP TypeScript SDK, and the XML parser to patched versions. The XML parser stays on its compatible 0.8.x line to avoid breaking TMX conversions.
+**Build stability.** Fixed intermittent macOS Electron builds running out of Node heap, and made LibreOffice conversion verification use a consistent Linux runner with network retries and a bounded installation step.
 
-**Dependency and build updates.** Updated marked and opentype.js, refreshed GitHub Actions used for CI, Docker builds and desktop releases, and tightened unused-code checks.
+**Dependency compatibility.** Updated the dependency group and adjusted TMX XML typing and ImageMagick WASM asset loading for updated packages.
 
-This is a maintenance release rather than a feature release. Full history is available in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
+This is a maintenance release. Full history is available in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
 ---
 
