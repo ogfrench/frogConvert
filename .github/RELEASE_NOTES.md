@@ -11,6 +11,8 @@ automatically, so do not paste one here.
 
 ## What's new in 3.1.5
 
+**Electron security.** Updated the desktop runtime to Electron 44.9.3, addressing 13 reported GitHub Dependabot advisories in the previous 40.x series.
+
 **Build stability.** Fixed intermittent macOS Electron builds running out of Node heap, and made LibreOffice conversion verification use a consistent Linux runner with network retries and a bounded installation step.
 
 **Dependency compatibility.** Updated the dependency group and adjusted TMX XML typing and ImageMagick WASM asset loading for updated packages.
