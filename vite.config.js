@@ -518,7 +518,7 @@ export default defineConfig({
           dest: "wasm"
         },
         {
-          src: "node_modules/@imagemagick/magick-wasm/dist/magick.wasm",
+          src: "node_modules/@imagemagick/magick-wasm/dist/x86/magick.wasm",
           dest: "wasm"
         },
         {

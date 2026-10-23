@@ -72,7 +72,7 @@ Object.defineProperty(globalThis, 'fetch', {
             const path = await import('path');
             const filename = path.basename(normalizedUrl);
             const fileMap: Record<string, string> = {
-                'magick.wasm': 'node_modules/@imagemagick/magick-wasm/dist/magick.wasm',
+                'magick.wasm': 'node_modules/@imagemagick/magick-wasm/dist/x86/magick.wasm',
                 'pandoc.wasm': 'src/handlers/pandoc/pandoc.wasm',
                 'ffmpeg-core.js': 'node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js',
                 'ffmpeg-core.wasm': 'node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.wasm',
