@@ -128,10 +128,19 @@ jobs:
       # office pairs report ENV and pass silently, which is the failure mode
       # this job exists to remove.
       - name: Install LibreOffice
-        timeout-minutes: 10
+        timeout-minutes: 12
         run: |
-          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends \
+          # On hosted runners, APT's Azure mirror intermittently trickles large
+          # LibreOffice packages at <100 KB/s. Prefer Canonical's archive and
+          # keep Azure plus the security archive as fallback mirrors.
+          # The runner's apt sources reference this mirror+file list.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            printf 'https://archive.ubuntu.com/ubuntu/\tpriority:1\nhttp://azure.archive.ubuntu.com/ubuntu/\tpriority:2\nhttps://security.ubuntu.com/ubuntu/\tpriority:3\n' |
+              sudo tee /etc/apt/apt-mirrors.txt
+          fi
+          # Retry the next mirror instead of waiting on the same stalled host.
+          sudo apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y --no-install-recommends \
             libreoffice-writer libreoffice-impress libreoffice-calc
 
       - name: Verify conversions
