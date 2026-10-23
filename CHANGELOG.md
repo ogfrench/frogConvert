@@ -14,6 +14,9 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 Maintenance release with packaging and verification reliability fixes.
 
+### Security
+- Upgrade Electron to 44.9.3 to address 13 Electron advisories affecting the prior 40.x desktop build, including sandbox, cross-origin, permission attribution, and GPU-frame validation issues.
+
 ### Fixed
 - Prevent intermittent out-of-memory failures in the macOS Electron Vite build by raising the Node heap limit for that runner.
 - Stabilize strict LibreOffice conversion verification on Ubuntu 24.04 with bounded APT retries, network timeouts, and an installation deadline.
