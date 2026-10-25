@@ -18,7 +18,15 @@ import {
 
 let conversionWorker: Worker | null = null;
 let workerMsgId = 0;
-export const WORKER_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+/**
+ * How long a job may go without a word from its engine before it is given up.
+ *
+ * Measured from the last progress message, not from the start: a video encode
+ * that reports `Encoded 41s of 60s` every second is working, and killing it at
+ * a fixed ten minutes threw away the work of exactly the files that take
+ * longest. An engine that reports nothing at all still gets ten minutes in total.
+ */
+export const WORKER_TIMEOUT_MS = 10 * 60 * 1000;
 let workerErrorCallback: ((e: ErrorEvent) => void) | null = null;
 
 function getConversionWorker(): Worker {
@@ -118,6 +126,7 @@ function startWorkerJob(handlerName: string, inputFiles: FileData[], inputFormat
         // starting it would burn an engine run nobody is waiting for.
         if (isCancelled) { reject(new Error("Cancelled")); return; }
 
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
         const cleanup = () => {
             clearTimeout(timeoutId);
             worker.removeEventListener("message", onMessage);
@@ -136,6 +145,7 @@ function startWorkerJob(handlerName: string, inputFiles: FileData[], inputFormat
             const msg = ev.data;
             if (msg.id !== id) return;
             if (msg.type === "progress") {
+                armTimeout();
                 onProgress?.({ ratio: msg.ratio, detail: msg.detail });
                 return;
             }
@@ -147,10 +157,14 @@ function startWorkerJob(handlerName: string, inputFiles: FileData[], inputFormat
             }
         };
 
-        const timeoutId = setTimeout(() => {
-            cleanup();
-            reject(new Error(`Conversion timed out after ${WORKER_TIMEOUT_MS / 60000} minutes.`));
-        }, WORKER_TIMEOUT_MS);
+        const armTimeout = () => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                cleanup();
+                reject(new Error(`Conversion timed out after ${WORKER_TIMEOUT_MS / 60000} minutes without progress.`));
+            }, WORKER_TIMEOUT_MS);
+        };
+        armTimeout();
 
         worker.addEventListener("message", onMessage);
         const abandon = () => {

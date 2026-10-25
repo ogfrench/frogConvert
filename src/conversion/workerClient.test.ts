@@ -235,6 +235,30 @@ describe("runInWorker - teardown paths", () => {
         expect(worker.listeners).toHaveLength(0);
     });
 
+    it("progress from the engine keeps a long job alive", async () => {
+        // A long video encode reports progress all the way through; a fixed
+        // ten-minute cap killed it while it was still working.
+        vi.useFakeTimers();
+        const { promise, worker } = await start();
+        const id = worker.lastPost.id;
+        for (let i = 0; i < 3; i++) {
+            await vi.advanceTimersByTimeAsync(WORKER_TIMEOUT_MS - 1000);
+            worker.emit({ id, type: "progress", ratio: i / 3 });
+        }
+        worker.emit({ id, type: "success", outputFiles: [] });
+        await expect(promise).resolves.toEqual([]);
+    });
+
+    it("an engine that goes quiet mid-job still times out", async () => {
+        vi.useFakeTimers();
+        const { promise, worker } = await start();
+        const assertion = expect(promise).rejects.toThrow("timed out after 10 minutes without progress");
+        await vi.advanceTimersByTimeAsync(WORKER_TIMEOUT_MS / 2);
+        worker.emit({ id: worker.lastPost.id, type: "progress", ratio: 0.5 });
+        await vi.advanceTimersByTimeAsync(WORKER_TIMEOUT_MS + 1);
+        await assertion;
+    });
+
     it("a completed run does not fire the timeout later", async () => {
         vi.useFakeTimers();
         const { promise, worker } = await start();

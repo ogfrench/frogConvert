@@ -46,6 +46,15 @@ describe("FFmpeg source invariants", () => {
         expect(listener).toMatch(/durationMs\s*&&\s*durationMs\s*>\s*0/);
     });
 
+    it("still runs x264 at a fast preset that keeps files small", () => {
+        // x264's default `medium` on this single-threaded core took ~20x the
+        // clip's length for 1080p and ~70x for 4K, so a one-minute phone video
+        // hit the worker timeout. superfast/ultrafast are faster but their
+        // files grow by multiples, which defeats Compress.
+        expect(SRC).toMatch(/const X264_PRESET = "(veryfast|faster|fast)"/);
+        expect(SRC).toMatch(/command\.push\("-preset", X264_PRESET\)/);
+    });
+
     it("still pins WebM to the encoders that do not crash", () => {
         // Both of the muxer's preferred encoders die in this WASM core with
         // "memory access out of bounds" on a two-second clip: libvpx-vp9 for
