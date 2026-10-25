@@ -9,13 +9,11 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.2.0
+## What's new in 3.2.1
 
-**Video compresses much faster.** Video now uses a faster encoder setting, about twice as fast in the browser with files no bigger. Below the High level, anything larger than 1080p is scaled down to 1080p, which makes 4K phone clips several times faster and much smaller. Portrait videos keep their width, and High still keeps full resolution.
+**Same app as 3.2.0, safer releases.** This release changes how frogConvert is published, not what it does. A release now goes out only after every test has passed on that exact build, and appears only once the Windows, macOS and Linux downloads are all attached, so you never land on a release page with a file missing. The build tools are pinned, so each release is made with exactly what was tested.
 
-**Long videos finish.** A conversion that is still making progress is no longer stopped at ten minutes. A stuck one still is, and the next file then gets a fresh engine instead of waiting behind it.
-
-**Engines start sooner and load once.** The video and image engines load once in the background, as soon as you add a file, instead of after you press Compress or Convert. In our tests, compressing an MP3 went from 16 to under 4 seconds and a 10 MP photo from 4.8 to 2.7 seconds.
+If you already have 3.2.0 there is nothing new to try; the faster video and quicker start-up from [3.2.0](https://github.com/ogfrench/frogConvert/releases/tag/v3.2.0) are all here.
 
 Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 

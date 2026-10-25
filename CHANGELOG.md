@@ -10,6 +10,10 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.2.1] - 2026-10-25
+
+Release-process update. The app is unchanged from 3.2.0.
+
 ### Changed
 - Releases publish only after CI passed on the commit, the tag matches `package.json`, and the release notes cover the version. The release is created as a draft and published once all three installers are attached, instead of going live with whichever platform finished first.
 - Merging a version bump to master releases it automatically; the hard-coded v3.1.5 release job is gone.
