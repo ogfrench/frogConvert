@@ -107,6 +107,12 @@ export type CompressBatchOptions = {
      */
     onEngineInit?: (handlerName: string, format: FileFormat) => void;
     /**
+     * `run` executes in a worker with its own handler instances. Handlers that
+     * declare `initInWorker` are then not loaded here at all - only their
+     * cached format list is consulted - and the worker loads them once.
+     */
+    runsInWorker?: boolean;
+    /**
      * Called immediately before a file's bytes are read off disk. The read is
      * where "Reading your file..." actually belongs; it used to be shown before
      * the engine load instead, one phase too early.
@@ -155,7 +161,7 @@ export async function compressBatch(
     const {
         options, level, run, onProgress,
         onEngineProgress, onEngineInit, onFileRead, onFileCompress,
-        isCancelled,
+        isCancelled, runsInWorker,
     } = opts;
 
     // Preserve input order in the results regardless of grouping.
@@ -213,7 +219,9 @@ export async function compressBatch(
 
         // One init per group rather than per file - the WASM load is the
         // expensive part and a mixed batch may need more than one engine.
-        let ready = handler.ready;
+        let ready = handler.ready
+            || (!!runsInWorker && !!handler.initInWorker && !handler.requiresMainThread
+                && !!handlerSupportsFormat(handler, group.format));
         if (!ready) {
             // Say so before the wait, not after it. This is the 32 MB download.
             onEngineInit?.(handler.name, group.format);

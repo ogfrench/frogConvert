@@ -88,6 +88,7 @@ import {
   type PdfQuality,
 } from "./components/store/store.ts";
 import { preloadGhostscript } from "./tools/ghostscriptPreload.ts";
+import { warmHandler } from "./conversion/workerClient.ts";
 import {
   findMatchingFormat,
   initConvertButton,
@@ -667,6 +668,10 @@ initUploadZone(
     }
 
     showFileInUploadZone(files);
+    // Almost every conversion of audio or video runs through FFmpeg, so start
+    // its 32 MB load now rather than on the Convert click.
+    const inMime = matchIndex >= 0 ? allOptionsRef.value[matchIndex].format.mime ?? "" : "";
+    if (/^(video|audio)\//.test(inMime)) warmHandler("FFmpeg");
 
     if (matchIndex >= 0) {
       selectedFromIndex.value = matchIndex;

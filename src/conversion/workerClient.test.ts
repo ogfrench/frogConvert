@@ -235,6 +235,16 @@ describe("runInWorker - teardown paths", () => {
         expect(worker.listeners).toHaveLength(0);
     });
 
+    it("a timed-out worker is replaced, so the next file is not posted to it", async () => {
+        vi.useFakeTimers();
+        const { promise, worker } = await start();
+        const assertion = expect(promise).rejects.toThrow("timed out");
+        await vi.advanceTimersByTimeAsync(WORKER_TIMEOUT_MS + 1);
+        await assertion;
+        const next = await start();
+        expect(next.worker).not.toBe(worker);
+    });
+
     it("progress from the engine keeps a long job alive", async () => {
         // A long video encode reports progress all the way through; a fixed
         // ten-minute cap killed it while it was still working.

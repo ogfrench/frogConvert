@@ -241,6 +241,14 @@ export interface FormatHandler {
    */
   requiresMainThread?: boolean;
   /**
+   * The engine is only ever run by the conversion worker, which loads its own
+   * instance. A caller on the main thread that already has the handler's format
+   * list (from the format cache) can skip {@link init} here: running it loaded
+   * a 32 MB FFmpeg or 15 MB ImageMagick on the main thread for nothing, before
+   * the worker loaded the same engine again.
+   */
+  initInWorker?: boolean;
+  /**
    * Whether this handler actually reads the `--quality` argument.
    *
    * Every hop is handed `--quality`, but only the media and PDF engines do

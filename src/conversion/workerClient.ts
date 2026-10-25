@@ -106,6 +106,20 @@ export function cancelActiveWorkerJob(): boolean {
     return true;
 }
 
+/**
+ * Start loading a handler's engine in the worker before any job needs it.
+ *
+ * The engine is the longest wait on a first conversion (a 32 MB download and
+ * compile for FFmpeg) and used to start only on the Convert or Compress click.
+ * Called when a file arrives, it overlaps with the user picking a format or a
+ * level. Fire and forget; a job sent later waits on the same load.
+ */
+export function warmHandler(handlerName: string): void {
+    try {
+        getConversionWorker().postMessage({ id: 0, handlerName, warm: true });
+    } catch { /* no workers here; the job will load it */ }
+}
+
 export function runInWorker(handlerName: string, inputFiles: FileData[], inputFormat: FileFormat, outputFormat: FileFormat, args?: string[], onProgress?: (p: ProgressEvent) => void): Promise<FileData[]> {
     const start = () => startWorkerJob(handlerName, inputFiles, inputFormat, outputFormat, args, onProgress);
     // Runs whether the predecessor resolved or rejected: one caller's failure
@@ -161,6 +175,11 @@ function startWorkerJob(handlerName: string, inputFiles: FileData[], inputFormat
             clearTimeout(timeoutId);
             timeoutId = setTimeout(() => {
                 cleanup();
+                // A silent engine is usually stuck inside WASM, which never
+                // yields to another message: the next queued file would be
+                // posted to the same frozen worker and wait forever.
+                try { worker.terminate(); } catch { /* already gone */ }
+                conversionWorker = null;
                 reject(new Error(`Conversion timed out after ${WORKER_TIMEOUT_MS / 60000} minutes without progress.`));
             }, WORKER_TIMEOUT_MS);
         };

@@ -9,6 +9,8 @@ export type ConvertRequestMessage = {
     inputFormat: FileFormat;
     outputFormat: FileFormat;
     args?: string[];
+    /** Load the handler's engine and convert nothing; see `warmHandler`. */
+    warm?: true;
 };
 
 export type ConvertResponseMessage =
@@ -57,6 +59,12 @@ self.onmessage = async (ev: MessageEvent<ConvertRequestMessage>) => {
     const { id, handlerName, inputFiles, inputFormat, outputFormat, args } = msg;
 
     const post = (m: ConvertResponseMessage) => (self as any).postMessage(m);
+
+    if (msg.warm) {
+        // No reply: a convert that arrives mid-load awaits the same init.
+        getHandler(handlerName).catch(() => { /* the real job reports it */ });
+        return;
+    }
 
     try {
         // The worker keeps its own handler instances, so an engine already

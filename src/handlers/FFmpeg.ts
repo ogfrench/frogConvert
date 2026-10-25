@@ -110,6 +110,11 @@ function multiThreadCount(): number {
 }
 const MAX_ENCODER_THREADS = 4;
 
+function inWorkerScope(): boolean {
+  return typeof (globalThis as { WorkerGlobalScope?: unknown }).WorkerGlobalScope !== "undefined"
+    && typeof (globalThis as { document?: unknown }).document === "undefined";
+}
+
 /** Containers whose default video encoder in this core is libx264. */
 const X264_CONTAINERS = new Set(["mp4", "mov", "mkv"]);
 
@@ -482,6 +487,9 @@ class FFmpegHandler implements FormatHandler {
   public usesQuality = true;
   public supportedFormats: FileFormat[] = [];
   public ready: boolean = false;
+  public initInWorker = true;
+  /** Set once doConvert has used the engine, so the next file gets a fresh one. */
+  #used = false;
 
   #ffmpeg?: any; // NativeFFmpegAdapter | FFmpegWASM
   /** Threads for x264, set when the multi-threaded core loaded. */
@@ -778,8 +786,14 @@ class FFmpegHandler implements FormatHandler {
     // APNG as the same thing.
     this.supportedFormats.push(CommonFormats.PNG.builder("png").allowFrom());
 
-    this.#ffmpeg.terminate();
-
+    // Kept loaded in the conversion worker: the first doConvert used to reload
+    // it straight away, so a first video paid for compiling the 32 MB core
+    // twice. Anywhere else (the main thread, filling the format cache) nothing
+    // will convert with this instance soon, so its memory is given back.
+    if (!inWorkerScope()) {
+      this.#ffmpeg.terminate();
+      this.#used = true;
+    }
     this.ready = true;
   }
 
@@ -821,7 +835,11 @@ class FFmpegHandler implements FormatHandler {
       throw new Error("Refusing to convert: output format extension is not a safe identifier.");
     }
 
-    await this.reloadFFmpeg();
+    // A fresh engine per file, as before, except the first: init just loaded
+    // one. WASM memory never shrinks, so a long video would otherwise leave the
+    // next file running in its heap.
+    if (this.#used) await this.reloadFFmpeg();
+    this.#used = true;
 
     let forceFPS = 0;
     if (inputFormat.mime === "image/png" || inputFormat.mime === "image/jpeg") {

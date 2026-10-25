@@ -49,7 +49,7 @@ import {
     OFFLINE_MESSAGE,
     type UserErrorInfo,
 } from "../components/utils/index.ts";
-import { runInWorker, WORKER_TIMEOUT_MS } from "./workerClient.ts";
+import { runInWorker, warmHandler, WORKER_TIMEOUT_MS } from "./workerClient.ts";
 import { hopQualityArgs, resolveAutoQuality } from "../core/compression/hopQuality.ts";
 import { startConversionStatus, statusHTML, type StatusHandle } from "./progressStatus.ts";
 import { routeQualityNotice, PRINT_ACTION_LABEL } from "./routeQuality.ts";
@@ -135,10 +135,25 @@ async function downloadAllConvertedFiles() {
 
 // --- Conversion logic helpers ---
 
+/**
+ * True when the main thread can leave this handler unloaded: the worker runs
+ * it and loads its own copy, and the format cache already answers what it
+ * supports. See FormatHandler.initInWorker.
+ */
+function loadsInWorker(handler: FormatHandler): boolean {
+    return !!handler.initInWorker
+        && !handler.requiresMainThread
+        && !!window.supportedFormatCache.get(handler.name);
+}
+
 async function preInitPath(path: ConvertPathNode[], onProgress?: (outputFormat: FileFormat) => void) {
     for (let i = 0; i < path.length - 1; i++) {
         if (isCancelled) return;
         const handler = path[i + 1].handler;
+        if (loadsInWorker(handler)) {
+            warmHandler(handler.name);
+            continue;
+        }
         if (!handler.ready) {
             const downloadStart = performance.now();
             onProgress?.(path[i + 1].format);
@@ -250,7 +265,7 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
         const handler = path[i + 1].handler;
         try {
             let supportedFormats = window.supportedFormatCache.get(handler.name);
-            if (!handler.ready) {
+            if (!handler.ready && !loadsInWorker(handler)) {
                 await handler.init();
                 if (!handler.ready) throw `Handler "${handler.name}" not ready after init.`;
                 if (handler.supportedFormats) {
@@ -281,13 +296,26 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], on
 
             let outputFiles: FileData[];
             if (handler.requiresMainThread) {
-                const timeoutPromise = new Promise<never>((_, reject) =>
-                    setTimeout(() => reject(new Error(`Conversion timed out after ${WORKER_TIMEOUT_MS / 60000} minutes.`)), WORKER_TIMEOUT_MS)
-                );
-                outputFiles = await Promise.race([
-                    handler.doConvert(files, inputFormat, path[i + 1].format, hopArgs, hopProgress),
-                    timeoutPromise,
-                ]);
+                // Same rule as the worker: ten minutes without a word from the
+                // engine, not ten minutes in total. The timer used to outlive
+                // every conversion, too.
+                let timer: ReturnType<typeof setTimeout> | undefined;
+                let rejectTimeout: (e: Error) => void = () => {};
+                const arm = () => {
+                    clearTimeout(timer);
+                    timer = setTimeout(() => rejectTimeout(new Error(
+                        `Conversion timed out after ${WORKER_TIMEOUT_MS / 60000} minutes without progress.`)), WORKER_TIMEOUT_MS);
+                };
+                const timeoutPromise = new Promise<never>((_, reject) => { rejectTimeout = reject; });
+                arm();
+                try {
+                    outputFiles = await Promise.race([
+                        handler.doConvert(files, inputFormat, path[i + 1].format, hopArgs, (p) => { arm(); hopProgress?.(p); }),
+                        timeoutPromise,
+                    ]);
+                } finally {
+                    clearTimeout(timer);
+                }
             } else {
                 outputFiles = await runInWorker(handler.name, files, inputFormat, path[i + 1].format, hopArgs, hopProgress);
             }
