@@ -210,6 +210,19 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         expect(o.files[0].name).toMatch(/\.png$/);
     }, 300_000);
 
+    // FFmpeg now loads only in the worker, starting when the file is added,
+    // and x264 runs at a fixed preset. Both video encoders must still produce
+    // a playable file through the Converter.
+    it("mp4 -> webm -> mp4 still encodes, through VP8 and then x264", async () => {
+        const webm = await convert(path.join(RES, "doom.mp4"), "webm");
+        expect([...read(webm).subarray(0, 4)]).toEqual([0x1a, 0x45, 0xdf, 0xa3]);
+        // VP8 cannot be copied into MP4, so this hop re-encodes with x264.
+        const webmPath = path.join(TMP, "doom.webm");
+        fs.writeFileSync(webmPath, read(webm));
+        const mp4 = await convert(webmPath, "mp4");
+        expect(read(mp4).subarray(4, 8).toString("latin1")).toBe("ftyp");
+    }, 600_000);
+
     it("png -> jpg is a plain success with no notice", async () => {
         const o = await convert(path.join(RES, "colors_50x50.png"), "jpeg");
         expect(read(o).subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));

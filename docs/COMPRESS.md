@@ -89,14 +89,16 @@ A fourth case worth knowing: **compressing a PNG gives the same file at every le
 
 ## Speed
 
-Measured in Chromium on one machine, Automatic level, warm browser cache, time from the Compress click to the result:
+Measured in headless Chromium on one 4-core machine, Automatic level, time from the Compress click to the result. Synthetic clips for 1080p and 4K, corpus files for the rest:
 
-| File | 3.1.5 | 3.2.0 |
-|---|---|---|
-| 5 s of 1080p video | 112 s | see below |
-| 2 s of 4K video | 143 s | see below |
-| 5.9 MB MP3 | 16 s | 3.7 s |
-| 10 MP JPEG | 4.8 s | 2.7 s |
+| File | Before (3.1.5) | 3.2.0 | Size change in 3.2.0 |
+|---|---|---|---|
+| 5 s of 1080p video | 112 s | 39 s | −64% |
+| 2 s of 4K video | 143 s | 22 s | −96% (now 1080p) |
+| 5.9 MB MP3 | 16 s | 3.7 s | −3% |
+| 10 MP JPEG | 4.8 s | 2.7 s | −92% |
+
+PDFs (1-6 s) did not change.
 
 Video was slow because FFmpeg's WASM build runs x264 on one thread with no SIMD, at x264's default `medium` preset, and a one-minute phone video hit the ten-minute worker timeout. Three changes: x264 runs at `veryfast` (about 2.8x faster, files no bigger), levels below High cap the picture at 1080p on the short edge, and the worker timeout counts from the last progress message, so a long encode that is still moving is not killed. The multi-threaded FFmpeg build was tried and left out: it hung during start-up in the worker.
 
