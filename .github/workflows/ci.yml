@@ -5,6 +5,14 @@ on:
     branches: ["master"]
   pull_request:
 
+permissions:
+  contents: read
+
+env:
+  # Pinned, so a Bun release cannot change what CI tests with. Keep in step
+  # with electron.yml, which builds the release with the same version.
+  BUN_VERSION: "1.4.4"
+
 concurrency:
   group: "ci-${{ github.ref }}"
   cancel-in-progress: true
@@ -15,17 +23,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: "latest"
+          bun-version: ${{ env.BUN_VERSION }}
 
       - name: Cache Bun dependencies
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.bun/install/cache
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
@@ -103,17 +111,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: "latest"
+          bun-version: ${{ env.BUN_VERSION }}
 
       - name: Cache Bun dependencies
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.bun/install/cache
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
@@ -166,7 +174,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Same tag as the Dockerfile runtime stage - keep the two in step.
       - name: Validate nginx config
@@ -202,7 +210,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Verify the xlsx republish is the official SheetJS code
         run: |
@@ -283,9 +291,11 @@ jobs:
           echo "  equivalence : OK (code identical to official $VERSION)"
           echo "=================================================="
 
-  # Publish v3.1.5 only after all master CI jobs pass. This is intentionally
-  # scoped to one patch release, not an automatic release on every push.
-  release-v3-1-5:
+  # Releases a version bump once master CI is green. A push whose package.json
+  # version already has a tag does nothing, so this fires once per version,
+  # not on every push. electron.yml's preflight re-checks the tag, the notes
+  # and this CI run before anything is published.
+  release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: [build, verify, nginx, xlsx-provenance]
     runs-on: ubuntu-24.04
@@ -295,19 +305,16 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Dispatch v3.1.5 desktop release
+      - name: Dispatch the desktop release for a new version
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=$(node -p "require('./package.json').version")
-          if [ "$version" != "3.1.5" ]; then
-            echo "Package version is $version; skipping v3.1.5 release"
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$version" >/dev/null 2>&1; then
+            echo "v$version is already tagged; nothing to release"
             exit 0
           fi
-          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v3.1.5" >/dev/null 2>&1; then
-            echo "v3.1.5 tag already exists; skipping"
-            exit 0
-          fi
-          gh workflow run electron.yml --ref master -f tag=v3.1.5
+          echo "Releasing v$version"
+          gh workflow run electron.yml --ref master -f tag="v$version"

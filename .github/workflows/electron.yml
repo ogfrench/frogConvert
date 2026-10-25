@@ -11,7 +11,66 @@ on:
         description: "Tag to create and publish a GitHub Release for (e.g. v2.5.0)"
         required: true
 
+# Least privilege by default; only the release job can write.
+permissions:
+  contents: read
+
+env:
+  # Pinned, so a Bun release cannot change what a release build is made with.
+  # Keep in step with ci.yml.
+  BUN_VERSION: "1.4.4"
+
 jobs:
+  # Fails a release before anything is published: the tag must match
+  # package.json, the release notes and CHANGELOG must cover that version, and
+  # CI must have passed on this exact commit. The release workflow builds
+  # whatever commit it is handed and never ran the test suite itself, so a red
+  # commit used to be one dispatch away from being published.
+  preflight:
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Tag, version and notes agree
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::Tag $TAG does not match package.json version $version (expected v$version)."
+            exit 1
+          fi
+          grep -q "^## What's new in $version\$" .github/RELEASE_NOTES.md \
+            || { echo "::error::.github/RELEASE_NOTES.md has no \"## What's new in $version\" section."; exit 1; }
+          grep -q "^## \[$version\]" CHANGELOG.md \
+            || { echo "::error::CHANGELOG.md has no [$version] section."; exit 1; }
+
+      - name: CI passed on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        # CI may still be running when a release is dispatched straight after a
+        # merge, so wait for it rather than fail early (CI takes ~8 minutes).
+        run: |
+          for attempt in $(seq 1 60); do
+            run=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SHA&event=push&per_page=1" \
+              --jq '.workflow_runs[0] | if . == null then "none" else "\(.status) \(.conclusion) \(.html_url)" end')
+            echo "CI on $SHA: $run"
+            case "$run" in
+              "completed success "*) exit 0 ;;
+              completed*) echo "::error::CI did not pass on $SHA: $run"; exit 1 ;;
+              none) [ "$attempt" -ge 6 ] && { echo "::error::No CI run on master for $SHA. Release only commits that went through master CI."; exit 1; } ;;
+            esac
+            sleep 30
+          done
+          echo "::error::Timed out waiting for CI on $SHA."
+          exit 1
+
   build-electron:
     runs-on: ${{ matrix.os }}
 
@@ -33,17 +92,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: "latest"
+          bun-version: ${{ env.BUN_VERSION }}
 
       - name: Cache Bun dependencies
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.bun/install/cache
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
@@ -59,7 +118,7 @@ jobs:
         run: ${{ matrix.dist_cmd }}
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: convert-desktop-${{ matrix.platform }}
           path: |
@@ -70,50 +129,56 @@ jobs:
             release/*.snap
             release/*.deb
           retention-days: 7
-      
-      - name: Publish GitHub Release (if new tag)
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-        uses: softprops/action-gh-release@v3
+
+  # Publishes once every platform has built. The legs used to publish the
+  # release themselves, so it went live and became "Latest" with only the
+  # first platform's file attached: v3.2.0 was up with Linux alone for over
+  # three minutes before macOS and Windows arrived. One job also means one
+  # copy of the generated notes, which the per-leg version had to work around.
+  release:
+    needs: [preflight, build-electron]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download the installers
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          # On a tag push, github.ref_name is the tag. On a manual
-          # workflow_dispatch, take the tag from the input and create it at the
-          # commit this run checked out (the tip of the dispatched ref).
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          pattern: convert-desktop-*
+          path: installers
+          merge-multiple: true
+
+      - name: One installer per platform
+        run: |
+          ls -la installers
+          for pattern in '*.exe' '*.zip' '*.AppImage'; do
+            count=$(find installers -maxdepth 1 -name "$pattern" | wc -l)
+            [ "$count" -ge 1 ] || { echo "::error::No $pattern installer was built."; exit 1; }
+          done
+
+      # Created as a draft with every file attached, then published in one
+      # step, so nobody sees a half-uploaded release.
+      - name: Create the release as a draft
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ env.TAG }}
           target_commitish: ${{ github.sha }}
-          files: |
-            release/*.exe
-            release/*.dmg
-            release/*.AppImage
-            release/*.zip
-            release/*.snap
-            release/*.deb
-          # Publish straight away and re-target the GitHub "Latest" badge so the
-          # rolling release tracks the newest tag without a manual click. Use
-          # overwrite_files so a re-run on the same tag replaces stale binaries
-          # rather than uploading duplicates side-by-side.
-          # The hand-written half of the body. Without it the body is whatever
-          # generate_release_notes produces, so recutting a tag silently
-          # replaced the release notes with a bare "What's Changed" list.
-          # GitHub appends the generated PR list below this.
-          #
-          # Pinned to the same single leg as generate_release_notes below, and
-          # for a related reason: a body set on every leg races the generated
-          # list. Whichever platform finishes last wins, so a mac or windows leg
-          # landing after linux would rewrite the body to this file alone and
-          # drop the PR list linux had just added. Empty is falsy to the action,
-          # which then leaves the body untouched.
-          body_path: ${{ matrix.platform == 'linux' && '.github/RELEASE_NOTES.md' || '' }}
-          # One job, and only one, generates the notes.
-          #
-          # This step runs once per matrix leg, and each leg that asks for
-          # generated notes APPENDS another copy to the release body rather
-          # than replacing it. v3.0.0 shipped with "What's Changed" and its
-          # changelog link printed three times over - once per platform - which
-          # is the first thing anyone sees on the release page. Pinning it to a
-          # single leg gives exactly one copy regardless of which platform
-          # finishes first: whoever creates the release leaves the body alone,
-          # and linux fills it in whenever it gets there.
-          generate_release_notes: ${{ matrix.platform == 'linux' }}
-          draft: false
-          make_latest: "true"
+          files: installers/*
+          # The hand-written half of the body; GitHub appends the generated PR
+          # list below it.
+          body_path: .github/RELEASE_NOTES.md
+          generate_release_notes: true
+          draft: true
+          # A re-run on the same tag replaces stale binaries instead of adding
+          # duplicates side by side.
           overwrite_files: true
+
+      - name: Publish and mark as latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest

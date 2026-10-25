@@ -248,6 +248,16 @@ test('myHandler converts X to Y', async () => {
 5. **Declare what you import.** A package that happens to be installed as somebody else's transitive dependency will import fine on your machine and keep working until that somebody bumps a version and drops it. If you `import` it, it belongs in `package.json`, and both `package.json` and `bun.lock` go in the commit - CI runs `bun i --frozen-lockfile` and fails if they disagree.
 6. **Dead-code check.** `bun x knip --include files,dependencies,devDependencies,unlisted,binaries,unresolved,duplicates,enumMembers` is **enforced in CI** (see `.github/workflows/ci.yml`): a file nothing imports, an unused or undeclared dependency, or a duplicate export fails the build. Run the full `bun x knip` too - unused exports and types are advisory but real. If it flags a file that *is* used, the reference is probably invisible to it (a path inside a string, say), and the fix is to declare it in `knip.jsonc` as an entry rather than to ignore the finding. Read the warning at the top of that file before removing any ignore.
 
+### Releasing
+
+A release is a version bump merged to master; nothing else is needed.
+
+1. In the PR, set `version` in `package.json`, add a `## [x.y.z]` section to [CHANGELOG.md](../CHANGELOG.md), and replace the `## What's new in x.y.z` section of `.github/RELEASE_NOTES.md`.
+2. Merge. When master CI is green, its `release` job sees a version with no tag and dispatches `electron.yml` with `tag=vx.y.z`.
+3. `electron.yml` checks that the tag matches `package.json`, that both notes files cover the version, and that CI passed on that exact commit, then builds Windows, macOS and Linux, and publishes the release only once all three installers are attached.
+
+To re-run a release, dispatch `electron.yml` by hand with the same tag; files on the existing release are replaced. Bun is pinned (`BUN_VERSION` in both workflows) and actions are pinned by commit, so a release builds with what CI tested.
+
 ---
 
 ## 7. Agent workflow
