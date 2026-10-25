@@ -670,6 +670,34 @@ describe("progress reaches the surface", () => {
         expect(inits).toEqual([["FFmpeg", "mp4"]]);
     });
 
+    it("leaves a worker-loaded engine unloaded on this thread when its runs go to a worker", async () => {
+        // The worker loads its own FFmpeg; loading this copy as well compiled
+        // the 32 MB core on the main thread for nothing.
+        const h = handler("FFmpeg");
+        (h as any).ready = false;
+        (h as any).initInWorker = true;
+        resolveMock.mockReturnValue({ handler: h, args: [] });
+        const run = shrinkingRun(0.5);
+        const [out] = await compressBatch([input("clip.mp4", 10_000, fmt("video/mp4", "mp4"))], {
+            options: [], level: "medium", run, runsInWorker: true,
+        });
+        expect(h.init).not.toHaveBeenCalled();
+        expect(run).toHaveBeenCalled();
+        expect(out.shrunk).toBe(true);
+    });
+
+    it("still loads it when nothing says the runs go to a worker (MCP, REST)", async () => {
+        const h = handler("FFmpeg");
+        (h as any).ready = false;
+        (h as any).initInWorker = true;
+        (h.init as any).mockImplementation(async () => { (h as any).ready = true; });
+        resolveMock.mockReturnValue({ handler: h, args: [] });
+        await compressBatch([input("clip.mp4", 10_000, fmt("video/mp4", "mp4"))], {
+            options: [], level: "medium", run: shrinkingRun(0.5),
+        });
+        expect(h.init).toHaveBeenCalled();
+    });
+
     it("says nothing about loading an engine that was already loaded", async () => {
         resolveMock.mockReturnValue({ handler: handler("FFmpeg"), args: [] });
         const onEngineInit = vi.fn();

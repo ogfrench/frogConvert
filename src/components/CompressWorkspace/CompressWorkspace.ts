@@ -17,7 +17,8 @@ import {
   type CompressOutcome,
   type SkipReason,
 } from "../../core/compression/compressBatch.ts";
-import { runInWorker } from "../../conversion/workerClient.ts";
+import { runInWorker, warmHandler } from "../../conversion/workerClient.ts";
+import { resolveSameFormatHandler } from "../../core/compression/resolveCompressor.ts";
 import { startConversionStatus, type StatusHandle } from "../../conversion/progressStatus.ts";
 import {
   ensureCancelButton,
@@ -235,8 +236,29 @@ export function handleFiles(incoming: File[], replaceExisting = false) {
   // A PDF in the batch means the 16 MB engine is on the critical path of the
   // Compress button. Start fetching it while the user is still adding files.
   if (withinBudget.some(isPdf)) preloadGhostscript();
+  warmEnginesFor(withinBudget);
   markCompressDirty("files");
   render();
+}
+
+/**
+ * Start loading the engines these files will need, in the worker, while the
+ * user is still choosing a level. FFmpeg is a 32 MB download and compile and
+ * ImageMagick 15 MB; both used to start only on the Compress click.
+ */
+function warmEnginesFor(added: readonly File[]) {
+  // Only ever a head start, so nothing in here may stop the files being added.
+  try {
+    const options = allOptionsRef.value;
+    const names = new Set<string>();
+    for (const file of added) {
+      const format = options[findMatchingFormat([file], options)]?.format;
+      if (!format) continue;
+      const handler = resolveSameFormatHandler(format, options)?.handler;
+      if (handler?.initInWorker && !handler.ready) names.add(handler.name);
+    }
+    for (const name of names) warmHandler(name);
+  } catch { /* the Compress click loads it as before */ }
 }
 
 function removeFile(id: number) {
@@ -349,6 +371,7 @@ export async function runCompression() {
       options,
       level: compressLevel.value,
       run: runInWorker,
+      runsInWorker: true,
       onProgress: (done, _total, current) => {
         // Position only. The wording is owned by the phase callbacks below, so
         // that the modal never claims to be compressing a file it has not read.

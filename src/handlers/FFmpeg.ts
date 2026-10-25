@@ -76,6 +76,33 @@ const WEBM_AUDIO_CODEC = "libvorbis";
 const WEBM_CPU_USED = "5";
 
 /**
+ * H.264 encodes at x264's `veryfast` preset rather than its default, `medium`.
+ *
+ * This core runs x264 on one thread with no SIMD, so `medium` took about three
+ * times the clip's length for 1080p and over ten times for 4K - natively, before
+ * the WASM slowdown on top. A phone video took long enough to hit the worker
+ * timeout. Measured with ffmpeg 7 on one thread, CRF 23, size and SSIM against
+ * the source:
+ *
+ *   camera clip, 45s   medium 12.8s 3.58 MB 0.9833   veryfast 4.6s 3.42 MB 0.9819
+ *   animation, 60s     medium 17.0s 4.43 MB          veryfast 6.0s 3.80 MB
+ *
+ * So about 2.8x faster, files no bigger, and a quality change no one will see.
+ * Faster presets cost size instead: `superfast` came out 2.6x bigger than
+ * `veryfast` on a noisy 1080p clip, and `ultrafast` turns off CABAC entirely,
+ * which defeats compressing at all.
+ */
+const X264_PRESET = "veryfast";
+
+function inWorkerScope(): boolean {
+  return typeof (globalThis as { WorkerGlobalScope?: unknown }).WorkerGlobalScope !== "undefined"
+    && typeof (globalThis as { document?: unknown }).document === "undefined";
+}
+
+/** Containers whose default video encoder in this core is libx264. */
+const X264_CONTAINERS = new Set(["mp4", "mov", "mkv"]);
+
+/**
  * WebM rate control is a bitrate, because `-crf` does nothing here.
  *
  * Measured on high-entropy 720p, fresh engine per run: `-crf 23`, `-crf 32`,
@@ -444,6 +471,9 @@ class FFmpegHandler implements FormatHandler {
   public usesQuality = true;
   public supportedFormats: FileFormat[] = [];
   public ready: boolean = false;
+  public initInWorker = true;
+  /** Set once doConvert has used the engine, so the next file gets a fresh one. */
+  #used = false;
 
   #ffmpeg?: any; // NativeFFmpegAdapter | FFmpegWASM
 
@@ -478,6 +508,10 @@ class FFmpegHandler implements FormatHandler {
 
     if (this.#ffmpeg instanceof FFmpegWASM) {
       const isNodeOrBun = typeof process !== 'undefined' && process.versions && (process.versions.node || process.versions.bun);
+      // Single-threaded on purpose. @ffmpeg/core-mt 0.12.10 was tried on the
+      // cross-origin isolated site and hung during init in the conversion
+      // worker: an MP3 sat on "Getting the engine ready" until the ten-minute
+      // timeout, where this core does it in 6 seconds.
       const coreURL = isNodeOrBun
         ? new URL('../../node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js', import.meta.url).href
         : "/wasm/ffmpeg-core.js";
@@ -716,8 +750,14 @@ class FFmpegHandler implements FormatHandler {
     // APNG as the same thing.
     this.supportedFormats.push(CommonFormats.PNG.builder("png").allowFrom());
 
-    this.#ffmpeg.terminate();
-
+    // Kept loaded in the conversion worker: the first doConvert used to reload
+    // it straight away, so a first video paid for compiling the 32 MB core
+    // twice. Anywhere else (the main thread, filling the format cache) nothing
+    // will convert with this instance soon, so its memory is given back.
+    if (!inWorkerScope()) {
+      this.#ffmpeg.terminate();
+      this.#used = true;
+    }
     this.ready = true;
   }
 
@@ -759,7 +799,11 @@ class FFmpegHandler implements FormatHandler {
       throw new Error("Refusing to convert: output format extension is not a safe identifier.");
     }
 
-    await this.reloadFFmpeg();
+    // A fresh engine per file, as before, except the first: init just loaded
+    // one. WASM memory never shrinks, so a long video would otherwise leave the
+    // next file running in its heap.
+    if (this.#used) await this.reloadFFmpeg();
+    this.#used = true;
 
     let forceFPS = 0;
     if (inputFormat.mime === "image/png" || inputFormat.mime === "image/jpeg") {
@@ -1041,6 +1085,16 @@ class FFmpegHandler implements FormatHandler {
       ) {
         command.push("-vf", `scale='min(${plan.imgMaxEdge},iw)':-1:flags=lanczos`);
       }
+    }
+    if (
+      !useStreamCopy
+      && !extractFrames
+      && !isAudioToVideo
+      && !userHasEncoderFlag
+      && X264_CONTAINERS.has(outputFormat.format)
+      && !args?.includes("-preset")
+    ) {
+      command.push("-preset", X264_PRESET);
     }
     // Forward remaining args but strip our custom `--quality <preset>` pair,
     // it's not a real FFmpeg flag.

@@ -62,6 +62,7 @@ class ImageMagickHandler implements FormatHandler {
   public supportedFormats: FileFormat[] = [];
 
   public ready: boolean = false;
+  public initInWorker = true;
 
   async init () {
 

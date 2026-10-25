@@ -129,6 +129,13 @@ describe("docker/nginx/security-headers.conf", () => {
     expect(SNIPPET).toMatch(new RegExp(`^add_header ${header}\\b`, "m"));
   });
 
+  // Automatic reads audio and video duration from a blob: URL in a media
+  // element; without this the probe is refused and every file reads "unknown".
+  it("lets media load from blob: here and on Netlify", () => {
+    const netlify = readFileSync(resolve(__dirname, "../../public/_headers"), "utf8");
+    for (const csp of [SNIPPET, netlify]) expect(csp).toMatch(/media-src 'self' blob:/);
+  });
+
   it("marks every header `always`, so they survive error responses too", () => {
     // Without `always`, nginx omits add_header on 4xx/5xx - including the
     // =404s this config now returns for missing build output.

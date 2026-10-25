@@ -18,7 +18,15 @@ import {
 
 let conversionWorker: Worker | null = null;
 let workerMsgId = 0;
-export const WORKER_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+/**
+ * How long a job may go without a word from its engine before it is given up.
+ *
+ * Measured from the last progress message, not from the start: a video encode
+ * that reports `Encoded 41s of 60s` every second is working, and killing it at
+ * a fixed ten minutes threw away the work of exactly the files that take
+ * longest. An engine that reports nothing at all still gets ten minutes in total.
+ */
+export const WORKER_TIMEOUT_MS = 10 * 60 * 1000;
 let workerErrorCallback: ((e: ErrorEvent) => void) | null = null;
 
 function getConversionWorker(): Worker {
@@ -98,6 +106,20 @@ export function cancelActiveWorkerJob(): boolean {
     return true;
 }
 
+/**
+ * Start loading a handler's engine in the worker before any job needs it.
+ *
+ * The engine is the longest wait on a first conversion (a 32 MB download and
+ * compile for FFmpeg) and used to start only on the Convert or Compress click.
+ * Called when a file arrives, it overlaps with the user picking a format or a
+ * level. Fire and forget; a job sent later waits on the same load.
+ */
+export function warmHandler(handlerName: string): void {
+    try {
+        getConversionWorker().postMessage({ id: 0, handlerName, warm: true });
+    } catch { /* no workers here; the job will load it */ }
+}
+
 export function runInWorker(handlerName: string, inputFiles: FileData[], inputFormat: FileFormat, outputFormat: FileFormat, args?: string[], onProgress?: (p: ProgressEvent) => void): Promise<FileData[]> {
     const start = () => startWorkerJob(handlerName, inputFiles, inputFormat, outputFormat, args, onProgress);
     // Runs whether the predecessor resolved or rejected: one caller's failure
@@ -118,6 +140,7 @@ function startWorkerJob(handlerName: string, inputFiles: FileData[], inputFormat
         // starting it would burn an engine run nobody is waiting for.
         if (isCancelled) { reject(new Error("Cancelled")); return; }
 
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
         const cleanup = () => {
             clearTimeout(timeoutId);
             worker.removeEventListener("message", onMessage);
@@ -136,6 +159,7 @@ function startWorkerJob(handlerName: string, inputFiles: FileData[], inputFormat
             const msg = ev.data;
             if (msg.id !== id) return;
             if (msg.type === "progress") {
+                armTimeout();
                 onProgress?.({ ratio: msg.ratio, detail: msg.detail });
                 return;
             }
@@ -147,10 +171,19 @@ function startWorkerJob(handlerName: string, inputFiles: FileData[], inputFormat
             }
         };
 
-        const timeoutId = setTimeout(() => {
-            cleanup();
-            reject(new Error(`Conversion timed out after ${WORKER_TIMEOUT_MS / 60000} minutes.`));
-        }, WORKER_TIMEOUT_MS);
+        const armTimeout = () => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                cleanup();
+                // A silent engine is usually stuck inside WASM, which never
+                // yields to another message: the next queued file would be
+                // posted to the same frozen worker and wait forever.
+                try { worker.terminate(); } catch { /* already gone */ }
+                conversionWorker = null;
+                reject(new Error(`Conversion timed out after ${WORKER_TIMEOUT_MS / 60000} minutes without progress.`));
+            }, WORKER_TIMEOUT_MS);
+        };
+        armTimeout();
 
         worker.addEventListener("message", onMessage);
         const abandon = () => {

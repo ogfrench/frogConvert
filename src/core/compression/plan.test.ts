@@ -15,22 +15,33 @@ describe("planVideo", () => {
         expect(p.videoMaxrate).toBe("6M");
     });
 
-    it("clamps mid-size inputs to 1440p", () => {
+    it("clamps mid-size inputs to 1440p at high, 1080p below", () => {
+        expect(planVideo(400 * MB, "high").videoScaleFilter).toContain("1440");
         const p = planVideo(200 * MB, "medium");
         expect(p.videoCrf).toBe(23);
-        expect(p.videoScaleFilter).toContain("1440");
+        expect(p.videoScaleFilter).toContain("1080");
     });
 
-    it("leaves small inputs unscaled", () => {
-        const p = planVideo(50 * MB, "medium");
-        expect(p.videoCrf).toBe(23);
-        expect(p.videoScaleFilter).toBeUndefined();
+    // A 4K phone clip encoded about four times slower than 1080p for detail
+    // only a 4K screen shows, so every level but high caps the picture.
+    it("caps small inputs at 1080p except at high", () => {
+        expect(planVideo(50 * MB, "medium").videoScaleFilter).toContain("1080");
+        expect(planVideo(50 * MB, "low").videoScaleFilter).toContain("1080");
+        expect(planVideo(50 * MB, "high").videoScaleFilter).toBeUndefined();
     });
 
-    it("scales tier thresholds by preset (low fires more aggressively)", () => {
-        // 600 MB is under medium's 1000 MB cap, but over low's 500 MB (1000/2) cap.
-        expect(planVideo(600 * MB, "medium").videoScaleFilter).toContain("1440");
-        expect(planVideo(600 * MB, "low").videoScaleFilter).toContain("1080");
+    it("caps the short edge, so portrait video keeps its width", () => {
+        // Capping the height turned a 1080x1920 phone video into 608x1080.
+        const f = planVideo(50 * MB, "medium").videoScaleFilter!;
+        expect(f).toContain("if(gte(iw,ih),-2,min(1080,iw))");
+        expect(f).toContain("if(gte(iw,ih),min(1080,ih),-2)");
+    });
+
+    it("scales tier thresholds by preset (high fires more leniently)", () => {
+        // 600 MB is over high's 300 MB mid tier but under its 2000 MB huge tier.
+        expect(planVideo(600 * MB, "high").videoScaleFilter).toContain("1440");
+        expect(planVideo(600 * MB, "high").videoMaxrate).toBe("10M");
+        expect(planVideo(2500 * MB, "high").videoMaxrate).toBe("6M");
     });
 
     // The size tiers only fire above 75 MB, so for an ordinary clip they are
@@ -41,10 +52,6 @@ describe("planVideo", () => {
         const low = planVideo(17 * MB, "low");
         const medium = planVideo(17 * MB, "medium");
         const high = planVideo(17 * MB, "high");
-
-        expect(low.videoScaleFilter).toBeUndefined();
-        expect(medium.videoScaleFilter).toBeUndefined();
-        expect(high.videoScaleFilter).toBeUndefined();
 
         expect(low.videoCrf).toBeGreaterThan(medium.videoCrf!);
         expect(high.videoCrf).toBeLessThan(medium.videoCrf!);

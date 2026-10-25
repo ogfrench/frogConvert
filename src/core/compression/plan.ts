@@ -46,6 +46,17 @@ function videoCrf(preset: QualityPreset): number {
   return preset === "low" ? 28 : preset === "high" ? 20 : 23;
 }
 
+/**
+ * Cap the picture's short edge at `px`, keeping its shape and orientation.
+ *
+ * Capping the height alone (`scale=-2:'min(1080,ih)'`) is right for landscape
+ * and wrong for the portrait video phones mostly record: a 1080x1920 clip came
+ * out 608x1080. Smaller pictures pass through untouched.
+ */
+function shortEdgeCap(px: number): string {
+  return `scale='if(gte(iw,ih),-2,min(${px},iw))':'if(gte(iw,ih),min(${px},ih),-2)'`;
+}
+
 export function planVideo(inputBytes: number, preset: QualityPreset): CompressionPlan {
   if (preset === "lossless") return { videoCrf: 0, imgQuality: 100 };
   const s = tierScale(preset);
@@ -53,10 +64,17 @@ export function planVideo(inputBytes: number, preset: QualityPreset): Compressio
   // The huge-file tier leans two steps harder still: at this size the file is
   // unusable as-is and a little more loss is the lesser cost.
   if (inputBytes > 1000 * MB / s) {
-    return { videoCrf: crf + 2, videoScaleFilter: "scale=-2:'min(1080,ih)'", videoMaxrate: "6M", imgQuality: 82 };
+    return { videoCrf: crf + 2, videoScaleFilter: shortEdgeCap(1080), videoMaxrate: "6M", imgQuality: 82 };
   }
   if (inputBytes > 150 * MB / s) {
-    return { videoCrf: crf, videoScaleFilter: "scale=-2:'min(1440,ih)'", videoMaxrate: "10M", imgQuality: 82 };
+    return { videoCrf: crf, videoScaleFilter: shortEdgeCap(preset === "high" ? 1440 : 1080), videoMaxrate: "10M", imgQuality: 82 };
+  }
+  // Below the size tiers, everything but `high` still caps at 1080p. A 4K
+  // phone clip is four times the pixels, so it encoded about four times
+  // slower in this single-threaded engine (2s of 4K took 143s) for detail
+  // only a 4K screen shows. `high` keeps the source's resolution.
+  if (preset !== "high") {
+    return { videoCrf: crf, videoScaleFilter: shortEdgeCap(1080), imgQuality: 82 };
   }
   return { videoCrf: crf, imgQuality: 82 };
 }
