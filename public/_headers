@@ -58,10 +58,15 @@
 # `'self'` does not match. A blob: URL names bytes already in this tab, so it
 # reaches nothing outside the device.
 #
+# `media-src blob:` is for Automatic's audio and video probe, which reads the
+# duration by loading the file into an <audio>/<video> element from a blob:
+# URL. Without it the probe was refused on every file, Automatic never knew a
+# video's bitrate, and it compressed an already-lean clip like a raw one.
+#
 # ## If you change this
 #
 # A CSP failure here hangs rather than errors: the original measurement had a
 # JPEG compression sitting forever with no message. Re-run the enforcing
 # measurement across all three surfaces before trusting an edit.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' __CSP_SCRIPT_HASHES__; worker-src 'self' blob:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' __CSP_SCRIPT_HASHES__; worker-src 'self' blob:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' blob:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'

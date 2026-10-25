@@ -25,6 +25,7 @@ Faster compression and conversion, mostly for video.
 - A conversion that times out now restarts the worker, so the next file in a batch is not sent to a stuck engine.
 - Portrait video over 150 MB was scaled by height, turning 1080x1920 into 608x1080.
 - The main-thread conversion timeout timer is cleared when the conversion ends.
+- Automatic compression could not read audio or video bitrate on the website: the Content Security Policy refused the blob: URL its probe loads into a media element, so every audio and video file was treated as "quality unknown". `media-src 'self' blob:` is now allowed (Netlify and Docker).
 
 ## [3.1.5] - 2026-10-23
 
