@@ -161,6 +161,17 @@ jobs:
             [ "$count" -ge 1 ] || { echo "::error::No $pattern installer was built."; exit 1; }
           done
 
+      # A re-run on a tag that is already published must not take it back to
+      # draft: the release would vanish for everyone until the run finished.
+      - name: New release or re-run
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          state=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || echo none)
+          echo "Existing release for $TAG: $state"
+          if [ "$state" = "false" ]; then echo "draft=false" >> "$GITHUB_OUTPUT"; else echo "draft=true" >> "$GITHUB_OUTPUT"; fi
+
       # Created as a draft with every file attached, then published in one
       # step, so nobody sees a half-uploaded release.
       - name: Create the release as a draft
@@ -173,7 +184,7 @@ jobs:
           # list below it.
           body_path: .github/RELEASE_NOTES.md
           generate_release_notes: true
-          draft: true
+          draft: ${{ steps.existing.outputs.draft }}
           # A re-run on the same tag replaces stale binaries instead of adding
           # duplicates side by side.
           overwrite_files: true
