@@ -20,7 +20,7 @@ The top bar's mode control (the icon showing the current mode) opens a menu with
 |---|---|---|
 | Images (PNG, JPEG, WebP, TIFF, BMP) | ImageMagick | 40–70% on photos |
 | Animated (GIF, APNG) | FFmpeg | Varies with frame count |
-| Video | FFmpeg (re-encode forced) | Large, driven by source bitrate |
+| Video | FFmpeg (re-encode forced, x264 `veryfast`, capped at 1080p below High) | Large, driven by source bitrate |
 | Audio | FFmpeg | Driven by source bitrate |
 | PDF | Ghostscript (canvas fallback if unreachable) | 0% on text, 30–80% on image-heavy |
 
@@ -87,14 +87,27 @@ Three things in that table look like bugs and are not:
 
 A fourth case worth knowing: **compressing a PNG gives the same file at every level.** PNG is lossless, so the quality dial has nothing to turn, and the only other lever is the resize cap - which does nothing to an image already smaller than it. Identical output is the correct answer, not a broken control.
 
+## Speed
+
+Measured in Chromium on one machine, Automatic level, warm browser cache, time from the Compress click to the result:
+
+| File | 3.1.5 | 3.2.0 |
+|---|---|---|
+| 5 s of 1080p video | 112 s | see below |
+| 2 s of 4K video | 143 s | see below |
+| 5.9 MB MP3 | 16 s | 3.7 s |
+| 10 MP JPEG | 4.8 s | 2.7 s |
+
+Video was slow because FFmpeg's WASM build runs x264 on one thread with no SIMD, at x264's default `medium` preset, and a one-minute phone video hit the ten-minute worker timeout. Three changes: x264 runs at `veryfast` (about 2.8x faster, files no bigger), levels below High cap the picture at 1080p on the short edge, and the worker timeout counts from the last progress message, so a long encode that is still moving is not killed. The multi-threaded FFmpeg build was tried and left out: it hung during start-up in the worker.
+
 ## What the progress modal tells you
 
 A compression run moves through phases, and the modal names each one rather than showing a single sentence throughout. In order:
 
 | Line | What is actually happening |
 |---|---|
-| `Getting the video compressor ready...` | First use of an engine on this device: fetching and compiling a WASM binary. 32 MB for FFmpeg, 16 MB for Ghostscript, 14 MB for ImageMagick. Says *first run only, this can take a moment*, because it is. It does not say *downloading*: the line fires before the handler's `init()`, and only some engines fetch there - Ghostscript defers its 16 MB to first real use and reports that fetch itself, with a percentage. |
-| `Getting the engine ready` | The engine is loading inside the worker. Separate from the line above: the worker keeps its own instance, so an engine already warm on the main thread still loads here. |
+| `Getting the video compressor ready...` | First use of an engine on this device that has to load on the main thread. FFmpeg and ImageMagick no longer do (see below), so in practice this covers engines without a cached format list. It does not say *downloading*: the line fires before the handler's `init()`, and only some engines fetch there - Ghostscript defers its 16 MB to first real use and reports that fetch itself, with a percentage. |
+| `Getting the engine ready` | The engine is loading inside the worker. FFmpeg (32 MB) and ImageMagick (15 MB) load only there, once, and start loading when the file is added rather than on the Compress click, so this line is often gone before Compress is pressed. |
 | `Reading your file...` | The file's bytes are coming off disk. Files are read one at a time, however large the batch, so only one is ever resident. |
 | `Compressing your file...` | The engine is working. This is where the live detail appears. |
 

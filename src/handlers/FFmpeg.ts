@@ -94,22 +94,6 @@ const WEBM_CPU_USED = "5";
  */
 const X264_PRESET = "veryfast";
 
-/**
- * Threads for the multi-threaded core, or 0 to use the single-threaded one.
- *
- * Threads need SharedArrayBuffer, so the page must be cross-origin isolated
- * (it is, on every surface that serves the app). Phones stay single-threaded:
- * each thread adds to a WASM heap that already runs close to what a phone tab
- * is given. Capped at 4, where x264's gain on this build levels off.
- */
-function multiThreadCount(): number {
-  const g = globalThis as { crossOriginIsolated?: boolean; navigator?: Navigator };
-  if (!g.crossOriginIsolated || !g.navigator) return 0;
-  if (/Android|iPhone|iPad|iPod|Mobile/i.test(g.navigator.userAgent)) return 0;
-  return Math.min(g.navigator.hardwareConcurrency || 1, MAX_ENCODER_THREADS);
-}
-const MAX_ENCODER_THREADS = 4;
-
 function inWorkerScope(): boolean {
   return typeof (globalThis as { WorkerGlobalScope?: unknown }).WorkerGlobalScope !== "undefined"
     && typeof (globalThis as { document?: unknown }).document === "undefined";
@@ -492,8 +476,6 @@ class FFmpegHandler implements FormatHandler {
   #used = false;
 
   #ffmpeg?: any; // NativeFFmpegAdapter | FFmpegWASM
-  /** Threads for x264, set when the multi-threaded core loaded. */
-  #encoderThreads = 0;
 
   #stdout: string = "";
   clearStdout() {
@@ -526,32 +508,14 @@ class FFmpegHandler implements FormatHandler {
 
     if (this.#ffmpeg instanceof FFmpegWASM) {
       const isNodeOrBun = typeof process !== 'undefined' && process.versions && (process.versions.node || process.versions.bun);
-      if (isNodeOrBun) {
-        await this.#ffmpeg.load({
-          coreURL: new URL('../../node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js', import.meta.url).href,
-        });
-        return;
-      }
-      const threads = multiThreadCount();
-      if (threads > 1) {
-        try {
-          await this.#ffmpeg.load({
-            coreURL: "/wasm/mt/ffmpeg-core.js",
-            wasmURL: "/wasm/mt/ffmpeg-core.wasm",
-            workerURL: "/wasm/mt/ffmpeg-core.worker.js",
-          });
-          this.#encoderThreads = threads;
-          return;
-        } catch (e) {
-          // A browser that is isolated but refuses the threaded build still
-          // gets the single-threaded one rather than no video at all.
-          console.warn("Multi-threaded FFmpeg failed to load, using the single-threaded build.", e);
-          this.#ffmpeg.terminate();
-          this.#ffmpeg = new FFmpegWASM();
-        }
-      }
-      this.#encoderThreads = 0;
-      await this.#ffmpeg.load({ coreURL: "/wasm/ffmpeg-core.js" });
+      // Single-threaded on purpose. @ffmpeg/core-mt 0.12.10 was tried on the
+      // cross-origin isolated site and hung during init in the conversion
+      // worker: an MP3 sat on "Getting the engine ready" until the ten-minute
+      // timeout, where this core does it in 6 seconds.
+      const coreURL = isNodeOrBun
+        ? new URL('../../node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js', import.meta.url).href
+        : "/wasm/ffmpeg-core.js";
+      await this.#ffmpeg.load({ coreURL });
     } else {
       await this.#ffmpeg.load();
     }
@@ -1131,9 +1095,6 @@ class FFmpegHandler implements FormatHandler {
       && !args?.includes("-preset")
     ) {
       command.push("-preset", X264_PRESET);
-      if (this.#encoderThreads > 1 && !args?.includes("-threads")) {
-        command.push("-threads", String(this.#encoderThreads));
-      }
     }
     // Forward remaining args but strip our custom `--quality <preset>` pair,
     // it's not a real FFmpeg flag.

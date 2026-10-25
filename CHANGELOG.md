@@ -10,6 +10,22 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-10-25
+
+Faster compression and conversion, mostly for video.
+
+### Changed
+- Video encodes with x264's `veryfast` preset instead of its default `medium`: about 2.8x faster in the single-threaded browser engine, with files no bigger at the same quality setting.
+- Below the High level, video larger than 1080p is scaled down to 1080p (on the short edge, so portrait video keeps its width). A 4K clip encodes about four times faster and comes out much smaller; High keeps the source resolution.
+- FFmpeg and ImageMagick load once, in the conversion worker, instead of on the main thread as well; FFmpeg no longer compiles its 32 MB engine a second time for the first file.
+- Engines start loading when a file is added (Compress: the engine the file needs; Convert: FFmpeg for audio and video), not when Compress or Convert is clicked.
+
+### Fixed
+- Long video conversions and compressions are no longer killed at a fixed ten minutes while still making progress; the timeout now counts from the engine's last progress report.
+- A conversion that times out now restarts the worker, so the next file in a batch is not sent to a stuck engine.
+- Portrait video over 150 MB was scaled by height, turning 1080x1920 into 608x1080.
+- The main-thread conversion timeout timer is cleared when the conversion ends.
+
 ## [3.1.5] - 2026-10-23
 
 Maintenance release with packaging and verification reliability fixes.

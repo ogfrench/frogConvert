@@ -517,12 +517,6 @@ export default defineConfig({
           src: "node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.*",
           dest: "wasm"
         },
-        // Threaded build, loaded when the page is cross-origin isolated. Its
-        // own folder because the files share the single-threaded build's names.
-        {
-          src: "node_modules/@ffmpeg/core-mt/dist/esm/ffmpeg-core.*",
-          dest: "wasm/mt"
-        },
         {
           src: "node_modules/@imagemagick/magick-wasm/dist/x86/magick.wasm",
           dest: "wasm"

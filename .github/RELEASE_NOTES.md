@@ -9,15 +9,15 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.1.5
+## What's new in 3.2.0
 
-**Electron security.** Updated the desktop runtime to Electron 44.9.3, addressing 13 reported GitHub Dependabot advisories in the previous 40.x series.
+**Video compresses much faster.** Video now uses a faster encoder setting, about twice as fast in the browser with files no bigger. Below the High level, anything larger than 1080p is scaled down to 1080p, which makes 4K phone clips several times faster and much smaller. Portrait videos keep their width, and High still keeps full resolution.
 
-**Build stability.** Fixed intermittent macOS Electron builds running out of Node heap, and made LibreOffice conversion verification use a consistent Linux runner with network retries and a bounded installation step.
+**Long videos finish.** A conversion that is still making progress is no longer stopped at ten minutes. A stuck one still is, and the next file then gets a fresh engine instead of waiting behind it.
 
-**Dependency compatibility.** Updated the dependency group and adjusted TMX XML typing and ImageMagick WASM asset loading for updated packages.
+**Engines start sooner and load once.** The video and image engines load once in the background, as soon as you add a file, instead of after you press Compress or Convert. In our tests, compressing an MP3 went from 16 to under 4 seconds and a 10 MP photo from 4.8 to 2.7 seconds.
 
-This is a maintenance release. Full history is available in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
+Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
 ---
 
