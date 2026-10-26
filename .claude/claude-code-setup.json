@@ -2,8 +2,25 @@
   "source": "https://github.com/ogfrench/claude-code-setup",
   "note": "Written by sync-to-repos.sh. Edit the source repo, not these copies.",
   "copied": [
+    ".claude/agents/cheap-reviewer.md",
+    ".claude/skills/actions-cost",
+    ".claude/skills/best-practices",
     ".claude/skills/deslopify",
     ".claude/skills/frogify",
-    ".claude/skills/humanizer"
-  ]
+    ".claude/skills/humanizer",
+    ".claude/skills/issue-management",
+    ".claude/skills/learning-loop",
+    ".claude/skills/model-delegation",
+    ".claude/skills/netlify-cost",
+    ".claude/skills/session-continuity",
+    ".claude/skills/token-efficiency",
+    ".claude/skills/visual-loop"
+  ],
+  "snapshot_sha256": "e6f62e2ed279181ea64bb924e743e65dc81b326149656d1a16749afa2d658788",
+  "source_revision": "7582b3e790da91156b8faf85af096c9199727dc4",
+  "knowledge": {
+    "stacks": [
+      "any"
+    ]
+  }
 }
