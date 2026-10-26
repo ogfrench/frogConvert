@@ -17,7 +17,7 @@
     ".claude/skills/visual-loop"
   ],
   "snapshot_sha256": "e6f62e2ed279181ea64bb924e743e65dc81b326149656d1a16749afa2d658788",
-  "source_revision": "7582b3e790da91156b8faf85af096c9199727dc4",
+  "source_revision": "ce953ed9107681eadb9ef797098d280f86f9e0ef",
   "knowledge": {
     "stacks": [
       "any"
