@@ -50,7 +50,7 @@ do. Cut those; protect the one that works.
 5. **Em/en-dash overuse** — dramatic dashes where a period, comma, or colon works.
 6. **False range** — "from X to Y" where X and Y are not a real scale.
 7. **Empty profundity / cryptic metaphor** — a line that sounds sharp but does not
-   decode. Stacked metaphors are the usual culprit: "ASICS still wins the run; the
+   decode. Stacked metaphors are the usual culprit: "The brand still wins the run; the
    page AI reads belongs to its challengers" reads as deep and tells the reader
    nothing literal (wins what? which page? belongs how?). Also covers the point left
    to pure inference. Run the decode test (below). If you cannot state the literal
