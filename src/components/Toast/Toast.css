@@ -4,12 +4,13 @@
   transform: translateX(-50%) translateY(calc(100% + var(--space-4)));
   bottom: var(--space-6);
   z-index: var(--z-toast);
-  max-width: calc(100% - var(--space-8));
-  padding: var(--space-3) var(--space-5);
-  background-color: var(--card);
+  width: max-content;
+  max-width: min(32rem, calc(100% - var(--space-8)));
+  padding: var(--space-3) var(--space-4);
+  background: var(--card);
   color: var(--foreground);
   border: 1px solid var(--border);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius);
   box-shadow: var(--shadow-lg);
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
@@ -18,11 +19,10 @@
   opacity: 0;
   transition: opacity var(--transition-normal), transform 0.25s var(--ease-out-expo);
   pointer-events: none;
-  white-space: normal;
-  text-align: center;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
+  text-align: left;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
 }
 
 .toast.open {
@@ -32,44 +32,49 @@
   cursor: pointer;
 }
 
+/* Keep the surface neutral; severity belongs to the icon, not every word. */
 .toast.variant-warn {
-  border-color: var(--destructive);
-  color: var(--destructive);
-  background-color: color-mix(in srgb, var(--destructive) 10%, var(--card));
+  border-color: color-mix(in srgb, var(--warning) 25%, var(--border));
 }
 .toast.variant-error {
-  border-color: var(--destructive);
-  color: var(--destructive);
+  border-color: color-mix(in srgb, var(--destructive) 25%, var(--border));
 }
 
-/* Icon prefix on warn/error so severity isn't conveyed by color alone (WCAG 1.4.1). */
-.toast.variant-warn::before,
-.toast.variant-error::before {
-  content: "⚠";
-  font-size: var(--text-md);
+.toast-icon {
+  display: inline-flex;
   flex-shrink: 0;
+  margin-top: 0.1em;
+  font-size: var(--text-md);
+  color: var(--muted-foreground);
 }
+.toast.variant-warn .toast-icon { color: var(--warning); }
+.toast.variant-error .toast-icon { color: var(--destructive); }
+.toast-icon svg { display: block; }
 
-.toast-text { flex: 1; }
+.toast-text { flex: 1; min-width: 0; }
 
 .toast-dismiss {
   flex-shrink: 0;
-  background: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: -6px -8px -6px 0;
+  padding: 0;
   border: none;
-  color: inherit;
-  font-size: var(--text-lg);
-  line-height: 1;
+  background: transparent;
+  color: var(--muted-foreground);
   cursor: pointer;
-  padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
-  opacity: 0.6;
-  transition: opacity var(--transition-fast);
+  transition: color var(--transition-fast), background-color var(--transition-fast);
 }
-.toast-dismiss:hover { opacity: 1; }
+.toast-dismiss:hover,
+.toast-dismiss:focus-visible {
+  color: var(--foreground);
+  background: var(--secondary);
+}
 
-/* On mobile, default sits at safe-area bottom. When a fixed PDF toolbar is
-   mounted, lift the toast above it via :has(). The earlier blanket rule
-   floated toasts 84px above empty space on the converter route. */
+/* Don't let notifications obscure the mobile PDF toolbars. */
 @media (max-width: 800px) {
   .toast {
     bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
@@ -78,15 +83,18 @@
     max-width: none;
     width: auto;
     transform: translateY(calc(100% + var(--space-4)));
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius);
   }
+  .toast-dismiss { width: 44px; height: 44px; margin: -10px -10px -10px 0; }
   body:has(.ws-toolbar) .toast {
     bottom: calc(var(--space-6) + var(--space-12) + var(--space-3) + env(safe-area-inset-bottom, 0px));
   }
   body:has(.ws-toolbar--organize) .toast {
     bottom: calc(var(--space-6) + var(--space-12) + var(--space-12) + var(--space-4) + env(safe-area-inset-bottom, 0px));
   }
-  .toast.open {
-    transform: translateY(0);
-  }
+  .toast.open { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: none; }
 }
