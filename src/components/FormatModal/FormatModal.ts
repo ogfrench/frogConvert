@@ -446,6 +446,10 @@ async function applyBrowserEngineOffer(notice: HTMLElement, inputExt: string): P
       else void installOfficeEngine(notice);
     };
     notice.appendChild(download);
+  } else if (support === "cached" && BROWSER_OFFICE_INPUTS.has(inputExt)) {
+    download.remove();
+    if (title) title.textContent = "Office engine already downloaded";
+    if (text) text.textContent = "The Office engine is stored on this device. Press Convert to initialize it and preserve the document layout."; 
   } else {
     download.remove();
     if (title) title.textContent = BROWSER_OFFICE_INPUTS.has(inputExt)
