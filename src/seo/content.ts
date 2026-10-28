@@ -313,7 +313,7 @@ export const PAIR_CONTENT: Record<string, PairContent> = {
   },
   "pptx→pdf": {
     summary: "Renders a PowerPoint deck to PDF, the usual way to share slides that must look right everywhere.",
-    caveat: "A page per slide with the real layout needs LibreOffice, which the command-line tools and MCP server use when it is installed. In the browser the deck becomes one picture of its text, without slide layouts or images. Animations, transitions and speaker notes never carry over.",
+    caveat: "A page per slide with the real layout needs LibreOffice, which the command-line tools and MCP server use when it is installed. In supported browsers, enable the optional local Office engine for a high-quality PDF; without it, the limited fallback can lose slide layout and images. Animations, transitions and speaker notes never carry over.",
   },
   "epub→pdf": {
     summary: "Converts a reflowable e-book to fixed pages.",
