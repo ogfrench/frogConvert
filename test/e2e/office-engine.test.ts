@@ -71,7 +71,7 @@ describe.skipIf(!requested || !distBuilt() || !engineBuilt)("Browser Office engi
         await pickToPdf(path.join(RES, "deck.pptx"));
 
         const offer = await page.$eval("#libreoffice-notice", n => n.textContent ?? "");
-        expect(offer).toMatch(/Get an exact PDF/);
+        expect(offer).toMatch(/Get a high-quality PDF/);
         await page.click("#office-engine-download");
         await page.waitForFunction(() => /Office engine ready|didn't finish/
             .test(document.querySelector("#libreoffice-notice")?.textContent ?? ""), { timeout: 300_000 });
@@ -99,4 +99,19 @@ describe.skipIf(!requested || !distBuilt() || !engineBuilt)("Browser Office engi
         expect((await pdfPageTexts(bytes)).join(" ")).toMatch(/Region/);
         expect(partRequests.length).toBe(before);
     }, 600_000);
+    it("shows the engine offer on a touch viewport without a warning toast", async () => {
+        await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+        await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
+        await waitForRegistry(page);
+        expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
+        await pickToPdf(path.join(RES, "deck.pptx"));
+        await page.waitForFunction(() => (window.supportedFormatCache?.get("libreoffice")?.length ?? 0) > 0, { timeout: 30_000 });
+        expect(await page.$eval("#libreoffice-notice", el => (el as HTMLElement).hidden)).toBe(true);
+        expect(await page.$eval("body", el => !!el.querySelector(".toast.variant-warn.open"))).toBe(false);
+        const { bytes, modal } = await convert();
+        expect(modal).not.toMatch(/with limits|made of pictures/);
+        expect((await inspectPdf(bytes)).pageCount).toBe(4);
+    }, 600_000);
+
+
 });
