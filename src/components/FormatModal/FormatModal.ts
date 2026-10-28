@@ -11,7 +11,7 @@ import { AI_FLATTENING_NOTICE } from "../../core/ghostscript/postscriptInput.ts"
 import { ModalManager } from "../utils/ModalManager.ts";
 import { isTouchUi } from "../../core/utils/touchUi.ts";
 import { showToast } from "../Toast/Toast.ts";
-import { officeEngineSupport, officeEngineDownloadSize, downloadOfficeEngine } from "../../core/officeEngine/officeEngine.ts";
+import { officeEngineSupport, officeEngineDownloadSize, downloadOfficeEngine, isOfficeEngineCached } from "../../core/officeEngine/officeEngine.ts";
 import { formatBytes } from "../utils/index.ts";
 
 let _searchTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -493,9 +493,11 @@ function installOfficeEngine(notice: HTMLElement): Promise<boolean> {
 
   officeDownload = (async () => {
     try {
-      await downloadOfficeEngine(({ loaded, total }) => {
-        if (text) text.textContent = `Downloading Office engine: ${Math.floor((loaded / total) * 100)}%. You can continue using the app.`;
-      }, controller.signal);
+      if (!(await isOfficeEngineCached())) {
+        await downloadOfficeEngine(({ loaded, total }) => {
+          if (text) text.textContent = `Downloading Office engine: ${Math.floor((loaded / total) * 100)}%. You can continue using the app.`;
+        }, controller.signal);
+      }
       officeDownloadController = null;
       if (!(await activateOfficeEngine(notice))) return false;
       if (title) title.textContent = "Office engine ready";
