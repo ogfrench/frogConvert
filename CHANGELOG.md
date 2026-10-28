@@ -10,6 +10,10 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Changed
+- Allow the browser Office engine on touch devices when the required browser features are available, with a user-initiated download and no silent Office-to-PDF quality downgrade.
+- Replace the mobile Office warning toast with inline preparation and limited-conversion choices; soften shared notification styling and improve dismissal behavior.
+
 ## [3.2.1] - 2026-10-25
 
 Release-process update. The app is unchanged from 3.2.0.
