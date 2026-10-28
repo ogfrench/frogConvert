@@ -30,13 +30,16 @@ describe.skipIf(!requested || !distBuilt() || !engineBuilt)("Browser Office engi
     let server: DistServer;
     let browser: Browser;
     let page: Page;
+    let browserLogs: { type: string; text: string }[] = [];
     const partRequests: string[] = [];
 
     beforeAll(async () => {
         fs.rmSync(TMP, { recursive: true, force: true });
         server = await serveDist();
         browser = await launchBrowser();
-        ({ page } = await newTrackedPage(browser, TMP));
+        const tracked = await newTrackedPage(browser, TMP);
+        page = tracked.page;
+        browserLogs = tracked.logs;
         await page.setViewport({ width: 1280, height: 900 });
         page.on("request", r => { if (/\.gz\.\d{3}$/.test(r.url())) partRequests.push(r.url()); });
     }, 120_000);
@@ -61,7 +64,9 @@ describe.skipIf(!requested || !distBuilt() || !engineBuilt)("Browser Office engi
     async function convert() {
         await page.$eval("#convert-button", b => (b as HTMLButtonElement).click());
         const { files, modalText } = await takeModalDownload(page, TMP, 120_000);
-        if (!files?.length) throw new Error(`no download; modal said: ${modalText}`);
+        if (!files?.length) throw new Error(
+            `no download; modal said: ${modalText}; browser diagnostics: ${JSON.stringify(browserLogs.slice(-30))}`
+        );
         return { bytes: fs.readFileSync(path.join(TMP, files[0].name)), modal: modalText };
     }
 
