@@ -32,7 +32,7 @@ describe("toast notifications", () => {
     expect(toast.getAttribute("aria-live")).toBe("assertive");
     showToast("Background task done", "info");
     expect(toast.querySelector(".toast-text")?.textContent).toBe("Conversion failed");
-    vi.advanceTimersByTime(60000);
+    vi.advanceTimersByTime(9999);
     expect(toast.classList.contains("open")).toBe(true);
     toast.querySelector<HTMLButtonElement>(".toast-dismiss")!.click();
     expect(toast.classList.contains("open")).toBe(false);
@@ -52,6 +52,15 @@ describe("toast notifications", () => {
     expect(toast.classList.contains("open")).toBe(true);
     vi.advanceTimersByTime(1);
     expect(toast.classList.contains("open")).toBe(false);
+  });
+
+  it("auto-dismisses stale errors after ten seconds", () => {
+    showToast("Conversion failed", "error");
+    const toast = document.querySelector<HTMLElement>(".toast")!;
+    vi.advanceTimersByTime(10000);
+    expect(toast.classList.contains("open")).toBe(false);
+    showToast("Retry started", "info");
+    expect(toast.querySelector(".toast-text")?.textContent).toBe("Retry started");
   });
 
   it("lets keyboard users dismiss the message", () => {
