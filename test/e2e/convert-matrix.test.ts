@@ -91,7 +91,7 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         }, target.toUpperCase());
         if (!picked) throw new Error(`no ${target} target offered for ${path.basename(input)}`);
         await sleep(600);
-        if (target.toLowerCase() === "pdf" && /\\.(pptx|docx|xlsx|odp|odt|ods)$/i.test(input)) {
+        if (target.toLowerCase() === "pdf" && /\.(pptx|docx|xlsx|odp|odt|ods)$/i.test(input)) {
             await page.waitForSelector("#office-limited-convert", { visible: true });
             await page.click("#office-limited-convert");
         } else {
