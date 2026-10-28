@@ -427,6 +427,8 @@ async function applyBrowserEngineOffer(notice: HTMLElement, inputExt: string): P
   limited.onclick = () => {
     allowLimitedOnce = true;
     ui.convertButton.click();
+    // A click rejected by the conversion reentrancy guard must not affect the next file.
+    queueMicrotask(() => { allowLimitedOnce = false; });
   };
   const support = await officeEngineSupport();
   if (hasOfficeHandler(inputExt) || notice.hidden) return;
