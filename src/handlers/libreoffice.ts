@@ -346,17 +346,17 @@ class libreofficeHandler implements FormatHandler {
         } catch (err) {
           // A hung or crashed engine is not reused: retry once on a fresh one.
           console.warn(`[LibreOffice] browser engine failed on ${file.name}, retrying on a fresh engine:`, err);
-          this.#disposeEngine();
+          await this.#disposeEngine();
           out = await this.#convertOnce(file, inputFormat);
         }
         const dot = file.name.lastIndexOf(".");
         results.push({ name: (dot > 0 ? file.name.slice(0, dot) : file.name) + ".pdf", bytes: out });
       }
     } catch (err) {
-      this.#disposeEngine();
+      await this.#disposeEngine();
       throw err;
     }
-    this.#idleTimer = setTimeout(() => this.#disposeEngine(), WASM_IDLE_MS);
+    this.#idleTimer = setTimeout(() => { void this.#disposeEngine(); }, WASM_IDLE_MS);
     return results;
   }
 
@@ -384,11 +384,16 @@ class libreofficeHandler implements FormatHandler {
     }
   }
 
-  #disposeEngine() {
+  async #disposeEngine(): Promise<void> {
     clearTimeout(this.#idleTimer);
     const engine = this.#engine;
     this.#engine = null;
-    engine?.then(e => e.destroy()).catch(() => {});
+    if (!engine) return;
+    try {
+      await (await engine).destroy();
+    } catch (err) {
+      console.warn("[LibreOffice] Unable to dispose browser engine:", err);
+    }
   }
 
   /**
