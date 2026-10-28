@@ -389,10 +389,19 @@ class libreofficeHandler implements FormatHandler {
     const engine = this.#engine;
     this.#engine = null;
     if (!engine) return;
+
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
-      await (await engine).destroy();
-    } catch (err) {
-      console.warn("[LibreOffice] Unable to dispose browser engine:", err);
+      await Promise.race([
+        engine.then(e => e.destroy()),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error(
+            "The Office engine could not stop safely. Reload the page before retrying.",
+          )), 15000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
