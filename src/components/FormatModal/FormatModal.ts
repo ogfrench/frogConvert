@@ -434,6 +434,7 @@ async function applyBrowserEngineOffer(notice: HTMLElement, inputExt: string): P
   if (hasOfficeHandler(inputExt) || notice.hidden) return;
   if (inputExt !== (selectedFromIndex.value === null
     ? "" : allOptionsRef.value[selectedFromIndex.value]?.format.extension.toLowerCase())) return;
+  if (selectedToIndex.value === null || allOptionsRef.value[selectedToIndex.value]?.format.extension.toLowerCase() !== "pdf") return;
 
   if (title) title.textContent = "Preserve your Office document";
   if (text) text.textContent = "Without the Office engine, layouts and images may be lost and text will not be selectable. Limited conversion is optional.";
@@ -442,6 +443,7 @@ async function applyBrowserEngineOffer(notice: HTMLElement, inputExt: string): P
     if (notice.hidden || hasOfficeHandler(inputExt)) return;
     if (title) title.textContent = "Get a high-quality PDF";
     if (text) text.textContent = "Download the Office engine once to preserve slides, images, formatting and selectable text as closely as possible. Conversion stays on this device. The engine can use around 1.5 GB of memory.";
+    if (!ui.convertButton.classList.contains("disabled")) ui.convertButton.textContent = "Download engine & convert";
     download.textContent = bytes ? `Download engine (${formatBytes(bytes)})` : "Download Office engine";
     download.onclick = () => {
       if (officeDownloadController) officeDownloadController.abort();
