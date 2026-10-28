@@ -11,9 +11,9 @@ import {
  * `officeEngineSupport()` what to offer, calls `downloadOfficeEngine()` when the
  * user agrees, and the libreoffice handler calls `openOfficeEngine()`.
  *
- * Desktop browsers only. It needs SharedArrayBuffer (cross-origin isolation,
- * set in netlify.toml), peaks around 1.5 GB of memory, and is ~78 MB to fetch,
- * which is wrong to put on a phone by default.
+ * Requires SharedArrayBuffer (cross-origin isolation, set in netlify.toml),
+ * peaks around 1.5 GB of memory, and is ~78 MB to fetch. The download is
+ * user-initiated on every device; a touchscreen is not a capability failure.
  */
 
 export type OfficeEngineSupport = "unsupported" | "available" | "cached";
@@ -45,7 +45,9 @@ export function canRunOfficeEngine(): boolean {
         && window.crossOriginIsolated === true
         && typeof caches !== "undefined"
         && typeof DecompressionStream !== "undefined"
-        && !window.matchMedia?.("(pointer: coarse)").matches;
+        && typeof SharedArrayBuffer !== "undefined"
+        && typeof Worker !== "undefined"
+        && typeof WebAssembly !== "undefined";
 }
 
 async function fetchManifest(): Promise<OfficeEngineManifest | null> {
