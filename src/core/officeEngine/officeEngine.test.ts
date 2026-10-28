@@ -88,6 +88,19 @@ describe("office engine download", () => {
         expect(await isOfficeEngineCached()).toBe(false);
     });
 
+    it("cleans the partial cache after an aborted download", async () => {
+        const controller = new AbortController();
+        vi.stubGlobal("fetch", async (url: string, init?: { signal?: AbortSignal }) => {
+            if (init?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+            const body = served[url];
+            return body ? new Response(body.slice()) : new Response("not found", { status: 404 });
+        });
+        const { downloadOfficeEngine } = await import("./officeEngine.ts");
+        await expect(downloadOfficeEngine(() => controller.abort(), controller.signal))
+            .rejects.toThrow(/Abort/);
+        expect(caches.stores.has(OFFICE_ENGINE_CACHE)).toBe(false);
+    });
+
     it("rejects a file whose size does not match the manifest", async () => {
         const { manifest } = deployment();
         manifest.files[0].size += 1;
