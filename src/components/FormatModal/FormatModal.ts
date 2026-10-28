@@ -322,73 +322,69 @@ const LIBREOFFICE_INPUT_EXTS = new Set([
   "pptx", "docx", "xlsx", "ppt", "odt", "odp", "ods"
 ]);
 
-/**
- * Warn, before converting, that an office document -> PDF conversion will be
- * an image-only PDF when the libreoffice handler isn't available (no local
- * binary and no localhost API server with libreoffice enabled), which is
- * every hosted visit and the desktop app. It used to say "Install
- * LibreOffice", which can't help in either.
- */
+/** The browser engine supports modern Office formats only. */
+const BROWSER_OFFICE_INPUTS = new Set(["pptx", "docx", "xlsx", "odt", "odp", "ods"]);
+
 let libreofficeNoticeDismissed = false;
-let mobileHintShown = false;
+let allowLimitedOnce = false;
+let officeDownload: Promise<boolean> | null = null;
+let officeDownloadController: AbortController | null = null;
+
+export function isOfficePdfConversion(from: string, to: string): boolean {
+  return LIBREOFFICE_INPUT_EXTS.has(from.toLowerCase()) && to.toLowerCase() === "pdf";
+}
+
+function hasOfficeHandler(inputExt: string): boolean {
+  const formats = window.supportedFormatCache?.get("libreoffice");
+  return Array.isArray(formats) && formats.some(f => f.from && f.format === inputExt);
+}
 
 function updateLibreofficeNoticeVisibility(fromIdx: number | null, toIdx: number | null) {
   const notice = ui.libreofficeNotice;
   if (!notice) return;
 
-  if (libreofficeNoticeDismissed) {
+  const fromOpt = fromIdx === null ? null : allOptionsRef.value[fromIdx];
+  const toOpt = toIdx === null ? null : allOptionsRef.value[toIdx];
+  const inputExt = fromOpt?.format.extension.toLowerCase() ?? "";
+  const outputExt = toOpt?.format.extension.toLowerCase() ?? "";
+  if (!isOfficePdfConversion(inputExt, outputExt) || hasOfficeHandler(inputExt)) {
     notice.hidden = true;
     return;
   }
 
-  // Need both formats selected to decide
-  if (fromIdx === null || toIdx === null) {
+  if (libreofficeNoticeDismissed && navigator.userAgent.includes("Electron")) {
     notice.hidden = true;
     return;
   }
+  notice.hidden = false;
+  const dismiss = notice.querySelector<HTMLElement>(".convert-notice-dismiss");
+  if (dismiss) dismiss.hidden = !navigator.userAgent.includes("Electron");
+  if (navigator.userAgent.includes("Electron")) applyDesktopLibreofficeCopy(notice);
+  else void applyBrowserEngineOffer(notice, inputExt);
+}
 
-  const fromOpt = allOptionsRef.value[fromIdx];
-  const toOpt = allOptionsRef.value[toIdx];
-  if (!fromOpt || !toOpt) {
-    notice.hidden = true;
-    return;
+/** The conversion action calls this before it reads files or chooses a route. */
+export async function prepareOfficePdfConversion(inputExt: string, outputExt: string): Promise<"ready" | "limited" | "blocked"> {
+  inputExt = inputExt.toLowerCase();
+  if (!isOfficePdfConversion(inputExt, outputExt)) return "ready";
+  if (allowLimitedOnce) {
+    allowLimitedOnce = false;
+    return "limited";
+  }
+  if (hasOfficeHandler(inputExt)) return "ready";
+  if (navigator.userAgent.includes("Electron") || !BROWSER_OFFICE_INPUTS.has(inputExt)) {
+    ui.libreofficeNotice.hidden = false;
+    return "blocked";
   }
 
-  // Only applies to office-doc → PDF conversions
-  const inputExt = (fromOpt.format.extension || "").toLowerCase();
-  const outputExt = (toOpt.format.extension || "").toLowerCase();
-  const isOfficeToPdf = LIBREOFFICE_INPUT_EXTS.has(inputExt) && outputExt === "pdf";
-  if (!isOfficeToPdf) {
-    notice.hidden = true;
-    return;
+  const support = await officeEngineSupport();
+  if (support === "unsupported") {
+    ui.libreofficeNotice.hidden = false;
+    return "blocked";
   }
-
-  // Check if libreoffice is available. The handler populates its formats
-  // only when it has a working mode (native or remote). An empty entry (or
-  // missing entry) means the handler is disabled.
-  const lofmts = window.supportedFormatCache?.get("libreoffice");
-  const libreofficeAvailable = Array.isArray(lofmts) && lofmts.length > 0;
-
-  const shouldShow = !libreofficeAvailable;
-  if (shouldShow) {
-    applyDesktopLibreofficeCopy(notice);
-    applyBrowserEngineOffer(notice);
-  }
-
-  if (isTouchUi()) {
-    // On mobile, the banner takes too much space, show a one-time toast instead.
-    notice.hidden = true;
-    if (shouldShow && !mobileHintShown) {
-      mobileHintShown = true;
-      showToast(
-        "This PDF will be a picture of your document: the text won't be selectable and the layout may be lost. For an exact PDF, export it from the app that made the file.",
-        "warn",
-        12000,
-      );
-    }
-  } else {
-    notice.hidden = !shouldShow;
-  }
+  if (support === "available" && !(await installOfficeEngine(ui.libreofficeNotice))) return "blocked";
+  if (support === "cached" && !(await activateOfficeEngine(ui.libreofficeNotice))) return "blocked";
+  return hasOfficeHandler(inputExt) ? "ready" : "blocked";
 }
 
 /**
@@ -412,65 +408,107 @@ function applyDesktopLibreofficeCopy(notice: HTMLElement) {
   notice.appendChild(link);
 }
 
-/**
- * On a desktop browser where the site ships the browser Office engine, the
- * banner offers it: one explicit download, after which the libreoffice
- * handler converts Office documents to real PDFs (src/core/officeEngine).
- * Never offered on phones or unisolated browsers; officeEngineSupport()
- * decides, and the banner keeps its index.html copy there.
- */
-let engineOfferStarted = false;
+/** Make the existing inline Office notice available on all capable browsers. */
+async function applyBrowserEngineOffer(notice: HTMLElement, inputExt: string): Promise<void> {
+  if (officeDownload) return;
+  const title = notice.querySelector<HTMLElement>(".convert-notice-title");
+  const text = notice.querySelector<HTMLElement>(".convert-notice-text");
+  const download = notice.querySelector<HTMLButtonElement>("#office-engine-download")
+    ?? document.createElement("button");
+  download.type = "button";
+  download.id = "office-engine-download";
+  download.className = "convert-notice-link";
+  const limited = notice.querySelector<HTMLButtonElement>("#office-limited-convert")
+    ?? document.createElement("button");
+  limited.type = "button";
+  limited.id = "office-limited-convert";
+  limited.className = "convert-notice-secondary";
+  limited.textContent = "Try limited conversion";
+  limited.onclick = () => {
+    allowLimitedOnce = true;
+    ui.convertButton.click();
+  };
+  const support = await officeEngineSupport();
+  if (hasOfficeHandler(inputExt) || notice.hidden) return;
+  if (inputExt !== (selectedFromIndex.value === null
+    ? "" : allOptionsRef.value[selectedFromIndex.value]?.format.extension.toLowerCase())) return;
 
-function applyBrowserEngineOffer(notice: HTMLElement) {
-  if (engineOfferStarted || navigator.userAgent.includes("Electron")) return;
-  engineOfferStarted = true;
-  void (async () => {
-    if (await officeEngineSupport() !== "available") return;
+  if (title) title.textContent = "Preserve your Office document";
+  if (text) text.textContent = "Without the Office engine, layouts and images may be lost and text will not be selectable. Limited conversion is optional.";
+  if (support === "available" && BROWSER_OFFICE_INPUTS.has(inputExt)) {
     const bytes = await officeEngineDownloadSize();
-    if (!bytes) return;
-    const size = formatBytes(bytes);
-    const title = notice.querySelector(".convert-notice-title");
-    const text = notice.querySelector(".convert-notice-text");
-    const offerText = `Download the Office engine once (${size}) and Office files become real PDFs with selectable text, right here. It stays on this device and nothing is uploaded. Or just convert now and get a picture of your document.`;
-    if (title) title.textContent = "Get an exact PDF";
-    if (text) text.textContent = offerText;
+    if (notice.hidden || hasOfficeHandler(inputExt)) return;
+    if (title) title.textContent = "Get a high-quality PDF";
+    if (text) text.textContent = "Download the Office engine once to preserve slides, images, formatting and selectable text as closely as possible. Conversion stays on this device. The engine can use around 1.5 GB of memory.";
+    download.textContent = bytes ? `Download engine (${formatBytes(bytes)})` : "Download Office engine";
+    download.onclick = () => {
+      if (officeDownloadController) officeDownloadController.abort();
+      else void installOfficeEngine(notice);
+    };
+    notice.appendChild(download);
+  } else {
+    download.remove();
+    if (title) title.textContent = BROWSER_OFFICE_INPUTS.has(inputExt)
+      ? "Office engine unavailable in this browser"
+      : "This older Office format needs updating";
+    if (text) text.textContent = BROWSER_OFFICE_INPUTS.has(inputExt)
+      ? "This browser cannot run the Office engine. Export a PDF from your Office app, or try the limited conversion below."
+      : `Save this .${inputExt} file as a modern Office format first, or export a PDF from its original app. A limited conversion may lose layout and images.`;
+  }
+  notice.appendChild(limited);
+}
 
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "convert-notice-link";
-    button.id = "office-engine-download";
-    button.textContent = `Download (${size})`;
-    notice.appendChild(button);
-
-    let controller: AbortController | null = null;
-    button.addEventListener("click", async () => {
-      if (controller) {
-        controller.abort();
-        return;
-      }
-      controller = new AbortController();
-      button.textContent = "Cancel";
-      if (text) text.textContent = "Downloading the Office engine...";
-      try {
-        await downloadOfficeEngine(({ loaded, total }) => {
-          if (text) text.textContent = `Downloading the Office engine: ${Math.floor((loaded / total) * 100)}% of ${size}. You can keep using the app.`;
-        }, controller.signal);
-        button.remove();
-        if (title) title.textContent = "Office engine ready";
-        if (text) text.textContent = "Office files now convert to exact PDFs on this device.";
-        window.dispatchEvent(new CustomEvent("frog:office-engine-ready"));
-        showToast("Office engine ready. Office files now become real PDFs.", "info", 6000);
-      } catch (err) {
-        const cancelled = controller.signal.aborted;
-        button.textContent = cancelled ? `Download (${size})` : "Try again";
-        if (text) text.textContent = cancelled
-          ? offerText
-          : `The download didn't finish: ${err instanceof Error ? err.message : String(err)}`;
-      } finally {
-        controller = null;
-      }
+async function activateOfficeEngine(notice: HTMLElement): Promise<boolean> {
+  const text = notice.querySelector<HTMLElement>(".convert-notice-text");
+  if (text) text.textContent = "Preparing the Office engine...";
+  try {
+    await new Promise<void>((resolve, reject) => {
+      window.dispatchEvent(new CustomEvent("frog:office-engine-ready", {
+        detail: { resolve, reject, refreshDuringConversion: true },
+      }));
     });
+    return true;
+  } catch (err) {
+    if (text) text.textContent = `The Office engine could not start: ${err instanceof Error ? err.message : String(err)}. Try again or export from your Office app.`;
+    return false;
+  }
+}
+
+function installOfficeEngine(notice: HTMLElement): Promise<boolean> {
+  if (officeDownload) return officeDownload;
+  const text = notice.querySelector<HTMLElement>(".convert-notice-text");
+  const title = notice.querySelector<HTMLElement>(".convert-notice-title");
+  const button = notice.querySelector<HTMLButtonElement>("#office-engine-download");
+  const controller = new AbortController();
+  officeDownloadController = controller;
+  if (button) button.textContent = "Cancel download";
+
+  officeDownload = (async () => {
+    try {
+      await downloadOfficeEngine(({ loaded, total }) => {
+        if (text) text.textContent = `Downloading Office engine: ${Math.floor((loaded / total) * 100)}%. You can continue using the app.`;
+      }, controller.signal);
+      officeDownloadController = null;
+      if (!(await activateOfficeEngine(notice))) return false;
+      if (title) title.textContent = "Office engine ready";
+      if (text) text.textContent = "Your Office files can now become high-quality PDFs on this device.";
+      showToast("Office engine ready for PDF conversion.", "info", 6000);
+      return true;
+    } catch (err) {
+      if (text) text.textContent = controller.signal.aborted
+        ? "Download cancelled. Your file has not been converted."
+        : `Office engine download failed: ${err instanceof Error ? err.message : String(err)}. Try again.`;
+      return false;
+    } finally {
+      officeDownload = null;
+      officeDownloadController = null;
+      if (button) {
+        button.textContent = "Try downloading again";
+        button.onclick = () => { void installOfficeEngine(notice); };
+      }
+    }
   })();
+  return officeDownload;
 }
 
 // --- Format list rendering ---
