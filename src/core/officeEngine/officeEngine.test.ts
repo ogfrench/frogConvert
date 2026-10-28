@@ -57,6 +57,7 @@ describe("office engine download", () => {
         served = deployment().files;
         vi.stubGlobal("caches", caches.api);
         vi.stubGlobal("window", { crossOriginIsolated: true, matchMedia: () => ({ matches: false }) });
+        vi.stubGlobal("Worker", class {});
         vi.stubGlobal("navigator", { storage: { persist: async () => true } });
         vi.stubGlobal("fetch", async (url: string) => {
             const body = served[url];
@@ -96,13 +97,20 @@ describe("office engine download", () => {
         expect(caches.stores.has(OFFICE_ENGINE_CACHE)).toBe(false);
     });
 
-    it("is never offered on a touch device, or without cross-origin isolation", async () => {
+    it("offers the engine on touch devices when browser features are available", async () => {
         vi.stubGlobal("window", { crossOriginIsolated: true, matchMedia: () => ({ matches: true }) });
+        const mod = await import("./officeEngine.ts");
+        expect(await mod.officeEngineSupport()).toBe("available");
+    });
+
+    it("rejects missing browser capabilities, regardless of pointer type", async () => {
+        vi.stubGlobal("window", { crossOriginIsolated: false, matchMedia: () => ({ matches: true }) });
         let mod = await import("./officeEngine.ts");
         expect(await mod.officeEngineSupport()).toBe("unsupported");
 
         vi.resetModules();
-        vi.stubGlobal("window", { crossOriginIsolated: false, matchMedia: () => ({ matches: false }) });
+        vi.stubGlobal("window", { crossOriginIsolated: true });
+        vi.stubGlobal("Worker", undefined);
         mod = await import("./officeEngine.ts");
         expect(await mod.officeEngineSupport()).toBe("unsupported");
     });
