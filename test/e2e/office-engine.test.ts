@@ -65,10 +65,13 @@ describe.skipIf(!requested || !distBuilt() || !engineBuilt)("Browser Office engi
         return { bytes: fs.readFileSync(path.join(TMP, files[0].name)), modal: modalText };
     }
 
-    it("offers the engine, downloads it, and turns a deck into a real PDF", async () => {
+    it("offers the engine on a touch device, downloads it, and preserves slides", async () => {
+        await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
         await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
         await waitForRegistry(page);
         await pickToPdf(path.join(RES, "deck.pptx"));
+        expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
+        expect(await page.$eval("body", el => !!el.querySelector(".toast.variant-warn.open"))).toBe(false);
 
         const offer = await page.$eval("#libreoffice-notice", n => n.textContent ?? "");
         expect(offer).toMatch(/Get a high-quality PDF/);
@@ -86,7 +89,8 @@ describe.skipIf(!requested || !distBuilt() || !engineBuilt)("Browser Office engi
         expect((await pdfPageTexts(bytes)).join(" ")).toMatch(/Quarterly Review/);
     }, 600_000);
 
-    it("uses the cached engine after a reload, without downloading it again", async () => {
+    it("uses the cached engine on desktop after a reload, without downloading it again", async () => {
+        await page.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1, isMobile: false, hasTouch: false });
         const before = partRequests.length;
         await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
         await waitForRegistry(page);
@@ -99,7 +103,7 @@ describe.skipIf(!requested || !distBuilt() || !engineBuilt)("Browser Office engi
         expect((await pdfPageTexts(bytes)).join(" ")).toMatch(/Region/);
         expect(partRequests.length).toBe(before);
     }, 600_000);
-    it("shows the engine offer on a touch viewport without a warning toast", async () => {
+    it("reuses the cached engine on a touch viewport without a warning toast", async () => {
         await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
         await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
         await waitForRegistry(page);
