@@ -108,6 +108,16 @@ describe.skipIf(!requested || !distBuilt() || !engineBuilt)("Browser Office engi
         expect((await pdfPageTexts(bytes)).join(" ")).toMatch(/Region/);
         expect(partRequests.length).toBe(before);
     }, 600_000);
+    it("converts a PowerPoint deck on desktop with the same cached engine", async () => {
+        await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
+        await waitForRegistry(page);
+        await page.waitForFunction(() => (window.supportedFormatCache?.get("libreoffice")?.length ?? 0) > 0, { timeout: 30_000 });
+        await pickToPdf(path.join(RES, "deck.pptx"));
+        const { bytes, modal } = await convert();
+        expect(modal).not.toMatch(/with limits|made of pictures/);
+        expect((await inspectPdf(bytes)).pageCount).toBe(4);
+    }, 600_000);
+
     it("reuses the cached engine on a touch viewport without a warning toast", async () => {
         await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
         await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
