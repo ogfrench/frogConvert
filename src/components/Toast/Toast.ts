@@ -92,7 +92,7 @@ function resumeDismissal(): void {
   }
 }
 
-export function showToast(message: string, variant: Variant = "info", durationMs = variant === "error" ? 0 : 6000): void {
+export function showToast(message: string, variant: Variant = "info", durationMs = variant === "error" ? 10000 : 6000): void {
   const node = ensureEl();
   // An informational update must not overwrite an error awaiting dismissal.
   if (node.classList.contains("open") && node.classList.contains("variant-error") && variant !== "error") return;
