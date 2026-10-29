@@ -2,7 +2,6 @@ import { createDancingFrog } from "../components/Frogsworth/DancingFrog.ts";
 import { createPopupButton, hidePopup, replacePopup, showAlertPopup, showPopup } from "../components/Popup/Popup.ts";
 import { ui } from "../components/store/store.ts";
 import { shortenFileName } from "../components/utils/index.ts";
-import { printableDocument } from "../handlers/svgForeignObject.ts";
 import { preparePrintPage } from "./printPage.ts";
 
 /** This UI handoff is intentionally limited to one browser HTML document. */
@@ -44,7 +43,10 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
 
     try {
         const title = file.name.replace(/\.html?$/i, "") || file.name;
-        const html = printableDocument(await file.text(), title);
+        const source = await file.text();
+        // Do not pull pdf-lib and the image renderer into the initial app shell.
+        const { printableDocument } = await import("../handlers/svgForeignObject.ts");
+        const html = printableDocument(source, title);
         if (closed || !heading.isConnected || !ui.popupBox.classList.contains("open")) return;
 
         prepared = await preparePrintPage(html, title);
@@ -88,9 +90,9 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
                 prepared?.print();
                 noticeText.textContent = "In the browser print dialog, choose Save as PDF. If you cancelled, you can open the dialog again.";
             } catch (error) {
-                const message = error instanceof Error ? error.message : String(error);
+                console.error("[html-pdf] print failed:", error);
                 close();
-                showAlertPopup("Unable to open print", "Your browser could not open its print dialog. Try again or choose an image-based PDF. " + message.replace(/[<&]/g, ""));
+                showAlertPopup("Unable to open print", "Your browser could not open its print dialog. Try again or choose an image-based PDF.");
             }
         }));
         footer.appendChild(createPopupButton("Done", "btn-secondary", close));
