@@ -357,7 +357,7 @@ class libreofficeHandler implements FormatHandler {
           await this.#disposeEngine();
         } catch (cleanupError) {
           console.warn("[LibreOffice] could not stop failed worker:", cleanupError);
-          throw err;
+          throw cleanupError;
         }
         if (attempt === 2 || (err instanceof WasmOfficeTimeoutError && file.bytes.byteLength > MAX_WASM_TIMEOUT_RETRY_BYTES)) {
           throw err;
