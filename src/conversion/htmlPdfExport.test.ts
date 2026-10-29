@@ -81,7 +81,7 @@ describe("HTML PDF export sheet", () => {
         expect(notice?.textContent).toContain('In the next screen, choose "Save as PDF".');
         expect(notice?.textContent).toContain('Tap "Save" to save your file.');
         expect(notice?.textContent).toContain('No printer needed.');
-        expect(notice?.textContent).toContain("You can select and copy text in this PDF.");
+        expect(notice?.textContent).not.toMatch(/select and copy text/i);
         expect(ui.popupBox.textContent).not.toContain("picture-only");
         expect([...ui.popupBox.querySelectorAll("button")].map(b => b.textContent)).toEqual([
             "Open print options", "Done",
