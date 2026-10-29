@@ -115,10 +115,6 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
         noticeText.className = "convert-notice-text";
         noticeText.textContent = '1. Tap "Open print options" below.\n2. In the next screen, choose "Save as PDF".\n3. Tap "Save" to save your file.\nNo printer needed.';
         notice.append(noticeTitle, noticeText);
-        const qualityHint = document.createElement("p");
-        qualityHint.className = "html-pdf-export-hint";
-        qualityHint.textContent = "You can select and copy text in this PDF.";
-        notice.appendChild(qualityHint);
 
         const footer = document.createElement("div");
         footer.className = "popup-actions-footer";
