@@ -22,6 +22,42 @@ const MAX_PRESENTATION_XML_BYTES = 2_000_000;
 const MAX_SLIDE_XML_BYTES = 32_000_000;
 const MAX_ALL_SLIDE_XML_BYTES = 96_000_000;
 
+export class PptxLimitError extends Error {
+    constructor() {
+        super("This PowerPoint is too complex to prepare safely in the browser.");
+        this.name = "PptxLimitError";
+    }
+}
+
+// JSZip documents this streaming API, but omits it from JSZipObject's types.
+type StreamingEntry = JSZip.JSZipObject & {
+    internalStream(type: "uint8array"): JSZip.JSZipStreamHelper<Uint8Array>;
+};
+
+function readBounded(entry: JSZip.JSZipObject, limit: number, keepText = false): Promise<{ size: number; text: string }> {
+    return new Promise((resolve, reject) => {
+        const stream = (entry as StreamingEntry).internalStream("uint8array");
+        const decoder = new TextDecoder();
+        let size = 0;
+        let text = "";
+        let stopped = false;
+        stream.on("data", chunk => {
+            if (stopped) return;
+            size += chunk.byteLength;
+            if (size > limit) {
+                stopped = true;
+                stream.pause();
+                text = "";
+                reject(new PptxLimitError());
+                return;
+            }
+            if (keepText) text += decoder.decode(chunk, { stream: true });
+        }).on("error", reject).on("end", () => {
+            if (!stopped) resolve({ size, text: keepText ? text + decoder.decode() : "" });
+        }).resume();
+    });
+}
+
 export type PptxBatchRange = { start: number; end: number };
 export type PptxBatchPlan = {
     totalSlides: number;
@@ -59,13 +95,12 @@ export async function planPptxBatches(
     const presentation = zip.file(PRESENTATION_PATH);
     const relations = zip.file(RELATIONS_PATH);
     if (!presentation || !relations) throw new Error("The PowerPoint slide information is missing.");
-    const presentationText = await presentation.async("string");
-    if (presentationText.length > MAX_PRESENTATION_XML_BYTES) throw new Error("The PowerPoint slide list is unusually large.");
+    const { text: presentationText } = await readBounded(presentation, MAX_PRESENTATION_XML_BYTES, true);
     const original = parseXml(presentationText);
     const ids = slideElements(original);
     if (!ids.length) throw new Error("The PowerPoint presentation contains no slides.");
 
-    const relationships = parseXml(await relations.async("string"));
+    const relationships = parseXml((await readBounded(relations, MAX_PRESENTATION_XML_BYTES, true)).text);
     const slidePaths = new Map<string, string>();
     for (const rel of Array.from(relationships.getElementsByTagNameNS(PACKAGE_REL_NS, "Relationship"))) {
         if (!rel.getAttribute("Type")?.endsWith("/slide")) continue;
@@ -86,11 +121,8 @@ export async function planPptxBatches(
         const relation = slide.getAttributeNS(REL_NS, "id");
         const entry = relation ? zip.file(slidePaths.get(relation) ?? "") : null;
         if (!entry) throw new Error("A PowerPoint slide is missing from its package.");
-        const size = (await entry.async("uint8array")).byteLength;
+        const { size } = await readBounded(entry, Math.min(MAX_SLIDE_XML_BYTES, MAX_ALL_SLIDE_XML_BYTES - totalXmlBytes));
         totalXmlBytes += size;
-        if (size > MAX_SLIDE_XML_BYTES || totalXmlBytes > MAX_ALL_SLIDE_XML_BYTES) {
-            throw new Error("This PowerPoint is too complex to prepare safely in the browser.");
-        }
         sizes.push(size);
     }
 

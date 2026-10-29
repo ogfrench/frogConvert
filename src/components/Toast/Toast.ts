@@ -9,6 +9,7 @@ let iconNode: HTMLSpanElement | null = null;
 let hideTimer: ReturnType<typeof setTimeout> | null = null;
 let hideAt = 0;
 let remainingMs = 0;
+let hovering = false;
 
 function ensureEl(): HTMLDivElement {
   if (el) return el;
@@ -43,8 +44,8 @@ function ensureEl(): HTMLDivElement {
 
   // Click-to-dismiss on the toast body kept for backwards compat.
   d.addEventListener("click", dismiss);
-  d.addEventListener("mouseenter", pauseDismissal);
-  d.addEventListener("mouseleave", resumeDismissal);
+  d.addEventListener("mouseenter", () => { hovering = true; pauseDismissal(); });
+  d.addEventListener("mouseleave", () => { hovering = false; resumeDismissal(); });
   d.addEventListener("focusin", pauseDismissal);
   d.addEventListener("focusout", (event) => {
     if (!d.contains(event.relatedTarget as Node | null)) resumeDismissal();
@@ -75,7 +76,7 @@ function dismiss(): void {
 function scheduleDismissal(ms: number): void {
   stopTimer();
   remainingMs = ms;
-  if (ms <= 0) return;
+  if (ms <= 0 || hovering || el?.contains(document.activeElement)) return;
   hideAt = Date.now() + ms;
   hideTimer = setTimeout(dismiss, ms);
 }
@@ -87,7 +88,8 @@ function pauseDismissal(): void {
 }
 
 function resumeDismissal(): void {
-  if (el?.classList.contains("open") && remainingMs > 0 && !hideTimer) {
+  if (el?.classList.contains("open") && remainingMs > 0 && !hideTimer
+      && !hovering && !el.contains(document.activeElement)) {
     scheduleDismissal(remainingMs);
   }
 }

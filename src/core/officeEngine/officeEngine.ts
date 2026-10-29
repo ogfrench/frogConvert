@@ -176,17 +176,6 @@ export async function openOfficeEngine(): Promise<OfficeConverter> {
     const cache = await caches.open(OFFICE_ENGINE_CACHE);
     const urls: Record<string, string> = {};
     const blobUrls: string[] = [];
-    for (const [option, name] of Object.entries(OFFICE_ENGINE_FILES)) {
-        if (!BLOB_FILES.has(name)) {
-            urls[option] = new URL(fileUrl(name), location.href).href;
-            continue;
-        }
-        const resp = await cache.match(fileUrl(name));
-        if (!resp) throw new Error("The Office engine isn't downloaded on this device.");
-        const url = URL.createObjectURL(await resp.blob());
-        blobUrls.push(url);
-        urls[option] = url;
-    }
     let released = false;
     const release = () => {
         if (released) return;
@@ -198,9 +187,25 @@ export async function openOfficeEngine(): Promise<OfficeConverter> {
     // never arrives if LibreOfficeKit is hung. The asset version is pinned.
     type BrowserWorkerConverter = OfficeConverter & { worker?: Worker | null };
     let converter: BrowserWorkerConverter | undefined;
-    const terminateWorker = () => { converter?.worker?.terminate(); };
+    const terminateWorker = () => {
+        const worker = converter?.worker;
+        if (!worker) return false;
+        worker.terminate();
+        return true;
+    };
 
     try {
+        for (const [option, name] of Object.entries(OFFICE_ENGINE_FILES)) {
+            if (!BLOB_FILES.has(name)) {
+                urls[option] = new URL(fileUrl(name), location.href).href;
+                continue;
+            }
+            const resp = await cache.match(fileUrl(name));
+            if (!resp) throw new Error("The Office engine isn't downloaded on this device.");
+            const url = URL.createObjectURL(await resp.blob());
+            blobUrls.push(url);
+            urls[option] = url;
+        }
         const mod = await import(/* @vite-ignore */ fileUrl(OFFICE_ENGINE_API)) as ConverterModule;
         converter = new mod.WorkerBrowserConverter(urls) as BrowserWorkerConverter;
         let startupTimer: ReturnType<typeof setTimeout> | undefined;
@@ -231,8 +236,12 @@ export async function openOfficeEngine(): Promise<OfficeConverter> {
                         }),
                     ]);
                 } catch {
-                    // A hung worker cannot acknowledge 'destroy'; force termination.
-                    terminateWorker();
+                    // Do not start another ~1.5 GB engine unless termination
+                    // can be confirmed. The pinned 2.7.2 converter exposes its
+                    // worker as a TS-private property.
+                    if (!terminateWorker()) {
+                        throw new Error("The Office engine could not be stopped safely. Reload the page before retrying.");
+                    }
                 } finally {
                     clearTimeout(stopTimer);
                     release();
