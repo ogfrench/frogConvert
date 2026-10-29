@@ -106,10 +106,22 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
         footer.appendChild(createPopupButton("Done", "btn-secondary", close));
 
         replacePopup([h2, createDancingFrog(), p, notice, footer], false, close);
+        // Popup.ts can close or replace the sheet without invoking this
+        // sheet's button callbacks. Release both its frame AND the global
+        // reentrancy guard, including when another popup replaces its content.
         observer = new MutationObserver(() => {
-            if (!ui.popupBox.classList.contains("open")) dispose();
+            if (!ui.popupBox.classList.contains("open") || !h2.isConnected) {
+                closed = true;
+                exportSheetOpen = false;
+                dispose();
+            }
         });
-        observer.observe(ui.popupBox, { attributes: true, attributeFilter: ["class"] });
+        observer.observe(ui.popupBox, {
+            attributes: true,
+            attributeFilter: ["class"],
+            childList: true,
+            subtree: true,
+        });
     } catch (error) {
         if (closed || !heading.isConnected) {
             exportSheetOpen = false;
