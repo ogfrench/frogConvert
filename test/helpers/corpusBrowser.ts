@@ -175,21 +175,39 @@ export async function waitForRegistry(page: Page, timeout = 60_000): Promise<voi
     await sleep(2500);
 }
 
-/** Wait for a download to land and settle (no .crdownload, size stable). */
+/** Snapshot the directory before clicking Download so old files cannot pass as new output. */
+function downloadSnapshot(dir: string): Map<string, { size: number; mtimeMs: number }> {
+    const baseline = new Map<string, { size: number; mtimeMs: number }>();
+    if (!fs.existsSync(dir)) return baseline;
+    for (const file of fs.readdirSync(dir)) {
+        const stat = fs.statSync(path.join(dir, file));
+        if (stat.isFile()) baseline.set(file, { size: stat.size, mtimeMs: stat.mtimeMs });
+    }
+    return baseline;
+}
+
+/** Wait for a NEW download to land and settle (no .crdownload, size stable). */
 async function waitForDownload(
     dir: string,
     timeoutMs = 300_000,
+    baseline: Map<string, { size: number; mtimeMs: number }> = new Map(),
 ): Promise<{ name: string; size: number }[] | null> {
     const start = Date.now();
     const last = new Map<string, number>();
     while (Date.now() - start < timeoutMs) {
         const files = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
-        const done = files.filter(f => !f.endsWith(".crdownload"));
+        const done = files.filter(f => {
+            if (f.endsWith(".crdownload")) return false;
+            const stat = fs.statSync(path.join(dir, f));
+            if (!stat.isFile()) return false;
+            const before = baseline.get(f);
+            return !before || before.size !== stat.size || before.mtimeMs !== stat.mtimeMs;
+        });
         if (done.length) {
             const stable = done.every(f => {
-                const s = fs.statSync(path.join(dir, f)).size;
-                const ok = last.get(f) === s && s > 0;
-                last.set(f, s);
+                const size = fs.statSync(path.join(dir, f)).size;
+                const ok = last.get(f) === size && size > 0;
+                last.set(f, size);
                 return ok;
             });
             if (stable) return done.map(f => ({ name: f, size: fs.statSync(path.join(dir, f)).size }));
@@ -226,12 +244,13 @@ export async function takeModalDownload(
     const canDownload = await page.evaluate(() => [...document.querySelectorAll(".popup-actions-footer button")]
         .some(b => /^Download/.test(b.textContent?.trim() ?? "")));
     if (!canDownload) return { files: null, modalText };
+    const baseline = downloadSnapshot(dir);
     await page.evaluate(() => {
         [...document.querySelectorAll(".popup-actions-footer button")]
             .find(b => /^Download/.test(b.textContent?.trim() ?? ""))
             ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
-    return { files: await waitForDownload(dir, 240_000), modalText };
+    return { files: await waitForDownload(dir, 240_000, baseline), modalText };
 }
 
 /**
