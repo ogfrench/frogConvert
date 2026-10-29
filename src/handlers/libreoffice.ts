@@ -4,11 +4,14 @@ import { isOfficeEngineCached, openOfficeEngine, type OfficeConverter } from "..
 import { planPptxBatches, PptxLimitError } from "../core/officeEngine/pptxBatches.ts";
 
 /**
- * How long one document may take in the browser engine. A normal document
- * takes about 2 s; the engine (2.7.2) occasionally hangs in its PDF export, so
- * the watchdog is short and a hang gets one retry on a fresh engine.
+ * Stop stalled workers instead of allowing an unbounded LibreOfficeKit hang.
+ * Retry a timed-out conversion only when its input is small enough to avoid
+ * repeating a memory-intensive job. The previous worker is destroyed first.
  */
 const wasmTimeoutMs = (bytes: number) => 15_000 + Math.ceil(bytes / 1e6) * 10_000;
+const MAX_WASM_TIMEOUT_RETRY_BYTES = 2_000_000;
+
+class WasmOfficeTimeoutError extends Error {}
 /** The engine holds ~1.5 GB; give it back after this long unused. */
 const WASM_IDLE_MS = 120_000;
 /** What the browser engine is trusted with. .ppt and .doc hang it, so they are not offered. */
@@ -337,24 +340,32 @@ class libreofficeHandler implements FormatHandler {
     return this.#enqueue(() => this.#doConvertInner(inputFiles, inputFormat, outputFormat));
   }
 
-  /** Retry genuine engine failures, but never repeat a full watchdog timeout. */
-  async #convertWasmWithRecovery(file: FileData, inputFormat: FileFormat): Promise<Uint8Array> {
-    try {
-      return await this.#convertOnce(file, inputFormat);
-    } catch (err) {
-      console.warn(`[LibreOffice] browser engine conversion failed for ${file.name}:`, err);
+  /** Retry a failed conversion once, with a fully stopped worker between attempts. */
+  async #convertWasmWithRecovery(
+    file: FileData,
+    inputFormat: FileFormat,
+    onProgress?: (p: ProgressEvent) => void,
+  ): Promise<Uint8Array> {
+    for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        await this.#disposeEngine();
-      } catch (cleanupError) {
-        console.warn("[LibreOffice] could not stop failed worker:", cleanupError);
+        return await this.#convertOnce(file, inputFormat);
+      } catch (err) {
+        console.warn(`[LibreOffice] browser engine attempt ${attempt} failed for ${file.name}:`, err);
+        // A Promise.race timeout does not stop the running worker. Tear it
+        // down before trying again, never running two engines concurrently.
+        try {
+          await this.#disposeEngine();
+        } catch (cleanupError) {
+          console.warn("[LibreOffice] could not stop failed worker:", cleanupError);
+          throw cleanupError;
+        }
+        if (attempt === 2 || (err instanceof WasmOfficeTimeoutError && file.bytes.byteLength > MAX_WASM_TIMEOUT_RETRY_BYTES)) {
+          throw err;
+        }
+        onProgress?.({ detail: "Restarting Office engine (one retry)..." });
       }
-      if (err instanceof Error && err.message.includes("took longer than")) {
-        // Trying the same expensive deck again makes an already unresponsive
-        // phone wait twice as long, and can leave two huge WASM allocations.
-        throw err;
-      }
-      return this.#convertOnce(file, inputFormat);
     }
+    throw new Error("Office conversion exhausted its recovery attempts.");
   }
 
   async #doConvertWasm(
@@ -382,7 +393,7 @@ class libreofficeHandler implements FormatHandler {
 
           if (!plan) {
             onProgress?.({ detail: "Converting presentation..." });
-            out = await this.#convertWasmWithRecovery(file, inputFormat);
+            out = await this.#convertWasmWithRecovery(file, inputFormat, onProgress);
           } else {
             const total = plan.totalSlides;
             // Import only on this path; other conversions do not need the PDF
@@ -399,7 +410,7 @@ class libreofficeHandler implements FormatHandler {
               let partPdf: Uint8Array;
               try {
                 partPdf = await this.#convertWasmWithRecovery(
-                  { name: file.name, bytes: part }, inputFormat,
+                  { name: file.name, bytes: part }, inputFormat, onProgress,
                 );
               } catch (err) {
                 throw new Error(
@@ -429,7 +440,7 @@ class libreofficeHandler implements FormatHandler {
           }
         } else {
           onProgress?.({ detail: "Converting Office document..." });
-          out = await this.#convertWasmWithRecovery(file, inputFormat);
+          out = await this.#convertWasmWithRecovery(file, inputFormat, onProgress);
         }
         const dot = file.name.lastIndexOf(".");
         results.push({ name: (dot > 0 ? file.name.slice(0, dot) : file.name) + ".pdf", bytes: out });
@@ -453,9 +464,10 @@ class libreofficeHandler implements FormatHandler {
     });
     const engine = await this.#engine;
     const limit = wasmTimeoutMs(file.bytes.byteLength);
+    const start = performance.now();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(
+      timer = setTimeout(() => reject(new WasmOfficeTimeoutError(
         `The Office engine took longer than ${limit / 1000} seconds on ${file.name} and was stopped.`,
       )), limit);
     });
@@ -464,7 +476,11 @@ class libreofficeHandler implements FormatHandler {
         engine.convert(file.bytes, { outputFormat: "pdf", inputFormat: inputFormat.extension }, file.name),
         timeout,
       ]);
+      console.info(`[LibreOffice] ${inputFormat.extension} to PDF completed in ${((performance.now() - start) / 1000).toFixed(1)}s (${file.bytes.byteLength} bytes)`);
       return new Uint8Array(out.data);
+    } catch (err) {
+      console.warn(`[LibreOffice] ${inputFormat.extension} to PDF failed after ${((performance.now() - start) / 1000).toFixed(1)}s (${file.bytes.byteLength} bytes, watchdog ${limit / 1000}s)`);
+      throw err;
     } finally {
       clearTimeout(timer);
     }
