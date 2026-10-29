@@ -61,6 +61,7 @@ describe("HTML PDF export sheet", () => {
         ui.popupBox = document.getElementById("popup")!;
         print.mockClear();
         dispose.mockClear();
+        vi.mocked(preparePrintPage).mockReset();
         vi.mocked(preparePrintPage).mockResolvedValue({ print, dispose });
     });
 
