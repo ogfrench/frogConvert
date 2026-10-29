@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ui } from "../components/store/store.ts";
 import { preparePrintPage } from "./printPage.ts";
+import { clearConvertSession } from "../components/persistence/convertPersist.ts";
 import { isBrowserHtmlPdfExport, showHtmlPdfExport } from "./htmlPdfExport.ts";
 
+vi.mock("../components/persistence/convertPersist.ts", () => ({
+    clearConvertSession: vi.fn(),
+}));
 vi.mock("../handlers/svgForeignObject.ts", () => ({
     printableDocument: vi.fn((html: string) => html),
 }));
@@ -61,6 +65,7 @@ describe("HTML PDF export sheet", () => {
         ui.popupBox = document.getElementById("popup")!;
         print.mockClear();
         dispose.mockClear();
+        vi.mocked(clearConvertSession).mockClear();
         vi.mocked(preparePrintPage).mockReset();
         vi.mocked(preparePrintPage).mockResolvedValue({ print, dispose });
     });
@@ -78,6 +83,7 @@ describe("HTML PDF export sheet", () => {
         expect(fallback).not.toHaveBeenCalled();
         expect(ui.popupBox.textContent).not.toMatch(/PDF ready|has been saved/i);
         [...ui.popupBox.querySelectorAll("button")].find(b => b.textContent === "Done")!.click();
+        expect(clearConvertSession).toHaveBeenCalledOnce();
     });
 
     it("the explicit image fallback leaves printing and resumes the original conversion", async () => {
@@ -89,6 +95,7 @@ describe("HTML PDF export sheet", () => {
         expect(fallback).toHaveBeenCalledOnce();
         expect(print).not.toHaveBeenCalled();
         expect(dispose).toHaveBeenCalledOnce();
+        expect(clearConvertSession).not.toHaveBeenCalled();
     });
 
     it("prevents duplicate export sheets until the first one closes", async () => {
@@ -120,6 +127,39 @@ describe("HTML PDF export sheet", () => {
         await showHtmlPdfExport(file(), vi.fn());
         ui.popupBox.replaceChildren(document.createElement("aside"));
         await new Promise(resolve => setTimeout(resolve, 0));
+        expect(dispose).toHaveBeenCalledOnce();
+
+        await showHtmlPdfExport(file("retry.html"), vi.fn());
+        expect(preparePrintPage).toHaveBeenCalledTimes(2);
+        [...ui.popupBox.querySelectorAll("button")].find(b => b.textContent === "Done")!.click();
+    });
+
+    it("releases the guard when a pending file read is replaced", async () => {
+        let finishRead!: (source: string) => void;
+        const delayed = new Promise<string>(resolve => { finishRead = resolve; });
+        const first = showHtmlPdfExport({ name: "slow.html", text: () => delayed } as File, vi.fn());
+        ui.popupBox.replaceChildren(document.createElement("aside"));
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        await showHtmlPdfExport(file("retry.html"), vi.fn());
+        expect(preparePrintPage).toHaveBeenCalledOnce();
+        finishRead("<html><body>Old file</body></html>");
+        await first;
+        expect(preparePrintPage).toHaveBeenCalledOnce();
+        [...ui.popupBox.querySelectorAll("button")].find(b => b.textContent === "Done")!.click();
+    });
+
+    it("disposes a late print frame after its sheet is replaced", async () => {
+        let finishPrepare!: (view: { print: typeof print; dispose: typeof dispose }) => void;
+        vi.mocked(preparePrintPage).mockImplementationOnce(() =>
+            new Promise(resolve => { finishPrepare = resolve; }),
+        );
+        const first = showHtmlPdfExport(file("slow.html"), vi.fn());
+        await vi.waitFor(() => expect(preparePrintPage).toHaveBeenCalledOnce());
+        ui.popupBox.replaceChildren(document.createElement("aside"));
+        await new Promise(resolve => setTimeout(resolve, 0));
+        finishPrepare({ print, dispose });
+        await first;
         expect(dispose).toHaveBeenCalledOnce();
 
         await showHtmlPdfExport(file("retry.html"), vi.fn());
