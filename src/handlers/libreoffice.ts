@@ -362,7 +362,7 @@ class libreofficeHandler implements FormatHandler {
         if (attempt === 2 || (err instanceof WasmOfficeTimeoutError && file.bytes.byteLength > MAX_WASM_TIMEOUT_RETRY_BYTES)) {
           throw err;
         }
-        onProgress?.({ detail: "Restarting the Office engine after a stalled conversion..." });
+        onProgress?.({ detail: "Restarting Office engine (one retry)..." });
       }
     }
     throw new Error("Office conversion exhausted its recovery attempts.");
