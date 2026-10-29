@@ -38,10 +38,11 @@ function parseXml(text: string): Document {
 function slideElements(xml: Document): Element[] {
     const list = xml.getElementsByTagNameNS(PRESENTATION_NS, "sldIdLst").item(0);
     if (!list) throw new Error("The PowerPoint slide list is missing.");
-    return Array.from(list.childNodes).filter(
-        (node): node is Element => node.nodeType === 1
-            && node.namespaceURI === PRESENTATION_NS && node.localName === "sldId",
-    );
+    return Array.from(list.childNodes).filter((node): node is Element => {
+        if (node.nodeType !== 1) return false;
+        const el = node as Element;
+        return el.namespaceURI === PRESENTATION_NS && el.localName === "sldId";
+    });
 }
 
 /** Plans are lazy: zip copies and PDF output exist only for the active batch. */
