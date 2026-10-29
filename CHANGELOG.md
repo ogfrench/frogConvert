@@ -14,6 +14,7 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ### Fixed
 - Desktop app without LibreOffice: Office to PDF makes the picture-only PDF its notice describes again. 3.3.0 blocked the conversion with no way forward.
+- The desktop result notice for a picture-only Office PDF says to install LibreOffice, instead of pointing at a browser download the desktop app does not use.
 - "Print as PDF" on a result card prepares the page when the card appears, so print() runs inside the tap. It used to wait for images and fonts first, which mobile browsers can refuse.
 - One print-frame helper for the HTML export sheet and the result card, instead of two copies.
 

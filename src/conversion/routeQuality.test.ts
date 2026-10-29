@@ -51,4 +51,16 @@ describe('routeQualityNotice', () => {
   it('is silent for a faithful route', () => {
     expect(routeQualityNotice(['pptx', 'pdf'])).toBeNull();
   });
+
+  it('tells the desktop app to install LibreOffice, not to switch browsers', () => {
+    const ua = navigator.userAgent;
+    Object.defineProperty(navigator, 'userAgent', { value: `${ua} Electron/44.9.3`, configurable: true });
+    try {
+      const body = routeQualityNotice(['docx', 'html', 'png', 'pdf'], true)!.body;
+      expect(body).toMatch(/install LibreOffice/);
+      expect(body).not.toMatch(/browser/);
+    } finally {
+      Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
+    }
+  });
 });
