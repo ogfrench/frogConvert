@@ -4,6 +4,8 @@ import type { Browser, Page } from "puppeteer";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import JSZip from "jszip";
+import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 import {
     DIST, distBuilt, serveDist, launchBrowser, newTrackedPage, takeModalDownload,
     waitForRegistry, sleep, inspectPdf, pdfPageTexts, type DistServer,
@@ -116,6 +118,43 @@ describe.skipIf(!requested || !distBuilt() || !engineBuilt)("Browser Office engi
         const { bytes, modal } = await convert();
         expect(modal).not.toMatch(/with limits|made of pictures/);
         expect((await inspectPdf(bytes)).pageCount).toBe(4);
+    }, 600_000);
+
+    it("renders a 17-slide presentation in two real batches on a touch viewport", async () => {
+        // Generate a stress case in the runner. It uses our small public deck,
+        // never a user's private file. Duplicate a slide ID with unique IDs:
+        // LibreOffice resolves repeated references to the original slide.
+        const zip = await JSZip.loadAsync(fs.readFileSync(path.join(RES, "deck.pptx")));
+        const original = await zip.file("ppt/presentation.xml")!.async("string");
+        const xml = new DOMParser().parseFromString(original, "application/xml");
+        const nodes = xml.getElementsByTagNameNS(
+            "http://schemas.openxmlformats.org/presentationml/2006/main", "sldId",
+        );
+        const parent = nodes.item(0)!.parentNode!;
+        const template = nodes.item(0)!;
+        for (let i = 0; i < 13; i++) {
+            const clone = template.cloneNode(true) as Element;
+            clone.setAttribute("id", String(4000 + i));
+            parent.appendChild(clone);
+        }
+        zip.file("ppt/presentation.xml", new XMLSerializer().serializeToString(xml));
+        const synthetic = path.join(TMP, "17-slides.pptx");
+        fs.writeFileSync(synthetic, await zip.generateAsync({ type: "nodebuffer" }));
+
+        await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+        await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
+        await waitForRegistry(page);
+        await page.waitForFunction(() => (window.supportedFormatCache?.get("libreoffice")?.length ?? 0) > 0, { timeout: 30_000 });
+        await pickToPdf(synthetic);
+        await page.$eval("#convert-button", b => (b as HTMLButtonElement).click());
+        await page.waitForFunction(() => /Converting slides 1.*16 of 17/
+            .test(document.querySelector(".status-live")?.textContent ?? ""), { timeout: 60_000 });
+        const { files, modalText } = await takeModalDownload(page, TMP, 240_000);
+        if (!files?.length) throw new Error(`multi-batch PowerPoint conversion failed: ${modalText}; ${JSON.stringify(browserLogs.slice(-25))}`);
+        expect(modalText).not.toMatch(/with limits|made of pictures/);
+        const pdf = fs.readFileSync(path.join(TMP, files[0].name));
+        expect((await inspectPdf(pdf)).pageCount).toBe(17);
+        expect((await pdfPageTexts(pdf)).join(" ")).toMatch(/Quarterly Review/);
     }, 600_000);
 
     it("reuses the cached engine on a touch viewport without a warning toast", async () => {
