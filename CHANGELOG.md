@@ -10,6 +10,9 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Fixed
+- Recover a stalled browser Office conversion on small inputs with one fresh-worker retry after terminating the failed worker; keep large-file timeouts bounded and report actual attempt duration for diagnosis.
+
 ### Changed
 - Allow the browser Office engine on touch devices when the required browser features are available, with a user-initiated download and no silent Office-to-PDF quality downgrade.
 - Replace the mobile Office warning toast with inline preparation and limited-conversion choices; soften shared notification styling and improve dismissal behavior.
