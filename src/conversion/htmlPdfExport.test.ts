@@ -63,8 +63,8 @@ describe("HTML PDF export sheet", () => {
     beforeEach(() => {
         document.body.innerHTML = '<div id="popup"></div>';
         ui.popupBox = document.getElementById("popup")!;
-        print.mockClear();
-        dispose.mockClear();
+        print.mockReset();
+        dispose.mockReset();
         vi.mocked(clearConvertSession).mockClear();
         vi.mocked(preparePrintPage).mockReset();
         vi.mocked(preparePrintPage).mockResolvedValue({ print, dispose });
@@ -81,7 +81,11 @@ describe("HTML PDF export sheet", () => {
         expect(notice?.textContent).toContain('In the next screen, choose "Save as PDF".');
         expect(notice?.textContent).toContain('Tap "Save" to save your file.');
         expect(notice?.textContent).toContain('No printer needed.');
-        expect(notice?.textContent).toContain("Text in this version can't be copied.");
+        expect(notice?.textContent).toContain("You can select and copy text in this PDF.");
+        expect(ui.popupBox.textContent).not.toContain("picture-only");
+        expect([...ui.popupBox.querySelectorAll("button")].map(b => b.textContent)).toEqual([
+            "Open print options", "Done",
+        ]);
         expect(notice?.textContent).not.toMatch(/native page layout|A4 fallback/i);
         const button = [...ui.popupBox.querySelectorAll("button")]
             .find(b => b.textContent === "Open print options");
@@ -96,15 +100,32 @@ describe("HTML PDF export sheet", () => {
         expect(clearConvertSession).toHaveBeenCalledOnce();
     });
 
-    it("the explicit image fallback leaves printing and resumes the original conversion", async () => {
+    it("offers the picture-only fallback only when preparing the print view fails", async () => {
         const fallback = vi.fn();
+        vi.mocked(preparePrintPage).mockRejectedValueOnce(new Error("Cannot create print iframe"));
         await showHtmlPdfExport(file(), fallback);
+        expect(ui.popupBox.textContent).toContain("Print view unavailable");
+        expect(ui.popupBox.textContent).toContain("text can't be selected or copied");
         const button = [...ui.popupBox.querySelectorAll("button")]
             .find(b => b.textContent === "Download picture-only PDF");
+        expect(button).toBeDefined();
         button!.click();
         expect(fallback).toHaveBeenCalledOnce();
         expect(print).not.toHaveBeenCalled();
+        expect(clearConvertSession).not.toHaveBeenCalled();
+    });
+
+    it("shows the fallback if the browser throws when opening the print dialog", async () => {
+        const fallback = vi.fn();
+        print.mockImplementationOnce(() => { throw new Error("Print blocked"); });
+        await showHtmlPdfExport(file(), fallback);
+        [...ui.popupBox.querySelectorAll("button")]
+            .find(b => b.textContent === "Open print options")!.click();
+        expect(ui.popupBox.textContent).toContain("Print view unavailable");
         expect(dispose).toHaveBeenCalledOnce();
+        [...ui.popupBox.querySelectorAll("button")]
+            .find(b => b.textContent === "Download picture-only PDF")!.click();
+        expect(fallback).toHaveBeenCalledOnce();
         expect(clearConvertSession).not.toHaveBeenCalled();
     });
 
