@@ -72,6 +72,32 @@ describe('svgForeignObject', () => {
     expect(findPageBreak(px, w, h)).toBe(h);
   });
 
+  it('places a strict no-network policy before printable document resources', () => {
+    const html = printableDocument('<html><head><style>body{background:url(/relative.png)}</style></head><body><img src="/origin-api" /><img src="data:image/png;base64,AA=="></body></html>', undefined, { blockNetwork: true });
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const policy = doc.querySelector('meta[http-equiv="Content-Security-Policy"]');
+    expect(policy).not.toBeNull();
+    expect(policy!.getAttribute("content")).toContain("default-src 'none'");
+    expect(policy!.getAttribute("content")).toContain("img-src data: blob:");
+    expect(doc.head.firstElementChild).toBe(policy);
+    expect(html).not.toMatch(/<script/i);
+  });
+
+  it('does not impose the browser-only CSP on shared desktop and MCP print output', () => {
+    const printed = printableDocument('<html><body><img src="/local-image.png"></body></html>');
+    expect(printed).toContain('src="/local-image.png"');
+    expect(printed).not.toContain('http-equiv="Content-Security-Policy"');
+  });
+
+  it('keeps the author print page rules after the fallback A4 rule', () => {
+    const printed = printableDocument(
+      '<html><head><style>@media print { @page { size: 16in 9in; margin: 0 } }</style></head><body>Slides</body></html>',
+    );
+    expect(printed).toContain('size: A4; margin: 10mm');
+    expect(printed).toContain('size: 16in 9in; margin: 0');
+    expect(printed.indexOf('size: A4')).toBeLessThan(printed.indexOf('size: 16in 9in'));
+  });
+
   it('makes a print-ready page: A4, backgrounds on, no Chrome stamps, no scripts', () => {
     const doc = printableDocument(
       '<html><head><style>p{color:red}</style><script>alert(1)</script></head>' +

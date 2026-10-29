@@ -128,7 +128,7 @@ const PRINT_CSS = "@page { size: A4; margin: 10mm; "
  * app sends to Chromium's PDF printer and what the web UI prints. `title`
  * becomes the file name the print dialog suggests.
  */
-export function printableDocument(html: string, title?: string): string {
+export function printableDocument(html: string, title?: string, options?: { blockNetwork?: boolean }): string {
     // Sanitized until reading it back changes nothing. Markup that mutates
     // when re-parsed (an <img onerror> hidden in <math>/<style> nesting)
     // came back to life in the printed copy on one pass. The print frame
@@ -143,7 +143,18 @@ export function printableDocument(html: string, title?: string): string {
     if (title) doc.title = title;
     const style = doc.createElement("style");
     style.textContent = PRINT_CSS;
-    doc.head.prepend(style);
+    // Only the browser print frame needs this no-network policy. The desktop
+    // PDF printer and MCP/REST bridge use this shared helper too; imposing it
+    // there would silently remove resources their PDF printers could load.
+    if (options?.blockNetwork) {
+        // First in <head>, so relative assets cannot fetch before the CSP.
+        const policy = doc.createElement("meta");
+        policy.setAttribute("http-equiv", "Content-Security-Policy");
+        policy.setAttribute("content", "default-src 'none'; img-src data: blob:; font-src data:; style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'");
+        doc.head.prepend(policy, style);
+    } else {
+        doc.head.prepend(style);
+    }
     return "<!doctype html>\n" + doc.documentElement.outerHTML;
 }
 
@@ -453,7 +464,7 @@ class svgForeignObjectHandler implements FormatHandler {
             name: newName,
             bytes: await svgForeignObjectHandler.toImagePdf(html, onProgress),
             drawnAsImage: true,
-            printableHtml: printableDocument(html, title),
+            printableHtml: printableDocument(html, title, { blockNetwork: true }),
           });
       }
     }

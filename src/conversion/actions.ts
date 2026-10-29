@@ -54,6 +54,7 @@ import { hopQualityArgs, resolveAutoQuality } from "../core/compression/hopQuali
 import { startConversionStatus, statusHTML, type StatusHandle } from "./progressStatus.ts";
 import { routeQualityNotice, PRINT_ACTION_LABEL } from "./routeQuality.ts";
 import { printPage } from "./printPage.ts";
+import { isBrowserHtmlPdfExport, showHtmlPdfExport } from "./htmlPdfExport.ts";
 import { dismissToast } from "../components/Toast/Toast.ts";
 import { isOfficePdfConversion, prepareOfficePdfConversion } from "../components/FormatModal/FormatModal.ts";
 // --- Helpers ---
@@ -506,8 +507,18 @@ export function conversionResultText(opts: {
 
 export function initConvertButton() {
     ui.convertButton.onclick = async () => {
-        // Reentrancy guard: flag is set synchronously before the first await.
+        // Keep the existing conversion graph for every route except a single
+        // HTML -> PDF file in a browser. A PDF with selectable text uses native
+        // printing from a prepared, isolated document.
         if (isConverting) return;
+        const from = selectedFromIndex.value === null ? null : allOptionsRef.value[selectedFromIndex.value]?.format;
+        const to = selectedToIndex.value === null ? null : allOptionsRef.value[selectedToIndex.value]?.format;
+        if (from && to
+            && window.traversionGraph.nodeCount > 0
+            && isBrowserHtmlPdfExport(from.extension, to.extension, currentFiles.value.length, location.protocol)) {
+            void showHtmlPdfExport(currentFiles.value[0]);
+            return;
+        }
         isConverting = true;
 
         const allOutputFiles: FileData[] = [];
@@ -810,8 +821,8 @@ export function initConvertButton() {
             // reduced to its text) is not one to celebrate: the notice below
             // says what was lost, and a party popper above it says otherwise.
             const successTitle = degradedRoute
-                ? (isBatch ? "Files converted, with limits" : "File converted, with limits")
-                : isBatch ? modeCopy().successTitleBatch : modeCopy().successTitleSingle;
+                    ? (isBatch ? "Files converted, with limits" : "File converted, with limits")
+                    : isBatch ? modeCopy().successTitleBatch : modeCopy().successTitleSingle;
             const resultText = conversionResultText({
                 fileCount,
                 outCount: allOutputFiles.length,

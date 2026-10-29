@@ -12,6 +12,65 @@ import { waitAtMost } from "../core/utils/waitAtMost.ts";
  * sanitized; the sandbox is the second lock. `allow-modals` is what lets a
  * sandboxed frame open the print dialog at all.
  */
+/**
+ * Prepare the isolated print frame before the user presses the final button.
+ * Mobile browsers may block print() when it runs after asynchronous work has
+ * lost the user's activation. The returned print method is synchronous.
+ *
+ * The caller owns the frame and must dispose it when its export sheet closes.
+ */
+export async function preparePrintPage(html: string, title: string): Promise<{
+    print: () => void;
+    dispose: () => void;
+}> {
+    const frame = document.createElement("iframe");
+    frame.setAttribute("sandbox", "allow-same-origin allow-modals");
+    frame.setAttribute("aria-hidden", "true");
+    frame.tabIndex = -1;
+    frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
+    document.body.appendChild(frame);
+
+    let disposed = false;
+    const dispose = () => {
+        if (disposed) return;
+        disposed = true;
+        frame.remove();
+    };
+
+    try {
+        const doc = frame.contentDocument!;
+        doc.open();
+        doc.write(html);
+        doc.close();
+
+        const images = Array.from(doc.images).filter(img => !img.complete);
+        await waitAtMost(Promise.all(images.map(img => new Promise(resolve => {
+            img.addEventListener("load", resolve);
+            img.addEventListener("error", resolve);
+        }))), 10_000);
+        await waitAtMost(doc.fonts?.ready, 10_000);
+
+        return {
+            dispose,
+            print: () => {
+                if (disposed) throw new Error("The print view is no longer available.");
+                // Keep print() on the same synchronous user-gesture stack.
+                const previousTitle = document.title;
+                document.title = title;
+                try {
+                    frame.contentWindow!.focus();
+                    frame.contentWindow!.print();
+                } finally {
+                    document.title = previousTitle;
+                }
+            },
+        };
+    } catch (error) {
+        dispose();
+        throw error;
+    }
+}
+
 let printing = false;
 
 export async function printPage(html: string, title: string): Promise<void> {

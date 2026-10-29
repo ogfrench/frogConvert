@@ -282,6 +282,26 @@
   background-color: var(--background);
 }
 
+/* The HTML-to-PDF choice is a guided, centered action rather than a
+   conversion-result warning. Other result notices remain left-aligned.
+   A short mobile viewport must not hide the final action buttons. */
+#popup:has(.html-pdf-export-notice) {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+#popup .convert-notice.html-pdf-export-notice {
+  align-items: center;
+  text-align: center;
+}
+
+#popup .html-pdf-export-notice .convert-notice-text {
+  white-space: pre-line;
+  line-height: var(--leading-normal);
+  text-align: center;
+}
+
 @media only screen and (max-width: 800px) {
   #popup .convert-notice-link {
     align-self: stretch;

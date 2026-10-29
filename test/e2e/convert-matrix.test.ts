@@ -29,7 +29,7 @@ const requested = process.env.FROG_E2E_MATRIX === "1";
 const TMP = path.join(os.tmpdir(), "frog-convert-matrix");
 
 type Outcome = {
-    files: { name: string; size: number }[]; dir: string; modal: string;
+    files: { name: string; size: number }[]; dir: string; modal: string; preflight: string | null;
     /** Requests to anywhere but the app's own server: a conversion must make none. */
     external: string[];
     /** Set by any script in the input that managed to run. */
@@ -91,17 +91,19 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         }, target.toUpperCase());
         if (!picked) throw new Error(`no ${target} target offered for ${path.basename(input)}`);
         await sleep(600);
+        let preflight: string | null = null;
         if (target.toLowerCase() === "pdf" && /\.(pptx|docx|xlsx|odp|odt|ods)$/i.test(input)) {
             await page.waitForSelector("#office-limited-convert", { visible: true });
             await page.click("#office-limited-convert");
         } else {
             await page.$eval("#convert-button", b => (b as HTMLButtonElement).click());
+
         }
         const { files, modalText } = await takeModalDownload(page, dir, 240_000);
         const pwned = await page.evaluate(() => (window as unknown as { __pwned?: unknown }).__pwned ?? null);
         await page.close();
         if (!files?.length) throw new Error(`no download; modal said: ${modalText}`);
-        return { files, dir, modal: modalText, external, pwned };
+        return { files, dir, modal: modalText, preflight, external, pwned };
     }
 
     const read = (o: Outcome) => fs.readFileSync(path.join(o.dir, o.files[0].name));
@@ -172,32 +174,103 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         expect([...rgba.subarray(0, 3)]).toEqual([0x10, 0x20, 0x30]);
     }, 300_000);
 
-    it("html -> pdf is A4 pages, labelled as pictures", async () => {
-        const o = await convert(path.join(RES, "styled-page.html"), "pdf");
-        const shape = await inspectPdf(read(o));
-        expect(shape.pageCount).toBeGreaterThan(1);
-        expect(shape.sizes.every(s => s.w === 595 && s.h === 842)).toBe(true);
-        expect(o.modal).toMatch(/made of pictures/);
-        // The result card offers the browser's own PDF printer for real text.
-        expect(o.modal).toMatch(/press Print as PDF and choose Save as PDF/);
+    it.each([
+        ["styled-page.html", false], ["hostile.html", false], ["styled-page.html", true],
+    ] as const)("%s offers private native PDF export (retry: %s)", async (fixture, failOnce) => {
+        const dir = path.join(TMP, "html-native-print");
+        const { page } = await newTrackedPage(browser, dir);
+        const external: string[] = [];
+        page.on("request", r => {
+            if (!r.url().startsWith(server.base) && !/^(data|blob|about):/.test(r.url())) external.push(r.url());
+        });
+        try {
+            await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
+            await page.evaluate(() => (document.querySelector('#format-mode-menu [data-value="all"]') as HTMLElement | null)?.click());
+            await waitForRegistry(page);
+            const input = await page.$("#file-input");
+            await (input as unknown as { uploadFile(p: string): Promise<void> }).uploadFile(path.join(RES, fixture));
+            await page.click("#format-selector");
+            await page.waitForSelector("#format-modal.open");
+            await sleep(800);
+            const picked = await page.evaluate(() => {
+                const option = [...document.querySelectorAll<HTMLElement>(".format-option")]
+                    .find(o => /^PDF\b/i.test(o.textContent?.trim() ?? "") && !o.classList.contains("unavailable"));
+                option?.click();
+                return !!option;
+            });
+            expect(picked).toBe(true);
+            await sleep(600);
+            if (failOnce) {
+                await page.evaluate(() => {
+                    const create = document.createElement.bind(document);
+                    let failed = false;
+                    document.createElement = ((tag: string, options?: ElementCreationOptions) => {
+                        if (tag === "iframe" && !failed) {
+                            failed = true;
+                            throw new Error("Injected preparation failure");
+                        }
+                        return create(tag, options);
+                    }) as typeof document.createElement;
+                });
+            }
+            await page.click("#convert-button");
+            if (failOnce) {
+                await page.waitForFunction(() => document.querySelector("#popup h2")?.textContent === "PDF options unavailable");
+                expect(await page.$eval("#popup", el => el.textContent)).not.toMatch(/picture-only/i);
+                await page.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>("#popup button")]
+                    .find(b => b.textContent === "Try again")!.click());
+            }
+            await page.waitForFunction(() => [...document.querySelectorAll("#popup button")]
+                .some(b => b.textContent === "Save PDF"), { timeout: 30_000 });
+            const ready = await page.evaluate(() => {
+                const frame = document.querySelector<HTMLIFrameElement>('iframe[sandbox="allow-same-origin allow-modals"]');
+                const policy = frame?.contentDocument?.querySelector('meta[http-equiv="Content-Security-Policy"]');
+                const button = [...document.querySelectorAll<HTMLButtonElement>("#popup button")]
+                    .find(b => b.textContent === "Save PDF");
+                if (button) button.id = "native-print-test";
+                if (frame?.contentWindow) {
+                    Object.defineProperty(frame.contentWindow, "print", {
+                        configurable: true,
+                        value: () => { (window as unknown as { __nativePrintTest?: boolean }).__nativePrintTest = true; },
+                    });
+                }
+                return { hasFrame: !!frame, csp: policy?.getAttribute("content"), title: document.querySelector("#popup h2")?.textContent };
+            });
+            expect(ready.hasFrame).toBe(true);
+            expect(ready.csp).toContain("default-src 'none'");
+            expect(ready.title).toBe("Save as PDF");
+            const alignment = await page.$eval("#popup .html-pdf-export-notice", el => ({
+                text: getComputedStyle(el).textAlign,
+                steps: getComputedStyle(el.querySelector(".convert-notice-text")!).whiteSpace,
+                hasFallback: !!el.querySelector(".convert-notice-link"),
+                instructions: el.querySelector(".convert-notice-text")?.textContent,
+            }));
+            expect(alignment).toMatchObject({ text: "center", steps: "pre-line", hasFallback: false });
+            expect(alignment.instructions).toContain('Choose "Save as PDF" in the next window, then save your file.');
+            await page.click("#native-print-test");
+            expect(await page.evaluate(() => (window as unknown as { __nativePrintTest?: boolean }).__nativePrintTest)).toBe(true);
+            expect(await page.$eval("#popup h2", el => el.textContent)).toBe("Save as PDF");
+            // Short phone viewports must still allow scrolling down to Done.
+            await page.setViewport({ width: 320, height: 568 });
+            const closeReachable = await page.evaluate(() => {
+                const popup = document.querySelector<HTMLElement>("#popup")!;
+                popup.scrollTop = popup.scrollHeight;
+                const done = [...popup.querySelectorAll("button")].find(b => b.textContent === "Done")!;
+                const rect = done.getBoundingClientRect();
+                return rect.top >= 0 && rect.bottom <= window.innerHeight;
+            });
+            expect(closeReachable).toBe(true);
+            expect(external).toEqual([]);
+            expect(await page.evaluate(() => (window as unknown as { __pwned?: unknown }).__pwned ?? null)).toBeNull();
+        } finally {
+            await page.close();
+        }
     }, 300_000);
 
     it("markdown -> pdf goes through HTML, not plain text, and is labelled", async () => {
         const o = await convert(path.join(RES, "markdown.md"), "pdf");
         expect(o.modal).toMatch(/made of pictures/);
         expect((await inspectPdf(read(o))).sizes[0]).toMatchObject({ w: 595, h: 842 });
-    }, 300_000);
-
-    // Inputs written to break it, kept so the bugs they found stay fixed.
-    it("a hostile page converts, runs nothing and fetches nothing", async () => {
-        // Scripts, event handlers, <base>, meta refresh, mutation-XSS markup,
-        // and URLs to another site in src, srcset, poster, style, @import and
-        // image-set. Its <video> with only a poster used to hang the
-        // conversion for good: it fires neither load nor error.
-        const o = await convert(path.join(RES, "hostile.html"), "pdf");
-        expect(o.pwned).toBeNull();
-        expect(o.external).toEqual([]);
-        expect(o.modal).toMatch(/press Print as PDF/);
     }, 300_000);
 
     it("a table wider than the page comes through whole", async () => {
