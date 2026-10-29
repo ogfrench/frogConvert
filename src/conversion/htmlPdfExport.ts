@@ -2,6 +2,7 @@ import { createDancingFrog } from "../components/Frogsworth/DancingFrog.ts";
 import { createPopupButton, hidePopup, replacePopup, showAlertPopup, showPopup } from "../components/Popup/Popup.ts";
 import { ui } from "../components/store/store.ts";
 import { shortenFileName } from "../components/utils/index.ts";
+import { clearConvertSession } from "../components/persistence/convertPersist.ts";
 import { preparePrintPage } from "./printPage.ts";
 
 // A second Convert trigger must not create another printable iframe while the
@@ -34,6 +35,7 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
     let closed = false;
     let prepared: Awaited<ReturnType<typeof preparePrintPage>> | null = null;
     let observer: MutationObserver | null = null;
+    let activeHeading: HTMLElement = heading;
 
     const dispose = () => {
         observer?.disconnect();
@@ -41,25 +43,42 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
         prepared?.dispose();
         prepared = null;
     };
-    const close = () => {
+    const abandon = () => {
         closed = true;
         exportSheetOpen = false;
         dispose();
+    };
+    const close = () => {
+        abandon();
         hidePopup();
     };
 
     try {
         showPopup([heading, createDancingFrog(), description], false, close);
+        // Observe from the first async operation: replacing the preparing
+        // sheet must release the guard even if file.text() never settles.
+        observer = new MutationObserver(() => {
+            if (!ui.popupBox.classList.contains("open") || !activeHeading.isConnected) abandon();
+        });
+        observer.observe(ui.popupBox, {
+            attributes: true,
+            attributeFilter: ["class"],
+            childList: true,
+            subtree: true,
+        });
         const title = file.name.replace(/\.html?$/i, "") || file.name;
         const source = await file.text();
         // Do not pull pdf-lib and the image renderer into the initial app shell.
         const { printableDocument } = await import("../handlers/svgForeignObject.ts");
         const html = printableDocument(source, title);
-        if (closed || !heading.isConnected || !ui.popupBox.classList.contains("open")) return;
+        if (closed || !heading.isConnected || !ui.popupBox.classList.contains("open")) {
+            abandon();
+            return;
+        }
 
         prepared = await preparePrintPage(html, title);
         if (closed || !heading.isConnected || !ui.popupBox.classList.contains("open")) {
-            dispose();
+            abandon();
             return;
         }
 
@@ -103,29 +122,18 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
                 showAlertPopup("Unable to open print", "Your browser could not open its print dialog. Try again or choose an image-based PDF.");
             }
         }));
-        footer.appendChild(createPopupButton("Done", "btn-secondary", close));
+        footer.appendChild(createPopupButton("Done", "btn-secondary", () => {
+            // The explicit Done action ends this export workflow. Dismissing
+            // the dialog or cancelling OS printing does not prove success.
+            void clearConvertSession();
+            close();
+        }));
 
+        activeHeading = h2;
         replacePopup([h2, createDancingFrog(), p, notice, footer], false, close);
-        // Popup.ts can close or replace the sheet without invoking this
-        // sheet's button callbacks. Release both its frame AND the global
-        // reentrancy guard, including when another popup replaces its content.
-        observer = new MutationObserver(() => {
-            if (!ui.popupBox.classList.contains("open") || !h2.isConnected) {
-                closed = true;
-                exportSheetOpen = false;
-                dispose();
-            }
-        });
-        observer.observe(ui.popupBox, {
-            attributes: true,
-            attributeFilter: ["class"],
-            childList: true,
-            subtree: true,
-        });
     } catch (error) {
         if (closed || !heading.isConnected) {
-            exportSheetOpen = false;
-            dispose();
+            abandon();
             return;
         }
         close();
