@@ -210,7 +210,7 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
             await sleep(800);
             const picked = await page.evaluate(() => {
                 const option = [...document.querySelectorAll<HTMLElement>(".format-option")]
-                    .find(o => /^PDF\\b/i.test(o.textContent?.trim() ?? "") && !o.classList.contains("unavailable"));
+                    .find(o => /^PDF\b/i.test(o.textContent?.trim() ?? "") && !o.classList.contains("unavailable"));
                 option?.click();
                 return !!option;
             });
