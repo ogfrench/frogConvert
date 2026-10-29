@@ -77,8 +77,8 @@ describe("HTML PDF export sheet", () => {
         expect(print).not.toHaveBeenCalled();
         const notice = ui.popupBox.querySelector(".html-pdf-export-notice");
         expect(notice).not.toBeNull();
-        expect(notice?.textContent).toContain('Choose "Save as PDF" instead of a printer.');
-        expect(notice?.textContent).toContain("Text in this version can't be selected or copied.");
+        expect(notice?.textContent).toContain('Choose "Save as PDF" (not a printer).');
+        expect(notice?.textContent).toContain("Text in this version can't be copied.");
         expect(notice?.textContent).not.toMatch(/native page layout|A4 fallback/i);
         const button = [...ui.popupBox.querySelectorAll("button")]
             .find(b => b.textContent === "Open print options");
@@ -96,7 +96,7 @@ describe("HTML PDF export sheet", () => {
         const fallback = vi.fn();
         await showHtmlPdfExport(file(), fallback);
         const button = [...ui.popupBox.querySelectorAll("button")]
-            .find(b => b.textContent === "Download picture-only PDF instead");
+            .find(b => b.textContent === "Download picture-only PDF");
         button!.click();
         expect(fallback).toHaveBeenCalledOnce();
         expect(print).not.toHaveBeenCalled();
