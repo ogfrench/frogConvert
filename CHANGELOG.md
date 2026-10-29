@@ -11,10 +11,10 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 ## [Unreleased]
 
 ### Improved
-- Center the single-HTML-to-PDF print sheet and guide users through three plain-language Save as PDF steps, with a clearly labelled picture-only fallback. Keep actions accessible on shorter mobile viewports.
+- Center the single-HTML-to-PDF print sheet and guide users through three plain-language Save as PDF steps. Remove the lower-quality picture-only choice from the normal flow, retaining it only if browser printing fails. Keep actions accessible on shorter mobile viewports.
 
 ### Changed
-- Single-file browser HTML-to-PDF conversion now offers the browser's native print dialog first, with the source's print styles, selectable text where available, and an explicit image-only direct-download alternative. Other PDF routes are unchanged.
+- Single-file browser HTML-to-PDF conversion uses the browser's native print dialog, respecting source print styles and retaining selectable text where available. A picture-only PDF is an error-recovery option, not a parallel save method. Other PDF routes are unchanged.
 - Allow the browser Office engine on touch devices when the required browser features are available, with a user-initiated download and no silent Office-to-PDF quality downgrade.
 - Replace the mobile Office warning toast with inline preparation and limited-conversion choices; soften shared notification styling and improve dismissal behavior.
 
