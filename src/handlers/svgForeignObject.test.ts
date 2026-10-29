@@ -72,6 +72,17 @@ describe('svgForeignObject', () => {
     expect(findPageBreak(px, w, h)).toBe(h);
   });
 
+  it('places a strict no-network policy before printable document resources', () => {
+    const html = printableDocument('<html><head><style>body{background:url(/relative.png)}</style></head><body><img src="/origin-api" /><img src="data:image/png;base64,AA=="></body></html>');
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const policy = doc.querySelector('meta[http-equiv="Content-Security-Policy"]');
+    expect(policy).not.toBeNull();
+    expect(policy!.getAttribute("content")).toContain("default-src 'none'");
+    expect(policy!.getAttribute("content")).toContain("img-src data: blob:");
+    expect(doc.head.firstElementChild).toBe(policy);
+    expect(html).not.toMatch(/<script/i);
+  });
+
   it('keeps the author print page rules after the fallback A4 rule', () => {
     const printed = printableDocument(
       '<html><head><style>@media print { @page { size: 16in 9in; margin: 0 } }</style></head><body>Slides</body></html>',
