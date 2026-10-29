@@ -76,6 +76,7 @@ describe("HTML PDF export sheet", () => {
         expect(print).toHaveBeenCalledOnce();
         expect(fallback).not.toHaveBeenCalled();
         expect(ui.popupBox.textContent).not.toMatch(/PDF ready|has been saved/i);
+        [...ui.popupBox.querySelectorAll("button")].find(b => b.textContent === "Done")!.click();
     });
 
     it("the explicit image fallback leaves printing and resumes the original conversion", async () => {
@@ -87,6 +88,20 @@ describe("HTML PDF export sheet", () => {
         expect(fallback).toHaveBeenCalledOnce();
         expect(print).not.toHaveBeenCalled();
         expect(dispose).toHaveBeenCalledOnce();
+    });
+
+    it("prevents duplicate export sheets until the first one closes", async () => {
+        const fallback = vi.fn();
+        await showHtmlPdfExport(file(), fallback);
+        await showHtmlPdfExport(file("other.html"), fallback);
+        expect(preparePrintPage).toHaveBeenCalledOnce();
+        const done = [...ui.popupBox.querySelectorAll("button")]
+            .find(b => b.textContent === "Done")!;
+        done.click();
+        expect(dispose).toHaveBeenCalledOnce();
+        await showHtmlPdfExport(file("other.html"), fallback);
+        expect(preparePrintPage).toHaveBeenCalledTimes(2);
+        [...ui.popupBox.querySelectorAll("button")].find(b => b.textContent === "Done")!.click();
     });
 
     it("closing the sheet disposes the prepared frame", async () => {
