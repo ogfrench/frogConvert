@@ -87,35 +87,44 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
         const p = document.createElement("p");
         const name = document.createElement("b");
         name.textContent = shortenFileName(file.name, 32);
-        p.append(name, " is ready for your browser's PDF printer.");
+        p.append(name, " is ready to save.");
 
         const notice = document.createElement("div");
-        notice.className = "convert-notice";
+        notice.className = "convert-notice html-pdf-export-notice";
         const noticeTitle = document.createElement("span");
         noticeTitle.className = "convert-notice-title";
-        noticeTitle.textContent = "Selectable text, native page layout";
+        noticeTitle.textContent = "Save it in 3 steps";
         const noticeText = document.createElement("p");
         noticeText.className = "convert-notice-text";
-        noticeText.textContent = "Choose Save as PDF in your browser's print dialog. The document's available print styles take precedence over the A4 fallback. Nothing is uploaded.";
+        noticeText.textContent = '1. Tap "Open print options" below.\n2. Choose "Save as PDF" instead of a printer.\n3. Tap "Save".';
         notice.append(noticeTitle, noticeText);
+        const qualityHint = document.createElement("p");
+        qualityHint.className = "html-pdf-export-hint";
+        qualityHint.textContent = "This keeps the text in your PDF easy to select and copy.";
+        notice.appendChild(qualityHint);
 
         const fallback = document.createElement("button");
         fallback.type = "button";
         fallback.className = "convert-notice-link";
-        fallback.textContent = "Create image-based PDF instead";
+        fallback.textContent = "Download picture-only PDF instead";
         fallback.addEventListener("click", () => {
             close();
             onImagePdf();
         });
         notice.appendChild(fallback);
+        const fallbackHint = document.createElement("p");
+        fallbackHint.className = "html-pdf-export-hint";
+        fallbackHint.textContent = "Text in this version can't be selected or copied.";
+        notice.appendChild(fallbackHint);
 
         const footer = document.createElement("div");
         footer.className = "popup-actions-footer";
-        footer.appendChild(createPopupButton("Open Save as PDF", "btn-primary", () => {
+        footer.appendChild(createPopupButton("Open print options", "btn-primary", () => {
             try {
                 // Must not await anything between the click and print().
                 prepared?.print();
-                noticeText.textContent = "In the browser print dialog, choose Save as PDF. If you cancelled, you can open the dialog again.";
+                noticeTitle.textContent = "Want to try again?";
+                noticeText.textContent = 'Tap "Open print options" again if you didn\'t save your PDF.';
             } catch (error) {
                 console.error("[html-pdf] print failed:", error);
                 close();
@@ -140,10 +149,10 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
         const h2 = document.createElement("h2");
         h2.textContent = "Print view unavailable";
         const p = document.createElement("p");
-        p.textContent = "The browser couldn't prepare this page for printing. You can still generate an image-based PDF.";
+        p.textContent = "Your browser couldn't open the PDF print options. You can still download a picture-only PDF, but its text can't be selected or copied.";
         const footer = document.createElement("div");
         footer.className = "popup-actions-footer";
-        footer.appendChild(createPopupButton("Create image-based PDF", "btn-primary", () => {
+        footer.appendChild(createPopupButton("Download picture-only PDF", "btn-primary", () => {
             hidePopup();
             onImagePdf();
         }));
