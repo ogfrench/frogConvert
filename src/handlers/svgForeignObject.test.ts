@@ -73,7 +73,7 @@ describe('svgForeignObject', () => {
   });
 
   it('places a strict no-network policy before printable document resources', () => {
-    const html = printableDocument('<html><head><style>body{background:url(/relative.png)}</style></head><body><img src="/origin-api" /><img src="data:image/png;base64,AA=="></body></html>');
+    const html = printableDocument('<html><head><style>body{background:url(/relative.png)}</style></head><body><img src="/origin-api" /><img src="data:image/png;base64,AA=="></body></html>', undefined, { blockNetwork: true });
     const doc = new DOMParser().parseFromString(html, "text/html");
     const policy = doc.querySelector('meta[http-equiv="Content-Security-Policy"]');
     expect(policy).not.toBeNull();
