@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { CATEGORY_LABELS, ui, isLoadingHandlers, allOptionsRef, currentFiles } from "../store/store.ts";
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
-import { updateConvertButtonState } from "./FormatModal.ts";
+import { prepareOfficePdfConversion, updateConvertButtonState } from "./FormatModal.ts";
 import { COMPRESS_THESE_EVENT } from "../../constants/ui.ts";
 
 
@@ -364,3 +364,37 @@ describe("updateConvertButtonState (same-format signpost)", () => {
     });
 });
 
+
+// ---------------------------------------------------------------------------
+// prepareOfficePdfConversion
+// ---------------------------------------------------------------------------
+
+describe("prepareOfficePdfConversion", () => {
+    const realUA = navigator.userAgent;
+    const setUA = (ua: string) => Object.defineProperty(navigator, "userAgent", { value: ua, configurable: true });
+
+    beforeEach(() => {
+        document.body.innerHTML = `<div id="libreoffice-notice" hidden></div>`;
+        ui.libreofficeNotice = document.getElementById("libreoffice-notice") as HTMLDivElement;
+        window.supportedFormatCache = new Map();
+    });
+
+    afterEach(() => {
+        setUA(realUA);
+        document.body.innerHTML = "";
+    });
+
+    it("lets the desktop app without LibreOffice make the picture PDF its banner describes", async () => {
+        setUA("Mozilla/5.0 (X11; Linux x86_64) frogConvert Electron/44.9.3");
+        await expect(prepareOfficePdfConversion("docx", "pdf")).resolves.toBe("limited");
+    });
+
+    it("leaves non-Office conversions alone", async () => {
+        await expect(prepareOfficePdfConversion("png", "pdf")).resolves.toBe("ready");
+    });
+
+    it("blocks a legacy format in the browser until the user picks limited conversion", async () => {
+        await expect(prepareOfficePdfConversion("ppt", "pdf")).resolves.toBe("blocked");
+        expect(ui.libreofficeNotice.hidden).toBe(false);
+    });
+});

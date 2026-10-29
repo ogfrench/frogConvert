@@ -52,7 +52,10 @@ export function routeQualityNotice(formats: string[], drawnAsImage = false, prin
     const from = formats[0].toLowerCase();
     let body = `Each page came across as a picture, so the text in this ${to} can't be edited.`;
     if (to === "PDF" && OFFICE_FORMATS.has(from)) {
-      body = "With no Office engine on this device, the document was drawn as an image: its text can't be selected, and layout may be lost. For a higher-quality PDF, enable the Office engine on a supported browser or export from the app that made the file.";
+      // The desktop app's Office engine is an installed LibreOffice, not the browser download.
+      body = typeof navigator !== "undefined" && navigator.userAgent.includes("Electron")
+        ? "Without LibreOffice on this computer, the document was drawn as an image: its text can't be selected, and layout may be lost. For an exact PDF, install LibreOffice and restart frogConvert, or export from the app that made the file."
+        : "With no Office engine on this device, the document was drawn as an image: its text can't be selected, and layout may be lost. For a higher-quality PDF, enable the Office engine on a supported browser or export from the app that made the file.";
     } else if (to === "PDF" && printable) {
       body = `The ${from === "html" ? "page" : "document"} was drawn as an image, so its text can't be selected. For a PDF with selectable text, press ${PRINT_ACTION_LABEL} and choose Save as PDF.`;
     } else if (to === "PDF" && from === "html") {

@@ -53,7 +53,7 @@ import { runInWorker, warmHandler, WORKER_TIMEOUT_MS } from "./workerClient.ts";
 import { hopQualityArgs, resolveAutoQuality } from "../core/compression/hopQuality.ts";
 import { startConversionStatus, statusHTML, type StatusHandle } from "./progressStatus.ts";
 import { routeQualityNotice, PRINT_ACTION_LABEL } from "./routeQuality.ts";
-import { printPage } from "./printPage.ts";
+import { createPrintButton } from "./printPage.ts";
 import { isBrowserHtmlPdfExport, showHtmlPdfExport } from "./htmlPdfExport.ts";
 import { dismissToast } from "../components/Toast/Toast.ts";
 import { isOfficePdfConversion, prepareOfficePdfConversion } from "../components/FormatModal/FormatModal.ts";
@@ -821,8 +821,8 @@ export function initConvertButton() {
             // reduced to its text) is not one to celebrate: the notice below
             // says what was lost, and a party popper above it says otherwise.
             const successTitle = degradedRoute
-                    ? (isBatch ? "Files converted, with limits" : "File converted, with limits")
-                    : isBatch ? modeCopy().successTitleBatch : modeCopy().successTitleSingle;
+                ? (isBatch ? "Files converted, with limits" : "File converted, with limits")
+                : isBatch ? modeCopy().successTitleBatch : modeCopy().successTitleSingle;
             const resultText = conversionResultText({
                 fileCount,
                 outCount: allOutputFiles.length,
@@ -910,13 +910,8 @@ export function initConvertButton() {
             for (const { notice, files } of noticeMap.values()) {
                 const card = buildNoticeCard(notice.title, notice.body, files, notice.action);
                 if (printable && notice.body.includes(PRINT_ACTION_LABEL)) {
-                    const button = document.createElement("button");
-                    button.type = "button";
-                    button.className = "convert-notice-link";
-                    button.textContent = PRINT_ACTION_LABEL;
                     const title = allOutputFiles[0].name.replace(/\.pdf$/i, "");
-                    button.addEventListener("click", () => { void printPage(printable, title); });
-                    card.appendChild(button);
+                    card.appendChild(createPrintButton(printable, title, PRINT_ACTION_LABEL));
                 }
                 noticeCards.push(card);
             }

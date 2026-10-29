@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { preparePrintPage } from "./printPage.ts";
+import { createPrintButton, preparePrintPage } from "./printPage.ts";
 
 describe("prepared HTML print view", () => {
     afterEach(() => {
@@ -33,5 +33,24 @@ describe("prepared HTML print view", () => {
         const prepared = await preparePrintPage("<html><body>Ready</body></html>", "ready");
         prepared.dispose();
         expect(() => prepared.print()).toThrow("no longer available");
+    });
+
+    it("prints a card's page inside the click, with no await before print()", async () => {
+        const button = createPrintButton("<html><body>Card</body></html>", "card", "Print as PDF");
+        await new Promise(resolve => setTimeout(resolve, 0));
+        const frame = document.querySelector("iframe")!;
+        const nativePrint = vi.fn();
+        Object.defineProperty(frame.contentWindow!, "print", { value: nativePrint, configurable: true });
+        button.click();
+        expect(nativePrint).toHaveBeenCalledOnce();
+    });
+
+    it("keeps one card print frame: a newer card disposes the previous one", async () => {
+        createPrintButton("<html><body>First</body></html>", "first", "Print as PDF");
+        createPrintButton("<html><body>Second</body></html>", "second", "Print as PDF");
+        await new Promise(resolve => setTimeout(resolve, 0));
+        const frames = document.querySelectorAll("iframe");
+        expect(frames).toHaveLength(1);
+        expect(frames[0].contentDocument?.body.textContent).toBe("Second");
     });
 });
