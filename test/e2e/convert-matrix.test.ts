@@ -196,6 +196,54 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         expect(o.modal).not.toMatch(/press Print as PDF/);
     }, 300_000);
 
+    it("single HTML -> PDF offers native printing without claiming a saved file", async () => {
+        const dir = path.join(TMP, "html-native-print");
+        const { page } = await newTrackedPage(browser, dir);
+        try {
+            await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
+            await page.evaluate(() => (document.querySelector('#format-mode-menu [data-value="all"]') as HTMLElement | null)?.click());
+            await waitForRegistry(page);
+            const input = await page.$("#file-input");
+            await (input as unknown as { uploadFile(p: string): Promise<void> }).uploadFile(path.join(RES, "styled-page.html"));
+            await page.click("#format-selector");
+            await page.waitForSelector("#format-modal.open");
+            await sleep(800);
+            const picked = await page.evaluate(() => {
+                const option = [...document.querySelectorAll<HTMLElement>(".format-option")]
+                    .find(o => /^PDF\\b/i.test(o.textContent?.trim() ?? "") && !o.classList.contains("unavailable"));
+                option?.click();
+                return !!option;
+            });
+            expect(picked).toBe(true);
+            await sleep(600);
+            await page.click("#convert-button");
+            await page.waitForFunction(() => [...document.querySelectorAll("#popup button")]
+                .some(b => b.textContent === "Open Save as PDF"), { timeout: 30_000 });
+            const ready = await page.evaluate(() => {
+                const frame = document.querySelector<HTMLIFrameElement>('iframe[sandbox="allow-same-origin allow-modals"]');
+                const policy = frame?.contentDocument?.querySelector('meta[http-equiv="Content-Security-Policy"]');
+                const button = [...document.querySelectorAll<HTMLButtonElement>("#popup button")]
+                    .find(b => b.textContent === "Open Save as PDF");
+                if (button) button.id = "native-print-test";
+                if (frame?.contentWindow) {
+                    Object.defineProperty(frame.contentWindow, "print", {
+                        configurable: true,
+                        value: () => { (window as unknown as { __nativePrintTest?: boolean }).__nativePrintTest = true; },
+                    });
+                }
+                return { hasFrame: !!frame, csp: policy?.getAttribute("content"), title: document.querySelector("#popup h2")?.textContent };
+            });
+            expect(ready.hasFrame).toBe(true);
+            expect(ready.csp).toContain("default-src 'none'");
+            expect(ready.title).toBe("Save as PDF");
+            await page.click("#native-print-test");
+            expect(await page.evaluate(() => (window as unknown as { __nativePrintTest?: boolean }).__nativePrintTest)).toBe(true);
+            expect(await page.$eval("#popup h2", el => el.textContent)).toBe("Save as PDF");
+        } finally {
+            await page.close();
+        }
+    }, 300_000);
+
     it("markdown -> pdf goes through HTML, not plain text, and is labelled", async () => {
         const o = await convert(path.join(RES, "markdown.md"), "pdf");
         expect(o.modal).toMatch(/made of pictures/);
