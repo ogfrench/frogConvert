@@ -8,7 +8,7 @@ import { preparePrintPage } from "./printPage.ts";
 // A second Convert trigger must not create another printable iframe while the
 // first export sheet remains open, even if the underlying button is clicked
 // programmatically.
-let exportSheetOpen = false;
+let activeExport: symbol | null = null;
 
 /** This UI handoff is intentionally limited to one browser HTML document. */
 export function isBrowserHtmlPdfExport(from: string, to: string, fileCount: number, protocol: string): boolean {
@@ -24,13 +24,14 @@ export function isBrowserHtmlPdfExport(from: string, to: string, fileCount: numb
  * This is not a conversion success screen: the app cannot know whether the
  * system print dialog was completed or cancelled.
  */
-export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Promise<void> {
-    if (exportSheetOpen) return;
-    exportSheetOpen = true;
+export async function showHtmlPdfExport(file: File): Promise<void> {
+    if (activeExport) return;
+    const exportId = Symbol();
+    activeExport = exportId;
     const heading = document.createElement("h2");
     heading.textContent = "Preparing PDF export";
     const description = document.createElement("p");
-    description.textContent = "Getting the document ready for browser printing…";
+    description.textContent = "Getting your document ready…";
 
     let closed = false;
     let prepared: Awaited<ReturnType<typeof preparePrintPage>> | null = null;
@@ -45,7 +46,7 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
     };
     const abandon = () => {
         closed = true;
-        exportSheetOpen = false;
+        if (activeExport === exportId) activeExport = null;
         dispose();
     };
     const close = () => {
@@ -53,18 +54,16 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
         hidePopup();
     };
 
-    // A picture-only PDF is not an equivalent alternative to native printing.
-    // Offer it only if this browser cannot prepare or open the print view.
     const showPrintUnavailable = () => {
         const h2 = document.createElement("h2");
-        h2.textContent = "Print view unavailable";
+        h2.textContent = "PDF options unavailable";
         const p = document.createElement("p");
-        p.textContent = "Your browser couldn't open the PDF print options. You can still download a picture-only PDF, but its text can't be selected or copied.";
+        p.textContent = "We couldn't open the PDF options. Try again.";
         const footer = document.createElement("div");
         footer.className = "popup-actions-footer";
-        footer.appendChild(createPopupButton("Download picture-only PDF", "btn-primary", () => {
+        footer.appendChild(createPopupButton("Try again", "btn-primary", () => {
             hidePopup();
-            onImagePdf();
+            return showHtmlPdfExport(file);
         }));
         footer.appendChild(createPopupButton("Done", "btn-secondary", hidePopup));
         showPopup([h2, p, footer], false, hidePopup);
@@ -110,20 +109,20 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
         notice.className = "convert-notice html-pdf-export-notice";
         const noticeTitle = document.createElement("span");
         noticeTitle.className = "convert-notice-title";
-        noticeTitle.textContent = "How to save your PDF";
+        noticeTitle.textContent = "One last step";
         const noticeText = document.createElement("p");
         noticeText.className = "convert-notice-text";
-        noticeText.textContent = '1. Tap "Open print options" below.\n2. In the next screen, choose "Save as PDF".\n3. Tap "Save" to save your file.\nNo printer needed.';
+        noticeText.textContent = 'Choose "Save as PDF" in the next window, then save your file.';
         notice.append(noticeTitle, noticeText);
 
         const footer = document.createElement("div");
         footer.className = "popup-actions-footer";
-        footer.appendChild(createPopupButton("Open print options", "btn-primary", () => {
+        footer.appendChild(createPopupButton("Save PDF", "btn-primary", () => {
             try {
                 // Must not await anything between the click and print().
                 prepared?.print();
-                noticeTitle.textContent = "Didn't save it?";
-                noticeText.textContent = 'Tap "Open print options" below to try again. Your browser saves the PDF only after you confirm.';
+                noticeTitle.textContent = "Need to try again?";
+                noticeText.textContent = 'Select "Save PDF" to reopen the options. Your file is saved only after you confirm.';
             } catch (error) {
                 console.error("[html-pdf] print failed:", error);
                 close();

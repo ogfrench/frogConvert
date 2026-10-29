@@ -71,96 +71,91 @@ describe("HTML PDF export sheet", () => {
     });
 
     it("prepares before showing the action and prints only when pressed", async () => {
-        const fallback = vi.fn();
-        await showHtmlPdfExport(file(), fallback);
+        await showHtmlPdfExport(file());
         expect(preparePrintPage).toHaveBeenCalledOnce();
         expect(print).not.toHaveBeenCalled();
         const notice = ui.popupBox.querySelector(".html-pdf-export-notice");
         expect(notice).not.toBeNull();
-        expect(notice?.textContent).toContain('Tap "Open print options" below.');
-        expect(notice?.textContent).toContain('In the next screen, choose "Save as PDF".');
-        expect(notice?.textContent).toContain('Tap "Save" to save your file.');
-        expect(notice?.textContent).toContain('No printer needed.');
+        expect(notice?.textContent).toContain('Choose "Save as PDF" in the next window, then save your file.');
+        expect(notice?.textContent).not.toContain('No printer needed.');
         expect(notice?.textContent).not.toMatch(/select and copy text/i);
         expect(ui.popupBox.textContent).not.toContain("picture-only");
         expect([...ui.popupBox.querySelectorAll("button")].map(b => b.textContent)).toEqual([
-            "Open print options", "Done",
+            "Save PDF", "Done",
         ]);
         expect(notice?.textContent).not.toMatch(/native page layout|A4 fallback/i);
         const button = [...ui.popupBox.querySelectorAll("button")]
-            .find(b => b.textContent === "Open print options");
+            .find(b => b.textContent === "Save PDF");
         expect(button).toBeDefined();
         button!.click();
         expect(print).toHaveBeenCalledOnce();
-        expect(ui.popupBox.textContent).toContain("Didn't save it?");
-        expect(ui.popupBox.textContent).toContain('Tap "Open print options" below to try again.');
-        expect(fallback).not.toHaveBeenCalled();
+        expect(ui.popupBox.textContent).toContain("Need to try again?");
+        expect(ui.popupBox.textContent).toContain('Select "Save PDF" to reopen the options.');
         expect(ui.popupBox.textContent).not.toMatch(/PDF ready|has been saved/i);
         [...ui.popupBox.querySelectorAll("button")].find(b => b.textContent === "Done")!.click();
         expect(clearConvertSession).toHaveBeenCalledOnce();
     });
 
-    it("offers the picture-only fallback only when preparing the print view fails", async () => {
-        const fallback = vi.fn();
+    it("offers retry without a picture-only downgrade when preparation fails", async () => {
         vi.mocked(preparePrintPage).mockRejectedValueOnce(new Error("Cannot create print iframe"));
-        await showHtmlPdfExport(file(), fallback);
-        expect(ui.popupBox.textContent).toContain("Print view unavailable");
-        expect(ui.popupBox.textContent).toContain("text can't be selected or copied");
+        await showHtmlPdfExport(file());
+        expect(ui.popupBox.textContent).toContain("PDF options unavailable");
+        expect(ui.popupBox.textContent).not.toContain("picture-only");
         const button = [...ui.popupBox.querySelectorAll("button")]
-            .find(b => b.textContent === "Download picture-only PDF");
+            .find(b => b.textContent === "Try again");
         expect(button).toBeDefined();
         button!.click();
-        expect(fallback).toHaveBeenCalledOnce();
+        await vi.waitFor(() => expect(preparePrintPage).toHaveBeenCalledTimes(2));
+        [...ui.popupBox.querySelectorAll("button")].find(b => b.textContent === "Done")!.click();
         expect(print).not.toHaveBeenCalled();
-        expect(clearConvertSession).not.toHaveBeenCalled();
+        expect(clearConvertSession).toHaveBeenCalledOnce();
     });
 
-    it("shows the fallback if the browser throws when opening the print dialog", async () => {
-        const fallback = vi.fn();
+    it("offers retry if the browser throws when opening the PDF options", async () => {
         print.mockImplementationOnce(() => { throw new Error("Print blocked"); });
-        await showHtmlPdfExport(file(), fallback);
+        await showHtmlPdfExport(file());
         [...ui.popupBox.querySelectorAll("button")]
-            .find(b => b.textContent === "Open print options")!.click();
-        expect(ui.popupBox.textContent).toContain("Print view unavailable");
+            .find(b => b.textContent === "Save PDF")!.click();
+        expect(ui.popupBox.textContent).toContain("PDF options unavailable");
         expect(dispose).toHaveBeenCalledOnce();
         [...ui.popupBox.querySelectorAll("button")]
-            .find(b => b.textContent === "Download picture-only PDF")!.click();
-        expect(fallback).toHaveBeenCalledOnce();
-        expect(clearConvertSession).not.toHaveBeenCalled();
+            .find(b => b.textContent === "Try again")!.click();
+        await vi.waitFor(() => expect(preparePrintPage).toHaveBeenCalledTimes(2));
+        [...ui.popupBox.querySelectorAll("button")].find(b => b.textContent === "Done")!.click();
+        expect(clearConvertSession).toHaveBeenCalledOnce();
     });
 
     it("prevents duplicate export sheets until the first one closes", async () => {
-        const fallback = vi.fn();
-        await showHtmlPdfExport(file(), fallback);
-        await showHtmlPdfExport(file("other.html"), fallback);
+        await showHtmlPdfExport(file());
+        await showHtmlPdfExport(file("other.html"));
         expect(preparePrintPage).toHaveBeenCalledOnce();
         const done = [...ui.popupBox.querySelectorAll("button")]
             .find(b => b.textContent === "Done")!;
         done.click();
         expect(dispose).toHaveBeenCalledOnce();
-        await showHtmlPdfExport(file("other.html"), fallback);
+        await showHtmlPdfExport(file("other.html"));
         expect(preparePrintPage).toHaveBeenCalledTimes(2);
         [...ui.popupBox.querySelectorAll("button")].find(b => b.textContent === "Done")!.click();
     });
 
     it("cleans up and allows retry when another component closes the popup", async () => {
-        await showHtmlPdfExport(file(), vi.fn());
+        await showHtmlPdfExport(file());
         ui.popupBox.classList.remove("open");
         await new Promise(resolve => setTimeout(resolve, 0));
         expect(dispose).toHaveBeenCalledOnce();
 
-        await showHtmlPdfExport(file("retry.html"), vi.fn());
+        await showHtmlPdfExport(file("retry.html"));
         expect(preparePrintPage).toHaveBeenCalledTimes(2);
         [...ui.popupBox.querySelectorAll("button")].find(b => b.textContent === "Done")!.click();
     });
 
     it("cleans up when another flow replaces the open popup", async () => {
-        await showHtmlPdfExport(file(), vi.fn());
+        await showHtmlPdfExport(file());
         ui.popupBox.replaceChildren(document.createElement("aside"));
         await new Promise(resolve => setTimeout(resolve, 0));
         expect(dispose).toHaveBeenCalledOnce();
 
-        await showHtmlPdfExport(file("retry.html"), vi.fn());
+        await showHtmlPdfExport(file("retry.html"));
         expect(preparePrintPage).toHaveBeenCalledTimes(2);
         [...ui.popupBox.querySelectorAll("button")].find(b => b.textContent === "Done")!.click();
     });
@@ -168,14 +163,16 @@ describe("HTML PDF export sheet", () => {
     it("releases the guard when a pending file read is replaced", async () => {
         let finishRead!: (source: string) => void;
         const delayed = new Promise<string>(resolve => { finishRead = resolve; });
-        const first = showHtmlPdfExport({ name: "slow.html", text: () => delayed } as File, vi.fn());
+        const first = showHtmlPdfExport({ name: "slow.html", text: () => delayed } as File);
         ui.popupBox.replaceChildren(document.createElement("aside"));
         await new Promise(resolve => setTimeout(resolve, 0));
 
-        await showHtmlPdfExport(file("retry.html"), vi.fn());
+        await showHtmlPdfExport(file("retry.html"));
         expect(preparePrintPage).toHaveBeenCalledOnce();
         finishRead("<html><body>Old file</body></html>");
         await first;
+        expect(preparePrintPage).toHaveBeenCalledOnce();
+        await showHtmlPdfExport(file("third.html"));
         expect(preparePrintPage).toHaveBeenCalledOnce();
         [...ui.popupBox.querySelectorAll("button")].find(b => b.textContent === "Done")!.click();
     });
@@ -185,7 +182,7 @@ describe("HTML PDF export sheet", () => {
         vi.mocked(preparePrintPage).mockImplementationOnce(() =>
             new Promise(resolve => { finishPrepare = resolve; }),
         );
-        const first = showHtmlPdfExport(file("slow.html"), vi.fn());
+        const first = showHtmlPdfExport(file("slow.html"));
         await vi.waitFor(() => expect(preparePrintPage).toHaveBeenCalledOnce());
         ui.popupBox.replaceChildren(document.createElement("aside"));
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -193,13 +190,13 @@ describe("HTML PDF export sheet", () => {
         await first;
         expect(dispose).toHaveBeenCalledOnce();
 
-        await showHtmlPdfExport(file("retry.html"), vi.fn());
+        await showHtmlPdfExport(file("retry.html"));
         expect(preparePrintPage).toHaveBeenCalledTimes(2);
         [...ui.popupBox.querySelectorAll("button")].find(b => b.textContent === "Done")!.click();
     });
 
     it("closing the sheet disposes the prepared frame", async () => {
-        await showHtmlPdfExport(file(), vi.fn());
+        await showHtmlPdfExport(file());
         const button = [...ui.popupBox.querySelectorAll("button")]
             .find(b => b.textContent === "Done");
         button!.click();

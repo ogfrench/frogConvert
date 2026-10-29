@@ -45,15 +45,13 @@ export function classifyRoute(formats: string[], drawnAsImage = false): RouteQua
  * the document. `printable`: the web UI offers to print the page itself
  * (printPage.ts), so the notice points at that button.
  */
-export function routeQualityNotice(formats: string[], drawnAsImage = false, printable = false, imageChosen = false): Notice | null {
+export function routeQualityNotice(formats: string[], drawnAsImage = false, printable = false): Notice | null {
   const quality = classifyRoute(formats, drawnAsImage);
   const to = formats[formats.length - 1]?.toUpperCase() ?? "";
   if (quality === "image-only") {
     const from = formats[0].toLowerCase();
     let body = `Each page came across as a picture, so the text in this ${to} can't be edited.`;
-    if (to === "PDF" && imageChosen) {
-      body = "You chose an image-based PDF for direct download. Its pages are pictures, so the text cannot be selected.";
-    } else if (to === "PDF" && OFFICE_FORMATS.has(from)) {
+    if (to === "PDF" && OFFICE_FORMATS.has(from)) {
       body = "With no Office engine on this device, the document was drawn as an image: its text can't be selected, and layout may be lost. For a higher-quality PDF, enable the Office engine on a supported browser or export from the app that made the file.";
     } else if (to === "PDF" && printable) {
       body = `The ${from === "html" ? "page" : "document"} was drawn as an image, so its text can't be selected. For a PDF with selectable text, press ${PRINT_ACTION_LABEL} and choose Save as PDF.`;

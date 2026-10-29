@@ -64,7 +64,6 @@ const waitForPaint = () => new Promise<void>(resolve =>
 );
 
 let isConverting = false;
-let allowImagePdfOnce = false;
 export const getIsConverting = () => isConverting;
 
 let _convertingTitle = "Converting...";
@@ -510,24 +509,16 @@ export function initConvertButton() {
     ui.convertButton.onclick = async () => {
         // Keep the existing conversion graph for every route except a single
         // HTML -> PDF file in a browser. A PDF with selectable text uses native
-        // printing; the separate image-PDF action resumes the original graph.
+        // printing from a prepared, isolated document.
         if (isConverting) return;
         const from = selectedFromIndex.value === null ? null : allOptionsRef.value[selectedFromIndex.value]?.format;
         const to = selectedToIndex.value === null ? null : allOptionsRef.value[selectedToIndex.value]?.format;
-        if (!allowImagePdfOnce && from && to
+        if (from && to
             && window.traversionGraph.nodeCount > 0
             && isBrowserHtmlPdfExport(from.extension, to.extension, currentFiles.value.length, location.protocol)) {
-            void showHtmlPdfExport(currentFiles.value[0], () => {
-                allowImagePdfOnce = true;
-                try {
-                    ui.convertButton.click();
-                } finally {
-                    allowImagePdfOnce = false;
-                }
-            });
+            void showHtmlPdfExport(currentFiles.value[0]);
             return;
         }
-        const imagePdfChosen = allowImagePdfOnce;
         isConverting = true;
 
         const allOutputFiles: FileData[] = [];
@@ -787,8 +778,7 @@ export function initConvertButton() {
                 const routeNotice = routeQualityNotice(
                     result.path.map(n => n.format.format),
                     result.files.some(f => f.drawnAsImage),
-                    result.files.some(f => f.printableHtml) && !imagePdfChosen,
-                    imagePdfChosen,
+                    result.files.some(f => f.printableHtml),
                 );
                 if (routeNotice) {
                     degradedRoute = true;
@@ -830,9 +820,7 @@ export function initConvertButton() {
             // A result the route degraded (a document drawn as pictures, or
             // reduced to its text) is not one to celebrate: the notice below
             // says what was lost, and a party popper above it says otherwise.
-            const successTitle = imagePdfChosen
-                ? "Image-based PDF ready"
-                : degradedRoute
+            const successTitle = degradedRoute
                     ? (isBatch ? "Files converted, with limits" : "File converted, with limits")
                     : isBatch ? modeCopy().successTitleBatch : modeCopy().successTitleSingle;
             const resultText = conversionResultText({
