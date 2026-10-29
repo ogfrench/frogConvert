@@ -86,6 +86,22 @@ describe("browser Office worker recovery", () => {
     expect(office.open).toHaveBeenCalledOnce();
   });
 
+  it("does not retry when the failed worker cannot be stopped", async () => {
+    const first = converter(() => new Promise(() => {}));
+    first.destroy.mockRejectedValue(new Error("Worker termination unconfirmed"));
+    office.open.mockResolvedValueOnce(first);
+    const instance = await handler();
+    vi.useFakeTimers();
+    const pending = instance.doConvert(
+      [{ name: "sample.xlsx", bytes: new Uint8Array(128) }], XLSX, PDF,
+    );
+    const failure = expect(pending).rejects.toThrow(/took longer than 25 seconds/);
+    await vi.advanceTimersByTimeAsync(25_000);
+    await failure;
+    expect(first.destroy).toHaveBeenCalledOnce();
+    expect(office.open).toHaveBeenCalledOnce();
+  });
+
   it("fails explicitly after a second timeout, never silently rasterizing", async () => {
     const first = converter(() => new Promise(() => {}));
     const second = converter(() => new Promise(() => {}));
