@@ -20,7 +20,7 @@ async function grab(mode, viewport) {
     console.log(mode, "HTTP", response?.status(), "URL", page.url());
     if (!response || ![200,304].includes(response.status())) throw Error("Preview not accessible: " + response?.status());
     await page.waitForSelector("#file-input", { timeout:100000 });
-    await page.evaluate(() => document.querySelector("#theme-toggle")?.click());
+    await page.evaluate(() => { if (!document.documentElement.classList.contains("dark")) document.querySelector("#theme-toggle")?.click(); });
     await new Promise(resolve => setTimeout(resolve, 300));
     await page.screenshot({path: path.join(OUTPUT, mode+"-converter.png"), fullPage:true});
     await page.evaluate(() => document.querySelector('#format-mode-menu [data-value="all"]')?.click());
@@ -38,8 +38,9 @@ async function grab(mode, viewport) {
     });
     if(!picked) throw Error("PDF destination not available");
     await page.waitForFunction(()=>document.querySelector("#convert-button")?.getAttribute("aria-disabled")!=="true",{timeout:30000});
-    await page.click("#convert-button");
-    await page.waitForFunction(()=>[...document.querySelectorAll("#popup button")].some(el=>el.textContent==="Open Save as PDF"),{timeout:100000});
+    await page.$eval("#convert-button", btn => btn.click());
+    console.log(mode, "Clicked conversion:", await page.$eval("#convert-button", b=>({disabled:b.disabled,text:b.textContent,aria:b.getAttribute("aria-disabled")})));
+    await page.waitForFunction(()=>[...document.querySelectorAll("#popup button")].some(el=>el.textContent==="Open Save as PDF"),{timeout:35000});
     const modalText=await page.$eval("#popup",el=>el.textContent);
     if(!modalText.includes("Create image-based PDF instead"))throw Error("Native export popup not reached");
     await page.screenshot({path:path.join(OUTPUT,mode+"-native-html-pdf.png"),fullPage:true});
