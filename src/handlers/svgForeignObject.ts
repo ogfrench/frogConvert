@@ -141,9 +141,17 @@ export function printableDocument(html: string, title?: string): string {
     }
     doc.querySelectorAll("link, base, meta[http-equiv]").forEach(el => el.remove());
     if (title) doc.title = title;
+    // The printable HTML is loaded in an app-origin iframe on the web.
+    // Relative image/font/CSS paths would otherwise request URLs on our
+    // origin, despite stripping absolute external URLs. Enforce a strict
+    // document policy *before parsing* the print frame. Inline CSS and
+    // embedded data/blob images remain printable; no network is needed.
+    const policy = doc.createElement("meta");
+    policy.setAttribute("http-equiv", "Content-Security-Policy");
+    policy.setAttribute("content", "default-src 'none'; img-src data: blob:; font-src data:; style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'");
     const style = doc.createElement("style");
     style.textContent = PRINT_CSS;
-    doc.head.prepend(style);
+    doc.head.prepend(policy, style);
     return "<!doctype html>\n" + doc.documentElement.outerHTML;
 }
 
