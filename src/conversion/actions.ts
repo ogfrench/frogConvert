@@ -527,6 +527,7 @@ export function initConvertButton() {
             });
             return;
         }
+        const imagePdfChosen = allowImagePdfOnce;
         isConverting = true;
 
         const allOutputFiles: FileData[] = [];
@@ -786,7 +787,8 @@ export function initConvertButton() {
                 const routeNotice = routeQualityNotice(
                     result.path.map(n => n.format.format),
                     result.files.some(f => f.drawnAsImage),
-                    result.files.some(f => f.printableHtml),
+                    result.files.some(f => f.printableHtml) && !imagePdfChosen,
+                    imagePdfChosen,
                 );
                 if (routeNotice) {
                     degradedRoute = true;
@@ -828,9 +830,11 @@ export function initConvertButton() {
             // A result the route degraded (a document drawn as pictures, or
             // reduced to its text) is not one to celebrate: the notice below
             // says what was lost, and a party popper above it says otherwise.
-            const successTitle = degradedRoute
-                ? (isBatch ? "Files converted, with limits" : "File converted, with limits")
-                : isBatch ? modeCopy().successTitleBatch : modeCopy().successTitleSingle;
+            const successTitle = imagePdfChosen
+                ? "Image-based PDF ready"
+                : degradedRoute
+                    ? (isBatch ? "Files converted, with limits" : "File converted, with limits")
+                    : isBatch ? modeCopy().successTitleBatch : modeCopy().successTitleSingle;
             const resultText = conversionResultText({
                 fileCount,
                 outCount: allOutputFiles.length,
