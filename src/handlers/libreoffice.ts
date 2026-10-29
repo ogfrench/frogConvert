@@ -1,6 +1,7 @@
-import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import type { FileData, FileFormat, FormatHandler, ProgressEvent } from "../core/FormatHandler/FormatHandler.ts";
 import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
 import { isOfficeEngineCached, openOfficeEngine, type OfficeConverter } from "../core/officeEngine/officeEngine.ts";
+import { planPptxBatches } from "../core/officeEngine/pptxBatches.ts";
 
 /**
  * How long one document may take in the browser engine. A normal document
@@ -324,36 +325,121 @@ class libreofficeHandler implements FormatHandler {
     inputFormat: FileFormat,
     outputFormat: FileFormat,
     _args?: string[],
+    onProgress?: (p: ProgressEvent) => void,
   ): Promise<FileData[]> {
     if (this.#mode === "remote") {
       return this.#doConvertRemote(inputFiles, inputFormat, outputFormat);
     }
     if (this.#mode === "wasm") {
-      return this.#enqueue(() => this.#doConvertWasm(inputFiles, inputFormat));
+      return this.#enqueue(() => this.#doConvertWasm(inputFiles, inputFormat, onProgress));
     }
     // Native mode: serialize via mutex (LibreOffice can't run concurrent instances)
     return this.#enqueue(() => this.#doConvertInner(inputFiles, inputFormat, outputFormat));
   }
 
-  async #doConvertWasm(inputFiles: FileData[], inputFormat: FileFormat): Promise<FileData[]> {
+  /** Retry genuine engine failures, but never repeat a full watchdog timeout. */
+  async #convertWasmWithRecovery(file: FileData, inputFormat: FileFormat): Promise<Uint8Array> {
+    try {
+      return await this.#convertOnce(file, inputFormat);
+    } catch (err) {
+      console.warn(`[LibreOffice] browser engine conversion failed for ${file.name}:`, err);
+      try {
+        await this.#disposeEngine();
+      } catch (cleanupError) {
+        console.warn("[LibreOffice] could not stop failed worker:", cleanupError);
+      }
+      if (err instanceof Error && err.message.includes("took longer than")) {
+        // Trying the same expensive deck again makes an already unresponsive
+        // phone wait twice as long, and can leave two huge WASM allocations.
+        throw err;
+      }
+      return this.#convertOnce(file, inputFormat);
+    }
+  }
+
+  async #doConvertWasm(
+    inputFiles: FileData[],
+    inputFormat: FileFormat,
+    onProgress?: (p: ProgressEvent) => void,
+  ): Promise<FileData[]> {
     clearTimeout(this.#idleTimer);
     const results: FileData[] = [];
     try {
       for (const file of inputFiles) {
         let out: Uint8Array;
-        try {
-          out = await this.#convertOnce(file, inputFormat);
-        } catch (err) {
-          // A hung or crashed engine is not reused: retry once on a fresh one.
-          console.warn(`[LibreOffice] browser engine failed on ${file.name}, retrying on a fresh engine:`, err);
-          await this.#disposeEngine();
-          out = await this.#convertOnce(file, inputFormat);
+        if (inputFormat.extension.toLowerCase() === "pptx") {
+          onProgress?.({ detail: "Reading PowerPoint slide list..." });
+          let plan: Awaited<ReturnType<typeof planPptxBatches>> | null = null;
+          try {
+            plan = await planPptxBatches(file.bytes);
+          } catch (err) {
+            // Nonstandard OOXML can still be understood by LibreOffice. Do not
+            // impose our batching parser as a new format-compatibility gate.
+            // But never bypass explicit zip-bomb / complexity protection.
+            if (err instanceof Error && /too complex|unusually large/.test(err.message)) throw err;
+            console.warn("[LibreOffice] slide batching unavailable; using original presentation:", err);
+          }
+
+          if (!plan) {
+            onProgress?.({ detail: "Converting presentation..." });
+            out = await this.#convertWasmWithRecovery(file, inputFormat);
+          } else {
+            const total = plan.totalSlides;
+            // Import only on this path; other conversions do not need the PDF
+            // assembler. PDFDocument.copyPages keeps pages vector-based, not
+            // rasterized, and retains the source page dimensions and content.
+            let assembled: import("pdf-lib").PDFDocument | null = null;
+            let unbatched: Uint8Array | null = null;
+            for (const range of plan.batches) {
+              const label = range.end - range.start === 1
+                ? `slide ${range.end} of ${total}`
+                : `slides ${range.start + 1}–${range.end} of ${total}`;
+              onProgress?.({ detail: `Converting ${label}...`, ratio: range.start / total });
+              const part = await plan.bytesFor(range);
+              let partPdf: Uint8Array;
+              try {
+                partPdf = await this.#convertWasmWithRecovery(
+                  { name: file.name, bytes: part }, inputFormat,
+                );
+              } catch (err) {
+                throw new Error(
+                  `PowerPoint conversion stopped at ${label}. ${err instanceof Error ? err.message : String(err)} `
+                  + "Try exporting the presentation to PDF from PowerPoint or LibreOffice on a computer.",
+                );
+              }
+              if (plan.batches.length === 1) {
+                unbatched = partPdf;
+              } else {
+                const { PDFDocument } = await import("pdf-lib");
+                assembled ??= await PDFDocument.create();
+                const document = await PDFDocument.load(partPdf);
+                const pages = await assembled.copyPages(document, document.getPageIndices());
+                for (const page of pages) assembled.addPage(page);
+              }
+              // This is completed work, not an estimate or a simulated percent.
+              onProgress?.({ detail: `Processed ${range.end} of ${total} slides`, ratio: range.end / total });
+            }
+            if (unbatched) {
+              out = unbatched;
+            } else {
+              if (!assembled || !assembled.getPageCount()) throw new Error("The presentation produced no PDF pages.");
+              onProgress?.({ detail: "Combining converted PDF pages..." });
+              out = new Uint8Array(await assembled.save({ useObjectStreams: true }));
+            }
+          }
+        } else {
+          onProgress?.({ detail: "Converting Office document..." });
+          out = await this.#convertWasmWithRecovery(file, inputFormat);
         }
         const dot = file.name.lastIndexOf(".");
         results.push({ name: (dot > 0 ? file.name.slice(0, dot) : file.name) + ".pdf", bytes: out });
       }
     } catch (err) {
-      await this.#disposeEngine();
+      try {
+        await this.#disposeEngine();
+      } catch (cleanupError) {
+        console.warn("[LibreOffice] worker cleanup after failure:", cleanupError);
+      }
       throw err;
     }
     this.#idleTimer = setTimeout(() => { void this.#disposeEngine(); }, WASM_IDLE_MS);
