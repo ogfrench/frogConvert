@@ -309,18 +309,6 @@
   line-height: var(--leading-normal);
 }
 
-#popup .html-pdf-export-notice .convert-notice-link {
-  align-self: center;
-  max-width: 100%;
-  text-align: center;
-}
-
-@media only screen and (max-width: 800px) {
-  #popup .html-pdf-export-notice .convert-notice-link {
-    align-self: stretch;
-  }
-}
-
 @media only screen and (max-width: 800px) {
   #popup .convert-notice-link {
     align-self: stretch;
