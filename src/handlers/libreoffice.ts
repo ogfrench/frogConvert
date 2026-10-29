@@ -1,7 +1,7 @@
 import type { FileData, FileFormat, FormatHandler, ProgressEvent } from "../core/FormatHandler/FormatHandler.ts";
 import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
 import { isOfficeEngineCached, openOfficeEngine, type OfficeConverter } from "../core/officeEngine/officeEngine.ts";
-import { planPptxBatches } from "../core/officeEngine/pptxBatches.ts";
+import { planPptxBatches, PptxLimitError } from "../core/officeEngine/pptxBatches.ts";
 
 /**
  * Stop stalled workers instead of allowing an unbounded LibreOfficeKit hang.
@@ -387,7 +387,7 @@ class libreofficeHandler implements FormatHandler {
             // Nonstandard OOXML can still be understood by LibreOffice. Do not
             // impose our batching parser as a new format-compatibility gate.
             // But never bypass explicit zip-bomb / complexity protection.
-            if (err instanceof Error && /too complex|unusually large/.test(err.message)) throw err;
+            if (err instanceof PptxLimitError) throw err;
             console.warn("[LibreOffice] slide batching unavailable; using original presentation:", err);
           }
 

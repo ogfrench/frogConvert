@@ -63,4 +63,19 @@ describe("PowerPoint browser batch planner", () => {
         const malformed = await zip.generateAsync({ type: "uint8array" });
         await expect(planPptxBatches(malformed)).rejects.toThrow(/missing/);
     });
+
+    it("bounds the relationship XML before parsing a highly compressed package", async () => {
+        const zip = await JSZip.loadAsync(PPTX);
+        zip.file("ppt/_rels/presentation.xml.rels", " ".repeat(2_000_001));
+        const oversized = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+        await expect(planPptxBatches(oversized)).rejects.toThrow(/too complex/);
+    });
+
+    it("counts UTF-8 bytes, not characters, against the presentation limit", async () => {
+        const zip = await JSZip.loadAsync(PPTX);
+        const xml = await zip.file("ppt/presentation.xml")!.async("string");
+        zip.file("ppt/presentation.xml", xml.replace("</p:presentation>", `<!--${"é".repeat(1_000_001)}--></p:presentation>`));
+        const oversized = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+        await expect(planPptxBatches(oversized)).rejects.toThrow(/too complex/);
+    });
 });

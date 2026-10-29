@@ -9,6 +9,8 @@ describe("toast notifications", () => {
   });
 
   afterEach(() => {
+    document.querySelector(".toast")?.dispatchEvent(new Event("mouseleave"));
+    (document.activeElement as HTMLElement)?.blur?.();
     dismissToast();
     vi.useRealTimers();
   });
@@ -70,6 +72,37 @@ describe("toast notifications", () => {
     expect(button.getAttribute("aria-label")).toBe("Dismiss");
     button.focus();
     button.click();
+    expect(toast.classList.contains("open")).toBe(false);
+  });
+
+  it("stays paused until both pointer and keyboard focus have left", () => {
+    showToast("Saved", "info", 4000);
+    const toast = document.querySelector<HTMLElement>(".toast")!;
+    const button = toast.querySelector<HTMLButtonElement>(".toast-dismiss")!;
+    vi.advanceTimersByTime(1000);
+    toast.dispatchEvent(new Event("mouseenter"));
+    button.focus();
+    toast.dispatchEvent(new Event("mouseleave"));
+    vi.advanceTimersByTime(10000);
+    expect(toast.classList.contains("open")).toBe(true);
+    toast.dispatchEvent(new Event("mouseenter"));
+    button.blur();
+    vi.advanceTimersByTime(10000);
+    expect(toast.classList.contains("open")).toBe(true);
+    toast.dispatchEvent(new Event("mouseleave"));
+    vi.advanceTimersByTime(3000);
+    expect(toast.classList.contains("open")).toBe(false);
+  });
+
+  it("does not restart dismissal when a hovered message is replaced", () => {
+    showToast("Preparing", "info", 4000);
+    const toast = document.querySelector<HTMLElement>(".toast")!;
+    toast.dispatchEvent(new Event("mouseenter"));
+    showToast("Ready", "info", 4000);
+    vi.advanceTimersByTime(10000);
+    expect(toast.classList.contains("open")).toBe(true);
+    toast.dispatchEvent(new Event("mouseleave"));
+    vi.advanceTimersByTime(4000);
     expect(toast.classList.contains("open")).toBe(false);
   });
 });
