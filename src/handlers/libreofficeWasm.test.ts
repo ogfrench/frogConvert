@@ -67,7 +67,7 @@ describe("browser Office worker recovery", () => {
     expect(first.destroy).toHaveBeenCalledOnce();
     expect(office.open).toHaveBeenCalledTimes(2);
     expect(second.convert).toHaveBeenCalledOnce();
-    expect(progress).toContain("Restarting the Office engine after a stalled conversion...");
+    expect(progress).toContain("Restarting Office engine (one retry)...");
   });
 
   it("never repeats a large document after a watchdog timeout", async () => {
