@@ -96,17 +96,17 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
         noticeTitle.textContent = "Save it in 3 steps";
         const noticeText = document.createElement("p");
         noticeText.className = "convert-notice-text";
-        noticeText.textContent = '1. Tap "Open print options" below.\n2. Choose "Save as PDF" instead of a printer.\n3. Tap "Save".';
+        noticeText.textContent = '1. Open print options.\n2. Choose "Save as PDF" (not a printer).\n3. Tap "Save".';
         notice.append(noticeTitle, noticeText);
         const qualityHint = document.createElement("p");
         qualityHint.className = "html-pdf-export-hint";
-        qualityHint.textContent = "This keeps the text in your PDF easy to select and copy.";
+        qualityHint.textContent = "You can select and copy text in this PDF.";
         notice.appendChild(qualityHint);
 
         const fallback = document.createElement("button");
         fallback.type = "button";
         fallback.className = "convert-notice-link";
-        fallback.textContent = "Download picture-only PDF instead";
+        fallback.textContent = "Download picture-only PDF";
         fallback.addEventListener("click", () => {
             close();
             onImagePdf();
@@ -114,7 +114,7 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
         notice.appendChild(fallback);
         const fallbackHint = document.createElement("p");
         fallbackHint.className = "html-pdf-export-hint";
-        fallbackHint.textContent = "Text in this version can't be selected or copied.";
+        fallbackHint.textContent = "Text in this version can't be copied.";
         notice.appendChild(fallbackHint);
 
         const footer = document.createElement("div");
