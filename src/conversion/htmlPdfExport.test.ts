@@ -105,6 +105,28 @@ describe("HTML PDF export sheet", () => {
         [...ui.popupBox.querySelectorAll("button")].find(b => b.textContent === "Done")!.click();
     });
 
+    it("cleans up and allows retry when another component closes the popup", async () => {
+        await showHtmlPdfExport(file(), vi.fn());
+        ui.popupBox.classList.remove("open");
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(dispose).toHaveBeenCalledOnce();
+
+        await showHtmlPdfExport(file("retry.html"), vi.fn());
+        expect(preparePrintPage).toHaveBeenCalledTimes(2);
+        [...ui.popupBox.querySelectorAll("button")].find(b => b.textContent === "Done")!.click();
+    });
+
+    it("cleans up when another flow replaces the open popup", async () => {
+        await showHtmlPdfExport(file(), vi.fn());
+        ui.popupBox.replaceChildren(document.createElement("aside"));
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(dispose).toHaveBeenCalledOnce();
+
+        await showHtmlPdfExport(file("retry.html"), vi.fn());
+        expect(preparePrintPage).toHaveBeenCalledTimes(2);
+        [...ui.popupBox.querySelectorAll("button")].find(b => b.textContent === "Done")!.click();
+    });
+
     it("closing the sheet disposes the prepared frame", async () => {
         await showHtmlPdfExport(file(), vi.fn());
         const button = [...ui.popupBox.querySelectorAll("button")]
