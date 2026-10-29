@@ -3,6 +3,8 @@ on:
   push:
     branches: ["chore/pr101-visual-qa"]
   workflow_dispatch:
+  pull_request:
+    branches: ["master"]
 
 permissions:
   contents: read
