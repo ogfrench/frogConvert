@@ -83,6 +83,12 @@ describe('svgForeignObject', () => {
     expect(html).not.toMatch(/<script/i);
   });
 
+  it('does not impose the browser-only CSP on shared desktop and MCP print output', () => {
+    const printed = printableDocument('<html><body><img src="/local-image.png"></body></html>');
+    expect(printed).toContain('src="/local-image.png"');
+    expect(printed).not.toContain('http-equiv="Content-Security-Policy"');
+  });
+
   it('keeps the author print page rules after the fallback A4 rule', () => {
     const printed = printableDocument(
       '<html><head><style>@media print { @page { size: 16in 9in; margin: 0 } }</style></head><body>Slides</body></html>',
