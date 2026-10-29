@@ -54,6 +54,7 @@ import { hopQualityArgs, resolveAutoQuality } from "../core/compression/hopQuali
 import { startConversionStatus, statusHTML, type StatusHandle } from "./progressStatus.ts";
 import { routeQualityNotice, PRINT_ACTION_LABEL } from "./routeQuality.ts";
 import { printPage } from "./printPage.ts";
+import { isBrowserHtmlPdfExport, showHtmlPdfExport } from "./htmlPdfExport.ts";
 import { dismissToast } from "../components/Toast/Toast.ts";
 import { isOfficePdfConversion, prepareOfficePdfConversion } from "../components/FormatModal/FormatModal.ts";
 // --- Helpers ---
@@ -63,6 +64,7 @@ const waitForPaint = () => new Promise<void>(resolve =>
 );
 
 let isConverting = false;
+let allowImagePdfOnce = false;
 export const getIsConverting = () => isConverting;
 
 let _convertingTitle = "Converting...";
@@ -506,8 +508,25 @@ export function conversionResultText(opts: {
 
 export function initConvertButton() {
     ui.convertButton.onclick = async () => {
-        // Reentrancy guard: flag is set synchronously before the first await.
+        // Keep the existing conversion graph for every route except a single
+        // HTML -> PDF file in a browser. A PDF with selectable text uses native
+        // printing; the separate image-PDF action resumes the original graph.
         if (isConverting) return;
+        const from = selectedFromIndex.value === null ? null : allOptionsRef.value[selectedFromIndex.value]?.format;
+        const to = selectedToIndex.value === null ? null : allOptionsRef.value[selectedToIndex.value]?.format;
+        if (!allowImagePdfOnce && from && to
+            && window.traversionGraph.nodeCount > 0
+            && isBrowserHtmlPdfExport(from.extension, to.extension, currentFiles.value.length, location.protocol)) {
+            void showHtmlPdfExport(currentFiles.value[0], () => {
+                allowImagePdfOnce = true;
+                try {
+                    ui.convertButton.click();
+                } finally {
+                    allowImagePdfOnce = false;
+                }
+            });
+            return;
+        }
         isConverting = true;
 
         const allOutputFiles: FileData[] = [];
