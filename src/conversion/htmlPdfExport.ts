@@ -1,5 +1,5 @@
 import { createDancingFrog } from "../components/Frogsworth/DancingFrog.ts";
-import { createPopupButton, hidePopup, replacePopup, showAlertPopup, showPopup } from "../components/Popup/Popup.ts";
+import { createPopupButton, hidePopup, replacePopup, showPopup } from "../components/Popup/Popup.ts";
 import { ui } from "../components/store/store.ts";
 import { shortenFileName } from "../components/utils/index.ts";
 import { clearConvertSession } from "../components/persistence/convertPersist.ts";
@@ -53,6 +53,23 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
         hidePopup();
     };
 
+    // A picture-only PDF is not an equivalent alternative to native printing.
+    // Offer it only if this browser cannot prepare or open the print view.
+    const showPrintUnavailable = () => {
+        const h2 = document.createElement("h2");
+        h2.textContent = "Print view unavailable";
+        const p = document.createElement("p");
+        p.textContent = "Your browser couldn't open the PDF print options. You can still download a picture-only PDF, but its text can't be selected or copied.";
+        const footer = document.createElement("div");
+        footer.className = "popup-actions-footer";
+        footer.appendChild(createPopupButton("Download picture-only PDF", "btn-primary", () => {
+            hidePopup();
+            onImagePdf();
+        }));
+        footer.appendChild(createPopupButton("Done", "btn-secondary", hidePopup));
+        showPopup([h2, p, footer], false, hidePopup);
+    };
+
     try {
         showPopup([heading, createDancingFrog(), description], false, close);
         // Observe from the first async operation: replacing the preparing
@@ -103,20 +120,6 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
         qualityHint.textContent = "You can select and copy text in this PDF.";
         notice.appendChild(qualityHint);
 
-        const fallback = document.createElement("button");
-        fallback.type = "button";
-        fallback.className = "convert-notice-link";
-        fallback.textContent = "Download picture-only PDF";
-        fallback.addEventListener("click", () => {
-            close();
-            onImagePdf();
-        });
-        notice.appendChild(fallback);
-        const fallbackHint = document.createElement("p");
-        fallbackHint.className = "html-pdf-export-hint";
-        fallbackHint.textContent = "Text in this version can't be copied.";
-        notice.appendChild(fallbackHint);
-
         const footer = document.createElement("div");
         footer.className = "popup-actions-footer";
         footer.appendChild(createPopupButton("Open print options", "btn-primary", () => {
@@ -128,7 +131,7 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
             } catch (error) {
                 console.error("[html-pdf] print failed:", error);
                 close();
-                showAlertPopup("Unable to open print", "Your browser could not open its print dialog. Try again or choose an image-based PDF.");
+                showPrintUnavailable();
             }
         }));
         footer.appendChild(createPopupButton("Done", "btn-secondary", () => {
@@ -146,18 +149,7 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
             return;
         }
         close();
-        const h2 = document.createElement("h2");
-        h2.textContent = "Print view unavailable";
-        const p = document.createElement("p");
-        p.textContent = "Your browser couldn't open the PDF print options. You can still download a picture-only PDF, but its text can't be selected or copied.";
-        const footer = document.createElement("div");
-        footer.className = "popup-actions-footer";
-        footer.appendChild(createPopupButton("Download picture-only PDF", "btn-primary", () => {
-            hidePopup();
-            onImagePdf();
-        }));
-        footer.appendChild(createPopupButton("Done", "btn-secondary", hidePopup));
-        showPopup([h2, p, footer]);
+        showPrintUnavailable();
         console.error("[html-pdf] could not prepare print view:", error);
     }
 }
