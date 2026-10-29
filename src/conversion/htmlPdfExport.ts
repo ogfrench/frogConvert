@@ -4,6 +4,11 @@ import { ui } from "../components/store/store.ts";
 import { shortenFileName } from "../components/utils/index.ts";
 import { preparePrintPage } from "./printPage.ts";
 
+// A second Convert trigger must not create another printable iframe while the
+// first export sheet remains open, even if the underlying button is clicked
+// programmatically.
+let exportSheetOpen = false;
+
 /** This UI handoff is intentionally limited to one browser HTML document. */
 export function isBrowserHtmlPdfExport(from: string, to: string, fileCount: number, protocol: string): boolean {
     return fileCount === 1
@@ -19,6 +24,8 @@ export function isBrowserHtmlPdfExport(from: string, to: string, fileCount: numb
  * system print dialog was completed or cancelled.
  */
 export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Promise<void> {
+    if (exportSheetOpen) return;
+    exportSheetOpen = true;
     const heading = document.createElement("h2");
     heading.textContent = "Preparing PDF export";
     const description = document.createElement("p");
@@ -36,12 +43,13 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
     };
     const close = () => {
         closed = true;
+        exportSheetOpen = false;
         dispose();
         hidePopup();
     };
-    showPopup([heading, createDancingFrog(), description], false, close);
 
     try {
+        showPopup([heading, createDancingFrog(), description], false, close);
         const title = file.name.replace(/\.html?$/i, "") || file.name;
         const source = await file.text();
         // Do not pull pdf-lib and the image renderer into the initial app shell.
@@ -103,7 +111,11 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
         });
         observer.observe(ui.popupBox, { attributes: true, attributeFilter: ["class"] });
     } catch (error) {
-        if (closed || !heading.isConnected) return;
+        if (closed || !heading.isConnected) {
+            exportSheetOpen = false;
+            dispose();
+            return;
+        }
         close();
         const h2 = document.createElement("h2");
         h2.textContent = "Print view unavailable";
