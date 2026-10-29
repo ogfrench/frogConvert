@@ -302,13 +302,6 @@
   text-align: center;
 }
 
-#popup .html-pdf-export-notice .html-pdf-export-hint {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--muted-foreground);
-  line-height: var(--leading-normal);
-}
-
 @media only screen and (max-width: 800px) {
   #popup .convert-notice-link {
     align-self: stretch;
