@@ -29,7 +29,7 @@ const requested = process.env.FROG_E2E_MATRIX === "1";
 const TMP = path.join(os.tmpdir(), "frog-convert-matrix");
 
 type Outcome = {
-    files: { name: string; size: number }[]; dir: string; modal: string;
+    files: { name: string; size: number }[]; dir: string; modal: string; preflight: string | null;
     /** Requests to anywhere but the app's own server: a conversion must make none. */
     external: string[];
     /** Set by any script in the input that managed to run. */
@@ -91,17 +91,30 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         }, target.toUpperCase());
         if (!picked) throw new Error(`no ${target} target offered for ${path.basename(input)}`);
         await sleep(600);
+        let preflight: string | null = null;
         if (target.toLowerCase() === "pdf" && /\.(pptx|docx|xlsx|odp|odt|ods)$/i.test(input)) {
             await page.waitForSelector("#office-limited-convert", { visible: true });
             await page.click("#office-limited-convert");
         } else {
             await page.$eval("#convert-button", b => (b as HTMLButtonElement).click());
+            // HTML uses a native browser print sheet. Select the explicitly
+            // labelled direct-download fallback to exercise raster output.
+            if (target.toLowerCase() === "pdf" && /\.html?$/i.test(input)) {
+                await page.waitForFunction(() => [...document.querySelectorAll("#popup button")]
+                    .some(b => b.textContent === "Create image-based PDF instead"), { timeout: 30_000 });
+                preflight = await page.$eval("#popup", el => el.textContent);
+                await page.evaluate(() => {
+                    const button = [...document.querySelectorAll<HTMLButtonElement>("#popup button")]
+                        .find(b => b.textContent === "Create image-based PDF instead");
+                    button!.click();
+                });
+            }
         }
         const { files, modalText } = await takeModalDownload(page, dir, 240_000);
         const pwned = await page.evaluate(() => (window as unknown as { __pwned?: unknown }).__pwned ?? null);
         await page.close();
         if (!files?.length) throw new Error(`no download; modal said: ${modalText}`);
-        return { files, dir, modal: modalText, external, pwned };
+        return { files, dir, modal: modalText, preflight, external, pwned };
     }
 
     const read = (o: Outcome) => fs.readFileSync(path.join(o.dir, o.files[0].name));
@@ -178,8 +191,9 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         expect(shape.pageCount).toBeGreaterThan(1);
         expect(shape.sizes.every(s => s.w === 595 && s.h === 842)).toBe(true);
         expect(o.modal).toMatch(/made of pictures/);
-        // The result card offers the browser's own PDF printer for real text.
-        expect(o.modal).toMatch(/press Print as PDF and choose Save as PDF/);
+        expect(o.preflight).toMatch(/Save as PDF/);
+        expect(o.modal).toMatch(/You chose an image-based PDF/);
+        expect(o.modal).not.toMatch(/press Print as PDF/);
     }, 300_000);
 
     it("markdown -> pdf goes through HTML, not plain text, and is labelled", async () => {
@@ -197,7 +211,8 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         const o = await convert(path.join(RES, "hostile.html"), "pdf");
         expect(o.pwned).toBeNull();
         expect(o.external).toEqual([]);
-        expect(o.modal).toMatch(/press Print as PDF/);
+        expect(o.preflight).toMatch(/Save as PDF/);
+        expect(o.modal).toMatch(/You chose an image-based PDF/);
     }, 300_000);
 
     it("a table wider than the page comes through whole", async () => {
