@@ -101,11 +101,11 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
             // labelled direct-download fallback to exercise raster output.
             if (target.toLowerCase() === "pdf" && /\.html?$/i.test(input)) {
                 await page.waitForFunction(() => [...document.querySelectorAll("#popup button")]
-                    .some(b => b.textContent === "Create image-based PDF instead"), { timeout: 30_000 });
+                    .some(b => b.textContent === "Download picture-only PDF"), { timeout: 30_000 });
                 preflight = await page.$eval("#popup", el => el.textContent);
                 await page.evaluate(() => {
                     const button = [...document.querySelectorAll<HTMLButtonElement>("#popup button")]
-                        .find(b => b.textContent === "Create image-based PDF instead");
+                        .find(b => b.textContent === "Download picture-only PDF");
                     button!.click();
                 });
             }
@@ -218,12 +218,12 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
             await sleep(600);
             await page.click("#convert-button");
             await page.waitForFunction(() => [...document.querySelectorAll("#popup button")]
-                .some(b => b.textContent === "Open Save as PDF"), { timeout: 30_000 });
+                .some(b => b.textContent === "Open print options"), { timeout: 30_000 });
             const ready = await page.evaluate(() => {
                 const frame = document.querySelector<HTMLIFrameElement>('iframe[sandbox="allow-same-origin allow-modals"]');
                 const policy = frame?.contentDocument?.querySelector('meta[http-equiv="Content-Security-Policy"]');
                 const button = [...document.querySelectorAll<HTMLButtonElement>("#popup button")]
-                    .find(b => b.textContent === "Open Save as PDF");
+                    .find(b => b.textContent === "Open print options");
                 if (button) button.id = "native-print-test";
                 if (frame?.contentWindow) {
                     Object.defineProperty(frame.contentWindow, "print", {
