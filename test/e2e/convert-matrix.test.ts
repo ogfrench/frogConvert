@@ -236,9 +236,25 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
             expect(ready.hasFrame).toBe(true);
             expect(ready.csp).toContain("default-src 'none'");
             expect(ready.title).toBe("Save as PDF");
+            const alignment = await page.$eval("#popup .html-pdf-export-notice", el => ({
+                text: getComputedStyle(el).textAlign,
+                fallback: getComputedStyle(el.querySelector(".convert-notice-link")!).alignSelf,
+                steps: getComputedStyle(el.querySelector(".convert-notice-text")!).whiteSpace,
+            }));
+            expect(alignment).toEqual({ text: "center", fallback: "center", steps: "pre-line" });
             await page.click("#native-print-test");
             expect(await page.evaluate(() => (window as unknown as { __nativePrintTest?: boolean }).__nativePrintTest)).toBe(true);
             expect(await page.$eval("#popup h2", el => el.textContent)).toBe("Save as PDF");
+            // Short phone viewports must still allow scrolling down to Done.
+            await page.setViewport({ width: 320, height: 568 });
+            const closeReachable = await page.evaluate(() => {
+                const popup = document.querySelector<HTMLElement>("#popup")!;
+                popup.scrollTop = popup.scrollHeight;
+                const done = [...popup.querySelectorAll("button")].find(b => b.textContent === "Done")!;
+                const rect = done.getBoundingClientRect();
+                return rect.top >= 0 && rect.bottom <= window.innerHeight;
+            });
+            expect(closeReachable).toBe(true);
         } finally {
             await page.close();
         }
