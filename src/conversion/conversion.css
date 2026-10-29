@@ -287,9 +287,6 @@
    A short mobile viewport must not hide the final action buttons. */
 #popup:has(.html-pdf-export-notice) {
   max-height: calc(100dvh - 2rem);
-}
-
-#popup:has(.html-pdf-export-notice) > .popup-scroll {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
