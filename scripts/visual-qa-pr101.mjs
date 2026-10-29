@@ -20,7 +20,7 @@ async function grab(mode, viewport) {
     console.log(mode, "HTTP", response?.status(), "URL", page.url());
     if (!response || ![200,304].includes(response.status())) throw Error("Preview not accessible: " + response?.status());
     await page.waitForSelector("#file-input", { timeout:100000 });
-    await page.click("#theme-toggle");
+    await page.evaluate(() => document.querySelector("#theme-toggle")?.click());
     await new Promise(resolve => setTimeout(resolve, 300));
     await page.screenshot({path: path.join(OUTPUT, mode+"-converter.png"), fullPage:true});
     await page.evaluate(() => document.querySelector('#format-mode-menu [data-value="all"]')?.click());
