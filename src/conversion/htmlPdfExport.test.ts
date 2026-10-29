@@ -75,11 +75,17 @@ describe("HTML PDF export sheet", () => {
         await showHtmlPdfExport(file(), fallback);
         expect(preparePrintPage).toHaveBeenCalledOnce();
         expect(print).not.toHaveBeenCalled();
+        const notice = ui.popupBox.querySelector(".html-pdf-export-notice");
+        expect(notice).not.toBeNull();
+        expect(notice?.textContent).toContain('Choose "Save as PDF" instead of a printer.');
+        expect(notice?.textContent).toContain("Text in this version can't be selected or copied.");
+        expect(notice?.textContent).not.toMatch(/native page layout|A4 fallback/i);
         const button = [...ui.popupBox.querySelectorAll("button")]
-            .find(b => b.textContent === "Open Save as PDF");
+            .find(b => b.textContent === "Open print options");
         expect(button).toBeDefined();
         button!.click();
         expect(print).toHaveBeenCalledOnce();
+        expect(ui.popupBox.textContent).toContain("Want to try again?");
         expect(fallback).not.toHaveBeenCalled();
         expect(ui.popupBox.textContent).not.toMatch(/PDF ready|has been saved/i);
         [...ui.popupBox.querySelectorAll("button")].find(b => b.textContent === "Done")!.click();
@@ -90,7 +96,7 @@ describe("HTML PDF export sheet", () => {
         const fallback = vi.fn();
         await showHtmlPdfExport(file(), fallback);
         const button = [...ui.popupBox.querySelectorAll("button")]
-            .find(b => b.textContent === "Create image-based PDF instead");
+            .find(b => b.textContent === "Download picture-only PDF instead");
         button!.click();
         expect(fallback).toHaveBeenCalledOnce();
         expect(print).not.toHaveBeenCalled();
