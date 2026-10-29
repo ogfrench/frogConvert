@@ -93,10 +93,10 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
         notice.className = "convert-notice html-pdf-export-notice";
         const noticeTitle = document.createElement("span");
         noticeTitle.className = "convert-notice-title";
-        noticeTitle.textContent = "Save it in 3 steps";
+        noticeTitle.textContent = "How to save your PDF";
         const noticeText = document.createElement("p");
         noticeText.className = "convert-notice-text";
-        noticeText.textContent = '1. Open print options.\n2. Choose "Save as PDF" (not a printer).\n3. Tap "Save".';
+        noticeText.textContent = '1. Tap "Open print options" below.\n2. In the next screen, choose "Save as PDF".\n3. Tap "Save" to save your file.\nNo printer needed.';
         notice.append(noticeTitle, noticeText);
         const qualityHint = document.createElement("p");
         qualityHint.className = "html-pdf-export-hint";
@@ -123,8 +123,8 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
             try {
                 // Must not await anything between the click and print().
                 prepared?.print();
-                noticeTitle.textContent = "Want to try again?";
-                noticeText.textContent = 'Tap "Open print options" again if you didn\'t save your PDF.';
+                noticeTitle.textContent = "Didn't save it?";
+                noticeText.textContent = 'Tap "Open print options" below to try again. Your browser saves the PDF only after you confirm.';
             } catch (error) {
                 console.error("[html-pdf] print failed:", error);
                 close();
