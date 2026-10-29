@@ -4,6 +4,7 @@ import { gzipSync } from "node:zlib";
 import { randomBytes } from "node:crypto";
 import {
     OFFICE_ENGINE_BASE, OFFICE_ENGINE_CACHE, OFFICE_ENGINE_MANIFEST_URL, type OfficeEngineManifest,
+    OFFICE_ENGINE_FILES,
 } from "./officeEngineAssets.ts";
 
 /** A Cache Storage stand-in: one Map per cache name, keyed by URL. */
@@ -139,5 +140,22 @@ describe("office engine download", () => {
         served = {};
         const mod = await import("./officeEngine.ts");
         expect(await mod.officeEngineSupport()).toBe("unsupported");
+    });
+
+    it("releases already opened binary URLs when the next cached binary is missing", async () => {
+        const cache = await caches.api.open(OFFICE_ENGINE_CACHE);
+        await cache.put(`${OFFICE_ENGINE_BASE}/${OFFICE_ENGINE_FILES.sofficeWasm}`, new Response(wasm));
+        vi.stubGlobal("location", { href: "https://frogconvert.xyz/" });
+        const create = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:office-test");
+        const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+        try {
+            const { openOfficeEngine } = await import("./officeEngine.ts");
+            await expect(openOfficeEngine()).rejects.toThrow(/isn't downloaded/);
+            expect(create).toHaveBeenCalledOnce();
+            expect(revoke).toHaveBeenCalledWith("blob:office-test");
+        } finally {
+            create.mockRestore();
+            revoke.mockRestore();
+        }
     });
 });

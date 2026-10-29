@@ -176,17 +176,6 @@ export async function openOfficeEngine(): Promise<OfficeConverter> {
     const cache = await caches.open(OFFICE_ENGINE_CACHE);
     const urls: Record<string, string> = {};
     const blobUrls: string[] = [];
-    for (const [option, name] of Object.entries(OFFICE_ENGINE_FILES)) {
-        if (!BLOB_FILES.has(name)) {
-            urls[option] = new URL(fileUrl(name), location.href).href;
-            continue;
-        }
-        const resp = await cache.match(fileUrl(name));
-        if (!resp) throw new Error("The Office engine isn't downloaded on this device.");
-        const url = URL.createObjectURL(await resp.blob());
-        blobUrls.push(url);
-        urls[option] = url;
-    }
     let released = false;
     const release = () => {
         if (released) return;
@@ -201,6 +190,17 @@ export async function openOfficeEngine(): Promise<OfficeConverter> {
     const terminateWorker = () => { converter?.worker?.terminate(); };
 
     try {
+        for (const [option, name] of Object.entries(OFFICE_ENGINE_FILES)) {
+            if (!BLOB_FILES.has(name)) {
+                urls[option] = new URL(fileUrl(name), location.href).href;
+                continue;
+            }
+            const resp = await cache.match(fileUrl(name));
+            if (!resp) throw new Error("The Office engine isn't downloaded on this device.");
+            const url = URL.createObjectURL(await resp.blob());
+            blobUrls.push(url);
+            urls[option] = url;
+        }
         const mod = await import(/* @vite-ignore */ fileUrl(OFFICE_ENGINE_API)) as ConverterModule;
         converter = new mod.WorkerBrowserConverter(urls) as BrowserWorkerConverter;
         let startupTimer: ReturnType<typeof setTimeout> | undefined;

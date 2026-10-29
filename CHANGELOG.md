@@ -10,6 +10,10 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Fixed
+- Center notification icons, messages and dismiss buttons vertically, with a consistent touch target and wrapping for long filenames. Keep messages visible while either hovered or keyboard-focused.
+- Enforce PowerPoint XML byte limits while decompressing, including slide relationships, and release Office engine blob URLs when cached files are missing.
+
 ### Changed
 - Allow the browser Office engine on touch devices when the required browser features are available, with a user-initiated download and no silent Office-to-PDF quality downgrade.
 - Replace the mobile Office warning toast with inline preparation and limited-conversion choices; soften shared notification styling and improve dismissal behavior.
