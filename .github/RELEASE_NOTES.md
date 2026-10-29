@@ -9,11 +9,16 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.2.1
+## What's new in 3.3.0
 
-**Same app as 3.2.0, safer releases.** This release changes how frogConvert is published, not what it does. A release now goes out only after every test has passed on that exact build, and appears only once the Windows, macOS and Linux downloads are all attached, so you never land on a release page with a file missing. The build tools are pinned, so each release is made with exactly what was tested.
+**Clearer PDF saving and more reliable Office conversion.**
 
-If you already have 3.2.0 there is nothing new to try; the faster video and quicker start-up from [3.2.0](https://github.com/ogfrench/frogConvert/releases/tag/v3.2.0) are all here.
+- **Save HTML as a PDF with real text.** For one HTML file in the browser, choose **Save PDF**, then **Save as PDF** in the window that opens. The page's print styles are respected. If the PDF options cannot open, retry without a picture-only downgrade.
+- **Office PDFs on supported phones and tablets.** Enable the on-device Office engine when your browser supports it. Larger PowerPoint decks convert in sequential batches with progress by slide. A stalled small input gets one fresh-worker retry after the failed worker stops.
+- **Better notifications.** Icons, text and dismiss buttons align vertically, long filenames wrap, and messages stay visible while hovered or keyboard-focused.
+- **Safer resource handling.** PowerPoint XML limits apply during decompression, and cached Office asset failures release temporary resources.
+
+Files stay on your device. Browser HTML export does not run page scripts or fetch external fonts, images or stylesheets, so pages that depend on those resources can look different. The Office engine remains memory-intensive and may not work on every phone.
 
 Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
