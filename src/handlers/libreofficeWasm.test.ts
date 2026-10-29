@@ -95,7 +95,7 @@ describe("browser Office worker recovery", () => {
     const pending = instance.doConvert(
       [{ name: "sample.xlsx", bytes: new Uint8Array(128) }], XLSX, PDF,
     );
-    const failure = expect(pending).rejects.toThrow(/took longer than 25 seconds/);
+    const failure = expect(pending).rejects.toThrow(/Worker termination unconfirmed/);
     await vi.advanceTimersByTimeAsync(25_000);
     await failure;
     expect(first.destroy).toHaveBeenCalledOnce();
