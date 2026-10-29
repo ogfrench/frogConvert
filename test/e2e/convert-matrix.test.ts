@@ -174,7 +174,9 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         expect([...rgba.subarray(0, 3)]).toEqual([0x10, 0x20, 0x30]);
     }, 300_000);
 
-    it.each(["styled-page.html", "hostile.html"])("%s offers private native PDF export without claiming a saved file", async (fixture) => {
+    it.each([
+        ["styled-page.html", false], ["hostile.html", false], ["styled-page.html", true],
+    ] as const)("%s offers private native PDF export (retry: %s)", async (fixture, failOnce) => {
         const dir = path.join(TMP, "html-native-print");
         const { page } = await newTrackedPage(browser, dir);
         const external: string[] = [];
@@ -198,7 +200,26 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
             });
             expect(picked).toBe(true);
             await sleep(600);
+            if (failOnce) {
+                await page.evaluate(() => {
+                    const create = document.createElement.bind(document);
+                    let failed = false;
+                    document.createElement = ((tag: string, options?: ElementCreationOptions) => {
+                        if (tag === "iframe" && !failed) {
+                            failed = true;
+                            throw new Error("Injected preparation failure");
+                        }
+                        return create(tag, options);
+                    }) as typeof document.createElement;
+                });
+            }
             await page.click("#convert-button");
+            if (failOnce) {
+                await page.waitForFunction(() => document.querySelector("#popup h2")?.textContent === "PDF options unavailable");
+                expect(await page.$eval("#popup", el => el.textContent)).not.toMatch(/picture-only/i);
+                await page.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>("#popup button")]
+                    .find(b => b.textContent === "Try again")!.click());
+            }
             await page.waitForFunction(() => [...document.querySelectorAll("#popup button")]
                 .some(b => b.textContent === "Save PDF"), { timeout: 30_000 });
             const ready = await page.evaluate(() => {
