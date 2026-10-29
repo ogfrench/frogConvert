@@ -72,6 +72,15 @@ describe('svgForeignObject', () => {
     expect(findPageBreak(px, w, h)).toBe(h);
   });
 
+  it('keeps the author print page rules after the fallback A4 rule', () => {
+    const printed = printableDocument(
+      '<html><head><style>@media print { @page { size: 16in 9in; margin: 0 } }</style></head><body>Slides</body></html>',
+    );
+    expect(printed).toContain('size: A4; margin: 10mm');
+    expect(printed).toContain('size: 16in 9in; margin: 0');
+    expect(printed.indexOf('size: A4')).toBeLessThan(printed.indexOf('size: 16in 9in'));
+  });
+
   it('makes a print-ready page: A4, backgrounds on, no Chrome stamps, no scripts', () => {
     const doc = printableDocument(
       '<html><head><style>p{color:red}</style><script>alert(1)</script></head>' +
