@@ -844,13 +844,27 @@ async function refreshUI() {
 // handler was initialised at startup with nothing to offer, so initialise it
 // again now that the engine is in Cache Storage, and rebuild the graph so
 // Office -> PDF routes through it from the next conversion on.
-window.addEventListener("frog:office-engine-ready", async () => {
-  const lo = handlers.find(h => h.name === "libreoffice");
-  if (!lo || lo.supportedFormats?.length) return;
-  window.supportedFormatCache.delete("libreoffice");
-  await initCacheMissHandlers([lo]);
-  if (getIsConverting()) setOnConversionEnd(refreshUI);
-  else await refreshUI();
+window.addEventListener("frog:office-engine-ready", (event) => {
+  const detail = (event as CustomEvent<{
+    resolve?: () => void;
+    reject?: (error: Error) => void;
+    refreshDuringConversion?: boolean;
+  }>).detail;
+  void (async () => {
+    const lo = handlers.find(h => h.name === "libreoffice");
+    if (!lo) throw new Error("LibreOffice handler is missing.");
+    if (!lo.supportedFormats?.length) {
+      window.supportedFormatCache.delete("libreoffice");
+      await initCacheMissHandlers([lo]);
+    }
+    if (!lo.supportedFormats?.length) throw new Error("The Office engine could not initialize.");
+    // The conversion preflight must await the rebuilt route graph before starting.
+    if (getIsConverting() && !detail?.refreshDuringConversion) setOnConversionEnd(refreshUI);
+    else await refreshUI();
+  })().then(() => detail?.resolve?.(), err => {
+    if (detail?.reject) detail.reject(err instanceof Error ? err : new Error(String(err)));
+    else console.error("[Office engine] activation failed:", err);
+  });
 });
 
 // --- Init ---

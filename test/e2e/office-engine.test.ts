@@ -30,13 +30,16 @@ describe.skipIf(!requested || !distBuilt() || !engineBuilt)("Browser Office engi
     let server: DistServer;
     let browser: Browser;
     let page: Page;
+    let browserLogs: { type: string; text: string }[] = [];
     const partRequests: string[] = [];
 
     beforeAll(async () => {
         fs.rmSync(TMP, { recursive: true, force: true });
         server = await serveDist();
         browser = await launchBrowser();
-        ({ page } = await newTrackedPage(browser, TMP));
+        const tracked = await newTrackedPage(browser, TMP);
+        page = tracked.page;
+        browserLogs = tracked.logs;
         await page.setViewport({ width: 1280, height: 900 });
         page.on("request", r => { if (/\.gz\.\d{3}$/.test(r.url())) partRequests.push(r.url()); });
     }, 120_000);
@@ -61,17 +64,22 @@ describe.skipIf(!requested || !distBuilt() || !engineBuilt)("Browser Office engi
     async function convert() {
         await page.$eval("#convert-button", b => (b as HTMLButtonElement).click());
         const { files, modalText } = await takeModalDownload(page, TMP, 120_000);
-        if (!files?.length) throw new Error(`no download; modal said: ${modalText}`);
+        if (!files?.length) throw new Error(
+            `no download; modal said: ${modalText}; browser diagnostics: ${JSON.stringify(browserLogs.slice(-30))}`
+        );
         return { bytes: fs.readFileSync(path.join(TMP, files[0].name)), modal: modalText };
     }
 
-    it("offers the engine, downloads it, and turns a deck into a real PDF", async () => {
+    it("offers the engine on a touch device, downloads it, and preserves slides", async () => {
+        await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
         await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
         await waitForRegistry(page);
         await pickToPdf(path.join(RES, "deck.pptx"));
+        expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
+        expect(await page.$eval("body", el => !!el.querySelector(".toast.variant-warn.open"))).toBe(false);
 
         const offer = await page.$eval("#libreoffice-notice", n => n.textContent ?? "");
-        expect(offer).toMatch(/Get an exact PDF/);
+        expect(offer).toMatch(/Get a high-quality PDF/);
         await page.click("#office-engine-download");
         await page.waitForFunction(() => /Office engine ready|didn't finish/
             .test(document.querySelector("#libreoffice-notice")?.textContent ?? ""), { timeout: 300_000 });
@@ -86,7 +94,8 @@ describe.skipIf(!requested || !distBuilt() || !engineBuilt)("Browser Office engi
         expect((await pdfPageTexts(bytes)).join(" ")).toMatch(/Quarterly Review/);
     }, 600_000);
 
-    it("uses the cached engine after a reload, without downloading it again", async () => {
+    it("uses the cached engine on desktop after a reload, without downloading it again", async () => {
+        await page.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1, isMobile: false, hasTouch: false });
         const before = partRequests.length;
         await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
         await waitForRegistry(page);
@@ -99,4 +108,29 @@ describe.skipIf(!requested || !distBuilt() || !engineBuilt)("Browser Office engi
         expect((await pdfPageTexts(bytes)).join(" ")).toMatch(/Region/);
         expect(partRequests.length).toBe(before);
     }, 600_000);
+    it("converts a PowerPoint deck on desktop with the same cached engine", async () => {
+        await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
+        await waitForRegistry(page);
+        await page.waitForFunction(() => (window.supportedFormatCache?.get("libreoffice")?.length ?? 0) > 0, { timeout: 30_000 });
+        await pickToPdf(path.join(RES, "deck.pptx"));
+        const { bytes, modal } = await convert();
+        expect(modal).not.toMatch(/with limits|made of pictures/);
+        expect((await inspectPdf(bytes)).pageCount).toBe(4);
+    }, 600_000);
+
+    it("reuses the cached engine on a touch viewport without a warning toast", async () => {
+        await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+        await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
+        await waitForRegistry(page);
+        expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
+        await pickToPdf(path.join(RES, "deck.pptx"));
+        await page.waitForFunction(() => (window.supportedFormatCache?.get("libreoffice")?.length ?? 0) > 0, { timeout: 30_000 });
+        expect(await page.$eval("#libreoffice-notice", el => (el as HTMLElement).hidden)).toBe(true);
+        expect(await page.$eval("body", el => !!el.querySelector(".toast.variant-warn.open"))).toBe(false);
+        const { bytes, modal } = await convert();
+        expect(modal).not.toMatch(/with limits|made of pictures/);
+        expect((await inspectPdf(bytes)).pageCount).toBe(4);
+    }, 600_000);
+
+
 });

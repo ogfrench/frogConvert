@@ -19,7 +19,8 @@ import {
  * picture reported as plain success. Bytes arriving is not the bar: each case
  * below asserts on the content, and on what the result modal tells the user.
  *
- * Runs against `dist/` (no LibreOffice reachable, as on frogconvert.xyz).
+ * Runs against `dist/` without the optional browser Office engine installed.
+ * The image-only Office-to-PDF cases explicitly select limited conversion.
  * Opt-in like the stale-shell suite: FROG_E2E_MATRIX=1, or `bun run test:matrix`.
  */
 
@@ -90,7 +91,12 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         }, target.toUpperCase());
         if (!picked) throw new Error(`no ${target} target offered for ${path.basename(input)}`);
         await sleep(600);
-        await page.$eval("#convert-button", b => (b as HTMLButtonElement).click());
+        if (target.toLowerCase() === "pdf" && /\.(pptx|docx|xlsx|odp|odt|ods)$/i.test(input)) {
+            await page.waitForSelector("#office-limited-convert", { visible: true });
+            await page.click("#office-limited-convert");
+        } else {
+            await page.$eval("#convert-button", b => (b as HTMLButtonElement).click());
+        }
         const { files, modalText } = await takeModalDownload(page, dir, 240_000);
         const pwned = await page.evaluate(() => (window as unknown as { __pwned?: unknown }).__pwned ?? null);
         await page.close();

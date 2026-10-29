@@ -1,0 +1,70 @@
+name: Browser Office engine E2E
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/office-engine.yml"
+      - "src/core/officeEngine/**"
+      - "src/handlers/libreoffice.ts"
+      - "src/components/FormatModal/FormatModal.ts"
+      - "src/conversion/actions.ts"
+      - "src/main.ts"
+      - "test/e2e/office-engine.test.ts"
+      - "test/helpers/corpusBrowser.ts"
+      - "scripts/office-engine.ts"
+      - "netlify.toml"
+      - "public/_headers"
+  push:
+    branches: ["master"]
+    paths:
+      - ".github/workflows/office-engine.yml"
+      - "src/core/officeEngine/**"
+      - "src/handlers/libreoffice.ts"
+      - "src/components/FormatModal/FormatModal.ts"
+      - "src/conversion/actions.ts"
+      - "src/main.ts"
+      - "test/e2e/office-engine.test.ts"
+      - "test/helpers/corpusBrowser.ts"
+      - "scripts/office-engine.ts"
+      - "netlify.toml"
+      - "public/_headers"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "office-engine-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.4"
+
+      - name: Install dependencies
+        run: bun i --frozen-lockfile
+
+      - name: Build app and browser Office engine
+        run: |
+          bun run build
+          bun run build:office-engine
+          test -n "$(find dist/office-engine -name manifest.json -print -quit)"
+
+      - name: Run real browser Office engine E2E
+        run: |
+          if command -v google-chrome >/dev/null; then
+            export PUPPETEER_EXECUTABLE_PATH="$(command -v google-chrome)"
+          fi
+          bun run test:engine

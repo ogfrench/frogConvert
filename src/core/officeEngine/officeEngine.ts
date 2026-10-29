@@ -11,9 +11,9 @@ import {
  * `officeEngineSupport()` what to offer, calls `downloadOfficeEngine()` when the
  * user agrees, and the libreoffice handler calls `openOfficeEngine()`.
  *
- * Desktop browsers only. It needs SharedArrayBuffer (cross-origin isolation,
- * set in netlify.toml), peaks around 1.5 GB of memory, and is ~78 MB to fetch,
- * which is wrong to put on a phone by default.
+ * Requires SharedArrayBuffer (cross-origin isolation, set in netlify.toml),
+ * peaks around 1.5 GB of memory, and is ~78 MB to fetch. The download is
+ * user-initiated on every device; a touchscreen is not a capability failure.
  */
 
 export type OfficeEngineSupport = "unsupported" | "available" | "cached";
@@ -45,7 +45,9 @@ export function canRunOfficeEngine(): boolean {
         && window.crossOriginIsolated === true
         && typeof caches !== "undefined"
         && typeof DecompressionStream !== "undefined"
-        && !window.matchMedia?.("(pointer: coarse)").matches;
+        && typeof SharedArrayBuffer !== "undefined"
+        && typeof Worker !== "undefined"
+        && typeof WebAssembly !== "undefined";
 }
 
 async function fetchManifest(): Promise<OfficeEngineManifest | null> {
@@ -185,21 +187,60 @@ export async function openOfficeEngine(): Promise<OfficeConverter> {
         blobUrls.push(url);
         urls[option] = url;
     }
-    const release = () => { for (const url of blobUrls) URL.revokeObjectURL(url); };
+    let released = false;
+    const release = () => {
+        if (released) return;
+        released = true;
+        for (const url of blobUrls) URL.revokeObjectURL(url);
+    };
+    // WorkerBrowserConverter 2.7.2 uses a TS-private (not #private) worker.
+    // Its destroy() waits for an acknowledgement before terminate(), which
+    // never arrives if LibreOfficeKit is hung. The asset version is pinned.
+    type BrowserWorkerConverter = OfficeConverter & { worker?: Worker | null };
+    let converter: BrowserWorkerConverter | undefined;
+    const terminateWorker = () => { converter?.worker?.terminate(); };
+
     try {
         const mod = await import(/* @vite-ignore */ fileUrl(OFFICE_ENGINE_API)) as ConverterModule;
-        const converter = new mod.WorkerBrowserConverter(urls);
-        await converter.initialize();
-        // The URLs stay valid for the engine's whole life: it reads from them
-        // again after start-up, and revoking them early hangs a conversion.
+        converter = new mod.WorkerBrowserConverter(urls) as BrowserWorkerConverter;
+        let startupTimer: ReturnType<typeof setTimeout> | undefined;
+        try {
+            await Promise.race([
+                converter.initialize(),
+                new Promise<never>((_, reject) => {
+                    startupTimer = setTimeout(() => reject(new Error(
+                        "Office engine initialization timed out. Reload the page and try again.",
+                    )), 60_000);
+                }),
+            ]);
+        } finally {
+            clearTimeout(startupTimer);
+        }
+        const active = converter;
+        // Keep the binary blob URLs alive until the worker is actually stopped.
         return {
-            initialize: () => converter.initialize(),
-            convert: (data, options, filename) => converter.convert(data, options, filename),
+            initialize: () => active.initialize(),
+            convert: (data, options, filename) => active.convert(data, options, filename),
             destroy: async () => {
-                try { await converter.destroy(); } finally { release(); }
+                let stopTimer: ReturnType<typeof setTimeout> | undefined;
+                try {
+                    await Promise.race([
+                        active.destroy(),
+                        new Promise<never>((_, reject) => {
+                            stopTimer = setTimeout(() => reject(new Error("Worker did not stop")), 3_000);
+                        }),
+                    ]);
+                } catch {
+                    // A hung worker cannot acknowledge 'destroy'; force termination.
+                    terminateWorker();
+                } finally {
+                    clearTimeout(stopTimer);
+                    release();
+                }
             },
         };
     } catch (err) {
+        terminateWorker();
         release();
         throw err;
     }

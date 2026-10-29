@@ -22,6 +22,12 @@ export const Icons = {
     svg('<path d="M18 6 6 18M6 6l12 12"/>', size),
   check: (size?: string | number) =>
     svg('<path d="M20 6 9 17l-5-5"/>', size),
+  info: (size?: string | number) =>
+    svg('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>', size),
+  alertTriangle: (size?: string | number) =>
+    svg('<path d="m10.3 3.9-8.2 14.2a2 2 0 0 0 1.7 3h16.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>', size),
+  circleAlert: (size?: string | number) =>
+    svg('<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>', size),
   plus: (size?: string | number) =>
     svg('<path d="M5 12h14M12 5v14"/>', size),
   rotateCw: (size?: string | number) =>

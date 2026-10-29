@@ -126,7 +126,7 @@ export async function newTrackedPage(browser: Browser, downloadDir?: string): Pr
     });
     page.on("console", m => {
         const t = m.type();
-        if (t === "error" || t === "warning") logs.push({ type: t, text: m.text().slice(0, 400) });
+        if (t === "error" || t === "warning" || t === "warn") logs.push({ type: t, text: m.text().slice(0, 400) });
     });
     page.on("pageerror", e => logs.push({ type: "pageerror", text: String(e).slice(0, 400) }));
     page.on("requestfailed", r => {

@@ -55,6 +55,7 @@ import { startConversionStatus, statusHTML, type StatusHandle } from "./progress
 import { routeQualityNotice, PRINT_ACTION_LABEL } from "./routeQuality.ts";
 import { printPage } from "./printPage.ts";
 import { dismissToast } from "../components/Toast/Toast.ts";
+import { isOfficePdfConversion, prepareOfficePdfConversion } from "../components/FormatModal/FormatModal.ts";
 // --- Helpers ---
 
 const waitForPaint = () => new Promise<void>(resolve =>
@@ -559,6 +560,11 @@ export function initConvertButton() {
             const inputFormat = inputOption.format;
             const outputFormat = outputOption.format;
 
+            const officePreparation = await prepareOfficePdfConversion(inputFormat.extension, outputFormat.extension);
+            if (officePreparation === "blocked") return;
+            const requireOfficeRoute = officePreparation === "ready"
+                && isOfficePdfConversion(inputFormat.extension, outputFormat.extension);
+
             const isSameFormatPick = inputFormat.mime === outputFormat.mime
                 && inputFormat.format === outputFormat.format;
 
@@ -665,6 +671,10 @@ export function initConvertButton() {
                     showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());
                     return;
                 }
+                if (requireOfficeRoute && !conversionPath.some(n => n.handler?.name === "libreoffice")) {
+                    showAlertPopup("High-quality PDF unavailable", "The Office engine isn't on the selected conversion route. The file was not converted, so no slide layouts were lost.");
+                    return;
+                }
                 if (isSafariBrowser && pathUsesPdfHandler(conversionPath)) {
                     showSafariPdfPopup();
                     return;
@@ -700,6 +710,12 @@ export function initConvertButton() {
 
                 if (!result) {
                     if (isCancelled) break;
+                    if (requireOfficeRoute) {
+                        removeCancelButton();
+                        if (_lastConversionError) showConversionFailedPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase(), _lastConversionError);
+                        else showAlertPopup("Office conversion failed", "The Office engine could not finish. No limited-quality PDF was substituted.");
+                        return;
+                    }
                     const failedError = _lastConversionError;
                     setCancelEnabled(false); // Restore "no cancel during warm-up" invariant before retry search
                     // Path failed (dead end) - find the next best path and retry once.
