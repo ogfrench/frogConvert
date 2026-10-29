@@ -283,7 +283,17 @@
 }
 
 /* The HTML-to-PDF choice is a guided, centered action rather than a
-   conversion-result warning. Other result notices remain left-aligned. */
+   conversion-result warning. Other result notices remain left-aligned.
+   A short mobile viewport must not hide the final action buttons. */
+#popup:has(.html-pdf-export-notice) {
+  max-height: calc(100dvh - 2rem);
+}
+
+#popup:has(.html-pdf-export-notice) > .popup-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 #popup .convert-notice.html-pdf-export-notice {
   align-items: center;
   text-align: center;
