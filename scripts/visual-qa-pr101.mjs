@@ -18,8 +18,10 @@ async function grab(mode, viewport) {
   try {
     const response = await page.goto(BASE + "/convert", {waitUntil:"networkidle2", timeout:100000});
     console.log(mode, "HTTP", response?.status(), "URL", page.url());
-    if (!response?.ok()) throw Error("Preview not accessible: " + response?.status());
+    if (!response || ![200,304].includes(response.status())) throw Error("Preview not accessible: " + response?.status());
     await page.waitForSelector("#file-input", { timeout:100000 });
+    await page.click("#theme-toggle");
+    await new Promise(resolve => setTimeout(resolve, 300));
     await page.screenshot({path: path.join(OUTPUT, mode+"-converter.png"), fullPage:true});
     await page.evaluate(() => document.querySelector('#format-mode-menu [data-value="all"]')?.click());
     await page.waitForFunction(() => (window.traversionGraph?.nodeCount ?? 0)>0, {timeout:100000});
@@ -41,6 +43,11 @@ async function grab(mode, viewport) {
     const modalText=await page.$eval("#popup",el=>el.textContent);
     if(!modalText.includes("Create image-based PDF instead"))throw Error("Native export popup not reached");
     await page.screenshot({path:path.join(OUTPUT,mode+"-native-html-pdf.png"),fullPage:true});
+    await page.evaluate(() => {
+      const scroll=document.querySelector("#popup .popup-scroll");
+      if(scroll) scroll.scrollTop=scroll.scrollHeight;
+    });
+    await page.screenshot({path:path.join(OUTPUT,mode+"-native-html-pdf-actions.png"),fullPage:true});
     console.log(mode, "Native print sheet captured; page errors", errors.slice(-4));
   } catch(e) {
     console.error(mode, "CAPTURE ERROR:",e);
