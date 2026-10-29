@@ -70,7 +70,7 @@ export async function showHtmlPdfExport(file: File, onImagePdf: () => void): Pro
         const source = await file.text();
         // Do not pull pdf-lib and the image renderer into the initial app shell.
         const { printableDocument } = await import("../handlers/svgForeignObject.ts");
-        const html = printableDocument(source, title);
+        const html = printableDocument(source, title, { blockNetwork: true });
         if (closed || !heading.isConnected || !ui.popupBox.classList.contains("open")) {
             abandon();
             return;
