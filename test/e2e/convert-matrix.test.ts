@@ -50,7 +50,7 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         await server?.close();
     });
 
-    async function convert(input: string, target: string, opts: { noMime?: boolean } = {}): Promise<Outcome> {
+    async function convert(input: string, target: string, opts: { noMime?: boolean; forceHtmlPrintFailure?: boolean } = {}): Promise<Outcome> {
         const dir = path.join(TMP, `${path.basename(input)}-to-${target}`);
         const { page } = await newTrackedPage(browser, dir);
         const external: string[] = [];
@@ -92,14 +92,34 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         if (!picked) throw new Error(`no ${target} target offered for ${path.basename(input)}`);
         await sleep(600);
         let preflight: string | null = null;
+        if (opts.forceHtmlPrintFailure) {
+            // Force precisely the first iframe creation to fail, in native
+            // print preparation. The image renderer creates an iframe later
+            // and must still be able to recover.
+            await page.evaluate(() => {
+                let failed = false;
+                Object.defineProperty(document, "createElement", {
+                    configurable: true,
+                    value: new Proxy(document.createElement, {
+                        apply(target, thisArg, args) {
+                            if (!failed && String(args[0]).toLowerCase() === "iframe") {
+                                failed = true;
+                                throw new Error("Injected native-print iframe failure");
+                            }
+                            return Reflect.apply(target, thisArg, args);
+                        },
+                    }),
+                });
+            });
+        }
         if (target.toLowerCase() === "pdf" && /\.(pptx|docx|xlsx|odp|odt|ods)$/i.test(input)) {
             await page.waitForSelector("#office-limited-convert", { visible: true });
             await page.click("#office-limited-convert");
         } else {
             await page.$eval("#convert-button", b => (b as HTMLButtonElement).click());
-            // HTML uses a native browser print sheet. Select the explicitly
-            // labelled direct-download fallback to exercise raster output.
-            if (target.toLowerCase() === "pdf" && /\.html?$/i.test(input)) {
+            // Only a failed browser print view exposes the separate
+            // picture-only recovery path.
+            if (opts.forceHtmlPrintFailure && target.toLowerCase() === "pdf" && /\.html?$/i.test(input)) {
                 await page.waitForFunction(() => [...document.querySelectorAll("#popup button")]
                     .some(b => b.textContent === "Download picture-only PDF"), { timeout: 30_000 });
                 preflight = await page.$eval("#popup", el => el.textContent);
@@ -185,13 +205,13 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         expect([...rgba.subarray(0, 3)]).toEqual([0x10, 0x20, 0x30]);
     }, 300_000);
 
-    it("html -> pdf is A4 pages, labelled as pictures", async () => {
-        const o = await convert(path.join(RES, "styled-page.html"), "pdf");
+    it("html -> pdf falls back to labelled A4 pictures only when native print is unavailable", async () => {
+        const o = await convert(path.join(RES, "styled-page.html"), "pdf", { forceHtmlPrintFailure: true });
         const shape = await inspectPdf(read(o));
         expect(shape.pageCount).toBeGreaterThan(1);
         expect(shape.sizes.every(s => s.w === 595 && s.h === 842)).toBe(true);
         expect(o.modal).toMatch(/made of pictures/);
-        expect(o.preflight).toMatch(/Save as PDF/);
+        expect(o.preflight).toMatch(/Print view unavailable/);
         expect(o.modal).toMatch(/You chose an image-based PDF/);
         expect(o.modal).not.toMatch(/press Print as PDF/);
     }, 300_000);
@@ -238,10 +258,13 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
             expect(ready.title).toBe("Save as PDF");
             const alignment = await page.$eval("#popup .html-pdf-export-notice", el => ({
                 text: getComputedStyle(el).textAlign,
-                fallback: getComputedStyle(el.querySelector(".convert-notice-link")!).alignSelf,
                 steps: getComputedStyle(el.querySelector(".convert-notice-text")!).whiteSpace,
+                hasFallback: !!el.querySelector(".convert-notice-link"),
+                instructions: el.querySelector(".convert-notice-text")?.textContent,
             }));
-            expect(alignment).toEqual({ text: "center", fallback: "center", steps: "pre-line" });
+            expect(alignment).toMatchObject({ text: "center", steps: "pre-line", hasFallback: false });
+            expect(alignment.instructions).toContain('Tap "Open print options" below.');
+            expect(alignment.instructions).toContain('choose "Save as PDF"');
             await page.click("#native-print-test");
             expect(await page.evaluate(() => (window as unknown as { __nativePrintTest?: boolean }).__nativePrintTest)).toBe(true);
             expect(await page.$eval("#popup h2", el => el.textContent)).toBe("Save as PDF");
@@ -272,10 +295,10 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         // and URLs to another site in src, srcset, poster, style, @import and
         // image-set. Its <video> with only a poster used to hang the
         // conversion for good: it fires neither load nor error.
-        const o = await convert(path.join(RES, "hostile.html"), "pdf");
+        const o = await convert(path.join(RES, "hostile.html"), "pdf", { forceHtmlPrintFailure: true });
         expect(o.pwned).toBeNull();
         expect(o.external).toEqual([]);
-        expect(o.preflight).toMatch(/Save as PDF/);
+        expect(o.preflight).toMatch(/Print view unavailable/);
         expect(o.modal).toMatch(/You chose an image-based PDF/);
     }, 300_000);
 
