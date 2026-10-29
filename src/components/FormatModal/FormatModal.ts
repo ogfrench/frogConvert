@@ -372,7 +372,10 @@ export async function prepareOfficePdfConversion(inputExt: string, outputExt: st
     return "limited";
   }
   if (hasOfficeHandler(inputExt)) return "ready";
-  if (navigator.userAgent.includes("Electron") || !BROWSER_OFFICE_INPUTS.has(inputExt)) {
+  // The desktop banner says the PDF will be a picture without LibreOffice, and
+  // has no limited-conversion button to unblock it, so that is what it does.
+  if (navigator.userAgent.includes("Electron")) return "limited";
+  if (!BROWSER_OFFICE_INPUTS.has(inputExt)) {
     ui.libreofficeNotice.hidden = false;
     return "blocked";
   }

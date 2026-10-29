@@ -9,16 +9,14 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.3.0
+## What's new in 3.3.1
 
-**Clearer PDF saving and more reliable Office conversion.**
+**Fixes for 3.3.0.**
 
-- **Save HTML as a PDF with real text.** For one HTML file in the browser, choose **Save PDF**, then **Save as PDF** in the window that opens. The page's print styles are respected. If the PDF options cannot open, retry without a picture-only downgrade.
-- **Office PDFs on supported phones and tablets.** Enable the on-device Office engine when your browser supports it. Larger PowerPoint decks convert in sequential batches with progress by slide. A stalled small input gets one fresh-worker retry after the failed worker stops.
-- **Better notifications.** Icons, text and dismiss buttons align vertically, long filenames wrap, and messages stay visible while hovered or keyboard-focused.
-- **Safer resource handling.** PowerPoint XML limits apply during decompression, and cached Office asset failures release temporary resources.
+- **Desktop Office to PDF works again without LibreOffice.** In 3.3.0 the desktop app refused to convert Word, PowerPoint and Excel files to PDF unless LibreOffice was installed. It now makes the picture-only PDF its notice describes, as it did before. With LibreOffice installed, nothing changes.
+- **"Print as PDF" opens on phones.** The button that offers a PDF with real text after a picture-only conversion now prepares the page in advance, so mobile browsers no longer block the print window.
 
-Files stay on your device. Browser HTML export does not run page scripts or fetch external fonts, images or stylesheets, so pages that depend on those resources can look different. The Office engine remains memory-intensive and may not work on every phone.
+Everything new in [3.3.0](https://github.com/ogfrench/frogConvert/releases/tag/v3.3.0) is here.
 
 Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
