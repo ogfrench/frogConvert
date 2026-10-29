@@ -44,6 +44,14 @@ describe('routeQualityNotice', () => {
     expect(routeQualityNotice(['commonmark', 'html', 'pdf'], true, true)!.body).toMatch(/The document was drawn/);
   });
 
+  it('describes an intentionally selected image PDF without offering print again', () => {
+    const n = routeQualityNotice(['html', 'pdf'], true, false, true)!;
+    expect(n.title).toBe('This PDF is made of pictures');
+    expect(n.body).toMatch(/You chose an image-based PDF/);
+    expect(n.body).not.toMatch(/Print as PDF/);
+    expect(routeQualityNotice(['pptx', 'pdf'], false, false, true)).toBeNull();
+  });
+
   it('knows pandoc names for Markdown', () => {
     expect(classifyRoute(['commonmark', 'text', 'png', 'pdf'])).toBe('image-only');
   });
