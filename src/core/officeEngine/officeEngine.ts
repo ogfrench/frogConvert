@@ -1,6 +1,6 @@
 import {
     OFFICE_ENGINE_BASE, OFFICE_ENGINE_CACHE, OFFICE_ENGINE_FILES, OFFICE_ENGINE_API,
-    OFFICE_ENGINE_MANIFEST_URL, type OfficeEngineManifest,
+    OFFICE_ENGINE_MANIFEST_URL, OFFICE_ENGINE_VERSION, type OfficeEngineFile, type OfficeEngineManifest,
 } from "./officeEngineAssets.ts";
 
 /**
@@ -18,7 +18,11 @@ import {
 
 export type OfficeEngineSupport = "unsupported" | "available" | "cached";
 
-export interface OfficeEngineProgress { loaded: number; total: number }
+export interface OfficeEngineProgress {
+    loaded: number;
+    total: number;
+    stage?: "downloading" | "unpacking" | "saving";
+}
 
 /** The subset of the package's WorkerBrowserConverter this app uses. */
 export interface OfficeConverter {
@@ -50,12 +54,39 @@ export function canRunOfficeEngine(): boolean {
         && typeof WebAssembly !== "undefined";
 }
 
+/** Refuse hostile or stale manifests before allocating any binary buffers. */
+function validManifest(value: unknown): value is OfficeEngineManifest {
+    if (!value || typeof value !== "object") return false;
+    const m = value as OfficeEngineManifest;
+    if (m.version !== OFFICE_ENGINE_VERSION || !Array.isArray(m.files)
+        || !Number.isSafeInteger(m.downloadSize) || m.downloadSize <= 0
+        || m.downloadSize > 350 * 1024 * 1024) return false;
+    const required = new Set(BLOB_FILES);
+    let sum = 0;
+    for (const file of m.files) {
+        if (!file || typeof file.name !== "string") return false;
+        if (!BLOB_FILES.has(file.name)) continue;
+        if (!required.delete(file.name) || !file.gzip || !Number.isSafeInteger(file.size)
+            || file.size <= 0 || file.size > 350 * 1024 * 1024
+            || !Array.isArray(file.parts) || file.parts.length === 0) return false;
+        for (const part of file.parts) {
+            if (!part || typeof part.name !== "string"
+                || !part.name.startsWith(file.name + ".gz.")
+                || !/^soffice\\.(wasm|data)\\.gz\\.\\d{3}$/.test(part.name)
+                || !Number.isSafeInteger(part.size) || part.size <= 0 || part.size > 21 * 1024 * 1024
+                || (part.sha256 !== undefined && !/^[a-f0-9]{64}$/.test(part.sha256))) return false;
+            sum += part.size;
+        }
+    }
+    return required.size === 0 && sum <= m.downloadSize;
+}
+
 async function fetchManifest(): Promise<OfficeEngineManifest | null> {
     try {
         const resp = await fetch(OFFICE_ENGINE_MANIFEST_URL, { cache: "no-cache" });
         if (!resp.ok) return null;
-        const manifest = await resp.json() as OfficeEngineManifest;
-        return Array.isArray(manifest?.files) ? manifest : null;
+        const manifest: unknown = await resp.json();
+        return validManifest(manifest) ? manifest : null;
     } catch {
         return null;
     }
@@ -67,7 +98,8 @@ async function cachedManifest(): Promise<OfficeEngineManifest | null> {
         const cache = await caches.open(OFFICE_ENGINE_CACHE);
         const resp = await cache.match(OFFICE_ENGINE_MANIFEST_URL);
         if (!resp) return null;
-        const manifest = await resp.json() as OfficeEngineManifest;
+        const manifest: unknown = await resp.json();
+        if (!validManifest(manifest)) return null;
         for (const f of manifest.files) {
             if (BLOB_FILES.has(f.name) && !(await cache.match(fileUrl(f.name)))) return null;
         }
@@ -98,18 +130,76 @@ export async function officeEngineDownloadSize(): Promise<number | null> {
     return (await fetchManifest())?.downloadSize ?? null;
 }
 
-async function readPart(url: string, signal: AbortSignal | undefined, onBytes: (n: number) => void): Promise<Uint8Array[]> {
-    const resp = await fetch(url, { signal });
-    if (!resp.ok || !resp.body) throw new Error(`Couldn't download the Office engine (${resp.status} on ${url})`);
-    const chunks: Uint8Array[] = [];
-    const reader = resp.body.getReader();
-    for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        onBytes(value.byteLength);
+class OfficePartError extends Error {
+    constructor(message: string, readonly retryable = false) { super(message); }
+}
+
+/** A 20 MiB compressed part is the upper bound on JS download buffering. */
+async function readPart(
+    part: OfficeEngineFile["parts"][number],
+    signal: AbortSignal | undefined,
+    onBytes: (n: number) => void,
+): Promise<Uint8Array> {
+    const url = fileUrl(part.name);
+    for (let attempt = 0; attempt < 3; attempt++) {
+        signal?.throwIfAborted();
+        const controller = new AbortController();
+        const abort = () => controller.abort();
+        signal?.addEventListener("abort", abort, { once: true });
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const resetTimeout = () => {
+            clearTimeout(timer);
+            timer = setTimeout(abort, 60_000);
+        };
+        let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+        try {
+            resetTimeout();
+            const resp = await fetch(url, { signal: controller.signal });
+            if (!resp.ok || !resp.body) throw new OfficePartError(
+                `Office engine part ${part.name} returned HTTP ${resp.status}.`,
+                resp.status === 408 || resp.status === 429 || resp.status >= 500,
+            );
+            const bytes = new Uint8Array(part.size);
+            reader = resp.body.getReader();
+            let received = 0;
+            for (;;) {
+                const { done, value } = await reader.read();
+                signal?.throwIfAborted();
+                if (done) break;
+                resetTimeout();
+                if (received + value.byteLength > bytes.length) {
+                    throw new OfficePartError(`Office engine part ${part.name} exceeded its expected size.`);
+                }
+                bytes.set(value, received);
+                received += value.byteLength;
+                onBytes(received);
+            }
+            if (received !== part.size) throw new OfficePartError(
+                `Office engine part ${part.name} was incomplete (${received} of ${part.size} bytes).`, true,
+            );
+            if (part.sha256) {
+                const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+                const actual = Array.from(hash, n => n.toString(16).padStart(2, "0")).join("");
+                if (actual !== part.sha256) throw new OfficePartError(
+                    `Office engine part ${part.name} failed integrity verification.`, true,
+                );
+            }
+            return bytes;
+        } catch (error) {
+            if (signal?.aborted) throw new DOMException("Office engine download aborted", "AbortError");
+            const failure = error instanceof OfficePartError ? error : new OfficePartError(
+                `Could not fetch Office engine part ${part.name}: ${String(error)}`, true,
+            );
+            if (!failure.retryable || attempt === 2) throw failure;
+            onBytes(0);
+            await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+        } finally {
+            clearTimeout(timer);
+            signal?.removeEventListener("abort", abort);
+            await reader?.cancel().catch(() => {});
+        }
     }
-    return chunks;
+    throw new Error("Office engine retry limit reached.");
 }
 
 function contentType(name: string): string {
