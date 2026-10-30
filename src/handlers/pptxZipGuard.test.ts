@@ -28,6 +28,35 @@ describe("PPTX HTML fallback preflight", () => {
     expect(() => assertPptxSafeForEnvelope(bytes)).toThrow(/too large or complex/);
   });
 
+  it("rejects a forged local-header offset in the central directory", () => {
+    const bytes = tamperEntry(0, (view, central) =>
+      view.setUint32(central + 42, view.getUint32(central + 42, true) + 1, true));
+    expect(() => assertPptxSafeForEnvelope(bytes)).toThrow(/too large or complex/);
+  });
+
+  it("rejects a compressed range that would overlap the directory", () => {
+    const bytes = tamperEntry(0, (view, central) => {
+      view.setUint32(central + 20, view.getUint32(central + 20, true) + 65536, true);
+    });
+    expect(() => assertPptxSafeForEnvelope(bytes)).toThrow(/too large or complex/);
+  });
+
+  it("rejects a mismatched local filename", () => {
+    const bytes = tamperEntry(0, (view, central) => {
+      const local = view.getUint32(central + 42, true);
+      view.setUint8(local + 30, view.getUint8(local + 30) ^ 1);
+    });
+    expect(() => assertPptxSafeForEnvelope(bytes)).toThrow(/too large or complex/);
+  });
+
+  it("rejects a forged ZIP64 offset and trailing payload", () => {
+    const zip64 = tamperEntry(0, (view, central) => view.setUint32(central + 42, 0xffffffff, true));
+    expect(() => assertPptxSafeForEnvelope(zip64)).toThrow(/too large or complex/);
+    const trailing = new Uint8Array(original.length + 1);
+    trailing.set(original);
+    expect(() => assertPptxSafeForEnvelope(trailing)).toThrow(/too large or complex/);
+  });
+
   it("rejects encrypted entries", () => {
     const bytes = tamperEntry(0, (view, central) => view.setUint16(central + 8, 1, true));
     expect(() => assertPptxSafeForEnvelope(bytes)).toThrow(/too large or complex/);
