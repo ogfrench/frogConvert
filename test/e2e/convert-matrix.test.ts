@@ -108,6 +108,36 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
 
     const read = (o: Outcome) => fs.readFileSync(path.join(o.dir, o.files[0].name));
 
+    it("searches across tiers without changing the selected Core mode", async () => {
+        const { page } = await newTrackedPage(browser, path.join(TMP, "global-search"));
+        try {
+            await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
+            await waitForRegistry(page);
+            await page.evaluate(() => {
+                (document.querySelector('#format-mode-menu [data-value="core"]') as HTMLElement).click();
+            });
+            await page.click("#format-selector");
+            await page.type("#format-search", "xlsx");
+            await page.waitForFunction(() => !!document.querySelector(".format-option .format-tier-tag"));
+            const matching = await page.evaluate(() => {
+                const button = [...document.querySelectorAll<HTMLButtonElement>(".format-option")]
+                    .find(el => el.textContent?.startsWith("XLSX"));
+                return { tier: button?.querySelector(".format-tier-tag")?.textContent, mode: localStorage.getItem("formatMode") };
+            });
+            expect(matching.tier).toBe("Core+");
+            expect(matching.mode).toBe("core");
+            await page.$eval("#format-search", el => {
+                const input = el as HTMLInputElement;
+                input.value = "";
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+            });
+            await page.waitForFunction(() => !document.querySelector(".format-tier-tag"));
+            expect(await page.$(".format-option")).not.toHaveLength(0);
+        } finally {
+            await page.close();
+        }
+    }, 120_000);
+
     it("pdf -> pptx gives one slide per page, and says the slides are pictures", async () => {
         const o = await convert(path.join(RES, "deck-4pages.pdf"), "pptx");
         const zip = await JSZip.loadAsync(read(o));
