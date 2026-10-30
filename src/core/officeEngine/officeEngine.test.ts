@@ -168,6 +168,28 @@ describe("office engine download", () => {
         expect(caches.stores.has(OFFICE_ENGINE_CACHE)).toBe(false);
     });
 
+    it("says storage is refused when CacheStorage cannot be opened (private browsing)", async () => {
+        vi.stubGlobal("caches", {
+            ...caches.api,
+            open: async () => { throw new DOMException("The operation is insecure.", "SecurityError"); },
+        });
+        const { downloadOfficeEngine } = await import("./officeEngine.ts");
+        await expect(downloadOfficeEngine()).rejects.toThrow(/won't let the site store the Office engine/);
+    });
+
+    it("says storage is refused when the write probe fails for a reason other than quota", async () => {
+        const cache = await caches.api.open(OFFICE_ENGINE_CACHE);
+        cache.put = async () => { throw new DOMException("Writes blocked", "SecurityError"); };
+        vi.stubGlobal("caches", { ...caches.api, open: async () => cache });
+        const fetchSpy = vi.fn(fetch);
+        vi.stubGlobal("fetch", fetchSpy);
+        const { downloadOfficeEngine } = await import("./officeEngine.ts");
+        await expect(downloadOfficeEngine()).rejects.toThrow(/Private browsing often blocks it/);
+        // Refused before any 20 MB part was fetched.
+        expect(fetchSpy.mock.calls.every(([url]) => url === OFFICE_ENGINE_MANIFEST_URL)).toBe(true);
+        expect(caches.stores.has(OFFICE_ENGINE_CACHE)).toBe(false);
+    });
+
     it("refuses a malformed manifest before downloading any binary", async () => {
         const manifest = deployment().manifest;
         manifest.files[0].parts[0].size = 100 * 1024 * 1024;

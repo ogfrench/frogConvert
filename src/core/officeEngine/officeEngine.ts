@@ -237,12 +237,21 @@ export async function downloadOfficeEngine(
         const report = (stage: OfficeEngineProgress["stage"], bytes = loaded) =>
             onProgress?.({ loaded: bytes, total, stage });
         let streamFailure: unknown;
+        let storageRefused = false;
         try {
-            const cache = await caches.open(OFFICE_ENGINE_CACHE);
-            // CacheStorage can exist in private mode while writes fail.
+            // CacheStorage can exist in private mode while opening or writing fails.
+            const cache = await caches.open(OFFICE_ENGINE_CACHE).catch(error => {
+                storageRefused = true;
+                throw error;
+            });
             const probeUrl = fileUrl(".storage-probe");
-            await cache.put(probeUrl, new Response("ok"));
-            await cache.delete(probeUrl);
+            try {
+                await cache.put(probeUrl, new Response("ok"));
+                await cache.delete(probeUrl);
+            } catch (error) {
+                if (!(error instanceof DOMException && error.name === "QuotaExceededError")) storageRefused = true;
+                throw error;
+            }
 
             for (const file of manifest.files) {
                 if (!BLOB_FILES.has(file.name)) continue;
@@ -297,9 +306,12 @@ export async function downloadOfficeEngine(
         } catch (err) {
             await caches.delete(OFFICE_ENGINE_CACHE).catch(() => {});
             if (err instanceof DOMException && err.name === "QuotaExceededError") {
-                throw new Error("Not enough browser storage for the Office engine. Private mode may have a lower limit.");
+                throw new Error("Not enough browser storage for the Office engine. Private browsing may allow less");
             }
             if (signal?.aborted) throw new DOMException("Office engine download aborted", "AbortError");
+            if (storageRefused) {
+                throw new Error("This browser won't let the site store the Office engine. Private browsing often blocks it: try a normal window");
+            }
             // Browser CacheStorage may wrap a failed Response stream in TypeError.
             // Retain the original part status instead of misreporting it as storage.
             if (streamFailure instanceof OfficePartError) throw streamFailure;

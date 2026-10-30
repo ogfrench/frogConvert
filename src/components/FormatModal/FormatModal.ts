@@ -471,7 +471,7 @@ function installOfficeEngine(notice: HTMLElement): Promise<boolean> {
     } catch (err) {
       if (text) text.textContent = controller.signal.aborted
         ? "Download cancelled. Your file has not been converted."
-        : `Office engine download failed: ${err instanceof Error ? err.message : String(err)}. Try again.`;
+        : `Office engine download failed: ${(err instanceof Error ? err.message : String(err)).replace(/\.+$/, "")}. Try again.`;
       return false;
     } finally {
       officeDownload = null;
