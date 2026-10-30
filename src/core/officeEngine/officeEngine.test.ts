@@ -1,10 +1,10 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { gzipSync } from "node:zlib";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
     OFFICE_ENGINE_BASE, OFFICE_ENGINE_CACHE, OFFICE_ENGINE_MANIFEST_URL, type OfficeEngineManifest,
-    OFFICE_ENGINE_FILES,
+    OFFICE_ENGINE_FILES, OFFICE_ENGINE_VERSION,
 } from "./officeEngineAssets.ts";
 
 /** A Cache Storage stand-in: one Map per cache name, keyed by URL. */
@@ -14,8 +14,13 @@ function fakeCaches() {
         if (!stores.has(name)) stores.set(name, new Map());
         const store = stores.get(name)!;
         return {
-            put: async (url: string, resp: Response) => { store.set(url, resp.clone()); },
+            put: async (url: string, resp: Response) => {
+                // Real CacheStorage.put consumes streaming response bodies before resolving.
+                const bytes = await resp.arrayBuffer();
+                store.set(url, new Response(bytes, { headers: resp.headers }));
+            },
             match: async (url: string) => store.get(url)?.clone(),
+            delete: async (url: string) => store.delete(url),
         };
     };
     return { stores, api: { open, delete: async (name: string) => stores.delete(name) } };
@@ -34,12 +39,15 @@ function deployment() {
         for (let off = 0, i = 0; off < gz.byteLength; off += size, i++) {
             const partName = `${name}.gz.${String(i).padStart(3, "0")}`;
             files[`${OFFICE_ENGINE_BASE}/${partName}`] = gz.subarray(off, off + size);
-            parts.push({ name: partName, size: Math.min(size, gz.byteLength - off) });
+            parts.push({
+                name: partName, size: Math.min(size, gz.byteLength - off),
+                sha256: createHash("sha256").update(files[`${OFFICE_ENGINE_BASE}/${partName}`]).digest("hex"),
+            });
         }
         return { name, size: bytes.byteLength, gzip: true, parts };
     };
     const manifest: OfficeEngineManifest = {
-        version: "test",
+        version: OFFICE_ENGINE_VERSION,
         downloadSize: 0,
         files: [split("soffice.wasm", wasm, 500), split("soffice.data", data, 400)],
     };
@@ -109,6 +117,48 @@ describe("office engine download", () => {
         const { downloadOfficeEngine } = await import("./officeEngine.ts");
         await expect(downloadOfficeEngine()).rejects.toThrow(/incomplete/);
         expect(caches.stores.has(OFFICE_ENGINE_CACHE)).toBe(false);
+    });
+
+    it("retries an interrupted 200 response for a bounded part", async () => {
+        let attempts = 0;
+        const url = `${OFFICE_ENGINE_BASE}/soffice.wasm.gz.000`;
+        vi.stubGlobal("fetch", async (requested: string) => {
+            const body = served[requested];
+            if (!body) return new Response("not found", { status: 404 });
+            if (requested === url && attempts++ === 0) return new Response(body.subarray(0, body.byteLength - 1));
+            return new Response(body.slice());
+        });
+        const { downloadOfficeEngine, isOfficeEngineCached } = await import("./officeEngine.ts");
+        await downloadOfficeEngine();
+        expect(attempts).toBe(2);
+        expect(await isOfficeEngineCached()).toBe(true);
+    });
+
+    it("rejects a corrupt part with HTTP 200 after limited retries", async () => {
+        const url = `${OFFICE_ENGINE_BASE}/soffice.wasm.gz.000`;
+        served[url] = served[url].slice();
+        served[url][3] ^= 0xff;
+        const { downloadOfficeEngine } = await import("./officeEngine.ts");
+        await expect(downloadOfficeEngine()).rejects.toThrow(/integrity verification/);
+        expect(caches.stores.has(OFFICE_ENGINE_CACHE)).toBe(false);
+    });
+
+    it("rejects storage that exposes CacheStorage but refuses writes", async () => {
+        const cache = await caches.api.open(OFFICE_ENGINE_CACHE);
+        cache.put = async () => { throw new DOMException("Quota exceeded", "QuotaExceededError"); };
+        // Return a cache with the same failing writes from every open call.
+        vi.stubGlobal("caches", { ...caches.api, open: async () => cache });
+        const { downloadOfficeEngine } = await import("./officeEngine.ts");
+        await expect(downloadOfficeEngine()).rejects.toThrow(/Not enough browser storage/);
+        expect(caches.stores.has(OFFICE_ENGINE_CACHE)).toBe(false);
+    });
+
+    it("refuses a malformed manifest before downloading any binary", async () => {
+        const manifest = deployment().manifest;
+        manifest.files[0].parts[0].size = 100 * 1024 * 1024;
+        served[OFFICE_ENGINE_MANIFEST_URL] = new TextEncoder().encode(JSON.stringify(manifest));
+        const { downloadOfficeEngine } = await import("./officeEngine.ts");
+        await expect(downloadOfficeEngine()).rejects.toThrow(/manifest is missing or invalid/);
     });
 
     it("offers the engine on touch devices when browser features are available", async () => {
