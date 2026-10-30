@@ -85,8 +85,13 @@ class envelopeHandler implements FormatHandler {
 
     for (const inputFile of inputFiles) {
       if (inputFormat.internal === "pptx") assertPptxSafeForEnvelope(inputFile.bytes);
-      const html = `<div style="background: #fff">
-        ${await parser(inputFile.bytes)}
+      const fragment = await parser(inputFile.bytes);
+      // This fallback exports user-controlled slide styles. An HTML download
+      // must not fetch third-party resources or execute scripts when opened.
+      const html = inputFormat.internal === "pptx"
+        ? `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'"></head><body><div style="background: #fff">${fragment}</div></body></html>`
+        : `<div style="background: #fff">
+        ${fragment}
       </div>`;
       const bytes = encoder.encode(html);
       const baseName = inputFile.name.split(".").slice(0, -1).join(".");
