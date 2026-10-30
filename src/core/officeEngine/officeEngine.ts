@@ -223,10 +223,10 @@ export async function downloadOfficeEngine(
         if (!manifest) throw new Error("The Office engine manifest is missing or invalid.");
         const total = manifest.downloadSize;
         let loaded = 0;
-        const cache = await caches.open(OFFICE_ENGINE_CACHE);
         const report = (stage: OfficeEngineProgress["stage"], bytes = loaded) =>
             onProgress?.({ loaded: bytes, total, stage });
         try {
+            const cache = await caches.open(OFFICE_ENGINE_CACHE);
             // CacheStorage can exist in private mode while writes fail.
             const probeUrl = fileUrl(".storage-probe");
             await cache.put(probeUrl, new Response("ok"));
