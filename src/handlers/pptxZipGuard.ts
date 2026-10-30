@@ -22,7 +22,7 @@ async function verifyMember(bytes: Uint8Array, { method, start, compressed, unco
     if (compressed !== uncompressed) refuse();
     return;
   }
-  const reader = new Blob([bytes.subarray(start, start + compressed)]).stream()
+  const reader = new Blob([bytes.subarray(start, start + compressed) as BlobPart]).stream()
     .pipeThrough(new DecompressionStream("deflate-raw")).getReader();
   let produced = 0;
   try {
