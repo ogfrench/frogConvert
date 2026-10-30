@@ -13,10 +13,12 @@ class envelopeHandler implements FormatHandler {
 
   public supportedFormats: FileFormat[] = [
     CommonFormats.DOCX.builder("docx").allowFrom(),
-    // A fallback where Pandoc is registered first (MCP, REST, CLI). Not in the
-    // web app's public/cache.json on purpose: Envelope is registered before
-    // Pandoc there, so the route finder would prefer it and drop slide tables.
-    CommonFormats.PPTX.builder("pptx").allowFrom(),
+    // Not offered: the route finder cannot rank Envelope below Pandoc for
+    // PPTX -> HTML (same category, and the web app registers Envelope first),
+    // so enabling it made Envelope the browser's route and dropped slide tables
+    // and pictures. Pandoc reads PPTX with both. pptxZipGuard stays in front of
+    // the parser for when a real fallback ranking exists.
+    // CommonFormats.PPTX.builder("pptx").allowFrom(),
     // CommonFormats.XLSX.builder("xlsx").allowFrom(),
     {
       name: "OpenDocument Text",
