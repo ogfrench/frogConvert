@@ -140,7 +140,7 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
     it("pptx -> html produces nonempty document markup from a real deck", async () => {
         const o = await convert(path.join(RES, "deck.pptx"), "html");
         const html = read(o).toString("utf8");
-        expect(html).toMatch(/<(?:html|div|section|p|h[1-6])\\b/i);
+        expect(html).toMatch(/<(?:html|div|section|p|h[1-6])\b/i);
         expect(html.replace(/<[^>]+>/g, "").trim().length).toBeGreaterThan(20);
         expect(o.external).toEqual([]);
     }, 300_000);
