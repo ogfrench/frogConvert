@@ -124,7 +124,11 @@ async function main() {
             const part = gz.subarray(off, off + PART_SIZE);
             const partName = `${name}.gz.${String(i).padStart(3, "0")}`;
             fs.writeFileSync(path.join(OUT, partName), part);
-            parts.push({ name: partName, size: part.byteLength });
+            parts.push({
+                name: partName,
+                size: part.byteLength,
+                sha256: crypto.createHash("sha256").update(part).digest("hex"),
+            });
         }
         files.push({ name, size: data.byteLength, gzip: true, parts });
         console.log(`[office-engine] ${name}: ${(data.byteLength / 1e6).toFixed(1)} MB -> ${parts.length} gzip parts, ${(gz.byteLength / 1e6).toFixed(1)} MB`);
