@@ -63,12 +63,16 @@ function validManifest(value: unknown): value is OfficeEngineManifest {
         || m.downloadSize > 350 * 1024 * 1024) return false;
     const required = new Set(BLOB_FILES);
     let sum = 0;
+    let expanded = 0;
+    if (m.files.length > 12) return false;
     for (const file of m.files) {
         if (!file || typeof file.name !== "string") return false;
         if (!BLOB_FILES.has(file.name)) continue;
         if (!required.delete(file.name) || !file.gzip || !Number.isSafeInteger(file.size)
             || file.size <= 0 || file.size > 350 * 1024 * 1024
             || !Array.isArray(file.parts) || file.parts.length === 0) return false;
+        expanded += file.size;
+        if (expanded > 350 * 1024 * 1024) return false;
         for (const part of file.parts) {
             if (!part || typeof part.name !== "string"
                 || !part.name.startsWith(file.name + ".gz.")
@@ -225,6 +229,7 @@ export async function downloadOfficeEngine(
         let loaded = 0;
         const report = (stage: OfficeEngineProgress["stage"], bytes = loaded) =>
             onProgress?.({ loaded: bytes, total, stage });
+        let streamFailure: unknown;
         try {
             const cache = await caches.open(OFFICE_ENGINE_CACHE);
             // CacheStorage can exist in private mode while writes fail.
@@ -249,6 +254,7 @@ export async function downloadOfficeEngine(
                             loaded += bytes.byteLength;
                             controller.enqueue(bytes);
                         } catch (error) {
+                            streamFailure = error;
                             controller.error(error);
                         }
                     },
@@ -287,6 +293,10 @@ export async function downloadOfficeEngine(
                 throw new Error("Not enough browser storage for the Office engine. Private mode may have a lower limit.");
             }
             if (signal?.aborted) throw new DOMException("Office engine download aborted", "AbortError");
+            // Browser CacheStorage may wrap a failed Response stream in TypeError.
+            // Retain the original part status instead of misreporting it as storage.
+            if (streamFailure instanceof OfficePartError) throw streamFailure;
+            if (streamFailure) throw new Error(`Office engine download stream failed: ${String(streamFailure)}`);
             if (err instanceof OfficePartError) throw err;
             throw new Error(`Office engine unpacking or storage failed: ${String(err)}`);
         }
@@ -295,7 +305,10 @@ export async function downloadOfficeEngine(
     };
     // Same-origin tabs must not race while clearing an incomplete installation.
     if (navigator.locks?.request) {
-        await navigator.locks.request("frogconvert-office-engine-install", { mode: "exclusive" }, install);
+        await navigator.locks.request("frogconvert-office-engine-install", {
+            mode: "exclusive",
+            ...(signal ? { signal } : {}),
+        }, install);
     } else {
         await install();
     }
