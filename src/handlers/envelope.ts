@@ -13,8 +13,9 @@ class envelopeHandler implements FormatHandler {
 
   public supportedFormats: FileFormat[] = [
     CommonFormats.DOCX.builder("docx").allowFrom(),
-    // Pandoc remains preferred when its bundled reader supports PPTX.
-    // Envelope provides a direct PPTX -> HTML route on builds without that reader.
+    // A fallback where Pandoc is registered first (MCP, REST, CLI). Not in the
+    // web app's public/cache.json on purpose: Envelope is registered before
+    // Pandoc there, so the route finder would prefer it and drop slide tables.
     CommonFormats.PPTX.builder("pptx").allowFrom(),
     // CommonFormats.XLSX.builder("xlsx").allowFrom(),
     {

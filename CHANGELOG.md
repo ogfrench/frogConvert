@@ -17,7 +17,7 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 - The browser Office engine download streams each part through decompression into storage instead of holding the whole engine in memory, checks every part's size and SHA-256, retries interrupted parts a limited number of times, says which stage failed, and tells private-browsing users when storage is refused.
 
 ### Added
-- PPTX to HTML. Pandoc is preferred and keeps slide text, tables and pictures; Envelope is a fallback that keeps slide text only.
+- PPTX to HTML, through Pandoc, keeping slide text, tables and pictures. In the MCP server, REST API and CLI, Envelope is a further fallback that keeps slide text only.
 
 ### Security
 - PPTX input to the Envelope fallback is checked first: ZIP structure, size limits, and every member must decompress cleanly to its declared size (a corrupt member used to hang the converter). The fallback's HTML carries a restrictive Content Security Policy.
