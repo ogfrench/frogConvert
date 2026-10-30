@@ -186,12 +186,18 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         expect(o.modal).toMatch(/made of pictures/);
     }, 300_000);
 
-    it("pptx -> html produces nonempty document markup from a real deck", async () => {
+    it("pptx -> html carries every slide's text, in order, from a real deck", async () => {
         const o = await convert(path.join(RES, "deck.pptx"), "html");
         const html = read(o).toString("utf8");
-        expect(html).toMatch(/<(?:html|div|section|p|h[1-6])\b/i);
-        expect(html.replace(/<[^>]+>/g, "").trim().length).toBeGreaterThan(20);
+        const text = html.replace(/<style[^>]*>[\s\S]*?<\/style>/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+        let at = 0;
+        for (const expected of ["Quarterly Review", "Revenue up 12%", "Numbers", "Picture slide"]) {
+            at = text.indexOf(expected, at);
+            expect(at, `"${expected}" missing or out of order`).toBeGreaterThanOrEqual(0);
+        }
+        expect(html).not.toMatch(/<script\b/i);
         expect(o.external).toEqual([]);
+        expect(o.pwned).toBeNull();
     }, 300_000);
 
     it("pptx -> pdf is labelled as pictures, not celebrated", async () => {
