@@ -269,7 +269,9 @@ export async function downloadOfficeEngine(
                     },
                 });
                 // Cache.put consumes the response body; never build a ~250 MB JS Blob.
-                const unpacked = parts.pipeThrough(new DecompressionStream("gzip")).pipeThrough(verifySize);
+                // lib.dom types gzip's writable as BufferSource; Uint8Array is valid input.
+                const gzip = new DecompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>;
+                const unpacked = parts.pipeThrough(gzip).pipeThrough(verifySize);
                 await cache.put(fileUrl(file.name), new Response(unpacked, {
                     headers: { "content-type": contentType(file.name) },
                 }));
