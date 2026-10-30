@@ -89,6 +89,21 @@ describe("office engine download", () => {
         expect(await isOfficeEngineCached()).toBe(true);
     });
 
+    it("reaches 100% after installing the binary parts, excluding startup scripts", async () => {
+        const { manifest } = deployment();
+        manifest.files.push({
+            name: "soffice.js", size: 1024, gzip: false,
+            parts: [{ name: "soffice.js", size: 1024 }],
+        });
+        manifest.downloadSize += 1024;
+        served[OFFICE_ENGINE_MANIFEST_URL] = new TextEncoder().encode(JSON.stringify(manifest));
+        const { downloadOfficeEngine, officeEngineDownloadSize } = await import("./officeEngine.ts");
+        const totals: Array<{ loaded: number; total: number }> = [];
+        await downloadOfficeEngine(p => totals.push(p));
+        expect(totals.at(-1)?.loaded).toBe(totals.at(-1)?.total);
+        expect(await officeEngineDownloadSize()).toBe(manifest.downloadSize - 1024);
+    });
+
     it("leaves nothing behind when a part is missing", async () => {
         delete served[`${OFFICE_ENGINE_BASE}/soffice.data.gz.001`];
         const { downloadOfficeEngine, isOfficeEngineCached } = await import("./officeEngine.ts");
