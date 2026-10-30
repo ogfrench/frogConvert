@@ -137,6 +137,14 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         expect(o.modal).toMatch(/made of pictures/);
     }, 300_000);
 
+    it("pptx -> html produces nonempty document markup from a real deck", async () => {
+        const o = await convert(path.join(RES, "deck.pptx"), "html");
+        const html = read(o).toString("utf8");
+        expect(html).toMatch(/<(?:html|div|section|p|h[1-6])\\b/i);
+        expect(html.replace(/<[^>]+>/g, "").trim().length).toBeGreaterThan(20);
+        expect(o.external).toEqual([]);
+    }, 300_000);
+
     it("pptx -> pdf is labelled as pictures, not celebrated", async () => {
         const o = await convert(path.join(RES, "deck.pptx"), "pdf");
         expect((await inspectPdf(read(o))).pageCount).toBeGreaterThan(0);
