@@ -161,6 +161,37 @@ describe("office engine download", () => {
         await expect(downloadOfficeEngine()).rejects.toThrow(/manifest is missing or invalid/);
     });
 
+    it("retains the original part HTTP status if CacheStorage hides response-stream errors", async () => {
+        const cache = await caches.api.open(OFFICE_ENGINE_CACHE);
+        const originalPut = cache.put;
+        cache.put = async (url, response) => {
+            try {
+                await originalPut(url, response);
+            } catch {
+                throw new TypeError("Cache.put could not consume stream");
+            }
+        };
+        vi.stubGlobal("caches", { ...caches.api, open: async () => cache });
+        delete served[`${OFFICE_ENGINE_BASE}/soffice.data.gz.001`];
+        const { downloadOfficeEngine } = await import("./officeEngine.ts");
+        await expect(downloadOfficeEngine()).rejects.toThrow(/HTTP 404/);
+        expect(caches.stores.has(OFFICE_ENGINE_CACHE)).toBe(false);
+    });
+
+    it("passes an abort signal to Web Locks so a queued install can be cancelled", async () => {
+        const controller = new AbortController();
+        const request = vi.fn(async (_name: string, options: LockOptions) => {
+            expect(options.mode).toBe("exclusive");
+            expect(options.signal).toBe(controller.signal);
+            controller.abort();
+            throw new DOMException("Lock wait aborted", "AbortError");
+        });
+        vi.stubGlobal("navigator", { storage: { persist: async () => false }, locks: { request } });
+        const { downloadOfficeEngine } = await import("./officeEngine.ts");
+        await expect(downloadOfficeEngine(undefined, controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+        expect(request).toHaveBeenCalledOnce();
+    });
+
     it("offers the engine on touch devices when browser features are available", async () => {
         vi.stubGlobal("window", { crossOriginIsolated: true, matchMedia: () => ({ matches: true }) });
         const mod = await import("./officeEngine.ts");
