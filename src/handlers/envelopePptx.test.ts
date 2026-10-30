@@ -17,6 +17,9 @@ describe("Envelope PPTX to HTML fallback", () => {
         expect(result[0].name).toBe("deck.html");
         const html = new TextDecoder().decode(result[0].bytes);
         expect(html).toContain('__page');
+        expect(html).toContain("default-src 'none'");
+        expect(html).toContain("img-src data:");
+        expect(html).not.toContain("script-src 'unsafe-inline'");
         expect(html.replace(/<[^>]+>/g, "").trim().length).toBeGreaterThan(20);
     });
 });
