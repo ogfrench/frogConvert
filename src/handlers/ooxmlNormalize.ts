@@ -1,5 +1,7 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 
+const MAX_NORMALIZE_BYTES = 256 * 1024 * 1024;
+
 /**
  * Rewrite an OOXML package (docx/pptx/xlsx) into the form pandoc's readers
  * understand, without changing its content. Both forms below are valid OOXML;
@@ -19,7 +21,17 @@ import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 export function normalizeOoxmlForPandoc(bytes: Uint8Array): Uint8Array {
   let entries: Record<string, Uint8Array>;
   try {
-    entries = unzipSync(bytes);
+    // fflate allocates each member at its declared size and never grows it,
+    // so the declared total is the memory bound. A few lying headers asked
+    // for gigabytes before pandoc ran; over budget, pandoc gets the original.
+    let declared = 0;
+    entries = unzipSync(bytes, {
+      filter: ({ originalSize }) => {
+        declared += originalSize;
+        if (declared > MAX_NORMALIZE_BYTES) throw new Error("OOXML package too large to normalize");
+        return true;
+      },
+    });
   } catch {
     return bytes;
   }

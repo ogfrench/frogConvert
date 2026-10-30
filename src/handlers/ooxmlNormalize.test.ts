@@ -96,3 +96,27 @@ describe('normalizeOoxmlForPandoc: inline strings', () => {
     expect(strFromU8(out['xl/sharedStrings.xml'])).toContain('<si><t>Kept</t></si>');
   });
 });
+
+describe('normalizeOoxmlForPandoc: memory budget', () => {
+  it('passes a package whose declared sizes exceed the budget through untouched, without allocating them', () => {
+    const zip = zipSync({
+      '_rels/.rels': strToU8('<Relationships><Relationship Id="r1" Target="/word/document.xml"/></Relationships>'),
+      'word/document.xml': strToU8('<w:document/>'),
+    });
+    // Declare 300 MB for document.xml in the central directory, which is what
+    // fflate allocates. Without the budget this rewrote the rels and returned
+    // a package carrying a 300 MB member.
+    const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
+    let end = zip.length - 22;
+    while (view.getUint32(end, true) !== 0x06054b50) end--;
+    let pos = view.getUint32(end + 16, true);
+    for (let i = 0; i < view.getUint16(end + 10, true); i++) {
+      const nameLength = view.getUint16(pos + 28, true);
+      if (strFromU8(zip.subarray(pos + 46, pos + 46 + nameLength)) === 'word/document.xml') {
+        view.setUint32(pos + 24, 300 * 1024 * 1024, true);
+      }
+      pos += 46 + nameLength + view.getUint16(pos + 30, true) + view.getUint16(pos + 32, true);
+    }
+    expect(normalizeOoxmlForPandoc(zip)).toBe(zip);
+  });
+});
