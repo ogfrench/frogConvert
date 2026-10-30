@@ -94,7 +94,7 @@ const HANDLER_SPECS: Array<[string, string, string?]> = [
 
 /** Default set: the pairs that have landing pages. */
 const DEFAULT_PAIRS = [
-  "pdf→docx", "docx→pdf", "mp3→wav", "wav→mp3", "flac→mp3", "mp3→flac", "wav→flac",
+  "pdf→docx", "docx→pdf", "pptx→html", "mp3→wav", "wav→mp3", "flac→mp3", "mp3→flac", "wav→flac",
   "flac→wav", "png→jpg", "jpg→png", "svg→png", "png→svg", "mp4→gif", "gif→mp4",
   "gif→webp", "html→pdf", "html→md", "md→html", "md→pdf", "docx→txt", "docx→odt",
   "odt→docx", "txt→pdf", "txt→md", "md→txt", "csv→json", "json→csv", "json→xml",
