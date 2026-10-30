@@ -1,10 +1,46 @@
+type Member = { method: number; start: number; compressed: number; uncompressed: number };
+
 /**
  * Envelope's ZIP extractor trusts central-directory sizes and offsets when
- * allocating buffers. Reject unsupported/malformed packages before it runs.
- * This limits allocations, but does not make Envelope's parser a ZIP sandbox.
+ * allocating buffers, and its inflater loops forever on a truncated or
+ * zero-filled DEFLATE stream (reads past the end come back as 0). Reject
+ * malformed packages, then inflate every member with the platform's
+ * DecompressionStream, capped at its declared size, so Envelope only ever
+ * sees streams that end cleanly at exactly that size. This bounds work and
+ * allocations; it does not make Envelope's parser a ZIP sandbox.
  */
-export function assertPptxSafeForEnvelope(bytes: Uint8Array): void {
-  const refuse = (): never => { throw new Error("This PowerPoint is too large or complex for HTML conversion."); };
+export async function assertPptxSafeForEnvelope(bytes: Uint8Array): Promise<void> {
+  for (const member of pptxMembers(bytes)) await verifyMember(bytes, member);
+}
+
+function refuse(): never {
+  throw new Error("This PowerPoint is too large or complex for HTML conversion.");
+}
+
+async function verifyMember(bytes: Uint8Array, { method, start, compressed, uncompressed }: Member): Promise<void> {
+  if (method === 0) {
+    if (compressed !== uncompressed) refuse();
+    return;
+  }
+  const reader = new Blob([bytes.subarray(start, start + compressed)]).stream()
+    .pipeThrough(new DecompressionStream("deflate-raw")).getReader();
+  let produced = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      produced += value.byteLength;
+      if (produced > uncompressed) refuse();
+    }
+  } catch {
+    refuse();
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+  if (produced !== uncompressed) refuse();
+}
+
+function pptxMembers(bytes: Uint8Array): Member[] {
   if (bytes.byteLength < 22 || bytes.byteLength > 32 * 1024 * 1024) refuse();
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const u16 = (off: number) => view.getUint16(off, true);
@@ -27,6 +63,7 @@ export function assertPptxSafeForEnvelope(bytes: Uint8Array): void {
 
   let pos = directoryStart;
   let expanded = 0;
+  const members: Member[] = [];
   for (let i = 0; i < count; i++) {
     if (pos + 46 > end || u32(pos) !== 0x02014b50) refuse();
     const flags = u16(pos + 8);
@@ -56,7 +93,9 @@ export function assertPptxSafeForEnvelope(bytes: Uint8Array): void {
     if (!(flags & 8) && (u32(local + 18) !== compressed || u32(local + 22) !== uncompressed)) refuse();
     expanded += uncompressed;
     if (expanded > 96 * 1024 * 1024) refuse();
+    members.push({ method, start: dataStart, compressed, uncompressed });
     pos = next;
   }
   if (pos !== end) refuse();
+  return members;
 }
