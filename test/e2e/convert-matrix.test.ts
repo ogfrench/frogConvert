@@ -246,7 +246,7 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
                 instructions: el.querySelector(".convert-notice-text")?.textContent,
             }));
             expect(alignment).toMatchObject({ text: "center", steps: "pre-line", hasFallback: false });
-            expect(alignment.instructions).toContain('Choose "Save as PDF" in the next window, then save your file.');
+            expect(alignment.instructions).toContain('choose "Save as PDF" as the printer or destination, then press Save.');
             await page.click("#native-print-test");
             expect(await page.evaluate(() => (window as unknown as { __nativePrintTest?: boolean }).__nativePrintTest)).toBe(true);
             expect(await page.$eval("#popup h2", el => el.textContent)).toBe("Save as PDF");
