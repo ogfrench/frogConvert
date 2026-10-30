@@ -428,7 +428,7 @@ describe("format picker global search", () => {
         allOptionsRef.value = [];
     });
     const displayed = () => Array.from(ui.formatOptions.querySelectorAll<HTMLButtonElement>(".format-option"))
-        .map(node => ({ name: node.firstChild?.textContent, tier: node.querySelector(".format-tier-tag")?.textContent }));
+        .map(node => ({ name: node.firstChild?.textContent?.split(" - ")[0], tier: node.querySelector(".format-tier-tag")?.textContent }));
 
     it("finds Plus and All formats outside the active tier and category", () => {
         renderFormatOptions(items, "image");
