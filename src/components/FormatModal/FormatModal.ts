@@ -37,49 +37,8 @@ function openFormatModal() {
 }
 
 export function filterFormats(query: string) {
-  const allOptions = allOptionsRef.value;
-  const options = ui.formatOptions;
-  const q = query.toLowerCase();
-  let lastHeaderVisible = false;
-  let lastHeader: HTMLElement | null = null;
-  let unavailableDivider: HTMLElement | null = null;
-  let unavailableDividerVisible = false;
-
-  for (const child of Array.from(options.children)) {
-    const el = child as HTMLElement;
-    if (el.classList.contains("format-unavailable-header")) {
-      el.style.display = "none";
-      unavailableDivider = el;
-      unavailableDividerVisible = false;
-      lastHeader = null;
-      lastHeaderVisible = false;
-    } else if (el.classList.contains("format-group-header")) {
-      el.style.display = "none";
-      lastHeader = el;
-      lastHeaderVisible = false;
-    } else if (el.classList.contains("format-option")) {
-      const text = el.textContent?.toLowerCase() || "";
-      const idx = el.getAttribute("data-index");
-      let extMatch = false;
-      if (idx) {
-        const opt = allOptions[parseInt(idx)];
-        if (opt) extMatch = opt.format.extension.toLowerCase().includes(q);
-      }
-      if (!q || text.includes(q) || extMatch) {
-        el.style.display = "";
-        if (lastHeader && !lastHeaderVisible) {
-          lastHeader.style.display = "";
-          lastHeaderVisible = true;
-        }
-        if (unavailableDivider && !unavailableDividerVisible && el.classList.contains("unavailable")) {
-          unavailableDivider.style.display = "";
-          unavailableDividerVisible = true;
-        }
-      } else {
-        el.style.display = "none";
-      }
-    }
-  }
+  // Search the registry, not the already tier-filtered DOM.
+  renderFormatOptions(allOptionsRef.value, activeCategory.value, query);
 }
 
 export function initFormatModal(
@@ -107,7 +66,7 @@ export function initFormatModal(
 
   ui.formatOptions.addEventListener("click", (e) => {
     const btn = (e.target as HTMLElement).closest(".format-option");
-    if (btn) {
+    if (btn && !btn.classList.contains("unavailable")) {
       const index = parseInt(btn.getAttribute("data-index") || "", 10);
       if (!isNaN(index)) onSelectFormat(index);
     }
@@ -529,8 +488,11 @@ function installOfficeEngine(notice: HTMLElement): Promise<boolean> {
 export function renderFormatOptions(
   allOptions: Array<{ format: FileFormat; handler: FormatHandler }>,
   category: string,
+  query = ui.formatSearch.value,
 ) {
   activeCategory.value = category;
+  const q = query.trim().toLowerCase();
+  const searching = q.length > 0;
   ui.formatOptions.innerHTML = "";
 
   if (allOptions.length === 0) {
@@ -549,8 +511,10 @@ export function renderFormatOptions(
     if (!format.mime) continue;
 
     const cat = getFormatCategory(format);
-    if (!isFormatVisible(format, formatMode.value)) continue;
-    if (activeCategory.value && cat !== activeCategory.value) continue;
+    if (!searching && !isFormatVisible(format, formatMode.value)) continue;
+    if (!searching && activeCategory.value && cat !== activeCategory.value) continue;
+    if (searching && ![formatDisplayName(format), format.format, format.extension, CATEGORY_LABELS[cat] || cat]
+      .some(value => value.toLowerCase().includes(q))) continue;
 
     const dedupeKey = `${cat}::${format.mime}::${format.format}`;
 
@@ -564,7 +528,7 @@ export function renderFormatOptions(
   }
 
   const categoryOrder = ["image", "audio", "video", "document", "data", "archive", "font", "code", "other"];
-  const showHeaders = !category;
+  const showHeaders = searching || !category;
 
   const reachable = reachableIdentifiers.value;
   const fromIdx = selectedFromIndex.value;
@@ -576,6 +540,14 @@ export function renderFormatOptions(
     btn.setAttribute("data-index", item.index.toString());
     if (unavailable) btn.setAttribute("aria-disabled", "true");
     btn.textContent = item.text;
+    if (searching) {
+      const format = allOptions[item.index].format;
+      const tier = isFormatVisible(format, "core") ? "Core" : isFormatVisible(format, "plus") ? "Core+" : "All";
+      const label = document.createElement("span");
+      label.className = "format-tier-tag";
+      label.textContent = tier;
+      btn.appendChild(label);
+    }
     ui.formatOptions.appendChild(btn);
   };
 
@@ -634,6 +606,13 @@ export function renderFormatOptions(
       }
       for (const item of items) appendOption(item, true);
     }
+  }
+
+  if (searching && !anyAvailable && unavailableByCat.size === 0) {
+    const empty = document.createElement("div");
+    empty.className = "format-empty-state";
+    empty.textContent = isLoadingPhase2.value ? "Still loading formats…" : "No matching formats.";
+    ui.formatOptions.appendChild(empty);
   }
 
   if (isLoadingPhase2.value) {
