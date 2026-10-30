@@ -203,6 +203,7 @@ samples.set("png", load("colors_50x50.png"));
 samples.set("mp3", load("gaster.mp3"));
 samples.set("mp4", load("doom.mp4"));
 samples.set("docx", load("word.docx"));
+samples.set("pptx", load("deck.pptx"));
 // Written by openpyxl, deliberately: absolute relationship targets and inline
 // strings, the shape pandoc could not read until src/handlers/ooxmlNormalize.ts.
 samples.set("xlsx", load("sheet.xlsx"));
