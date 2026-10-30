@@ -106,7 +106,7 @@ describe("office engine download", () => {
         });
         const { downloadOfficeEngine } = await import("./officeEngine.ts");
         await expect(downloadOfficeEngine(() => controller.abort(), controller.signal))
-            .rejects.toThrow(/Abort/);
+            .rejects.toThrow(/abort/i);
         expect(caches.stores.has(OFFICE_ENGINE_CACHE)).toBe(false);
     });
 
