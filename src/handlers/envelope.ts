@@ -3,6 +3,7 @@ import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/
 import { parseODT, parseODP, parseODS } from "./envelope/parseODF.js";
 import parseDOCX from "./envelope/parseDOCX.js";
 import parsePPTX from "./envelope/parsePPTX.js";
+import { assertPptxSafeForEnvelope } from "./pptxZipGuard.ts";
 import parseXLSX from "./envelope/parseXLSX.js";
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 
@@ -83,6 +84,7 @@ class envelopeHandler implements FormatHandler {
     const encoder = new TextEncoder();
 
     for (const inputFile of inputFiles) {
+      if (inputFormat.internal === "pptx") assertPptxSafeForEnvelope(inputFile.bytes);
       const html = `<div style="background: #fff">
         ${await parser(inputFile.bytes)}
       </div>`;
