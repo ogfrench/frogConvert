@@ -456,8 +456,10 @@ function installOfficeEngine(notice: HTMLElement): Promise<boolean> {
   officeDownload = (async () => {
     try {
       if (!(await isOfficeEngineCached())) {
-        await downloadOfficeEngine(({ loaded, total }) => {
-          if (text) text.textContent = `Downloading Office engine: ${Math.floor((loaded / total) * 100)}%. You can continue using the app.`;
+        await downloadOfficeEngine(({ loaded, total, stage }) => {
+          const label = stage === "saving" ? "Saving Office engine"
+            : stage === "unpacking" ? "Unpacking Office engine" : "Downloading Office engine";
+          if (text) text.textContent = `${label}: ${Math.floor((loaded / total) * 100)}%. You can continue using the app.`;
         }, controller.signal);
       }
       officeDownloadController = null;
