@@ -191,7 +191,8 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         const html = read(o).toString("utf8");
         const text = html.replace(/<style[^>]*>[\s\S]*?<\/style>/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
         let at = 0;
-        for (const expected of ["Quarterly Review", "Revenue up 12%", "Numbers", "Picture slide"]) {
+        // "South" is a table cell: only the preferred Pandoc route keeps tables.
+        for (const expected of ["Quarterly Review", "Revenue up 12%", "Numbers", "South", "Picture slide"]) {
             at = text.indexOf(expected, at);
             expect(at, `"${expected}" missing or out of order`).toBeGreaterThanOrEqual(0);
         }
