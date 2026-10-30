@@ -129,9 +129,16 @@ export function officeEngineSupport(): Promise<OfficeEngineSupport> {
     return supportProbe;
 }
 
-/** Bytes the download will take, for the button label. Null when the engine is not deployed. */
+/** Only the two big binary assets are downloaded during installation. */
+function installDownloadBytes(manifest: OfficeEngineManifest): number {
+    return manifest.files.filter(f => BLOB_FILES.has(f.name))
+        .reduce((sum, file) => sum + file.parts.reduce((bytes, part) => bytes + part.size, 0), 0);
+}
+
+/** Bytes the installer will fetch, excluding small scripts loaded when starting the engine. */
 export async function officeEngineDownloadSize(): Promise<number | null> {
-    return (await fetchManifest())?.downloadSize ?? null;
+    const manifest = await fetchManifest();
+    return manifest ? installDownloadBytes(manifest) : null;
 }
 
 class OfficePartError extends Error {
@@ -225,7 +232,7 @@ export async function downloadOfficeEngine(
         if (await cachedManifest()) return;
         const manifest = await fetchManifest();
         if (!manifest) throw new Error("The Office engine manifest is missing or invalid.");
-        const total = manifest.downloadSize;
+        const total = installDownloadBytes(manifest);
         let loaded = 0;
         const report = (stage: OfficeEngineProgress["stage"], bytes = loaded) =>
             onProgress?.({ loaded: bytes, total, stage });
