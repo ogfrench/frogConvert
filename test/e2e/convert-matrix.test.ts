@@ -116,23 +116,42 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
             await page.evaluate(() => {
                 (document.querySelector('#format-mode-menu [data-value="core"]') as HTMLElement).click();
             });
+            const listed = () => page.$$eval(".format-option", els => els.map(el => el.textContent ?? ""));
+            const coreList = await listed();
+            expect(coreList.some(t => t.startsWith("XLSX"))).toBe(false);
+
             await page.click("#format-selector");
-            await page.type("#format-search", "xlsx");
+            // Opening must put the cursor in search: the visibility transition
+            // used to leave the modal unfocusable when focus() ran (#107).
+            expect(await page.evaluate(() => document.activeElement?.id)).toBe("format-search");
+            // Real keystrokes, no programmatic focus: they land wherever the user's would.
+            await page.keyboard.type("xlsx");
             await page.waitForFunction(() => !!document.querySelector(".format-option .format-tier-tag"));
             const matching = await page.evaluate(() => {
                 const button = [...document.querySelectorAll<HTMLButtonElement>(".format-option")]
                     .find(el => el.textContent?.startsWith("XLSX"));
-                return { tier: button?.querySelector(".format-tier-tag")?.textContent, mode: localStorage.getItem("formatMode") };
+                return {
+                    tier: button?.querySelector(".format-tier-tag")?.textContent,
+                    mode: localStorage.getItem("formatMode"),
+                };
             });
             expect(matching.tier).toBe("Core+");
             expect(matching.mode).toBe("core");
+
+            // Keyboard: ArrowDown from search reaches the first result.
+            await page.keyboard.press("ArrowDown");
+            expect(await page.evaluate(() => document.activeElement?.textContent?.startsWith("XLSX"))).toBe(true);
+
+            // Clearing the query restores the Core list exactly, not the search results.
+            await page.focus("#format-search");
             await page.$eval("#format-search", el => {
                 const input = el as HTMLInputElement;
                 input.value = "";
                 input.dispatchEvent(new Event("input", { bubbles: true }));
             });
             await page.waitForFunction(() => !document.querySelector(".format-tier-tag"));
-            expect(await page.$(".format-option")).not.toHaveLength(0);
+            expect(await listed()).toEqual(coreList);
+            expect(await page.evaluate(() => localStorage.getItem("formatMode"))).toBe("core");
         } finally {
             await page.close();
         }

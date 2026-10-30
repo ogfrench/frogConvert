@@ -577,6 +577,12 @@ summary {
   visibility: visible;
   transform: translate(-50%, -50%) scale(1);
   pointer-events: auto;
+  /* Visible at once on open: at the start of a visibility transition the
+     modal is still hidden, so the focus() that ModalManager and the format
+     search call right after opening silently did nothing. Closing keeps the
+     timed transition, so the fade-out stays visible. */
+  transition: opacity var(--transition-normal), visibility 0s, transform var(--transition-normal),
+    background-color var(--transition-slow), border-color var(--transition-slow), color var(--transition-slow);
 }
 
 .modal-container.popup-size {
