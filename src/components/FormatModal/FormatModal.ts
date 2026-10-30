@@ -515,7 +515,8 @@ export function renderFormatOptions(
     const cat = getFormatCategory(format);
     if (!searching && !isFormatVisible(format, formatMode.value)) continue;
     if (!searching && activeCategory.value && cat !== activeCategory.value) continue;
-    if (searching && ![formatDisplayName(format), format.format, format.extension, CATEGORY_LABELS[cat] || cat]
+    if (searching && ![formatDisplayName(format), format.format, format.extension, CATEGORY_LABELS[cat] || cat,
+        ...(Array.isArray(format.category) ? format.category : format.category ? [format.category] : [])]
       .some(value => value.toLowerCase().includes(q))) continue;
 
     const dedupeKey = `${cat}::${format.mime}::${format.format}`;
