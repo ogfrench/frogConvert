@@ -76,7 +76,7 @@ describe("HTML PDF export sheet", () => {
         expect(print).not.toHaveBeenCalled();
         const notice = ui.popupBox.querySelector(".html-pdf-export-notice");
         expect(notice).not.toBeNull();
-        expect(notice?.textContent).toContain('Choose "Save as PDF" in the next window, then save your file.');
+        expect(notice?.textContent).toContain('choose "Save as PDF" as the printer or destination, then press Save.');
         expect(notice?.textContent).not.toContain('No printer needed.');
         expect(notice?.textContent).not.toMatch(/select and copy text/i);
         expect(ui.popupBox.textContent).not.toContain("picture-only");

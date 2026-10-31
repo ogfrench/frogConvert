@@ -28,7 +28,7 @@ export interface OfficeEngineFile {
     /** True when the parts are gzip and must be decompressed after joining. */
     gzip: boolean;
     /** Part file names, in order, relative to OFFICE_ENGINE_BASE. */
-    parts: { name: string; size: number }[];
+    parts: { name: string; size: number; sha256?: string }[];
 }
 
 export interface OfficeEngineManifest {

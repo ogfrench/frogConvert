@@ -112,7 +112,7 @@ export async function showHtmlPdfExport(file: File): Promise<void> {
         noticeTitle.textContent = "One last step";
         const noticeText = document.createElement("p");
         noticeText.className = "convert-notice-text";
-        noticeText.textContent = 'Choose "Save as PDF" in the next window, then save your file.';
+        noticeText.textContent = 'In the print window, choose "Save as PDF" as the printer or destination, then press Save.';
         notice.append(noticeTitle, noticeText);
 
         const footer = document.createElement("div");

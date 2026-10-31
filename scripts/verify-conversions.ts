@@ -94,7 +94,7 @@ const HANDLER_SPECS: Array<[string, string, string?]> = [
 
 /** Default set: the pairs that have landing pages. */
 const DEFAULT_PAIRS = [
-  "pdf→docx", "docx→pdf", "mp3→wav", "wav→mp3", "flac→mp3", "mp3→flac", "wav→flac",
+  "pdf→docx", "docx→pdf", "pptx→html", "mp3→wav", "wav→mp3", "flac→mp3", "mp3→flac", "wav→flac",
   "flac→wav", "png→jpg", "jpg→png", "svg→png", "png→svg", "mp4→gif", "gif→mp4",
   "gif→webp", "html→pdf", "html→md", "md→html", "md→pdf", "docx→txt", "docx→odt",
   "odt→docx", "txt→pdf", "txt→md", "md→txt", "csv→json", "json→csv", "json→xml",
@@ -203,6 +203,7 @@ samples.set("png", load("colors_50x50.png"));
 samples.set("mp3", load("gaster.mp3"));
 samples.set("mp4", load("doom.mp4"));
 samples.set("docx", load("word.docx"));
+samples.set("pptx", load("deck.pptx"));
 // Written by openpyxl, deliberately: absolute relationship targets and inline
 // strings, the shape pandoc could not read until src/handlers/ooxmlNormalize.ts.
 samples.set("xlsx", load("sheet.xlsx"));
@@ -256,6 +257,15 @@ function environmental(detail: string): boolean {
 const BROWSER_ONLY = new Set(["png→svg"]);
 const STRICT = process.env.VERIFY_STRICT === "1";
 
+/**
+ * Pairs whose output must carry the sample's content, not just bytes. A
+ * route through an image or a parser that drops slides still produces a
+ * non-empty file; these strings must appear, in this order.
+ */
+const EXPECTED_TEXT: Record<string, string[]> = {
+  "pptx→html": ["Quarterly Review", "Revenue up 12%", "Numbers", "South", "Picture slide"],
+};
+
 const rows: Row[] = [];
 for (const pair of pairs) {
   const [from, to] = pair.split("→");
@@ -265,6 +275,13 @@ for (const pair of pairs) {
     const out = await convert(input, `sample.${from}`, from, to);
     const bytes = out[0]?.bytes;
     if (!bytes?.length) { rows.push({ pair, status: "FAIL", detail: "empty output" }); continue; }
+    const expected = EXPECTED_TEXT[pair];
+    if (expected) {
+      const text = new TextDecoder().decode(bytes);
+      let at = 0;
+      const missing = expected.find(t => (at = text.indexOf(t, at)) < 0);
+      if (missing) { rows.push({ pair, status: "FAIL", detail: `content missing or out of order: "${missing}"` }); continue; }
+    }
     rows.push({ pair, status: "PASS", detail: `${out.length} file(s), ${bytes.length} bytes` });
   } catch (e) {
     const detail = message(e).slice(0, 90);

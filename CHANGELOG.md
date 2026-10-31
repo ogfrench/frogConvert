@@ -10,6 +10,19 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Improved
+- Format search finds formats across Core, Core+ and All whatever tier or category is selected, labels each result's tier, and restores the previous list when cleared. Unavailable targets stay visible but can't be picked.
+- Opening a dialog puts the keyboard focus inside it. A visibility transition left the format search unfocused, so typed text went nowhere.
+- The HTML to PDF save sheet says to choose "Save as PDF" as the printer or destination in the print window.
+- The browser Office engine download streams each part through decompression into storage instead of holding the whole engine in memory, checks every part's size and SHA-256, retries interrupted parts a limited number of times, says which stage failed, and tells private-browsing users when storage is refused.
+
+### Added
+- PPTX to HTML through Pandoc, keeping slide text, tables and pictures.
+
+### Security
+- The Envelope PPTX parser (kept for a future fallback, not offered) sits behind a check of ZIP structure, size limits and clean decompression of every member to its declared size; a corrupt member used to hang it. Its HTML carries a restrictive Content Security Policy.
+- The OOXML normalizer no longer allocates memory for whatever member sizes a file claims; over 256 MB declared, Pandoc reads the original file.
+
 ## [3.3.1] - 2026-10-29
 
 ### Fixed

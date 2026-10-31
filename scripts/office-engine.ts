@@ -96,7 +96,15 @@ async function main() {
     if (fs.existsSync(manifestPath)) {
         const prior = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as OfficeEngineManifest;
         const complete = prior.version === OFFICE_ENGINE_VERSION
-            && prior.files.every(f => f.parts.every(p => fs.existsSync(path.join(OUT, p.name))));
+            && [...SPLIT].every(name => prior.files.some(f => f.name === name))
+            && prior.files.every(f => f.parts.every(p => {
+                const partPath = path.join(OUT, p.name);
+                if (!fs.existsSync(partPath)) return false;
+                if (!SPLIT.has(f.name)) return true;
+                // A stale pre-integrity build must not bypass SHA-256 validation.
+                return !!p.sha256
+                    && crypto.createHash("sha256").update(fs.readFileSync(partPath)).digest("hex") === p.sha256;
+            }));
         if (complete) {
             console.log(`[office-engine] ${OFFICE_ENGINE_BASE} already built`);
             return;
@@ -124,7 +132,11 @@ async function main() {
             const part = gz.subarray(off, off + PART_SIZE);
             const partName = `${name}.gz.${String(i).padStart(3, "0")}`;
             fs.writeFileSync(path.join(OUT, partName), part);
-            parts.push({ name: partName, size: part.byteLength });
+            parts.push({
+                name: partName,
+                size: part.byteLength,
+                sha256: crypto.createHash("sha256").update(part).digest("hex"),
+            });
         }
         files.push({ name, size: data.byteLength, gzip: true, parts });
         console.log(`[office-engine] ${name}: ${(data.byteLength / 1e6).toFixed(1)} MB -> ${parts.length} gzip parts, ${(gz.byteLength / 1e6).toFixed(1)} MB`);

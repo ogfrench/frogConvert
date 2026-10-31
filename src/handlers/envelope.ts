@@ -3,6 +3,7 @@ import type { FileData, FileFormat, FormatHandler } from "../core/FormatHandler/
 import { parseODT, parseODP, parseODS } from "./envelope/parseODF.js";
 import parseDOCX from "./envelope/parseDOCX.js";
 import parsePPTX from "./envelope/parsePPTX.js";
+import { assertPptxSafeForEnvelope } from "./pptxZipGuard.ts";
 import parseXLSX from "./envelope/parseXLSX.js";
 import CommonFormats from '../core/CommonFormats/CommonFormats.ts';
 
@@ -12,7 +13,11 @@ class envelopeHandler implements FormatHandler {
 
   public supportedFormats: FileFormat[] = [
     CommonFormats.DOCX.builder("docx").allowFrom(),
-    // Currently, Pancoc handles PPTX and XLSX better than Envelope.
+    // Not offered: the route finder cannot rank Envelope below Pandoc for
+    // PPTX -> HTML (same category, and the web app registers Envelope first),
+    // so enabling it made Envelope the browser's route and dropped slide tables
+    // and pictures. Pandoc reads PPTX with both. pptxZipGuard stays in front of
+    // the parser for when a real fallback ranking exists.
     // CommonFormats.PPTX.builder("pptx").allowFrom(),
     // CommonFormats.XLSX.builder("xlsx").allowFrom(),
     {
@@ -82,8 +87,18 @@ class envelopeHandler implements FormatHandler {
     const encoder = new TextEncoder();
 
     for (const inputFile of inputFiles) {
-      const html = `<div style="background: #fff">
-        ${await parser(inputFile.bytes)}
+      // Envelope reads `bytes.buffer` from offset 0, ignoring a view's
+      // byteOffset: hand it an exact copy so it parses what was checked.
+      const input = inputFile.bytes.byteOffset === 0 && inputFile.bytes.byteLength === inputFile.bytes.buffer.byteLength
+        ? inputFile.bytes : inputFile.bytes.slice();
+      if (inputFormat.internal === "pptx") await assertPptxSafeForEnvelope(input);
+      const fragment = await parser(input);
+      // This fallback exports user-controlled slide styles. An HTML download
+      // must not fetch third-party resources or execute scripts when opened.
+      const html = inputFormat.internal === "pptx"
+        ? `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'"></head><body><div style="background: #fff">${fragment}</div></body></html>`
+        : `<div style="background: #fff">
+        ${fragment}
       </div>`;
       const bytes = encoder.encode(html);
       const baseName = inputFile.name.split(".").slice(0, -1).join(".");

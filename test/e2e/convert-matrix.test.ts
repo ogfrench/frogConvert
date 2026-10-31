@@ -108,6 +108,55 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
 
     const read = (o: Outcome) => fs.readFileSync(path.join(o.dir, o.files[0].name));
 
+    it("searches across tiers without changing the selected Core mode", async () => {
+        const { page } = await newTrackedPage(browser, path.join(TMP, "global-search"));
+        try {
+            await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
+            await waitForRegistry(page);
+            await page.evaluate(() => {
+                (document.querySelector('#format-mode-menu [data-value="core"]') as HTMLElement).click();
+            });
+            const listed = () => page.$$eval(".format-option", els => els.map(el => el.textContent ?? ""));
+            const coreList = await listed();
+            expect(coreList.some(t => t.startsWith("XLSX"))).toBe(false);
+
+            await page.click("#format-selector");
+            // Opening must put the cursor in search: the visibility transition
+            // used to leave the modal unfocusable when focus() ran (#107).
+            expect(await page.evaluate(() => document.activeElement?.id)).toBe("format-search");
+            // Real keystrokes, no programmatic focus: they land wherever the user's would.
+            await page.keyboard.type("xlsx");
+            await page.waitForFunction(() => !!document.querySelector(".format-option .format-tier-tag"));
+            const matching = await page.evaluate(() => {
+                const button = [...document.querySelectorAll<HTMLButtonElement>(".format-option")]
+                    .find(el => el.textContent?.startsWith("XLSX"));
+                return {
+                    tier: button?.querySelector(".format-tier-tag")?.textContent,
+                    mode: localStorage.getItem("formatMode"),
+                };
+            });
+            expect(matching.tier).toBe("Core+");
+            expect(matching.mode).toBe("core");
+
+            // Keyboard: ArrowDown from search reaches the first result.
+            await page.keyboard.press("ArrowDown");
+            expect(await page.evaluate(() => document.activeElement?.textContent?.startsWith("XLSX"))).toBe(true);
+
+            // Clearing the query restores the Core list exactly, not the search results.
+            await page.focus("#format-search");
+            await page.$eval("#format-search", el => {
+                const input = el as HTMLInputElement;
+                input.value = "";
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+            });
+            await page.waitForFunction(() => !document.querySelector(".format-tier-tag"));
+            expect(await listed()).toEqual(coreList);
+            expect(await page.evaluate(() => localStorage.getItem("formatMode"))).toBe("core");
+        } finally {
+            await page.close();
+        }
+    }, 120_000);
+
     it("pdf -> pptx gives one slide per page, and says the slides are pictures", async () => {
         const o = await convert(path.join(RES, "deck-4pages.pdf"), "pptx");
         const zip = await JSZip.loadAsync(read(o));
@@ -135,6 +184,21 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         expect((await inspectPdf(read(o))).pageCount).toBeGreaterThan(0);
         expect(o.modal).toMatch(/with limits/);
         expect(o.modal).toMatch(/made of pictures/);
+    }, 300_000);
+
+    it("pptx -> html carries every slide's text, in order, from a real deck", async () => {
+        const o = await convert(path.join(RES, "deck.pptx"), "html");
+        const html = read(o).toString("utf8");
+        const text = html.replace(/<style[^>]*>[\s\S]*?<\/style>/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+        let at = 0;
+        // "South" is a table cell: only the preferred Pandoc route keeps tables.
+        for (const expected of ["Quarterly Review", "Revenue up 12%", "Numbers", "South", "Picture slide"]) {
+            at = text.indexOf(expected, at);
+            expect(at, `"${expected}" missing or out of order`).toBeGreaterThanOrEqual(0);
+        }
+        expect(html).not.toMatch(/<script\b/i);
+        expect(o.external).toEqual([]);
+        expect(o.pwned).toBeNull();
     }, 300_000);
 
     it("pptx -> pdf is labelled as pictures, not celebrated", async () => {
@@ -246,7 +310,7 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
                 instructions: el.querySelector(".convert-notice-text")?.textContent,
             }));
             expect(alignment).toMatchObject({ text: "center", steps: "pre-line", hasFallback: false });
-            expect(alignment.instructions).toContain('Choose "Save as PDF" in the next window, then save your file.');
+            expect(alignment.instructions).toContain('choose "Save as PDF" as the printer or destination, then press Save.');
             await page.click("#native-print-test");
             expect(await page.evaluate(() => (window as unknown as { __nativePrintTest?: boolean }).__nativePrintTest)).toBe(true);
             expect(await page.$eval("#popup h2", el => el.textContent)).toBe("Save as PDF");

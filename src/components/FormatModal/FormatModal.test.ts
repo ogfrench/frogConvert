@@ -4,9 +4,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { CATEGORY_LABELS, ui, isLoadingHandlers, allOptionsRef, currentFiles } from "../store/store.ts";
+import { CATEGORY_LABELS, ui, isLoadingHandlers, allOptionsRef, currentFiles, formatMode, activeCategory, reachableIdentifiers, isLoadingPhase2 } from "../store/store.ts";
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
-import { prepareOfficePdfConversion, updateConvertButtonState } from "./FormatModal.ts";
+import { prepareOfficePdfConversion, updateConvertButtonState, renderFormatOptions, filterFormats } from "./FormatModal.ts";
 import { COMPRESS_THESE_EVENT } from "../../constants/ui.ts";
 
 
@@ -396,5 +396,62 @@ describe("prepareOfficePdfConversion", () => {
     it("blocks a legacy format in the browser until the user picks limited conversion", async () => {
         await expect(prepareOfficePdfConversion("ppt", "pdf")).resolves.toBe("blocked");
         expect(ui.libreofficeNotice.hidden).toBe(false);
+    });
+});
+
+
+describe("format picker global search", () => {
+    const make = (format: string, category: string): FileFormat => ({
+        name: format.toUpperCase(), format, extension: format,
+        mime: `application/x-${format}`, internal: format,
+        category, from: true, to: true, lossless: false,
+    });
+    const formats = [make("png", "image"), make("xlsx", "spreadsheet"), make("djot", "document")];
+    const handler = { name: "fake", ready: true, supportedFormats: formats } as FormatHandler;
+    const items = formats.map(format => ({ format, handler }));
+
+    beforeEach(() => {
+        document.body.innerHTML = '<input id="search" /><div id="format-options"></div>';
+        ui.formatSearch = document.getElementById("search") as HTMLInputElement;
+        ui.formatOptions = document.getElementById("format-options") as HTMLDivElement;
+        allOptionsRef.value = items;
+        formatMode.value = "core";
+        activeCategory.value = "image";
+        reachableIdentifiers.value = null;
+        isLoadingPhase2.value = false;
+    });
+    afterEach(() => {
+        document.body.innerHTML = "";
+        formatMode.value = "core";
+        activeCategory.value = "";
+        reachableIdentifiers.value = null;
+        allOptionsRef.value = [];
+    });
+    const displayed = () => Array.from(ui.formatOptions.querySelectorAll<HTMLButtonElement>(".format-option"))
+        .map(node => ({ name: node.firstChild?.textContent?.split(" - ")[0], tier: node.querySelector(".format-tier-tag")?.textContent }));
+
+    it("finds Plus and All formats outside the active tier and category", () => {
+        renderFormatOptions(items, "image");
+        expect(displayed()).toEqual([{ name: "PNG", tier: undefined }]);
+        filterFormats("xlsx");
+        expect(displayed()).toEqual([{ name: "XLSX", tier: "Core+" }]);
+        filterFormats("DJOT");
+        expect(displayed()).toEqual([{ name: "DJOT", tier: "All" }]);
+        expect(activeCategory.value).toBe("image");
+        expect(formatMode.value).toBe("core");
+    });
+
+    it("restores the original browsing filters when search is cleared", () => {
+        filterFormats("djot");
+        filterFormats("");
+        expect(displayed()).toEqual([{ name: "PNG", tier: undefined }]);
+    });
+
+    it("finds by category and shows an empty state for an unknown format", () => {
+        filterFormats("spreadsheet");
+        expect(displayed()).toEqual([{ name: "XLSX", tier: "Core+" }]);
+        filterFormats("does-not-exist");
+        expect(displayed()).toEqual([]);
+        expect(ui.formatOptions.textContent).toContain("No matching formats.");
     });
 });
