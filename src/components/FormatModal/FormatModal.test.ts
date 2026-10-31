@@ -4,7 +4,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { CATEGORY_LABELS, ui, isLoadingHandlers, allOptionsRef, currentFiles, formatMode, activeCategory, reachableIdentifiers, isLoadingPhase2 } from "../store/store.ts";
+import { CATEGORY_LABELS, ui, isLoadingHandlers, allOptionsRef, currentFiles, formatMode, activeCategory, reachableIdentifiers, selectedFromIndex, isLoadingPhase2 } from "../store/store.ts";
+import { formatToIdentifier } from "../../core/TraversionGraph/TraversionGraph.ts";
 import type { FileFormat, FormatHandler } from "../../core/FormatHandler/FormatHandler.ts";
 import { prepareOfficePdfConversion, updateConvertButtonState, renderFormatOptions, filterFormats } from "./FormatModal.ts";
 import { COMPRESS_THESE_EVENT } from "../../constants/ui.ts";
@@ -425,6 +426,7 @@ describe("format picker global search", () => {
         formatMode.value = "core";
         activeCategory.value = "";
         reachableIdentifiers.value = null;
+        selectedFromIndex.value = null;
         allOptionsRef.value = [];
     });
     const displayed = () => Array.from(ui.formatOptions.querySelectorAll<HTMLButtonElement>(".format-option"))
@@ -454,4 +456,14 @@ describe("format picker global search", () => {
         expect(displayed()).toEqual([]);
         expect(ui.formatOptions.textContent).toContain("No matching formats.");
     });
+
+    it("describes unavailable search results without saying the source cannot be converted", () => {
+        selectedFromIndex.value = 0;
+        reachableIdentifiers.value = new Set([formatToIdentifier(formats[0])]);
+        filterFormats("xlsx");
+        expect(ui.formatOptions.textContent).toContain("No matching formats are available from PNG.");
+        expect(ui.formatOptions.textContent).not.toContain("Conversions from PNG aren't available yet");
+        expect(ui.formatOptions.querySelector(".format-option")?.getAttribute("aria-disabled")).toBe("true");
+    });
 });
+
