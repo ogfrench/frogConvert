@@ -57,6 +57,7 @@ import { createPrintButton } from "./printPage.ts";
 import { isBrowserHtmlPdfExport, showHtmlPdfExport } from "./htmlPdfExport.ts";
 import { dismissToast } from "../components/Toast/Toast.ts";
 import { isOfficePdfConversion, prepareOfficePdfConversion } from "../components/FormatModal/FormatModal.ts";
+import { directOfficePath } from "./officeRoute.ts";
 // --- Helpers ---
 
 const waitForPaint = () => new Promise<void>(resolve =>
@@ -676,7 +677,10 @@ export function initConvertButton() {
             // been handled above.
             const conversionLoopStartTime = performance.now();
             if (inputFileData.length > 0) {
-                let conversionPath = await findConversionPath(inputOption, outputOption);
+                // The engine was asked for and is ready: go to it directly rather
+                // than trusting route costs (see officeRoute.ts).
+                let conversionPath = (requireOfficeRoute ? directOfficePath(inputOption, allOptionsRef.value) : null)
+                    ?? await findConversionPath(inputOption, outputOption);
                 if (!conversionPath) {
                     if (isCancelled) return;
                     showConversionNotFoundPopup(inputFormat.format.toUpperCase(), outputFormat.format.toUpperCase());

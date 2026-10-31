@@ -9,17 +9,14 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.4.0
+## What's new in 3.4.1
 
-**Find any format, and a sturdier Office engine.**
+**Word to PDF works with the Office engine, and conversions start more reliably.**
 
-- **Search finds every format.** Typing in the format list now searches Core, Core+ and All at once, whatever list you're browsing, and shows which list each result comes from. Clear the search and you're back where you were. The search box is ready to type in as soon as the list opens.
-- **PowerPoint to HTML.** Slide text, tables and pictures come across.
-- **A more reliable Office engine download.** The engine now downloads in checked pieces and is unpacked straight into storage, so it needs far less memory while installing. Interrupted pieces are retried, and if something fails the message says whether it was the download, unpacking or saving. In private browsing, where many browsers refuse to store the engine, you're told so before the large download starts.
-- **Clearer PDF saving.** The HTML to PDF sheet tells you to pick "Save as PDF" as the printer or destination in the print window.
-- **Safer handling of broken files.** A corrupt PowerPoint can no longer freeze a conversion, and an Office file that claims to be enormous can no longer make the browser reserve gigabytes of memory.
+- **Word, ODT, ODP and ODS to PDF use the Office engine.** Once the engine was installed, these formats were still going through a picture-only route, and since 3.3.0 the app refused to convert them at all. They now convert through the engine, with selectable text. PowerPoint and Excel were not affected.
+- **A steadier first conversion.** The Office engine sometimes failed to answer the first file after starting, which cost you the automatic retry and occasionally the conversion. It now checks itself on a few bytes of text first and restarts if it is silent, before your file is involved. Rarely, a start can still take up to a minute; the app retries it for you.
 
-Files stay on your device. The Office engine still needs plenty of memory and may not work on every phone.
+Everything in [3.4.0](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.0) is here too.
 
 Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 

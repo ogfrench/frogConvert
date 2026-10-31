@@ -110,6 +110,20 @@ describe.skipIf(!requested || !distBuilt() || !engineBuilt)("Browser Office engi
         expect((await pdfPageTexts(bytes)).join(" ")).toMatch(/Region/);
         expect(partRequests.length).toBe(before);
     }, 600_000);
+    it("converts Word to a PDF with selectable text, not the picture route", async () => {
+        // Envelope's Word to HTML then svgForeignObject's PDF is cheaper to the
+        // route finder than the engine's one hop, which made this a picture
+        // PDF, and since 3.3.0 a refusal. Only PowerPoint and Excel were covered.
+        await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
+        await waitForRegistry(page);
+        await page.waitForFunction(() => (window.supportedFormatCache?.get("libreoffice")?.length ?? 0) > 0, { timeout: 30_000 });
+        await pickToPdf(path.join(RES, "word.docx"));
+        const { bytes, modal } = await convert();
+        expect(modal).toMatch(/File converted!/);
+        expect(modal).not.toMatch(/with limits|made of pictures|unavailable/);
+        expect((await pdfPageTexts(bytes)).join(" ").trim().length).toBeGreaterThan(20);
+    }, 600_000);
+
     it("converts a PowerPoint deck on desktop with the same cached engine", async () => {
         await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
         await waitForRegistry(page);
