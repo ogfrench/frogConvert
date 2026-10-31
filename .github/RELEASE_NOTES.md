@@ -9,14 +9,17 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.3.1
+## What's new in 3.4.0
 
-**Fixes for 3.3.0.**
+**Find any format, and a sturdier Office engine.**
 
-- **Desktop Office to PDF works again without LibreOffice.** In 3.3.0 the desktop app refused to convert Word, PowerPoint and Excel files to PDF unless LibreOffice was installed. It now makes the picture-only PDF its notice describes, as it did before. With LibreOffice installed, nothing changes.
-- **"Print as PDF" opens on phones.** The button that offers a PDF with real text after a picture-only conversion now prepares the page in advance, so mobile browsers no longer block the print window.
+- **Search finds every format.** Typing in the format list now searches Core, Core+ and All at once, whatever list you're browsing, and shows which list each result comes from. Clear the search and you're back where you were. The search box is ready to type in as soon as the list opens.
+- **PowerPoint to HTML.** Slide text, tables and pictures come across.
+- **A more reliable Office engine download.** The engine now downloads in checked pieces and is unpacked straight into storage, so it needs far less memory while installing. Interrupted pieces are retried, and if something fails the message says whether it was the download, unpacking or saving. In private browsing, where many browsers refuse to store the engine, you're told so before the large download starts.
+- **Clearer PDF saving.** The HTML to PDF sheet tells you to pick "Save as PDF" as the printer or destination in the print window.
+- **Safer handling of broken files.** A corrupt PowerPoint can no longer freeze a conversion, and an Office file that claims to be enormous can no longer make the browser reserve gigabytes of memory.
 
-Everything new in [3.3.0](https://github.com/ogfrench/frogConvert/releases/tag/v3.3.0) is here.
+Files stay on your device. The Office engine still needs plenty of memory and may not work on every phone.
 
 Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
