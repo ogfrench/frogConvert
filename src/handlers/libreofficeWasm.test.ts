@@ -114,10 +114,47 @@ describe("browser Office worker recovery", () => {
     const pending = instance.doConvert(
       [{ name: "sample.xlsx", bytes: new Uint8Array(128) }], XLSX, PDF,
     );
-    const failure = expect(pending).rejects.toThrow(/Worker termination unconfirmed/);
+    const failure = expect(pending).rejects.toThrow(/could not be stopped safely/);
     await vi.advanceTimersByTimeAsync(25_000);
     await failure;
     expect(first.destroy).toHaveBeenCalledOnce();
+    expect(office.open).toHaveBeenCalledOnce();
+    await expect(instance.doConvert([{ name: "again.xlsx", bytes: new Uint8Array(128) }], XLSX, PDF))
+      .rejects.toThrow(/Reload the page/);
+    expect(office.open).toHaveBeenCalledOnce();
+  });
+
+  it("waits for an explicit shutdown before starting a new worker", async () => {
+    const first = converter(async () => ({ data: output }));
+    let finishShutdown!: () => void;
+    first.destroy.mockImplementation(() => new Promise<void>(resolve => { finishShutdown = resolve; }));
+    const second = converter(async () => ({ data: output }));
+    office.open.mockResolvedValueOnce(first).mockResolvedValueOnce(second);
+    const instance = await handler();
+    const files = [{ name: "sample.xlsx", bytes: new Uint8Array(128) }];
+    await instance.doConvert(files, XLSX, PDF);
+    instance.terminate();
+    const next = instance.doConvert(files, XLSX, PDF);
+    await vi.waitFor(() => expect(first.destroy).toHaveBeenCalledOnce());
+    expect(office.open).toHaveBeenCalledOnce();
+    finishShutdown();
+    await expect(next).resolves.toMatchObject([{ bytes: output }]);
+    expect(office.open).toHaveBeenCalledTimes(2);
+  });
+
+  it("blocks later conversions if an explicit shutdown never finishes", async () => {
+    const first = converter(async () => ({ data: output }));
+    first.destroy.mockImplementation(() => new Promise<void>(() => {}));
+    office.open.mockResolvedValueOnce(first);
+    const instance = await handler();
+    vi.useFakeTimers();
+    const files = [{ name: "sample.xlsx", bytes: new Uint8Array(128) }];
+    await instance.doConvert(files, XLSX, PDF);
+    instance.terminate();
+    const next = expect(instance.doConvert(files, XLSX, PDF)).rejects.toThrow(/Reload the page/);
+    await vi.advanceTimersByTimeAsync(15_000);
+    await next;
+    await expect(instance.doConvert(files, XLSX, PDF)).rejects.toThrow(/Reload the page/);
     expect(office.open).toHaveBeenCalledOnce();
   });
 
@@ -203,6 +240,9 @@ describe("browser Office worker recovery", () => {
       await vi.advanceTimersByTimeAsync(6_000);
       await failure;
       expect(office.open).toHaveBeenCalledOnce();
+      await expect(instance.doConvert(small(), XLSX, PDF)).rejects.toThrow(/Reload the page/);
+      expect(office.open).toHaveBeenCalledOnce();
     });
   });
 });
+

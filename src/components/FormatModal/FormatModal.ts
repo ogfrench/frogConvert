@@ -589,7 +589,10 @@ export function renderFormatOptions(
   if (reachable && !anyAvailable && unavailableByCat.size > 0) {
     const empty = document.createElement("div");
     empty.className = "format-empty-state";
-    empty.textContent = `Conversions from ${sourceExt ? sourceExt.toUpperCase() : "this file"} aren't available yet. Try a different source file.`;
+    const source = sourceExt ? sourceExt.toUpperCase() : "this file";
+    empty.textContent = searching
+      ? `No matching formats are available from ${source}. Try a different search.`
+      : `Conversions from ${source} aren't available yet. Try a different source file.`;
     ui.formatOptions.appendChild(empty);
   }
 
@@ -625,3 +628,4 @@ export function renderFormatOptions(
     ui.formatOptions.appendChild(chip);
   }
 }
+

@@ -64,6 +64,8 @@ class libreofficeHandler implements FormatHandler {
    */
   #mode: "native" | "remote" | "wasm" | "disabled" = "disabled";
   #engine: Promise<OfficeConverter> | null = null;
+  #disposing: Promise<void> | null = null;
+  #unsafeEngine: WasmOfficeStuckError | null = null;
   #idleTimer: ReturnType<typeof setTimeout> | undefined;
 
   // The browser engine reads its files from this page's Cache Storage and runs
@@ -476,16 +478,20 @@ class libreofficeHandler implements FormatHandler {
       }
       throw err;
     }
-    this.#idleTimer = setTimeout(() => { void this.#disposeEngine(); }, WASM_IDLE_MS);
+    this.#idleTimer = setTimeout(() => { void this.#disposeEngine().catch(() => {}); }, WASM_IDLE_MS);
     return results;
   }
 
   async #convertOnce(file: FileData, inputFormat: FileFormat): Promise<Uint8Array> {
+    if (this.#disposing) await this.#disposing;
+    if (this.#unsafeEngine) throw this.#unsafeEngine;
     this.#engine ??= this.#startEngine().catch(err => {
       this.#engine = null;
       throw err;
     });
-    const engine = await this.#engine;
+    const opening = this.#engine;
+    const engine = await opening;
+    if (this.#engine !== opening) throw new Error("The Office engine was stopped before conversion started.");
     const limit = wasmTimeoutMs(file.bytes.byteLength);
     const start = performance.now();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -537,7 +543,8 @@ class libreofficeHandler implements FormatHandler {
         try {
           await engine.destroy();
         } catch {
-          throw new WasmOfficeStuckError("The Office engine could not be stopped safely. Reload the page before retrying.");
+          this.#unsafeEngine = new WasmOfficeStuckError("The Office engine could not be stopped safely. Reload the page before retrying.");
+          throw this.#unsafeEngine;
         }
       } finally {
         clearTimeout(timer);
@@ -547,22 +554,32 @@ class libreofficeHandler implements FormatHandler {
 
   async #disposeEngine(): Promise<void> {
     clearTimeout(this.#idleTimer);
+    if (this.#disposing) return this.#disposing;
     const engine = this.#engine;
     this.#engine = null;
     if (!engine) return;
 
-    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const disposing = (async () => {
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          engine.then(e => e.destroy()),
+          new Promise<never>((_, reject) => {
+            timeout = setTimeout(() => reject(new Error("Worker shutdown timed out.")), 15000);
+          }),
+        ]);
+      } catch {
+        this.#unsafeEngine ??= new WasmOfficeStuckError("The Office engine could not be stopped safely. Reload the page before retrying.");
+        throw this.#unsafeEngine;
+      } finally {
+        clearTimeout(timeout);
+      }
+    })();
+    this.#disposing = disposing;
     try {
-      await Promise.race([
-        engine.then(e => e.destroy()),
-        new Promise<never>((_, reject) => {
-          timeout = setTimeout(() => reject(new Error(
-            "The Office engine could not stop safely. Reload the page before retrying.",
-          )), 15000);
-        }),
-      ]);
+      await disposing;
     } finally {
-      clearTimeout(timeout);
+      if (this.#disposing === disposing) this.#disposing = null;
     }
   }
 
@@ -750,3 +767,4 @@ function base64ToBytes(b64: string): Uint8Array {
   }
   return bytes;
 }
+
