@@ -10,6 +10,13 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.4.1] - 2026-10-31
+
+### Fixed
+- Word, ODT, ODP and ODS to PDF with the browser Office engine installed: the route finder chose a picture-only route (Envelope's HTML, then svgForeignObject's PDF) over the engine's single step, because the engine joins the handler list after install and so ranks last. The result was a picture PDF in 3.2.x and, since 3.3.0, a "High-quality PDF unavailable" refusal. A conversion that requires the Office engine now goes straight to it. PowerPoint and Excel were unaffected only because nothing else reads them.
+- The first conversion after the Office engine starts no longer depends on luck. A freshly started engine sometimes never answered its first document (roughly one start in four or five on the live site and in CI), which used up the one automatic retry and sometimes failed the conversion. A new engine now converts a few bytes of text first, and one that stays silent (twice its start time, 6 to 20 seconds) is replaced before it sees the user's file, up to three starts. An engine that cannot be stopped is never joined by a second one.
+- The Office handler releases the engine and its idle timer when it is terminated.
+
 ## [3.4.0] - 2026-10-31
 
 ### Improved

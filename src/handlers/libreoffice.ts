@@ -12,6 +12,26 @@ const wasmTimeoutMs = (bytes: number) => 15_000 + Math.ceil(bytes / 1e6) * 10_00
 const MAX_WASM_TIMEOUT_RETRY_BYTES = 2_000_000;
 
 class WasmOfficeTimeoutError extends Error {}
+/** A worker that will not stop: starting another beside it could exhaust memory. */
+class WasmOfficeStuckError extends Error {}
+
+/**
+ * A freshly started engine sometimes never answers its first document (about
+ * one fresh start in four on the live site and in CI): the same file then
+ * converts in about a second on a second fresh worker. Waiting out the
+ * conversion watchdog (25 s for a small file) cost the user their one retry
+ * and sometimes the conversion. So a new worker first converts a few bytes of
+ * text, which takes about a second when healthy; a worker that is silent for
+ * this long is replaced before it sees the user's file.
+ */
+const WARM_UP_STARTS = 3;
+/**
+ * Silence is judged against how long this device took to start the engine: a
+ * healthy warm-up answers in about a fifth of that (0.6 s after a 3.5 s start
+ * on a laptop), a stalled one never answers, and a slow phone is slow at both.
+ */
+const warmUpLimitMs = (startMs: number) => Math.min(20_000, Math.max(6_000, 2 * startMs));
+const WARM_UP_DOCUMENT = new TextEncoder().encode("frogConvert");
 /** The engine holds ~1.5 GB; give it back after this long unused. */
 const WASM_IDLE_MS = 120_000;
 /** What the browser engine is trusted with. .ppt and .doc hang it, so they are not offered. */
@@ -259,6 +279,8 @@ class libreofficeHandler implements FormatHandler {
   }
 
   terminate() {
+    // Browser engine: stop the idle timer and give the ~1.5 GB back now.
+    void this.#disposeEngine().catch(() => {});
     if (this.#tempDir) {
       const fsName = "fs/promises";
       import(/* @vite-ignore */ fsName).then(fs =>
@@ -351,6 +373,7 @@ class libreofficeHandler implements FormatHandler {
         return await this.#convertOnce(file, inputFormat);
       } catch (err) {
         console.warn(`[LibreOffice] browser engine attempt ${attempt} failed for ${file.name}:`, err);
+        if (err instanceof WasmOfficeStuckError) throw err;
         // A Promise.race timeout does not stop the running worker. Tear it
         // down before trying again, never running two engines concurrently.
         try {
@@ -458,7 +481,7 @@ class libreofficeHandler implements FormatHandler {
   }
 
   async #convertOnce(file: FileData, inputFormat: FileFormat): Promise<Uint8Array> {
-    this.#engine ??= openOfficeEngine().catch(err => {
+    this.#engine ??= this.#startEngine().catch(err => {
       this.#engine = null;
       throw err;
     });
@@ -483,6 +506,42 @@ class libreofficeHandler implements FormatHandler {
       throw err;
     } finally {
       clearTimeout(timer);
+    }
+  }
+
+  /** Open an engine and prove it answers before anyone's file is handed to it. */
+  async #startEngine(): Promise<OfficeConverter> {
+    for (let start = 1; ; start++) {
+      const opening = performance.now();
+      const engine = await openOfficeEngine();
+      const began = performance.now();
+      const limit = warmUpLimitMs(began - opening);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          engine.convert(WARM_UP_DOCUMENT, { outputFormat: "pdf", inputFormat: "txt" }, "warm-up.txt"),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new WasmOfficeTimeoutError("warm-up")), limit);
+          }),
+        ]);
+        console.info(`[LibreOffice] warm-up answered in ${((performance.now() - began) / 1000).toFixed(1)}s (start ${start})`);
+        return engine;
+      } catch (err) {
+        // Only silence is replaced. An engine that answers with an error is
+        // alive, and the warm-up is not worth failing a conversion over.
+        if (!(err instanceof WasmOfficeTimeoutError) || start === WARM_UP_STARTS) {
+          console.warn(`[LibreOffice] warm-up gave up (start ${start}): ${err instanceof Error ? err.message : String(err)}`);
+          return engine;
+        }
+        console.warn(`[LibreOffice] warm-up silent for ${limit / 1000}s (start ${start}); replacing the worker`);
+        try {
+          await engine.destroy();
+        } catch {
+          throw new WasmOfficeStuckError("The Office engine could not be stopped safely. Reload the page before retrying.");
+        }
+      } finally {
+        clearTimeout(timer);
+      }
     }
   }
 
