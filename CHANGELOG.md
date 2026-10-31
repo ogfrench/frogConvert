@@ -10,6 +10,8 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-10-31
+
 ### Improved
 - Format search finds formats across Core, Core+ and All whatever tier or category is selected, labels each result's tier, and restores the previous list when cleared. Unavailable targets stay visible but can't be picked.
 - Opening a dialog puts the keyboard focus inside it. A visibility transition left the format search unfocused, so typed text went nowhere.
