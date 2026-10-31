@@ -9,14 +9,14 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.4.1
+## What's new in 3.4.2
 
-**Word to PDF works with the Office engine, and conversions start more reliably.**
+**Safer Office engine recovery and clearer format search.**
 
-- **Word, ODT, ODP and ODS to PDF use the Office engine.** Once the engine was installed, these formats were still going through a picture-only route, and since 3.3.0 the app refused to convert them at all. They now convert through the engine, with selectable text. PowerPoint and Excel were not affected.
-- **A steadier first conversion.** The Office engine sometimes failed to answer the first file after starting, which cost you the automatic retry and occasionally the conversion. It now checks itself on a few bytes of text first and restarts if it is silent, before your file is involved. Rarely, a start can still take up to a minute; the app retries it for you.
+- **Safer Office engine recovery.** A new conversion waits for the previous engine to stop. If the browser cannot confirm the engine stopped, the app asks you to reload before trying again, avoiding another memory-intensive worker.
+- **Clearer format search.** If your search matches a target that is unavailable for the selected source, the message describes the search result without implying that no conversions are available.
 
-Everything in [3.4.0](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.0) is here too.
+Everything in [3.4.1](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.1) is here too.
 
 Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
@@ -55,3 +55,4 @@ frogConvert is a universal file converter, compressor and PDF editor that runs e
 
 ### No warranty
 frogConvert is provided as is, with no warranty and no security audit. See [SECURITY.md](https://github.com/ogfrench/frogConvert/blob/master/SECURITY.md).
+

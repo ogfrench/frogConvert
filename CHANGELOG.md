@@ -10,6 +10,12 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.4.2] - 2026-10-31
+
+### Fixed
+- Browser Office conversions wait for the previous engine to stop before starting another. If a worker cannot be stopped safely, later attempts ask for a page reload instead of risking two memory-intensive workers at once.
+- Searching for a target unavailable from the selected source no longer says that the source has no available conversions at all.
+
 ## [3.4.1] - 2026-10-31
 
 ### Fixed
