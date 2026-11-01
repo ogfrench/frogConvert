@@ -9,13 +9,13 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.4.3
+## What's new in 3.4.4
 
-**More predictable automated checks.**
+**More reliable format and route information.**
 
-The project now pins the Knip code-checking tool in CI, so its checks do not change unexpectedly between builds. Checks for unused exports and types remain advisory while their findings are reviewed.
+Browser conversion handlers now load in a consistent order that preserves the existing shipped priority. The supported-format cache is refreshed from live handlers and checked for drift in CI. Its ImageMagick entries now match the engine's Aseprite, Amiga icon and MSL capabilities.
 
-Everything in [3.4.2](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.2) is here too.
+Everything in [3.4.3](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.3) is here too.
 
 Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 

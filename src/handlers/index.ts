@@ -1,4 +1,5 @@
 import type { FormatHandler } from "../core/FormatHandler/FormatHandler.ts";
+import { appendHandlersInPriorityOrder } from "./handlerPriority.ts";
 
 // --- Core handlers (statically imported, included in main bundle) ---
 import canvasToBlobHandler from "./canvasToBlob.ts";
@@ -31,13 +32,13 @@ pushSafe('textEncoding', () => new textEncodingHandler());
 // Keeps import("./x") as a static string so Vite can code-split per handler.
 const lazy = (name: string, importer: () => Promise<{ default: new () => FormatHandler }>) =>
   async () => {
-    try { handlers.push(new (await importer()).default()); }
-    catch (e) { console.warn(`[handlers] Failed to load ${name}:`, e); }
+    try { return [new (await importer()).default()]; }
+    catch (e) { console.warn(`[handlers] Failed to load ${name}:`, e); return []; }
   };
 
 /** Dynamically load all non-core handlers. Appends to the handlers array. */
 export async function loadBackgroundHandlers() {
-  const loaders: Array<() => Promise<void>> = [
+  const loaders: Array<() => Promise<FormatHandler[]>> = [
     lazy('pdftoimg', () => import("./pdftoimg.ts")),
     lazy('ghostscript', () => import("./ghostscript.ts")),
     lazy('pdfCanvasCompress', () => import("./pdfCanvasCompress.ts")),
@@ -53,8 +54,8 @@ export async function loadBackgroundHandlers() {
     lazy('curani', () => import("./curani.ts")),
     lazy('bunburrows', () => import("./bunburrows.ts")),
     async () => {
-      try { const m = await import("./rename.ts"); handlers.push(m.renameZipHandler, m.renameTxtHandler, m.renameJsonHandler); }
-      catch (e) { console.warn('[handlers] Failed to load rename:', e); }
+      try { const m = await import("./rename.ts"); return [m.renameZipHandler, m.renameTxtHandler, m.renameJsonHandler]; }
+      catch (e) { console.warn('[handlers] Failed to load rename:', e); return []; }
     },
     lazy('svgForeignObject', () => import("./svgForeignObject.ts")),
     lazy('qoi-fu', () => import("./qoi-fu.ts")),
@@ -75,8 +76,8 @@ export async function loadBackgroundHandlers() {
     lazy('sb3tohtml', () => import("./sb3tohtml.ts")),
     lazy('libopenmpt', () => import("./libopenmpt.ts")),
     async () => {
-      try { const m = await import("./midi.ts"); handlers.push(new m.midiCodecHandler(), new m.midiSynthHandler()); }
-      catch (e) { console.warn('[handlers] Failed to load midi:', e); }
+      try { const m = await import("./midi.ts"); return [new m.midiCodecHandler(), new m.midiSynthHandler()]; }
+      catch (e) { console.warn('[handlers] Failed to load midi:', e); return []; }
     },
     lazy('lzh', () => import("./lzh.ts")),
     lazy('tar', () => import("./tar.ts")),
@@ -119,7 +120,7 @@ export async function loadBackgroundHandlers() {
     lazy('spreadsheet', () => import("./spreadsheet.ts")),
   ];
 
-  await Promise.all(loaders.map(loader => loader()));
+  await appendHandlersInPriorityOrder(handlers, loaders);
 }
 
 export default handlers;
