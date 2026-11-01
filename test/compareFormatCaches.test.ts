@@ -15,6 +15,7 @@ describe("format cache comparison", () => {
   });
   it("rejects missing handlers and duplicate handler names", () => {
     expect(compareFormatCaches(expected, [["two", []]]).join(" ")).toContain("Missing handler: one");
+    expect(compareFormatCaches(expected, [...expected, ["three", []]]).join(" ")).toContain("generated three");
     expect(() => compareFormatCaches(expected, [["two", []], ["two", []]])).toThrow(/duplicate handler/);
   });
 });

@@ -31,7 +31,8 @@ export function compareFormatCaches(expected, actual) {
   const a = expected.map(([name]) => name), b = actual.map(([name]) => name);
   if (JSON.stringify(a) !== JSON.stringify(b)) {
     const index = a.findIndex((name, i) => name !== b[i]);
-    differences.push(`Handler priority differs at ${index < 0 ? a.length : index}: committed ${a[index] ?? "(end)"}, generated ${b[index] ?? "(end)"}`);
+    const at = index < 0 ? a.length : index;
+    differences.push(`Handler priority differs at ${at}: committed ${a[at] ?? "(end)"}, generated ${b[at] ?? "(end)"}`);
   }
   for (const [name, formats] of expected) {
     const other = found.get(name);

@@ -21,6 +21,10 @@ it("keeps the same preferred conversion route when imports finish in reverse ord
   const graph = new TraversionGraph();
   graph.init(new Map(handlers.map(h => [h.name, h.supportedFormats!])), handlers);
   const generator = graph.searchPath(new ConvertPathNode(ffmpeg, png), new ConvertPathNode(magick, jpeg), true);
-  const result = await generator.next();
-  expect(result.value?.at(-1)?.handler.name).toBe("FFmpeg");
+  try {
+    const result = await generator.next();
+    expect(result.value?.at(-1)?.handler.name).toBe("FFmpeg");
+  } finally {
+    await generator.return(undefined);
+  }
 });
