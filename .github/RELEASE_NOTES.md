@@ -11,9 +11,9 @@ automatically, so do not paste one here.
 
 ## What's new in 3.4.5
 
-**Maintenance and code hygiene.**
+**More reliable deployments and code hygiene.**
 
-The workspace entry points and internal exports were reviewed to make unused-code reports more useful while preserving existing behavior.
+Netlify builds now have enough memory to bundle the app. The workspace entry points and internal exports were reviewed to make unused-code reports more useful while preserving existing behavior.
 
 Everything in [3.4.4](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.4) is here too.
 
