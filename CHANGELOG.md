@@ -10,6 +10,11 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.4.3] - 2026-11-01
+
+### Changed
+- Pin the Knip code-checking tool in CI so its checks do not change unexpectedly between builds. Unused exports and types remain advisory pending individual review.
+
 ## [3.4.2] - 2026-10-31
 
 ### Fixed
