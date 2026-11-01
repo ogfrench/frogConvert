@@ -43,6 +43,9 @@ jobs:
             return map;
           };
           const [a, b, tracked] = process.argv.slice(2).map(read);
+          console.log('ORDER first', JSON.stringify([...a.keys()]));
+          console.log('ORDER second', JSON.stringify([...b.keys()]));
+          console.log('ORDER tracked', JSON.stringify([...tracked.keys()]));
           const names = [...new Set([...a.keys(), ...b.keys(), ...tracked.keys()])].sort();
           for (const name of names) {
             const digest = map => map.has(name) ? hash(map.get(name)) : 'MISSING';
