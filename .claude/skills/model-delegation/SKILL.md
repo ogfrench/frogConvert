@@ -1,82 +1,71 @@
 ---
 name: model-delegation
 description: >-
-  Decide which model does each piece of work when a session can hand tasks to
-  subagents on cheaper models (haiku, sonnet) and keep the rest on the main one.
-  Use when planning multi-step work, before launching subagents, and when the
-  user asks to use cheaper models, delegate, save tokens or go faster. Triggers:
-  "use sonnet", "use haiku", "cheaper agents", "delegate this", "model split",
-  "/model-delegation".
+  Choose the main agent, a reusable skill or tool, or a subagent using measured
+  quality, context and cost. Use for delegation, model splits, agent workflows,
+  orchestration design, cheaper models, and latency optimization.
 ---
 
 # Model delegation
 
-**The rule:** hand a task to the cheapest model whose mistake would be caught, cheaply,
-before it lands. Keep on the main model what is hard to check, or costly to get wrong.
+**Default to one main agent loop with skills and tools loaded on demand.**
+Keep the user's conversation, decisions, permissions and final verification
+in that loop. Subagents are not obsolete; they must earn the extra context
+transfer, latency, tokens and coordination. A low token price is not a saving
+if an agent needs a long brief, a second run and a full review.
 
-Cheaper tokens are not the saving by themselves. A brief costs tokens, and so does
-checking what comes back. Delegate when the task is big enough to repay both, and its
-result is easy to check.
+## Choose the smallest effective component
 
-## The split
+| Job | First choice |
+| --- | --- |
+| Decision, synthesis, short or tightly coupled work | Main agent |
+| Repeatable procedure or domain reasoning | On-demand skill |
+| Live data or a bounded external action | Tool, CLI or MCP with authorization checks |
+| Large facts or documents | Targeted reference lookup |
+| Isolated adversarial review or context-heavy bounded analysis | Subagent, if evaluated |
+| Truly independent tasks with separate state | Parallel work, if evaluated |
 
-| Model | Give it | Why it fits |
-| --- | --- | --- |
-| **haiku** | Mechanical work: run a suite and summarise the failures, read a CI log, sweep a repo with grep and list what it finds, take screenshots, update counts and stale lines in docs, draft changelog lines from a diff, check a status | A mistake shows at once and costs little. |
-| **sonnet** | Bounded work with a spec: a feature with its test written first, a lightweight review of one commit, first-pass triage of findings (a visual review, lint), a doc drafted from a known structure, research with sources | A test, a review or the main model checks it before anything lands. |
-| **The main model** | Design and decisions; anything touching auth, sessions, permissions, money, deleting data, migrations, concurrency and races; integrating what agents produce; reviewing it; milestone reviews; anything the user approves | The bugs here are subtle, and one costs more than the whole saving. |
+Do not mirror the organization chart with a router, planner and specialist
+for every domain. Merge specialists that share data, chain frequently, or
+repeat context. The main agent should usually call a retained specialist as
+a tool and inspect its result, rather than handing over the conversation.
 
-## Deciding, task by task
+## Compare before adding or folding an agent
 
-Ask these in order. The first answer that points to the main model wins.
+1. Write end-to-end cases **before** changing architecture: ordinary requests,
+   ambiguous cases, multi-specialist chains, access boundaries and rules
+   that must never be violated. Repeat flaky or stochastic cases.
+2. Run the existing design and the proposed main-loop/skill/tool version
+   on the same cases. Change one boundary at a time.
+3. Compare task completion, individual regressions, missing tool calls,
+   output correctness, tool/skill selection, total cost and latency.
+4. Keep a subagent if tests show better accuracy, needed isolation from
+   bloated or conflicting context, or safe parallelism. Do not average away
+   a broken permission check or missing required lookup.
+5. Re-evaluate when models, prompts or tools change. If there is no baseline,
+   label the architecture a hypothesis rather than a measured improvement.
 
-1. **If it is wrong, who notices, and when?** A failing test or CI points to a cheaper
-   model. A user, in production, points to the main model.
-2. **Can it be undone?** Deleting data, a migration, a message posted outside, a push to
-   someone else's branch: main model.
-3. **Is the spec complete?** If the agent would have to make a design choice, make it
-   first, write it into the brief, then delegate. Never delegate the decision along with
-   the work.
-4. **Does it need the whole conversation?** When the brief would be longer than the
-   work, do it yourself.
-5. **Is it small?** A change of a few lines is faster to make than to brief.
+## When delegation is justified
 
-## Briefing a cheaper agent
+- Pick the cheapest **currently available** model that passes the test cases.
+  Account models and effort settings change; inspect `/model` instead of
+  assuming fixed Haiku/Sonnet/Opus capabilities.
+- Hand off a self-contained brief: outcome, paths, decisions, allowed commands,
+  non-goals, required checks and a short report format.
+- Keep independent reviews read-only and restrict commands. The
+  `cheap-reviewer` remains a useful independent boundary until evaluation
+  proves the same findings emerge without it.
+- Parallel writes need separate worktrees, ports and state. Shared databases,
+  rate limits and watched browser stacks run serially.
+- An agent report is a claim. Re-check its findings, diff and test evidence
+  in the main loop before merging or reporting success.
 
-- **Self-contained:** the goal, the paths, what done looks like, the test to write first,
-  and what it must not touch. It has none of your context.
-- **Say what is decided,** so it does not reopen it.
-- **Read-only by default** for reviews and audits, and say so in the brief.
-- **Ask for a short report in a fixed shape:** severity, `file:line`, the problem, a
-  concrete scenario, under a word cap. "Say plainly if you find nothing."
-- **Name the commands** to run and the ones to never run (stopping shared services,
-  deleting data, pushing).
+## Stop signals
 
-## Running agents in parallel
+- Brief plus verification exceeds the work or repeatedly omits context.
+- Specialists wait for each other's output or edit the same resources.
+- The simplified loop matches quality with lower latency and fewer failures.
+- Two corrections fail to fix the delegation. Re-scope or take the work back.
 
-- **One file, one agent.** Agents that edit work in separate worktrees, on separate
-  files. Two on one file overwrite each other.
-- **Shared resources run one at a time:** one local stack and its ports, one test
-  database, rate limits keyed by address. Give each agent its own database name or port
-  offset, or run them in sequence.
-- **A dev server that watches the tree** reloads open pages whenever anything is
-  written. Don't edit, or start a second stack from the same tree, while browser tests
-  run.
-- **Cap the number at once.** Git proxies, API rate limits and usage limits all bite. A
-  background agent can stop mid-task at a limit, so ask for work that leaves something
-  usable when cut short, and resume rather than restart.
-
-## Checking what comes back
-
-- **A report is a claim, not a fact.** Before acting on one that matters, check it: re-run
-  the failing test, read the diff, reproduce the finding.
-- **A cheap review on every commit,** and a main-model review at each milestone.
-- **Fix findings in follow-up commits,** and review again when the fix touches risky code.
-- **Tell the user which reading you took** when a report is ambiguous.
-
-## Signs it is going wrong
-
-- The brief keeps growing: the task needed the main model's context.
-- The same agent's work fails review twice: take it back.
-- Agents edit the same files, or wait on the same service.
-- "All tests pass" with no output attached.
+Source: https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop
+Research and evaluation plan: `docs/claude-practices-2026-10.md`.

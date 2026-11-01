@@ -16,8 +16,8 @@
     ".claude/skills/token-efficiency",
     ".claude/skills/visual-loop"
   ],
-  "snapshot_sha256": "e6f62e2ed279181ea64bb924e743e65dc81b326149656d1a16749afa2d658788",
-  "source_revision": "ce953ed9107681eadb9ef797098d280f86f9e0ef",
+  "snapshot_sha256": "dd49e8bdc67e59e89344dc14ae47d414ba403ec7f47e0019168a3d9dcbd7bf07",
+  "source_revision": "79d1a0f0be9993046a406b16ff4d716bce047be4",
   "knowledge": {
     "stacks": [
       "any"

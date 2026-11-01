@@ -50,8 +50,10 @@ Search every node: `grep -i <term> .claude/knowledge/index.jsonl`.
 - [tip] keep-ci-logs: Keep the logs CI needs to explain itself.
 
 ## Agents and models
-- [should] cheapest-model-with-catch: Hand a task to the cheapest model whose mistake would be caught before it lands.
+- [should] cheapest-model-with-catch: Delegate to the cheapest model only after measuring that delegation helps.
+- [should] evaluate-skill-triggers: Test positive, negative and ambiguous skill triggers before promotion.
 - [should] limit-what-a-reviewer-runs: Tell a reviewer which commands it may run.
+- [should] measure-single-loop-before-delegation: Compare the main loop with skills and tools before adding or keeping a subagent.
 - [should] review-every-commit: Review every commit before pushing it.
 - [should] serial-agents-on-shared-stack: Agents that share a stack, a database or rate limits run one at a time.
 - [should] simulate-the-users-sandbox: Before shipping a skill or tool, have an agent use it inside a copy of the user's environment.
