@@ -1,0 +1,52 @@
+name: Cache reproducibility investigation
+on:
+  pull_request:
+    branches: [master]
+jobs:
+  compare:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          submodules: recursive
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: "1.4.4"
+      - run: bun i --frozen-lockfile
+      - run: bun run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+      - name: Generate fresh caches twice
+        shell: bash
+        run: |
+          bun run cache:build
+          cp dist/cache.json "$RUNNER_TEMP/cache-first.json"
+          bun run cache:build
+      - name: Compare capability fingerprints
+        shell: bash
+        run: |
+          node - "$RUNNER_TEMP/cache-first.json" dist/cache.json public/cache.json <<'NODE'
+          const fs = require('node:fs');
+          const crypto = require('node:crypto');
+          const normalize = v => Array.isArray(v) ? v.map(normalize) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, normalize(v[k])])) : v;
+          const hash = x => crypto.createHash('sha256').update(JSON.stringify(normalize(x))).digest('hex');
+          const read = p => {
+            const entries = JSON.parse(fs.readFileSync(p, 'utf8'));
+            if (!Array.isArray(entries) || entries.length < 10) throw Error('Cache missing or incomplete: ' + p);
+            const map = new Map(entries);
+            if (map.size !== entries.length) throw Error('Duplicate handler names: ' + p);
+            return map;
+          };
+          const [a, b, tracked] = process.argv.slice(2).map(read);
+          const names = [...new Set([...a.keys(), ...b.keys(), ...tracked.keys()])].sort();
+          for (const name of names) {
+            const digest = map => map.has(name) ? hash(map.get(name)) : 'MISSING';
+            console.log('HANDLER', name, digest(a), digest(b), digest(tracked));
+          }
+          console.log('FINGERPRINTS first second tracked', hash([...a.entries()].sort(([a],[b]) => a.localeCompare(b))), hash([...b.entries()].sort(([a],[b]) => a.localeCompare(b))), hash([...tracked.entries()].sort(([a],[b]) => a.localeCompare(b))));
+          NODE
