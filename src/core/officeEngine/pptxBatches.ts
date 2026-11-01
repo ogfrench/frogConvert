@@ -17,7 +17,7 @@ const RELATIONS_PATH = "ppt/_rels/presentation.xml.rels";
 
 /** Sized for phones: many ordinary slides per batch, oversized vector slides alone. */
 export const MAX_PPTX_BATCH_SLIDES = 16;
-export const MAX_PPTX_BATCH_XML_BYTES = 2_000_000;
+const MAX_PPTX_BATCH_XML_BYTES = 2_000_000;
 const MAX_PRESENTATION_XML_BYTES = 2_000_000;
 const MAX_SLIDE_XML_BYTES = 32_000_000;
 const MAX_ALL_SLIDE_XML_BYTES = 96_000_000;
@@ -58,7 +58,7 @@ function readBounded(entry: JSZip.JSZipObject, limit: number, keepText = false):
     });
 }
 
-export type PptxBatchRange = { start: number; end: number };
+type PptxBatchRange = { start: number; end: number };
 export type PptxBatchPlan = {
     totalSlides: number;
     batches: PptxBatchRange[];

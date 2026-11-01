@@ -10,6 +10,14 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.4.5] - 2026-11-01
+
+### Fixed
+- Give Netlify builds enough Node.js heap to bundle the app without running out of memory.
+
+### Changed
+- Audit unused-export reports, retaining lazy workspace entry points and removing unused or internal exports without changing behavior.
+
 ## [3.4.4] - 2026-11-01
 
 ### Fixed

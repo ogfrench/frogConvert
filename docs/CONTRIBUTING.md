@@ -73,6 +73,28 @@ Avoid `document.querySelector` inside components. Use the centralized `ui` objec
 
 ---
 
+### Knip workspace export audit
+
+The `@runtimewired` tag in `knip.jsonc` excludes individual exports that Knip cannot trace through the lazy module handles in `src/main.ts`. Keep the tag only while the corresponding runtime caller exists. The review of the 3.4.4 advisory classified all eleven findings:
+
+| Finding | Decision and evidence |
+|---|---|
+| Compress `backToFiles` | Internal only; retained without export for the workspace button. |
+| Compress `ingestExternalFiles` | Retained and tagged; share-target files arrive through `getCompressWorkspace()`. |
+| PDF `getActiveTool` | Retained and tagged; the lazy module handle supplies session state in `main.ts`. |
+| PDF `ingestExternalFiles` | Retained and tagged; share-target files arrive through `getPdfWorkspace()`. |
+| PDF `selectPdfTool` | Removed; no caller or dynamic wiring uses it, and tab handlers switch tools directly. |
+| PDF `initPdfWorkspace` | Retained and tagged; `main.ts` initializes the lazy workspace on entry. |
+| PDF `cleanup` | Retained and tagged; `main.ts` invokes it on mode exit. |
+| PDF `resetAll` | Internal only; the UI and `__testing` still call it. |
+| `MOBILE_BREAKPOINT` | Retained and used by the category media query, matching the 800px CSS breakpoint. |
+| `MAX_PPTX_BATCH_XML_BYTES` | Internal only; the batch planner still uses it as its default. |
+| `PptxBatchRange` | Internal only; the batch plan and its callbacks still use the type. |
+
+Exports and types remain advisory in CI; this audit does not change the enforced categories.
+
+---
+
 ## 3. Format mode system (Core / Plus / All)
 
 The format picker exposes three tiers that filter which output formats are visible. Configured in `src/components/store/store.ts`:
