@@ -50,6 +50,9 @@ jobs:
       - name: Generate cache
         run: bun run cache:build
 
+      - name: Verify format cache and handler priority
+        run: bun run cache:verify
+
       # Enforced: every knip category that is clean, listed explicitly so a
       # knip release that adds a category cannot fail the build on its own.
       # A file nothing imports is dead weight, a dependency that only resolves

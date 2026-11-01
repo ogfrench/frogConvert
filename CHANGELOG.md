@@ -14,7 +14,8 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ### Fixed
 - Stabilize the order in which browser conversion handlers are registered, preserving the existing shipped priority instead of depending on parallel import timing.
-- Refresh the supported-format cache from live handlers even when an older built cache is present.
+- Refresh the supported-format cache from live handlers even when an older built cache is present, and check it for capability or priority drift in CI.
+- Update ImageMagick's cached Aseprite and Amiga icon capabilities and mark its MSL reader as non-writable, matching the current engine.
 
 ## [3.4.3] - 2026-11-01
 

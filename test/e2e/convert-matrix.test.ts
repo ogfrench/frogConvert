@@ -366,6 +366,69 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         expect(read(mp4).subarray(4, 8).toString("latin1")).toBe("ftyp");
     }, 600_000);
 
+    it("round-trips both advertised Aseprite formats through the browser engine", async () => {
+        const original = fs.readFileSync(path.join(RES, "colors_50x50.png"));
+        const page = await browser.newPage();
+        const pixels = async (bytes: Buffer) => page.evaluate(async (b64) => {
+            const raw = atob(b64);
+            const data = Uint8Array.from(raw, c => c.charCodeAt(0));
+            const image = await createImageBitmap(new Blob([data], { type: "image/png" }));
+            const canvas = document.createElement("canvas");
+            canvas.width = image.width;
+            canvas.height = image.height;
+            const context = canvas.getContext("2d")!;
+            context.drawImage(image, 0, 0);
+            return { width: image.width, height: image.height, pixels: Array.from(context.getImageData(0, 0, image.width, image.height).data) };
+        }, bytes.toString("base64"));
+        try {
+            const expected = await pixels(original);
+            for (const target of ["ase", "aseprite"]) {
+                const encoded = await convert(path.join(RES, "colors_50x50.png"), target);
+                expect(read(encoded).readUInt16LE(4)).toBe(0xa5e0);
+                const decoded = await convert(path.join(encoded.dir, encoded.files[0].name), "png");
+                expect(await pixels(read(decoded))).toEqual(expected);
+                expect([...encoded.external, ...decoded.external]).toEqual([]);
+            }
+        } finally {
+            await page.close();
+        }
+    }, 600_000);
+
+    it("reads a classic Amiga Workbench icon as PNG", async () => {
+        // A one-pixel classic DiskObject with one opaque white planar pixel.
+        const icon = Buffer.alloc(101);
+        icon.writeUInt16BE(0xe310, 0);
+        icon.writeUInt32BE(1, 22); // gadget render pointer present
+        icon.writeUInt16BE(1, 82); // width
+        icon.writeUInt16BE(1, 84); // height
+        icon.writeUInt16BE(1, 86); // depth
+        icon[92] = 1; // use bitplane zero
+        icon[98] = 0x80; // first pixel uses palette entry one
+        fs.mkdirSync(TMP, { recursive: true });
+        const input = path.join(TMP, "classic.wbinfo");
+        fs.writeFileSync(input, icon);
+        const o = await convert(input, "png");
+        const png = read(o);
+        expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+        expect(png.readUInt32BE(16)).toBe(1);
+        expect(png.readUInt32BE(20)).toBe(1);
+        expect(o.external).toEqual([]);
+    }, 300_000);
+
+    it("does not advertise ImageMagick's MSL reader as a writer", async () => {
+        const { page } = await newTrackedPage(browser, path.join(TMP, "msl-capability"));
+        try {
+            await page.goto(`${server.base}/`, { waitUntil: "networkidle0" });
+            await waitForRegistry(page);
+            const capabilities = await page.evaluate(() =>
+                window.supportedFormatCache.get("ImageMagick")?.find(f => f.format === "msl"),
+            );
+            expect(capabilities).toMatchObject({ from: true, to: false });
+        } finally {
+            await page.close();
+        }
+    }, 120_000);
+
     it("png -> jpg is a plain success with no notice", async () => {
         const o = await convert(path.join(RES, "colors_50x50.png"), "jpeg");
         expect(read(o).subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
@@ -373,3 +436,4 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
         expect(o.modal).not.toMatch(/made of pictures|with limits/);
     }, 300_000);
 });
+

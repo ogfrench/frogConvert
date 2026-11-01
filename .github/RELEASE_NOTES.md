@@ -13,7 +13,7 @@ automatically, so do not paste one here.
 
 **More reliable format and route information.**
 
-Browser conversion handlers now load in a consistent order that preserves the existing shipped priority. Refreshing the supported-format cache checks live handlers instead of accidentally reusing an older built cache.
+Browser conversion handlers now load in a consistent order that preserves the existing shipped priority. The supported-format cache is refreshed from live handlers and checked for drift in CI. Its ImageMagick entries now match the engine's Aseprite, Amiga icon and MSL capabilities.
 
 Everything in [3.4.3](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.3) is here too.
 
