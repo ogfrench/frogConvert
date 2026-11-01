@@ -9,14 +9,13 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.4.2
+## What's new in 3.4.3
 
-**Safer Office engine recovery and clearer format search.**
+**More predictable automated checks.**
 
-- **Safer Office engine recovery.** A new conversion waits for the previous engine to stop. If the browser cannot confirm the engine stopped, the app asks you to reload before trying again, avoiding another memory-intensive worker.
-- **Clearer format search.** If your search matches a target that is unavailable for the selected source, the message describes the search result without implying that no conversions are available.
+The project now pins the Knip code-checking tool in CI, so its checks do not change unexpectedly between builds. Checks for unused exports and types remain advisory while their findings are reviewed.
 
-Everything in [3.4.1](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.1) is here too.
+Everything in [3.4.2](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.2) is here too.
 
 Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 

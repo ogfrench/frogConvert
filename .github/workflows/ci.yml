@@ -61,14 +61,14 @@ jobs:
       # this job does (`submodules: recursive`); without them every submodule
       # import reads as unresolved.
       - name: Knip (enforced categories)
-        run: bun x knip --include files,dependencies,devDependencies,unlisted,binaries,unresolved,duplicates,enumMembers
+        run: bun x knip@6.44.1 --include files,dependencies,devDependencies,unlisted,binaries,unresolved,duplicates,enumMembers
 
-      # Advisory, for now. The unused exports and types left are in files
-      # under active work (store.ts, src/conversion/, Popup.ts, src/mcp/) and
-      # MOBILE_BREAKPOINT, which AGENTS.md names. Fold these into the step
-      # above once they are cleared.
+      # Decision: keep exports/types advisory. Some exports are used across
+      # integration boundaries or named in project guidance; others need
+      # individual review before removal. Review the report on changes, and
+      # enforce these categories once intentional exports are accounted for.
       - name: Unused exports and types (advisory)
-        run: bun x knip --include exports,types --no-exit-code
+        run: bun x knip@6.44.1 --include exports,types --no-exit-code
 
       - name: Run tests
         run: bun run test
