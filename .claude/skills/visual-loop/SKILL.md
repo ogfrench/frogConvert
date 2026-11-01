@@ -19,7 +19,8 @@ and look again at the build.
   user judges the actual content, fonts, data and neighbors, not a drawing of them.
 - Use the real words. A footer judged on placeholder text fails once the real line
   arrives. When the user says what the content usually is, rebuild the options with it.
-- Three to five options that differ in kind, plus "Now" as the first, for reference.
+- Usually two or three options that differ in kind, plus "Now" for reference.
+  Add more only when the decision genuinely benefits from wider exploration.
 
 ## 2. Sheets people can read
 
