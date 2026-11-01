@@ -7,7 +7,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-15]
+        os: [ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -50,6 +50,14 @@ jobs:
           for (const name of names) {
             const digest = map => map.has(name) ? hash(map.get(name)) : 'MISSING';
             console.log('HANDLER', name, digest(a), digest(b), digest(tracked));
+          }
+          for (const name of names) {
+            if (!a.has(name) || !tracked.has(name)) continue;
+            const fresh = a.get(name).map(x => JSON.stringify(normalize(x)));
+            const saved = tracked.get(name).map(x => JSON.stringify(normalize(x)));
+            if (hash(fresh) !== hash(saved)) {
+              console.log('DIFF', name, JSON.stringify({added: fresh.filter(x => !saved.includes(x)).map(JSON.parse), removed: saved.filter(x => !fresh.includes(x)).map(JSON.parse), orderOnly: fresh.length === saved.length && fresh.every(x => saved.includes(x))}));
+            }
           }
           console.log('FINGERPRINTS first second tracked', hash([...a.entries()].sort(([a],[b]) => a.localeCompare(b))), hash([...b.entries()].sort(([a],[b]) => a.localeCompare(b))), hash([...tracked.entries()].sort(([a],[b]) => a.localeCompare(b))));
           NODE
