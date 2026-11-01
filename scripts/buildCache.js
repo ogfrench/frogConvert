@@ -7,15 +7,12 @@ const outputPath = process.argv[2] || "cache.json";
 const projectRoot = path.resolve(__dirname, "..");
 const distPath = path.join(projectRoot, "dist");
 
-const outputFile = Bun.file(outputPath);
-if (await outputFile.exists()) {
-  await outputFile.delete();
-}
-
 // Use port 0 to let the OS assign a random free port
 const server = Bun.serve({
   async fetch(req) {
     const urlPath = new URL(req.url).pathname.replace(/^\//, "") || "index.html";
+    // Always enumerate live handlers, even when dist contains an older cache.
+    if (urlPath === "cache.json") return new Response("Not Found", { status: 404 });
     const filePath = path.join(distPath, urlPath);
     const file = Bun.file(filePath);
 

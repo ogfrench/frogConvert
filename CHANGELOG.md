@@ -10,6 +10,12 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.4.4] - 2026-11-01
+
+### Fixed
+- Stabilize the order in which browser conversion handlers are registered, preserving the existing shipped priority instead of depending on parallel import timing.
+- Refresh the supported-format cache from live handlers even when an older built cache is present.
+
 ## [3.4.3] - 2026-11-01
 
 ### Changed
