@@ -9,13 +9,13 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.4.4
+## What's new in 3.4.5
 
-**More reliable format and route information.**
+**Maintenance and code hygiene.**
 
-Browser conversion handlers now load in a consistent order that preserves the existing shipped priority. The supported-format cache is refreshed from live handlers and checked for drift in CI. Its ImageMagick entries now match the engine's Aseprite, Amiga icon and MSL capabilities.
+The workspace entry points and internal exports were reviewed to make unused-code reports more useful while preserving existing behavior.
 
-Everything in [3.4.3](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.3) is here too.
+Everything in [3.4.4](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.4) is here too.
 
 Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 

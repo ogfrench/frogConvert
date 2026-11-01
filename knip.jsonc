@@ -13,6 +13,9 @@
 // present in CI. Cross-check `.gitmodules` before removing any ignore here.
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
+  // These individual JSDoc-tagged exports are used through lazy workspace
+  // module handles, which Knip cannot trace. Keep other exports visible.
+  "tags": ["-runtimewired"],
   "entry": [
     // Referenced only by already-deployed HTML (see the file's own header).
     "public/async-css.js",
