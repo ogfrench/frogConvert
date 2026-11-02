@@ -10,8 +10,11 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.4.6] - 2026-11-02
+
 ### Changed
-- Tab titles use one pattern, "Page | frogConvert": the docs, the slide deck and the 404 page used "frogConvert Docs", "frogConvert - Slide Deck" and "404 - Page Not Found · frogConvert".
+- Tab titles use one pattern, "Page | frogConvert": the docs, the slide deck and the 404 page used "frogConvert Docs", "frogConvert - Slide Deck" and "404 - Page Not Found · frogConvert" (#118).
+- Update the Bun-minor development dependency group (#116).
 
 ## [3.4.5] - 2026-11-02
 
