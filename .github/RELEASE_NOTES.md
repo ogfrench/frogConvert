@@ -9,13 +9,13 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.4.5
+## What's new in 3.4.6
 
-**More reliable deployments and code hygiene.**
+**Consistent browser tab titles.**
 
-Netlify builds now have enough memory to bundle the app. The workspace entry points and internal exports were reviewed to make unused-code reports more useful while preserving existing behavior.
+The documentation, slide deck and not-found pages now use the same `Page | frogConvert` tab-title convention as the converter. This release also includes routine development dependency updates.
 
-Everything in [3.4.4](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.4) is here too.
+Everything in [3.4.5](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.5) is here too.
 
 Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
