@@ -29,7 +29,7 @@ export function initBuildInfo(opts: { appName?: string; buildTime?: string; comm
   const buildTime = opts.buildTime ?? (import.meta.env.VITE_BUILD_TIME as string | undefined);
   const commitSha = (opts.commitSha ?? import.meta.env.VITE_COMMIT_SHA) || 'dev';
 
-  document.title = `${appName} Docs`;
+  document.title = `Docs | ${appName}`;
 
   const logoText = document.querySelector('.logo-text');
   if (logoText) logoText.textContent = appName;

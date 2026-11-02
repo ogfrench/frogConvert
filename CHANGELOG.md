@@ -10,6 +10,9 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Changed
+- Tab titles use one pattern, "Page | frogConvert": the docs, the slide deck and the 404 page used "frogConvert Docs", "frogConvert - Slide Deck" and "404 - Page Not Found · frogConvert".
+
 ## [3.4.5] - 2026-11-02
 
 ### Fixed

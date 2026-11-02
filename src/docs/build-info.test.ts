@@ -21,14 +21,14 @@ beforeEach(async () => {
 // ── Tests ─────────────────────────────────────────────────────────────────
 
 describe('initBuildInfo', () => {
-  it('sets document title to "<appName> Docs"', () => {
+  it('sets document title to "Docs | <appName>"', () => {
     mod.initBuildInfo({ appName: 'TestApp' });
-    expect(document.title).toBe('TestApp Docs');
+    expect(document.title).toBe('Docs | TestApp');
   });
 
   it('falls back to "frogConvert" when VITE_APP_NAME is not set', () => {
     mod.initBuildInfo({ appName: '' });
-    expect(document.title).toBe('frogConvert Docs');
+    expect(document.title).toBe('Docs | frogConvert');
   });
 
   it('sets .logo-text to the app name', () => {
