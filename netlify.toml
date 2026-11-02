@@ -2,6 +2,10 @@
   command = "bun run build && bun run build:office-engine"
   publish = "dist"
 
+# Vite/Rollup exceeds Node's default ~2 GiB heap while bundling the app.
+[build.environment]
+  NODE_OPTIONS = "--max-old-space-size=4096"
+
 # Explicit 404 for reserved prefixes — avoids the SPA fallback masking
 # missing API/well-known endpoints as 200 index.html responses.
 [[redirects]]

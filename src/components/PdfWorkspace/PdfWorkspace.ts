@@ -696,6 +696,9 @@ const MAX_TOTAL_PAGES = 300;
 // Init + Tab switching
 // ---------------------------------------------------------------------------
 
+/** Called through the lazy workspace module when saving session state.
+ * @runtimewired
+ */
 export function getActiveTool(): Tool { return activeTool; }
 
 /**
@@ -704,6 +707,7 @@ export function getActiveTool(): Tool { return activeTool; }
  * been here yet, then delegates to the standard `handleFiles` pipeline so
  * MAX_FILES / MAX_TOTAL_FILE_SIZE / MAX_TOTAL_PAGES caps + the upload-summary
  * popup behave identically to a regular drop.
+ * @runtimewired
  */
 export function ingestExternalFiles(files: File[]): void {
   if (!files.length) return;
@@ -727,19 +731,9 @@ function syncTabsUI(t: Tool) {
   document.getElementById('pdf-tool-content')?.setAttribute('aria-labelledby', `pdf-tab-${t}`);
 }
 
-export function selectPdfTool(tool: string) {
-  const t = tool as Tool;
-  if (!(TOOLS as readonly string[]).includes(t)) return;
-  if (!initialized) { activeTool = t; return; }
-  if (activeTool === t) return;
-  activeTool = t;
-
-  syncTabsUI(t);
-
-  renderActiveTool();
-  markDirty('manifest');
-}
-
+/** Called through the lazy workspace module when entering PDF mode.
+ * @runtimewired
+ */
 export function initPdfWorkspace() {
   // First-call setup wires document-level listeners and resolves DOM refs.
   // Subsequent calls (after cleanup() on app-mode switch) skip wiring and
@@ -2774,6 +2768,7 @@ function renderOrganizeView() {
  * Tear down DOM-side state without losing module state. Use this on app-mode
  * switch out (e.g. from /pdf to /) so re-entering preserves files, page order,
  * selections, and watermark settings. resetAll() is the destructive cousin.
+ * @runtimewired
  */
 export function cleanup() {
   sortableInstance?.destroy();
@@ -2810,7 +2805,7 @@ export function cleanup() {
   updateScrollLock();
 }
 
-export function resetAll() {
+function resetAll() {
   renderGeneration++;
   files = [];
   pages = [];

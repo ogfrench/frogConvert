@@ -569,7 +569,7 @@ export async function downloadResults() {
  * for this surface to invent its own word for it, or to sit two primary-weight
  * buttons side by side where every other surface has one and a quiet second.
  */
-export function backToFiles() {
+function backToFiles() {
   phase = "idle";
   results = [];
   render();
@@ -1084,7 +1084,9 @@ export function resetAll() {
   if (rootEl) render();
 }
 
-/** Share-target / launch-queue entry point. */
+/** Share-target / launch-queue entry point, called through a lazy module handle.
+ * @runtimewired
+ */
 export function ingestExternalFiles(incoming: File[]) {
   if (!initialized) initCompressWorkspace();
   handleFiles(incoming);

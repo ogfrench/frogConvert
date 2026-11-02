@@ -103,7 +103,7 @@ import {
 } from "./components/persistence/convertPersist.ts";
 import CommonFormats from "./core/CommonFormats/CommonFormats.ts";
 import { EXTERNAL_FILES_EVENT, type ExternalFilesDetail } from "./pwa/shareTargetConstants.ts";
-import { COMPRESS_THESE_EVENT } from "./constants/ui.ts";
+import { COMPRESS_THESE_EVENT, MOBILE_BREAKPOINT } from "./constants/ui.ts";
 
 import { initStaleShellRecovery } from "./pwa/staleShell.ts";
 
@@ -204,7 +204,7 @@ initCategoryTabs((category) => {
   navigateTo('converter');
 });
 
-const mobileCategoryMq = window.matchMedia("(max-width: 800px)");
+const mobileCategoryMq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
 const resetHiddenMobileCategory = () => {
   if (!mobileCategoryMq.matches || !activeCategory.value) return;
   selectCategoryTab("", { notify: false });

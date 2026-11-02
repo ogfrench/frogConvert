@@ -109,7 +109,7 @@ Native single-binary builds without Electron are available via `bun run compile:
 
 ## Netlify
 
-A `netlify.toml` at the repo root configures Netlify deployment. Point Netlify at the repo, pick the `main` branch, and default settings will build and deploy the static site.
+A `netlify.toml` at the repo root configures Netlify deployment. Point Netlify at the repo and select its production branch (`master` for this repository). Default settings will build and deploy the static site.
 
 ### The browser Office engine
 
