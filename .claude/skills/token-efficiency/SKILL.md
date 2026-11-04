@@ -7,9 +7,10 @@ description: >-
 
 # Token efficiency
 
-**Turns are the cost.** Every request resends the whole conversation, so ten small steps
-cost far more than one combined step with the same output. Cut turns first, words second.
-Which model does what is in `model-delegation`; this skill is about how a session runs.
+**Successful cost per task is the target.** Conversation history and tool output can
+accumulate across turns. Measure retries, context, latency and verification cost, not
+just the price of a model call. Start with one agent and load skills on demand;
+`model-delegation` defines when an isolated agent earns its overhead.
 
 ## Batch
 
@@ -23,18 +24,26 @@ Which model does what is in `model-delegation`; this skill is about how a sessio
 
 ## Keep context lean
 
-- A wide search ("where is X used", "map this folder") goes to an Explore agent. You keep
-  its conclusion, not the file dumps.
+- Start with a focused search in the main loop. Use a bounded Explore agent only when
+  isolated high-volume findings would otherwise crowd out important context.
 - Long logs stay in files. Quote the failing line, not the log.
 - Write a plan once, in a file, and point at it. Do not restate it each turn.
 
 ## Wait well
 
-- Anything over a minute (a test suite, a build, a deploy, an agent) runs in the
-  background. Wait for its notification; never poll with `sleep`.
+- Run a slow check in the background only if the environment supports it. Collect
+  its completion state and exit status before asserting the check passed.
 - Start the slow thing first, then do the main-model work while it runs.
 - A laptop running two local stacks and two dev servers stalls, and its timeouts look like
   bugs. Before calling something broken, rerun it alone.
+
+## Inspect skill and tool overhead
+
+- Inspect `/context`, `/usage` and `/skill-doctor` where supported. Check whether
+  overlapping skills or idle MCP servers consume context before removing them.
+- Use `/clear` between unrelated tasks, or a focused `/compact` when decisions
+  still matter. Put durable facts in files, not in repeated context.
+- Compare one-loop and delegated runs on the same real tasks before optimizing.
 
 ## Save environment facts once
 

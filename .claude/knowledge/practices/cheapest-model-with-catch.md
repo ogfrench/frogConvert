@@ -1,15 +1,15 @@
 ---
 id: cheapest-model-with-catch
 type: practice
-summary: Hand a task to the cheapest model whose mistake would be caught before it lands.
+summary: Delegate to the cheapest model only after measuring that delegation helps.
 concern: agents
 stack: [any]
 severity: should
-last_verified: 2026-10-11
+last_verified: 2026-10-28
 status: active
-derived_from: [2026-10-11-cheap-reviews-catch-real-bugs]
+derived_from: [2026-10-11-cheap-reviews-catch-real-bugs, 2026-10-28-test-single-loop-before-agents]
 implemented_by: [plugins/agent-workflow/skills/model-delegation]
-related: [review-every-commit]
+related: [review-every-commit, measure-single-loop-before-delegation]
 ---
 
-The full split is the `model-delegation` skill.
+Compare the main loop first. See `model-delegation` for the decision.
