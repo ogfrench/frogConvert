@@ -146,7 +146,7 @@ Three rules the renderer applies, worth knowing before you write a `detail` stri
 
 Emitting is what makes a wait legible, so it is worth doing even for an engine that is usually fast: the first use of any WASM handler also pays for fetching and compiling the binary, which is the longest wait most users ever see.
 
-**Only 7 of ~82 handlers emit anything today** (FFmpeg, Ghostscript, comics, imageToPdf, pdfCanvasCompress, pdftoimg, pdftotxt). The rest are silent, which is fine for the ones that finish instantly - but ImageMagick is a notable gap: it is not instant on large images and reports nothing.
+**Only 9 of ~82 handlers emit anything today** (FFmpeg, Ghostscript, comics, imageToPdf, libreoffice, pdfCanvasCompress, pdftoimg, pdftotxt, svgForeignObject). The rest are silent, which is fine for the ones that finish instantly - but ImageMagick is a notable gap: it is not instant on large images and reports nothing.
 
 ### Multi-file output
 

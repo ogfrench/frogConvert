@@ -1,8 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { writeFile } from "fs/promises";
 import { merge } from "../../tools/pdfMerge.ts";
-import { buildSourceFiles, enforceSandboxedPath, fileInputSchema, ValidationError } from "../core/fileInput.ts";
+import { buildSourceFiles, enforceSandboxedPath, fileInputSchema, ValidationError, writeOutput } from "../core/fileInput.ts";
 import { toUserErrorText, appendSupportContact, FEEDBACK_CONTACT_TEXT } from "../../components/utils/index.ts";
 
 export function registerPdfMergeTool(server: McpServer) {
@@ -25,7 +24,7 @@ export function registerPdfMergeTool(server: McpServer) {
                     // local surfaces; it was applied on every REST write path
                     // and on only one MCP tool, so the MCP server ignored it.
                     const safeOut = enforceSandboxedPath(outputFilePath);
-                    await writeFile(safeOut, result.bytes);
+                    await writeOutput(safeOut, result.bytes);
                     return { content: [{ type: "text", text: JSON.stringify({ savedTo: [safeOut] }) }] };
                 }
 

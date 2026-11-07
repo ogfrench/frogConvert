@@ -119,7 +119,7 @@ Once a run passes twenty seconds, a `MM:SS` elapsed clock appears on the end of 
 
 The spinner distinguishes the two kinds of wait: a thin ring while nothing is being processed yet (engine download, file read), the gooey one while an engine is actually working.
 
-**Not every engine reports progress.** Seven do (FFmpeg, Ghostscript, comics, pdfCanvasCompress, pdftoimg, pdftotxt), which covers video, PDF and comic archives, the slow cases. Image compression through ImageMagick shows the phase, the file name and the elapsed clock, but no engine detail, because the engine does not provide one. The batch position (`Compressing file 2 of 5...`) always works, since it is counted here rather than reported by the engine.
+**Not every engine reports progress.** Seven do (FFmpeg, Ghostscript, comics, imageToPdf, pdfCanvasCompress, pdftoimg, pdftotxt), which covers video, PDF and comic archives, the slow cases. Image compression through ImageMagick shows the phase, the file name and the elapsed clock, but no engine detail, because the engine does not provide one. The batch position (`Compressing file 2 of 5...`) always works, since it is counted here rather than reported by the engine.
 
 The live line never repeats the file name. The subtitle above it is already the file being worked on, so an engine that names it again spends the one row describing the *work* on something already on screen - `statusHTML` drops a live line that only restates the subtitle, matching a full name against the shortened form shown.
 

@@ -1,9 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { writeFile } from "fs/promises";
 import { basename, join } from "path";
 import { extract } from "../../tools/pdfExtract.ts";
-import { resolveBytes, stripExt, enforceSandboxedPath, fileInputSchema, ValidationError } from "../core/fileInput.ts";
+import { resolveBytes, stripExt, enforceSandboxedPath, fileInputSchema, ValidationError, writeOutput } from "../core/fileInput.ts";
 import { toUserErrorText, appendSupportContact, FEEDBACK_CONTACT_TEXT } from "../../components/utils/index.ts";
 
 export function registerPdfExtractTool(server: McpServer) {
@@ -39,7 +38,7 @@ export function registerPdfExtractTool(server: McpServer) {
                         // built into every output name, so "../../x" escapes
                         // safeDir without outputDir ever being suspicious.
                         const p = join(safeDir, basename(f.name));
-                        await writeFile(p, f.bytes);
+                        await writeOutput(p, f.bytes);
                         return p;
                     }));
                     return { content: [{ type: "text", text: JSON.stringify({ savedTo: paths }) }] };

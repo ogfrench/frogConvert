@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 
 vi.mock('fs/promises', () => {
-    const mocked = { readFile: vi.fn(), writeFile: vi.fn() };
+    const mocked = { readFile: vi.fn(), writeFile: vi.fn(), mkdir: vi.fn() };
     return { ...mocked, default: mocked };
 });
 

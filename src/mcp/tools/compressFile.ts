@@ -3,7 +3,7 @@ import { z } from "zod";
 import { writeFile } from "fs/promises";
 import mime from "mime";
 import type { McpContext } from "../core/types.ts";
-import { resolveBytes, enforceSandboxedPath } from "../core/fileInput.ts";
+import { resolveBytes, enforceSandboxedPath, writeOutput } from "../core/fileInput.ts";
 import { compressForAgents, type AgentCompressInput } from "../../core/compression/compressForAgents.ts";
 import { compressInBrowser } from "../../api/compressInBrowser.ts";
 
@@ -99,7 +99,7 @@ export function registerCompressFileTool(server: McpServer, initPromise: Promise
                     ? enforceSandboxedPath(outputFilePath)
                     : undefined;
                 if (target) {
-                    await writeFile(target, r.bytes);
+                    await writeOutput(target, r.bytes);
                     report.savedTo = target;
                 } else if (!single && sourcePaths[i]) {
                     // Beside the source, never over it: overwriting an input is

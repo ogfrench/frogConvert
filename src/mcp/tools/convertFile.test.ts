@@ -12,6 +12,7 @@ vi.mock('fs/promises', () => {
     const mocked = {
         readFile: vi.fn(),
         writeFile: vi.fn(),
+        mkdir: vi.fn(),
     };
     return {
         ...mocked,

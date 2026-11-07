@@ -4,11 +4,11 @@ import { registerPdfExtractTool } from './pdfExtract.ts';
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 vi.mock('fs/promises', () => {
-    const mocked = { readFile: vi.fn(), writeFile: vi.fn() };
+    const mocked = { readFile: vi.fn(), writeFile: vi.fn(), mkdir: vi.fn() };
     return { ...mocked, default: mocked };
 });
 
-import { readFile, writeFile } from 'fs/promises';
+import { readFile, writeFile, mkdir } from 'fs/promises';
 
 async function makePdf(pageCount: number): Promise<Uint8Array> {
     const doc = await PDFDocument.create();
@@ -145,6 +145,23 @@ describe('registerPdfExtractTool', () => {
         const parsed = JSON.parse(result.content[0].text);
         expect(parsed.savedTo).toHaveLength(2);
         expect(writeFile).toHaveBeenCalledTimes(2);
+    });
+
+    it('creates outputDir first, so a folder that does not exist yet is not an error', async () => {
+        const pdf = await makePdf(2);
+        vi.mocked(writeFile).mockResolvedValue(undefined);
+        vi.mocked(mkdir).mockClear();
+        const server = makeMockServer();
+        registerPdfExtractTool(server);
+
+        await getCallback(server)({
+            input: { base64Bytes: b64(pdf), fileName: 'doc.pdf' },
+            pageNums: [1],
+            groupAsOne: false,
+            outputDir: '/tmp/new/out',
+        });
+
+        expect(mkdir).toHaveBeenCalledWith('/tmp/new/out', { recursive: true });
     });
 });
 

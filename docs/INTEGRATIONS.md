@@ -82,11 +82,18 @@ Eight tools, all over `stdio`: one metadata (`list_formats`), two conversion (`f
      outputFilePath: "/absolute/path/to/output.pptx"
      ```
 
+4. **`compress_file`**
+   - **Arguments**: `filePath` or `base64Bytes` + `fileName`, `filePaths` (batch), `outputFilePath`, `level`. Full reference and examples in [Compression](#compression).
+   - **Description**: Makes a file smaller without changing its format. Use it instead of `convert_file` when input and output format are the same.
+   - **Returns**: a report per file (see [`compress_file` (MCP)](#compress_file-mcp)).
+
+Every tool that writes to `outputFilePath` or `outputDir` creates the folder first, so a path in a directory that does not exist yet is not an error. With `FROGCONVERT_SANDBOX_ROOT` set, the path must still resolve inside that root.
+
 ### PDF editor tools
 
 The PDF editor is exposed as four dedicated MCP tools. They operate on PDFs directly using `pdf-lib`; they do not run the browser bridge.
 
-4. **`pdf_merge`**
+5. **`pdf_merge`**
    - **Arguments**:
      | Argument | Required | Description |
      |---|---|---|
@@ -95,7 +102,7 @@ The PDF editor is exposed as four dedicated MCP tools. They operate on PDFs dire
    - **Description**: Concatenates pages from the input PDFs in the order given.
    - **Returns**: same shape as `convert_file` (array of `{ fileName, base64Bytes }`, or `{ savedTo: [...] }` when `outputFilePath` is set).
 
-5. **`pdf_organize`**
+6. **`pdf_organize`**
    - **Arguments**:
      | Argument | Required | Description |
      |---|---|---|
@@ -115,7 +122,7 @@ The PDF editor is exposed as four dedicated MCP tools. They operate on PDFs dire
    - **Description**: Builds a new PDF by reordering, rotating, deleting, and inserting blank pages from one or more source PDFs. Delete is implicit: omit a page from the manifest.
    - **Returns**: same shape as `pdf_merge`.
 
-6. **`pdf_extract`**
+7. **`pdf_extract`**
    - **Arguments**:
      | Argument | Required | Description |
      |---|---|---|
@@ -127,7 +134,7 @@ The PDF editor is exposed as four dedicated MCP tools. They operate on PDFs dire
    - **Description**: Extracts the given pages from a source PDF.
    - **Returns**: array of `{ fileName, base64Bytes }` (one per output file), or `{ savedTo: [...] }` listing written paths when `outputDir` is set.
 
-7. **`pdf_watermark`**
+8. **`pdf_watermark`**
    - **Arguments**:
      | Argument | Required | Description |
      |---|---|---|
@@ -305,10 +312,22 @@ curl -X POST http://localhost:3000/compress \
 | `filePath` | one of | Absolute path. Preferred for large files - base64 in a tool result eats context. |
 | `base64Bytes` + `fileName` | one of | The in-band alternative. The extension identifies the format. |
 | `filePaths` | optional | A batch, compressed in one pass. Each result is written beside its source as `name-compressed.ext`, never over it. |
-| `outputFilePath` | optional | Where to write a single result. Omit to get base64 back. |
+| `outputFilePath` | optional | Where to write a single result. Omit to get base64 back. The folder is created if it does not exist. |
 | `level` | optional | `auto` (default), `high`, `medium`, `low`. |
 
 A file that could not be compressed comes back with `shrunk: false` and a `reason`, not an error - one unsupported file in a batch never costs you the rest.
+
+The reply is JSON text. `savedTo` appears when the result was written to disk (always for a batch, beside the source as `name-compressed.ext`), `base64Bytes` when it was not. `reason` is one of `already-minimal`, `no-gain` (re-encoding would not save 2%), `unsupported`, `failed` or `cancelled`:
+
+```json
+{ "level": "low", "files": [
+  { "fileName": "deck.pdf", "originalSize": 25342, "compressedSize": 20620,
+    "savedBytes": 4722, "savedPercent": 18.6, "shrunk": true, "savedTo": "/abs/deck-small.pdf" },
+  { "fileName": "notes.xyz", "originalSize": 4096, "compressedSize": 4096,
+    "savedBytes": 0, "savedPercent": 0, "shrunk": false, "reason": "unsupported", "base64Bytes": "..." } ] }
+```
+
+MCP names each file `fileName`; the REST endpoint names it `name`, as `POST /convert` and the PDF routes do.
 
 #### PDF compression
 
