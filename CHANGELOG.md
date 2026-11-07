@@ -10,6 +10,18 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.4.7] - 2026-11-07
+
+### Added
+- CSV to XLSX and JSON to XLSX (a list of objects or of rows). Nothing wrote XLSX before, so these conversions had no route. CSV cells stay text (leading zeros, long IDs and "=" values are kept as written), JSON nested inside a row is written as its JSON text, and a list that mixes objects and arrays is refused with a message that says what to change, which the MCP server and REST API now show instead of the generic failure text.
+
+### Fixed
+- The MCP server and local REST API create the folder for `outputFilePath` and `outputDir` when it does not exist. Previously the conversion succeeded, then the write failed and was reported as "Something went wrong while converting" (HTTP 400 on REST).
+- The MCP `convert_file` quality description no longer describes same-format compression or an uncapped `high` preset.
+
+### Changed
+- Documentation now matches 3.4.x: `compress_file` reply shape and reasons, Core+ naming and cross-tier format search, the browser Office engine size (about 78 MB) and first-run check, cache regeneration and the CI `cache:verify` step, and progress-reporting handler counts.
+
 ## [3.4.6] - 2026-11-02
 
 ### Changed

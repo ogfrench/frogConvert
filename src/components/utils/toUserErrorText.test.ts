@@ -93,4 +93,10 @@ describe("toUserErrorText", () => {
     it("maps raw objects to generic copy", () => {
         expect(toUserErrorText({ foo: "bar" })).toBe("Something went wrong while converting this file.");
     });
+
+    it("keeps the spreadsheet refusals that tell the person what to change in their file", () => {
+        const msg = 'JSON becomes a spreadsheet only as a list of objects or a list of arrays, for example [{"name": "Ada"}].';
+        expect(toUserErrorText(new Error(msg))).toBe(msg);
+        expect(toUserErrorText(new Error("This JSON file could not be read."))).toBe("This JSON file could not be read.");
+    });
 });

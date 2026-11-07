@@ -4,7 +4,7 @@ import { registerPdfOrganizeTool } from './pdfOrganize.ts';
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 vi.mock('fs/promises', () => {
-    const mocked = { readFile: vi.fn(), writeFile: vi.fn() };
+    const mocked = { readFile: vi.fn(), writeFile: vi.fn(), mkdir: vi.fn() };
     return { ...mocked, default: mocked };
 });
 

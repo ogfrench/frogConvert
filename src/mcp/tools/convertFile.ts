@@ -1,12 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { writeFile } from "fs/promises";
 import { basename, dirname, join } from "path";
 import type { FileData } from "../../core/FormatHandler/FormatHandler.ts";
 import type { McpContext } from "../core/types.ts";
 
 import { convertForAgents } from "../core/convert.ts";
-import { resolveBytes, enforceSandboxedPath } from "../core/fileInput.ts";
+import { resolveBytes, enforceSandboxedPath, writeOutput } from "../core/fileInput.ts";
 
 async function serializeResults(files: FileData[], outputFilePath?: string, extraWarnings: string[] = []) {
     // The files' own warnings and the route's (deduped).
@@ -23,14 +22,14 @@ async function serializeResults(files: FileData[], outputFilePath?: string, extr
         const outDir = dirname(safeOut);
         const paths: string[] = [];
 
-        await writeFile(safeOut, firstFile.bytes);
+        await writeOutput(safeOut, firstFile.bytes);
         paths.push(safeOut);
 
         for (let i = 1; i < files.length; i++) {
             // basename() already here, and still right: a handler-produced
             // name must not carry path segments out of outDir.
             const extra = join(outDir, basename(files[i].name));
-            await writeFile(extra, files[i].bytes);
+            await writeOutput(extra, files[i].bytes);
             paths.push(extra);
         }
 
@@ -60,7 +59,7 @@ export function registerConvertFileTool(server: McpServer, initPromise: Promise<
             outputMime: z.string().describe("Output MIME type"),
             outputExtension: z.string().describe("Output format extension"),
             outputFilePath: z.string().optional().describe("Absolute path where the output file should be saved. If omitted, the result is returned as base64."),
-            quality: z.enum(["low", "medium", "high", "lossless"]).optional().describe("Quality preset. When omitted for cross-format conversion defaults to 'lossless': a conversion changes the format and nothing else, so pass a level explicitly to also compress the file. When omitted for same-format compression, the input is probed and the next lower tier is picked automatically (matching the web UI behavior). 'low' trades quality for smaller output and downscales to a 1920px long edge; 'medium' downscales to 2560px; 'high' raises quality and applies no cap; 'lossless' disables lossy compression where the codec supports it. Only affects handlers that re-encode (FFmpeg, ImageMagick, pdftoimg). To compress a file without changing its format, use compress_file.")
+            quality: z.enum(["low", "medium", "high", "lossless"]).optional().describe("Quality preset for the re-encode a cross-format conversion performs. When omitted it is 'lossless': a conversion changes the format and nothing else, so pass a level explicitly to also compress the file. 'low' trades quality for smaller output (JPEG q65, images capped at 1920px); 'medium' is q80 capped at 2560px; 'high' is q93 capped at 3840px; 'lossless' disables lossy compression and size caps where the codec supports it. Only affects handlers that re-encode (FFmpeg, ImageMagick, pdftoimg, Ghostscript). To make a file smaller without changing its format, use compress_file: a same-format convert_file returns the input unchanged.")
         },
         async ({ fileName, base64Bytes, filePath, inputMime, inputExtension, outputMime, outputExtension, outputFilePath, quality }) => {
             let bytes: Uint8Array;

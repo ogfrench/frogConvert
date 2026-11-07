@@ -9,13 +9,13 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.4.6
+## What's new in 3.4.7
 
-**Consistent browser tab titles.**
+**Spreadsheets you can create, and output folders created for you.**
 
-The documentation, slide deck and not-found pages now use the same `Page | frogConvert` tab-title convention as the converter. This release also includes routine development dependency updates.
+CSV and JSON now convert to XLSX, keeping CSV values exactly as written (ZIP codes with leading zeros, long IDs). The MCP server and REST API now create the destination folder when you save a result to a path that does not exist yet, instead of failing after the conversion finished. The documentation was also brought up to date with the 3.4 releases.
 
-Everything in [3.4.5](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.5) is here too.
+Everything in [3.4.6](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.6) is here too.
 
 Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 

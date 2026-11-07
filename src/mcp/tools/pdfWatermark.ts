@@ -1,13 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { writeFile } from "fs/promises";
 import {
   watermark,
   hexToRgb,
   WATERMARK_DEFAULTS,
   WatermarkValidationError,
 } from "../../tools/pdfWatermark.ts";
-import { resolveBytes, enforceSandboxedPath, fileInputSchema, ValidationError } from "../core/fileInput.ts";
+import { resolveBytes, enforceSandboxedPath, fileInputSchema, ValidationError, writeOutput } from "../core/fileInput.ts";
 import { toUserErrorText, appendSupportContact, FEEDBACK_CONTACT_TEXT } from "../../components/utils/index.ts";
 
 export function registerPdfWatermarkTool(server: McpServer) {
@@ -46,7 +45,7 @@ export function registerPdfWatermarkTool(server: McpServer) {
 
         if (outputFilePath) {
           const safeOut = enforceSandboxedPath(outputFilePath);
-          await writeFile(safeOut, result.bytes);
+          await writeOutput(safeOut, result.bytes);
           return { content: [{ type: "text", text: JSON.stringify({ savedTo: [safeOut] }) }] };
         }
 

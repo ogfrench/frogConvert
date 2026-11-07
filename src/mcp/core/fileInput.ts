@@ -1,5 +1,5 @@
-import { readFile } from "fs/promises";
-import { basename, resolve as resolvePath, relative as relativePath, isAbsolute } from "path";
+import { readFile, writeFile, mkdir } from "fs/promises";
+import { basename, dirname, resolve as resolvePath, relative as relativePath, isAbsolute } from "path";
 import { z } from "zod";
 import type { CoreSourceFile } from "../../tools/types.ts";
 
@@ -73,6 +73,17 @@ export function enforceSandboxedPath(inputPath: string): string {
         throw new ValidationError("Path escapes FROGCONVERT_SANDBOX_ROOT");
     }
     return resolved;
+}
+
+/**
+ * Write a caller-supplied output path, creating its folder first. A missing
+ * folder otherwise surfaced as ENOENT, which the tools reported as the generic
+ * "Something went wrong while converting" (HTTP 400 on REST) - after the
+ * conversion had already succeeded.
+ */
+export async function writeOutput(path: string, bytes: Uint8Array): Promise<void> {
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, bytes);
 }
 
 export async function resolveBytes(input: FileInputRef): Promise<{ bytes: Uint8Array; name: string }> {

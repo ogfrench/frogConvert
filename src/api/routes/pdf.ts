@@ -1,4 +1,3 @@
-import { writeFile } from "fs/promises";
 import { join, basename } from "path";
 import { z } from "zod";
 import { merge } from "../../tools/pdfMerge.ts";
@@ -7,7 +6,7 @@ import { extract } from "../../tools/pdfExtract.ts";
 import { watermark, hexToRgb, WATERMARK_DEFAULTS, WatermarkValidationError } from "../../tools/pdfWatermark.ts";
 import type { CorePageEntry } from "../../tools/types.ts";
 import type { FileData } from "../../core/FormatHandler/FormatHandler.ts";
-import { resolveBytes, buildSourceFiles, stripExt, enforceSandboxedPath, ValidationError, type FileInputRef } from "../../mcp/core/fileInput.ts";
+import { resolveBytes, buildSourceFiles, stripExt, enforceSandboxedPath, ValidationError, type FileInputRef, writeOutput } from "../../mcp/core/fileInput.ts";
 import { toUserErrorText, appendSupportContact, FEEDBACK_CONTACT_TEXT } from "../../components/utils/index.ts";
 
 const watermarkBodySchema = z.object({
@@ -80,7 +79,7 @@ export async function handlePdfMerge(req: Request): Promise<Response> {
         const result = await merge(sourceFiles);
         if (body.outputFilePath) {
             const safeOut = enforceSandboxedPath(body.outputFilePath);
-            await writeFile(safeOut, result.bytes);
+            await writeOutput(safeOut, result.bytes);
             return Response.json({ savedTo: [safeOut] });
         }
         return filesResponse([result]);
@@ -143,7 +142,7 @@ export async function handlePdfOrganize(req: Request): Promise<Response> {
         const result = await organize(sourceFiles, manifest);
         if (body.outputFilePath) {
             const safeOut = enforceSandboxedPath(body.outputFilePath as string);
-            await writeFile(safeOut, result.bytes);
+            await writeOutput(safeOut, result.bytes);
             return Response.json({ savedTo: [safeOut] });
         }
         return filesResponse([result]);
@@ -194,7 +193,7 @@ export async function handlePdfExtract(req: Request): Promise<Response> {
                 // basename() strips any path segments the extract tool may have
                 // embedded in the output file name, keeping writes inside safeDir.
                 const p = join(safeDir, basename(f.name));
-                await writeFile(p, f.bytes);
+                await writeOutput(p, f.bytes);
                 return p;
             }));
             return Response.json({ savedTo: paths });
@@ -243,7 +242,7 @@ export async function handlePdfWatermark(req: Request): Promise<Response> {
 
         if (outputFilePath !== undefined) {
             const safeOut = enforceSandboxedPath(outputFilePath);
-            await writeFile(safeOut, result.bytes);
+            await writeOutput(safeOut, result.bytes);
             return Response.json({ savedTo: [safeOut] });
         }
         return filesResponse([result]);

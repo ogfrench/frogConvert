@@ -95,15 +95,17 @@ Exports and types remain advisory in CI; this audit does not change the enforced
 
 ---
 
-## 3. Format mode system (Core / Plus / All)
+## 3. Format mode system (Core / Core+ / All)
 
 The format picker exposes three tiers that filter which output formats are visible. Configured in `src/components/store/store.ts`:
 
 - **Core** - common everyday formats. A format must be in the `CORE_FORMATS` whitelist **and** its category must not be in `CORE_HIDDEN_CATEGORIES` (hidden: `data`, `font`, `code`, `other`).
-- **Plus** - adds data, font, and extra media formats. Uses `PLUS_FORMATS` (superset of `CORE_FORMATS`) and `PLUS_HIDDEN_CATEGORIES` (hidden: `code`, `other`).
+- **Core+** (`plus` in code) - adds data, font, and extra media formats. Uses `PLUS_FORMATS` (superset of `CORE_FORMATS`) and `PLUS_HIDDEN_CATEGORIES` (hidden: `code`, `other`).
 - **All** - every registered format; no filtering.
 
-If your new handler's formats do not appear in Core or Plus, add the format's short identifier (e.g. `"png"`, `"csv"`) to the relevant `Set` in `store.ts`. The selected mode persists in `localStorage`.
+The mode only filters browsing. Format search covers every format and tags each match Core, Core+ or All (see `FormatModal.ts`).
+
+If your new handler's formats do not appear in Core or Core+, add the format's short identifier (e.g. `"png"`, `"csv"`) to the relevant `Set` in `store.ts`. The selected mode persists in `localStorage`.
 
 ---
 
@@ -141,15 +143,20 @@ Both need a production build first, since they drive the built site:
 bun run build && bun run cache:refresh
 ```
 
-**That refreshes new handlers only.** The built site loads the committed cache,
-so every handler already in it is a cache hit and is serialised unchanged; only
-handlers missing from it run `init()`. After *changing* an existing handler's
-formats, delete `dist/cache.json` before `cache:refresh` so every handler
-re-initialises. Then check the diff: a full regeneration records handlers in
-the order they finish initialising, which is not stable, and handler order is
-part of the route cost (`HANDLER_PRIORITY_COST` in
-[TraversionGraph.ts](../src/core/TraversionGraph/TraversionGraph.ts)). Keep the
-committed order and take only the entries you meant to change.
+**Regeneration always enumerates the live handlers.** `scripts/buildCache.js`
+serves the built site without any `cache.json`, so every handler runs `init()`
+and an older cache in `dist/` cannot hide a change. Handler registration order
+is fixed, so the output order is stable. It is part of the route cost
+(`HANDLER_PRIORITY_COST` in
+[TraversionGraph.ts](../src/core/TraversionGraph/TraversionGraph.ts)), so read
+the diff before committing it.
+
+**CI checks the committed cache.** It runs `bun run cache:build`, then
+`bun run cache:verify`
+([scripts/compareFormatCaches.mjs](../scripts/compareFormatCaches.mjs)), which
+compares `public/cache.json` with the fresh `dist/cache.json` for handlers,
+handler order and format metadata. A mismatch fails the build; fix it with
+`bun run build && bun run cache:refresh` and commit the result.
 
 In dev, the cache is optional; the app falls back to initializing all handlers at startup with a loading screen.
 
