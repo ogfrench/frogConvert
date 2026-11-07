@@ -47,21 +47,33 @@ export default class SpreadsheetHandler extends BaseHandler {
   }
 
   #readSheet(file: FileData, inputFormat: FileFormat): XLSX.WorkSheet {
-    if (inputFormat.internal === "json") {
-      let rows: unknown;
-      try { rows = JSON.parse(new TextDecoder().decode(file.bytes)); } catch { throw new Error("This JSON file could not be read."); }
-      if (!Array.isArray(rows) || !rows.length || !rows.every(r => r !== null && typeof r === "object")) {
-        throw new Error("JSON becomes a spreadsheet only as a list of objects or of rows, for example [{\"name\": \"Ada\"}].");
-      }
-      return rows.every(Array.isArray)
-        ? XLSX.utils.aoa_to_sheet(rows as unknown[][])
-        : XLSX.utils.json_to_sheet(rows as Record<string, unknown>[]);
-    }
+    if (inputFormat.internal === "json") return jsonToSheet(file);
+    // raw: CSV cells stay text. Without it "007" becomes 7, long IDs lose digits,
+    // and "=HYPERLINK(...)" is stored as a live formula in the XLSX.
     const workbook = inputFormat.internal === "csv"
-      ? XLSX.read(new TextDecoder().decode(file.bytes), { type: "string" })
+      ? XLSX.read(new TextDecoder().decode(file.bytes), { type: "string", raw: true })
       : XLSX.read(file.bytes, { type: "array" });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     if (!sheet) throw new Error("No worksheet found in this spreadsheet.");
     return sheet;
   }
 }
+
+/**
+ * JSON must be a list of rows that are either all arrays or all objects, so
+ * the sheet has one shape. A nested object or array inside an object row is
+ * written as its JSON text: dropping it silently would lose the data.
+ */
+function jsonToSheet(file: FileData): XLSX.WorkSheet {
+  const refuse = () => new Error('JSON becomes a spreadsheet only as a list of objects or a list of arrays, for example [{"name": "Ada"}].');
+  let rows: unknown;
+  try { rows = JSON.parse(new TextDecoder().decode(file.bytes)); } catch { throw new Error("This JSON file could not be read."); }
+  if (!Array.isArray(rows) || !rows.length) throw refuse();
+  if (rows.every(Array.isArray)) return XLSX.utils.aoa_to_sheet(rows as unknown[][]);
+  if (!rows.every(r => r !== null && typeof r === "object" && !Array.isArray(r))) throw refuse();
+  const flat = (rows as Record<string, unknown>[]).map(row => Object.fromEntries(
+    Object.entries(row).map(([k, v]) => [k, v !== null && typeof v === "object" ? JSON.stringify(v) : v]),
+  ));
+  return XLSX.utils.json_to_sheet(flat);
+}
+

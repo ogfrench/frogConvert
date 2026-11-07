@@ -3,7 +3,7 @@ import type { FormatHandler, FileData, QualityPreset } from "../../core/FormatHa
 import type { TraversionGraph } from "../../core/TraversionGraph/TraversionGraph.ts";
 import { resolveEffectiveQuality } from "../../core/compression/resolveEffectiveQuality.ts";
 import { routeQualityNotice } from "../../conversion/routeQuality.ts";
-import { appendSupportContact, toUserErrorInfo } from "../../components/utils/index.ts";
+import { appendSupportContact, isSpreadsheetRefusal, toUserErrorInfo } from "../../components/utils/index.ts";
 import { findFirstPath, libreofficeHint } from "./utils.ts";
 import { convertViaBrowser } from "./browserBridge.ts";
 
@@ -70,6 +70,10 @@ export async function convertForAgents(req: Request): Promise<AgentConversion> {
             return { files, warnings: warningsFor(formats, files) };
         } catch (e) {
             nativeFailure = e;
+            // The file itself was refused by its own handler. The browser would
+            // refuse it the same way, and its message would replace this one.
+            const refusal = toUserErrorInfo(e).message;
+            if (isSpreadsheetRefusal(refusal)) return { error: appendSupportContact(refusal), status: 422 };
             process.stderr.write(`[agents] Native conversion failed, trying browser bridge: ${(e as Error)?.message ?? e}\n`);
         }
     }

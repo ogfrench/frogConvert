@@ -133,6 +133,11 @@ export function isOffline(): boolean {
 export const OFFLINE_MESSAGE =
     "You're offline. frogConvert keeps working without a connection, but each converter downloads once the first time you use it, and this one hasn't been downloaded yet. Reconnect and try again.";
 
+/** The spreadsheet handler's refusals: the file needs changing, so no other engine helps. */
+export function isSpreadsheetRefusal(text: string): boolean {
+    return /^(JSON becomes a spreadsheet only as |This JSON file could not be read\.|This CSV file has no rows\.|No worksheet found in this spreadsheet\.)/.test(text);
+}
+
 /**
  * Normalises an arbitrary thrown value into a short, user-facing string
  * suitable for display in popups. Strips stack frames, file URLs, and the
@@ -171,6 +176,11 @@ export function toUserErrorInfo(err: unknown): UserErrorInfo {
     // went wrong while converting this file", which is how a precise message
     // written for exactly this case never reached any surface.
     if (/\bdoe?s? not exist in this PDF\b/i.test(text)) {
+        return { message: text, kind: "input_issue" };
+    }
+    // The spreadsheet handler's refusals say what to change in the file, the
+    // same way: the generic fallback below replaced them on every surface.
+    if (isSpreadsheetRefusal(text)) {
         return { message: text, kind: "input_issue" };
     }
     if (/^not found$/i.test(text)
