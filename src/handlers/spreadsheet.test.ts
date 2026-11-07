@@ -26,4 +26,28 @@ describe('spreadsheet', () => {
       { Region: 'South', Q2: 8, Q3: 9 },
     ]);
   });
+
+  const toXlsx = async (from: string, name: string, text: string) => {
+    const [out] = await handler.doConvert([{ name, bytes: new TextEncoder().encode(text) }], fmt(from), fmt('xlsx'));
+    expect(out.name).toBe(name.replace(/\.\w+$/, '.xlsx'));
+    return out.bytes;
+  };
+
+  it('csv -> xlsx writes a workbook that reads back to the same cells', async () => {
+    const bytes = await toXlsx('csv', 'table.csv', 'Region,Q2\nNorth,10\nSouth,8');
+    expect(new TextDecoder('latin1').decode(bytes.subarray(0, 2))).toBe('PK');
+    const [back] = await handler.doConvert([{ name: 'table.xlsx', bytes }], fmt('xlsx'), fmt('csv'));
+    expect(new TextDecoder().decode(back.bytes)).toBe('Region,Q2\nNorth,10\nSouth,8');
+  });
+
+  it('json -> xlsx takes a list of objects, keyed by header', async () => {
+    const bytes = await toXlsx('json', 'rows.json', '[{"Region":"North","Q2":10},{"Region":"South","Q2":8}]');
+    const [back] = await handler.doConvert([{ name: 'rows.xlsx', bytes }], fmt('xlsx'), fmt('json'));
+    expect(JSON.parse(new TextDecoder().decode(back.bytes))).toEqual([{ Region: 'North', Q2: 10 }, { Region: 'South', Q2: 8 }]);
+  });
+
+  it('json -> xlsx refuses data that is not a table, with a message that says how to fix it', async () => {
+    await expect(toXlsx('json', 'x.json', '{"a":1}')).rejects.toThrow(/list of objects/);
+    await expect(toXlsx('json', 'x.json', 'not json')).rejects.toThrow(/could not be read/);
+  });
 });

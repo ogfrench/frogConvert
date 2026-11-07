@@ -11,9 +11,9 @@ automatically, so do not paste one here.
 
 ## What's new in 3.4.7
 
-**Output folders are created for you.**
+**Spreadsheets you can create, and output folders created for you.**
 
-The MCP server and REST API now create the destination folder when you save a result to a path that does not exist yet, instead of failing after the conversion finished. The documentation was also brought up to date with the 3.4 releases.
+CSV and JSON now convert to XLSX. The MCP server and REST API now create the destination folder when you save a result to a path that does not exist yet, instead of failing after the conversion finished. The documentation was also brought up to date with the 3.4 releases.
 
 Everything in [3.4.6](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.6) is here too.
 

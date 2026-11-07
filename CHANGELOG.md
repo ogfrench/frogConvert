@@ -12,6 +12,9 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [3.4.7] - 2026-11-07
 
+### Added
+- CSV to XLSX and JSON to XLSX (a list of objects or of rows). Nothing wrote XLSX before, so these conversions had no route.
+
 ### Fixed
 - The MCP server and local REST API create the folder for `outputFilePath` and `outputDir` when it does not exist. Previously the conversion succeeded, then the write failed and was reported as "Something went wrong while converting" (HTTP 400 on REST).
 - The MCP `convert_file` quality description no longer describes same-format compression or an uncapped `high` preset.
