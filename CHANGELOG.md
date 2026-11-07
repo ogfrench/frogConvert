@@ -10,6 +10,15 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.4.7] - 2026-11-07
+
+### Fixed
+- The MCP server and local REST API create the folder for `outputFilePath` and `outputDir` when it does not exist. Previously the conversion succeeded, then the write failed and was reported as "Something went wrong while converting" (HTTP 400 on REST).
+- The MCP `convert_file` quality description no longer describes same-format compression or an uncapped `high` preset.
+
+### Changed
+- Documentation now matches 3.4.x: `compress_file` reply shape and reasons, Core+ naming and cross-tier format search, the browser Office engine size (about 78 MB) and first-run check, cache regeneration and the CI `cache:verify` step, and progress-reporting handler counts.
+
 ## [3.4.6] - 2026-11-02
 
 ### Changed
