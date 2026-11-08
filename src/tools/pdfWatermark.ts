@@ -2,7 +2,7 @@ import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFImage, 
 import { loadEditablePdf } from './pdfSource.ts';
 import type { FileData } from '../core/FormatHandler/FormatHandler.ts';
 import { checkpoint } from './cancellation.ts';
-import { timestampForFilename } from '../conversion/download.ts';
+import { timestampForFilename } from '../core/utils/timestampForFilename.ts';
 
 // See src/tools/cancellation.ts - checked every Nth stamped page (including
 // the first) so a cancel is caught quickly without yielding on every page.
