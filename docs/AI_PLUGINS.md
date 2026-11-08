@@ -1,64 +1,140 @@
 <!-- docs-frontmatter
-icon: 🤖
+icon: ◇
 label: AI Plugins
 desc: Claude and ChatGPT desktop integrations
 -->
 
-# AI Plugins
+# frogConvert for AI
 
-Use frogConvert Essentials from compatible desktop AI clients to convert files, compress images and PDFs, and edit PDFs. The conversion engine runs on the machine starting the local MCP server.
+<div class="ai-plugins">
 
-## Downloads
+<section class="ai-intro" aria-label="Plugin overview">
+  <div class="ai-intro-topline"><span class="ai-intro-mark" aria-hidden="true"></span> Local-first file tools for AI</div>
+  <p class="ai-intro-lead">From a prompt to the finished file.</p>
+  <p class="ai-intro-copy">Convert data, organize PDFs, and work with local files directly from Claude or ChatGPT. No repository clone, account, or hosted conversion service is planned for the desktop plugin.</p>
+  <div class="ai-intro-rail" aria-label="Plugin characteristics">
+    <span>Native desktop runtime</span>
+    <span>Shared conversion engine</span>
+    <span>Originals preserved by default</span>
+  </div>
+</section>
 
-**Development preview, not yet released.** The build pipeline packages a native executable with the plugin, rather than downloading the application from npm. The original npm-based design was rejected because the referenced package is unpublished.
+<div class="ai-status" role="status">
+  <div class="ai-status-indicator" aria-hidden="true"></div>
+  <div>
+    <strong>Engineering preview, not yet a public download.</strong>
+    <p>The installers are in a <a href="https://github.com/ogfrench/frogConvert/pull/123">draft pull request</a>. Download links will appear here only after clean-machine installation and real conversion tests pass.</p>
+  </div>
+</div>
 
-| Client | Planned distribution | State |
-| --- | --- | --- |
-| Claude Code | Downloadable platform-specific ZIP | Linux proof of concept in CI |
-| Claude Cowork | Downloadable plugin | Clean install not yet tested |
-| ChatGPT Desktop | Portable desktop-only ZIP | Needs runtime tests and local-MCP submission approval |
+<section aria-labelledby="ai-platforms">
+  <div class="ai-section-heading">
+    <div><p class="ai-overline">01 / Choose your workspace</p><h2 id="ai-platforms">Two clients. One conversion engine.</h2></div>
+    <p>Both packages connect to the same eight-tool MCP server. Availability and installation methods differ by client.</p>
+  </div>
+  <div class="ai-client-grid">
+    <article class="ai-client ai-client-claude">
+      <div class="ai-client-upper">
+        <span class="ai-client-symbol" aria-hidden="true">C</span>
+        <span class="ai-client-phase">Build validation</span>
+      </div>
+      <h3>Claude</h3>
+      <p class="ai-client-description">For Claude Code first, with Cowork compatibility to be verified separately.</p>
+      <ul class="ai-client-specs">
+        <li>Local MCP tools and reusable skills</li>
+        <li>Platform-specific native executable</li>
+        <li>No Bun installation on the destination machine</li>
+      </ul>
+      <div class="ai-client-footer">
+        <a class="ai-client-action" href="https://github.com/ogfrench/frogConvert/actions/workflows/ai-plugins.yml">View build status <span aria-hidden="true">↗</span></a>
+        <a class="ai-client-secondary" href="#install-claude">Installation details</a>
+      </div>
+    </article>
+    <article class="ai-client ai-client-chatgpt">
+      <div class="ai-client-upper">
+        <span class="ai-client-symbol" aria-hidden="true">G</span>
+        <span class="ai-client-phase">Platform approval pending</span>
+      </div>
+      <h3>ChatGPT</h3>
+      <p class="ai-client-description">A desktop-only plugin candidate, contingent on supported local MCP installation.</p>
+      <ul class="ai-client-specs">
+        <li>Same conversion capabilities and skill names</li>
+        <li>Native MCP process on your own computer</li>
+        <li>Public distribution subject to OpenAI approval</li>
+      </ul>
+      <div class="ai-client-footer">
+        <a class="ai-client-action" href="https://github.com/ogfrench/frogConvert/pull/123">View plugin preview <span aria-hidden="true">↗</span></a>
+        <a class="ai-client-secondary" href="#install-chatgpt">Installation details</a>
+      </div>
+    </article>
+  </div>
+  <p class="ai-under-cards">These links open the source and build status. They are intentionally <strong>not</strong> presented as working installers.</p>
+</section>
 
-This documentation page does **not** offer a download link to an unverified installer. The active [draft PR](https://github.com/ogfrench/frogConvert/pull/123) and [AI plugin packaging workflow](https://github.com/ogfrench/frogConvert/actions/workflows/ai-plugins.yml) contain validation and preview artifacts. After approval, verified archives and SHA-256 checksums should be published through [GitHub Releases](https://github.com/ogfrench/frogConvert/releases).
+<section aria-labelledby="ai-capabilities">
+  <div class="ai-section-heading">
+    <div><p class="ai-overline">02 / What it can do</p><h2 id="ai-capabilities">Four skills, eight MCP tools.</h2></div>
+    <p>Skills route a natural-language request to the right operation. Tool availability is checked in the installed environment.</p>
+  </div>
+  <div class="ai-capability-grid">
+    <div class="ai-capability"><span class="ai-capability-index">01</span><div><h3>Convert files</h3><p>CSV, JSON and related native data formats in the initial Essentials build. Other conversion engines are gated on validation.</p></div></div>
+    <div class="ai-capability"><span class="ai-capability-index">02</span><div><h3>Edit PDFs</h3><p>Merge documents, reorder pages, extract pages and add text watermarks without altering the originals.</p></div></div>
+    <div class="ai-capability"><span class="ai-capability-index">03</span><div><h3>Compress files</h3><p>The compression MCP tool is exposed, but image, media and PDF compression support is not claimed until its engines pass packaging tests.</p></div></div>
+    <div class="ai-capability"><span class="ai-capability-index">04</span><div><h3>Inspect formats</h3><p>See which formats and routes are genuinely available on this machine, instead of relying on the broader website catalog.</p></div></div>
+  </div>
+</section>
 
-## How installation will work
+<section class="ai-prompt-showcase" aria-label="Example prompt">
+  <div class="ai-prompt-heading"><span>TRY A NATURAL-LANGUAGE REQUEST</span><span class="ai-prompt-dots" aria-hidden="true">···</span></div>
+  <blockquote>“Merge these three PDFs in the order I gave them, and save the result as a new file.”</blockquote>
+  <p>frogConvert's PDF tools receive the file paths, carry out the operation locally, and return the saved path or an explicit error. This is an example request, not a live demo.</p>
+</section>
 
-A platform-specific ZIP contains the matching native MCP executable, plugin metadata and four skills. There is no repo clone, Bun, or npm installation on the receiving machine. Chromium browser-assisted conversion is **disabled in Essentials**. The first Essentials package initializes a deliberate subset of native JavaScript handlers (CSV/JSON and related formats). The full browser app has much wider coverage. Other format engines require packaging and parity tests before enabling.
+<section aria-labelledby="ai-setup">
+  <div class="ai-section-heading">
+    <div><p class="ai-overline">03 / Installation</p><h2 id="ai-setup">An installation flow that stays simple.</h2></div>
+    <p>ZIP releases will include the executable, manifest, MCP configuration, skills and a checksum. Separate steps for each client are below.</p>
+  </div>
+</section>
+
+</div>
 
 ### Claude Code
 
-Extract the package and use the installed plugin folder:
+<div id="install-claude" class="ai-install-note">
+<strong>Installation candidate.</strong> After a platform-specific build passes its clean-install checks, extract the Claude ZIP and point Claude Code to that folder:
+</div>
 
 ```sh
 claude --plugin-dir /absolute/path/to/frogconvert
 ```
 
-The package uses `.claude-plugin/plugin.json`, `.mcp.json` and `skills/`. Claude Code should load the local executable using the `${CLAUDE_PLUGIN_ROOT}` path token. Once available, confirm the eight MCP tools in `/mcp`.
-
-Claude Cowork needs a separate installation test. macOS Gatekeeper and Windows security prompts require verification for distributed binaries, especially when unsigned.
+The package includes `.claude-plugin/plugin.json`, `.mcp.json`, `skills/` and `bin/frogconvert` (or `frogconvert.exe` on Windows). Confirm the server and eight tools in `/mcp`. Claude Cowork is a separate validation target. Unverified archives are not supported installers.
 
 ### ChatGPT Desktop
 
-The ChatGPT package uses the portable Agent Plugins `plugin.json` and `mcp.json` format, with a local stdio executable under `bin/` and `${PLUGIN_ROOT}` for path resolution.
+<div id="install-chatgpt" class="ai-install-note">
+<strong>Developer preview only.</strong> The ChatGPT ZIP uses portable `plugin.json` and `mcp.json` manifests, with a plugin-local executable. It is intended for supported desktop environments that can launch local stdio MCP servers.
+</div>
 
-OpenAI currently limits public distribution of local-MCP desktop plugins to approved partners. The package cannot be described as a generally available ChatGPT plugin until [desktop-only plugin requirements](https://developers.openai.com/plugins/deploy/desktop-only) and a real clean install are satisfied. Browser and mobile ChatGPT cannot run a local stdio binary.
+OpenAI restricts public distribution of desktop-only plugins with local MCP to approved partners. The package is **not generally installable yet**. Do not assume ChatGPT web or mobile can execute local binaries. See <a href="https://developers.openai.com/plugins/deploy/desktop-only">OpenAI's desktop-only plugin requirements</a>.
 
-## Available skills
+### Privacy and safe file handling
 
-| Skill | Task |
-| --- | --- |
-| `convert-files` | Convert between supported file formats |
-| `compress-files` | Reduce size without changing format |
-| `edit-pdfs` | Merge, reorganize, extract and watermark PDFs |
-| `inspect-formats` | Discover actual local format support |
+<div class="ai-safety-grid">
+  <div><strong>Local processing</strong><p>The converter runs on the machine hosting the MCP server. No hosted frogConvert conversion backend is required.</p></div>
+  <div><strong>AI-client data</strong><p>File paths, names, contents or tool responses shared with the client may be processed by its model provider. Local conversion is not a guarantee of model-side privacy.</p></div>
+  <div><strong>Filesystem access</strong><p>The MCP process can read and write files you authorize. The sandbox-root option is not equivalent to an OS security sandbox, and symlink handling remains under review.</p></div>
+  <div><strong>Safe defaults</strong><p>Essentials disables the Chromium browser bridge and refuses to overwrite existing output paths. Unsupported formats return errors.</p></div>
+</div>
 
-The MCP server exposes eight tools, but some will report unsupported operations in this Essentials preview. Initial validated workflows focus on PDF editing and CSV/JSON conversion. Essentials disables the Chromium bridge. The full browser app remains available at [frogconvert.xyz](https://frogconvert.xyz).
+Read the <a href="INTEGRATIONS.md">MCP and REST reference</a> and <a href="../SECURITY.md">security documentation</a> for technical details.
 
-## Safety
+### What needs to pass before release?
 
-The MCP executable may read and write local files as directed by an agent. It is not a sandbox. `FROGCONVERT_SANDBOX_ROOT` is currently enforced lexically and does not block every symlink traversal. Essentials disables Chromium; the separate full MCP runtime still uses an unsandboxed bridge when browser fallback is enabled. Do not assume the model provider receives no file data: filenames, metadata, content and tool responses can be part of the AI conversation.
+The release gate covers real conversions, packaging of native/WASM assets, Windows and macOS cold installs, client-specific plugin loading, security hardening and reproducible archives. The packaging workflow will not upload an installation preview unless its clean-folder runtime test passes. Check the <a href="https://github.com/ogfrench/frogConvert/pull/123">draft PR</a> for current validation results.
 
-Essentials refuses to overwrite an existing output path, including the input file itself. This is an application-level safeguard, not a filesystem sandbox. Keep originals and review requested paths before authorizing writes. See [Security](../SECURITY.md) and [MCP/REST reference](INTEGRATIONS.md).
-
-## Release gates
-
-The installers remain previews until: each OS/architecture passes a clean-host MCP and real conversion test, binary assets and optional dependencies are packaged or limitations documented, file-path security is hardened, the browser bridge is reviewed, and desktop installation paths are verified. Do not advertise full 70+ format parity until measured.
+<div class="ai-endnote">
+  <strong>Need a format outside Essentials?</strong>
+  <p>Use <a href="https://frogconvert.xyz">frogConvert on the web</a> or the existing <a href="INTEGRATIONS.md">full MCP/REST integration</a>. The website has broader conversion coverage than this native plugin preview.</p>
+</div>
