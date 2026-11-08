@@ -4,8 +4,15 @@ import { registerPdfWatermarkTool } from './pdfWatermark.ts';
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 vi.mock('fs/promises', () => {
-  const mocked = { readFile: vi.fn(), writeFile: vi.fn(), mkdir: vi.fn() };
-  return { ...mocked, default: mocked };
+    const mocked = { readFile: vi.fn(), writeFile: vi.fn(), mkdir: vi.fn() };
+    // Match the FileHandle-based production API while preserving test observations.
+    const open = vi.fn(async (name: string) => ({
+        stat: async () => ({ size: 0 }),
+        readFile: () => mocked.readFile(name),
+        writeFile: (bytes: Uint8Array) => mocked.writeFile(name, bytes),
+        close: async () => {},
+    }));
+    return { ...mocked, open, default: { ...mocked, open } };
 });
 
 import { writeFile } from 'fs/promises';
