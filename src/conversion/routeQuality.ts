@@ -16,8 +16,11 @@ export const PRINT_ACTION_LABEL = "Print as PDF";
 const OFFICE_FORMATS = new Set(["docx", "doc", "pptx", "ppt", "xlsx", "odt", "odp", "ods", "rtf"]);
 const RASTER_FORMATS = new Set(["png", "jpeg", "jpg", "webp", "bmp", "gif", "tiff", "avif"]);
 const TEXT_FORMATS = new Set(["text", "txt"]);
+/** Formats that are already rows of values, so a spreadsheet made from them is a real conversion. */
+const TABULAR_SOURCES = new Set(["csv", "tsv", "json", "xlsx", "ods", "tmx", "yaml", "yml", "xml"]);
+const SPREADSHEET_TARGETS = new Set(["xlsx", "tmx"]);
 
-export type RouteQuality = "faithful" | "image-only" | "text-only";
+export type RouteQuality = "faithful" | "image-only" | "text-only" | "structure-only";
 
 /**
  * What a route does to a document, judged from the formats it passes through.
@@ -32,6 +35,11 @@ export function classifyRoute(formats: string[], drawnAsImage = false): RouteQua
   if (formats.length < 2) return "faithful";
   const from = formats[0].toLowerCase();
   const to = formats[formats.length - 1].toLowerCase();
+  // Anything can reach a spreadsheet through JSON or CSV, but only rows of
+  // values become a meaningful one: from a picture or a song it is a list of
+  // what the intermediate steps happened to produce.
+  if (SPREADSHEET_TARGETS.has(to) && !TABULAR_SOURCES.has(from)
+    && formats.slice(1, -1).some(f => f.toLowerCase() === "json" || f.toLowerCase() === "csv")) return "structure-only";
   if (!DOCUMENT_FORMATS.has(from) || !DOCUMENT_FORMATS.has(to)) return "faithful";
   if (drawnAsImage) return "image-only";
   const middle = formats.slice(1, -1).map(f => f.toLowerCase());
@@ -64,6 +72,12 @@ export function routeQualityNotice(formats: string[], drawnAsImage = false, prin
       body = "The document was drawn as an image, so its text can't be selected. For a PDF with selectable text, use the desktop app.";
     }
     return { title: `This ${to} is made of pictures`, body };
+  }
+  if (quality === "structure-only") {
+    return {
+      title: `This ${to} is not a table of your file`,
+      body: `frogConvert cannot read this kind of file as rows and columns, so it went through other formats on the way. The ${to} holds what those steps produced, not your file's contents.`,
+    };
   }
   if (quality === "text-only") {
     return {

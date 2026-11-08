@@ -87,6 +87,11 @@ const PRIORITY = [
 ] as const;
 const rank = new Map<string, number>(PRIORITY.map((name, index) => [name, index]));
 
+/** Whether a handler's place in the route order was chosen, not left to sort last by name. */
+export function hasReviewedPriority(name: string): boolean {
+  return rank.has(name);
+}
+
 export function compareHandlerPriority(a: { name: string }, b: { name: string }): number {
   const difference = (rank.get(a.name) ?? PRIORITY.length) - (rank.get(b.name) ?? PRIORITY.length);
   if (difference) return difference;

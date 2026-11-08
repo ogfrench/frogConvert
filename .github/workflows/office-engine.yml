@@ -6,6 +6,13 @@ on:
       - ".github/workflows/office-engine.yml"
       - "src/core/officeEngine/**"
       - "src/handlers/libreoffice.ts"
+      # What decides whether Word, PowerPoint and Excel reach the engine or a
+      # picture route: the route override, handler order and format cache.
+      - "src/conversion/officeRoute.ts"
+      - "src/handlers/handlerPriority.ts"
+      - "src/handlers/index.ts"
+      - "src/core/TraversionGraph/**"
+      - "public/cache.json"
       - "src/components/FormatModal/FormatModal.ts"
       - "src/conversion/actions.ts"
       - "src/main.ts"
@@ -20,6 +27,13 @@ on:
       - ".github/workflows/office-engine.yml"
       - "src/core/officeEngine/**"
       - "src/handlers/libreoffice.ts"
+      # What decides whether Word, PowerPoint and Excel reach the engine or a
+      # picture route: the route override, handler order and format cache.
+      - "src/conversion/officeRoute.ts"
+      - "src/handlers/handlerPriority.ts"
+      - "src/handlers/index.ts"
+      - "src/core/TraversionGraph/**"
+      - "public/cache.json"
       - "src/components/FormatModal/FormatModal.ts"
       - "src/conversion/actions.ts"
       - "src/main.ts"

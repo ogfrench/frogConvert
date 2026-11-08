@@ -64,3 +64,26 @@ describe('routeQualityNotice', () => {
     }
   });
 });
+
+describe('routes to a spreadsheet', () => {
+  it('warns when a picture, song or document reaches XLSX or TMX through JSON or CSV', () => {
+    expect(classifyRoute(['png', 'zip', 'json', 'csv', 'xlsx'])).toBe('structure-only');
+    expect(classifyRoute(['mp3', 'lzh', 'json', 'xlsx', 'tmx'])).toBe('structure-only');
+    const n = routeQualityNotice(['pdf', 'lzh', 'json', 'xlsx'])!;
+    expect(n.title).toBe('This XLSX is not a table of your file');
+    expect(n.body).toMatch(/not your file's contents/);
+  });
+
+  it('stays quiet when the source already is rows of values', () => {
+    for (const from of ['csv', 'json', 'xml', 'yaml', 'tmx', 'ods']) {
+      expect(classifyRoute([from, 'json', 'csv', 'xlsx'])).toBe('faithful');
+    }
+    expect(routeQualityNotice(['csv', 'xlsx'])).toBeNull();
+  });
+
+  it('does not touch routes that do not pass through JSON or CSV', () => {
+    expect(classifyRoute(['ods', 'xlsx'])).toBe('faithful');
+    expect(classifyRoute(['png', 'jpeg'])).toBe('faithful');
+  });
+});
+
