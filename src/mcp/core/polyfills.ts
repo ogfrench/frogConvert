@@ -48,6 +48,8 @@ if (typeof globalThis.document === 'undefined') {
 // Any plain string logged to stdout will crash the client connection.
 if (typeof process !== 'undefined') {
     console.log = (...args) => console.error(...args);
+    console.info = (...args) => console.error(...args);
+    console.debug = (...args) => console.error(...args);
 }
 
 // Polyfill fetch to intercept WASM requests that normally go to the dev server
