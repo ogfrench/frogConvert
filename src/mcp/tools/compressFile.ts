@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { writeFile } from "fs/promises";
+
 import mime from "mime";
 import type { McpContext } from "../core/types.ts";
 import { resolveBytes, enforceSandboxedPath, writeOutput } from "../core/fileInput.ts";
@@ -107,8 +107,9 @@ export function registerCompressFileTool(server: McpServer, initPromise: Promise
                     const src = sourcePaths[i]!;
                     const dot = src.lastIndexOf(".");
                     const out = dot > 0 ? `${src.slice(0, dot)}-compressed${src.slice(dot)}` : `${src}-compressed`;
-                    await writeFile(out, r.bytes);
-                    report.savedTo = out;
+                    const safeOut = enforceSandboxedPath(out);
+                    await writeOutput(safeOut, r.bytes);
+                    report.savedTo = safeOut;
                 } else {
                     report.base64Bytes = Buffer.from(r.bytes).toString("base64");
                 }

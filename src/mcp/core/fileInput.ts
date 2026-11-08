@@ -83,7 +83,7 @@ export function enforceSandboxedPath(inputPath: string): string {
  */
 export async function writeOutput(path: string, bytes: Uint8Array): Promise<void> {
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, bytes);
+    await writeFile(path, bytes, process.env.FROGCONVERT_DENY_OVERWRITE === "1" ? { flag: "wx" } : undefined);
 }
 
 export async function resolveBytes(input: FileInputRef): Promise<{ bytes: Uint8Array; name: string }> {

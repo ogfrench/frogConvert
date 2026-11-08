@@ -9,7 +9,8 @@
       ],
       "cwd": "${PLUGIN_ROOT}",
       "env": {
-        "FROGCONVERT_DISABLE_BROWSER_BRIDGE": "1"
+        "FROGCONVERT_DISABLE_BROWSER_BRIDGE": "1",
+        "FROGCONVERT_DENY_OVERWRITE": "1"
       }
     }
   }

@@ -57,7 +57,7 @@ The MCP server exposes eight tools; supported format routes can differ from the 
 
 The MCP executable may read and write local files as directed by an agent. It is not a sandbox. `FROGCONVERT_SANDBOX_ROOT` is currently enforced lexically and does not block every symlink traversal. Essentials disables Chromium; the separate full MCP runtime still uses an unsandboxed bridge when browser fallback is enabled. Do not assume the model provider receives no file data: filenames, metadata, content and tool responses can be part of the AI conversation.
 
-Keep original files. Review requested output paths and tools before authorizing writes. See [Security](../SECURITY.md) and [MCP/REST reference](INTEGRATIONS.md).
+Essentials refuses to overwrite an existing output path, including the input file itself. This is an application-level safeguard, not a filesystem sandbox. Keep originals and review requested paths before authorizing writes. See [Security](../SECURITY.md) and [MCP/REST reference](INTEGRATIONS.md).
 
 ## Release gates
 
