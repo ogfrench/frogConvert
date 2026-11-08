@@ -39,6 +39,10 @@ jobs:
           bun --version
       - name: Install dependencies for native build
         run: bun install --frozen-lockfile --ignore-scripts
+      - name: Typecheck plugin integration
+        run: bun x tsc --noEmit
+      - name: Test output collision policy
+        run: bun x vitest run src/mcp/core/fileInput.overwrite.test.ts
       - name: Compile native Linux MCP executable
         run: bun run compile:linux
       - name: Smoke-test MCP outside source repository
