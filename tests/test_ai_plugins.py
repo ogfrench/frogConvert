@@ -37,6 +37,7 @@ class PluginPackagingTest(unittest.TestCase):
                 mcp = json.loads(files[mcp_path])["mcpServers"]["frogconvert"]
                 expected_name = "frogconvert.exe" if target.startswith("windows") else "frogconvert"
                 self.assertEqual(mcp["args"], ["mcp"])
+                self.assertEqual(mcp["env"]["FROGCONVERT_DISABLE_BROWSER_BRIDGE"], "1")
                 self.assertEqual(mcp["command"], (
                     "${CLAUDE_PLUGIN_ROOT}" if client == "claude" else "${PLUGIN_ROOT}"
                 ) + "/bin/" + expected_name)

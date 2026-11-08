@@ -5,7 +5,10 @@
       "args": [
         "mcp"
       ],
-      "cwd": "${CLAUDE_PLUGIN_ROOT}"
+      "cwd": "${CLAUDE_PLUGIN_ROOT}",
+      "env": {
+        "FROGCONVERT_DISABLE_BROWSER_BRIDGE": "1"
+      }
     }
   }
 }

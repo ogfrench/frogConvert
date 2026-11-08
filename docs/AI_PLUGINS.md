@@ -6,7 +6,7 @@ desc: Claude and ChatGPT desktop integrations
 
 # AI Plugins
 
-Use frogConvert from compatible desktop AI clients to convert files, compress images and PDFs, and edit PDFs. The conversion engine runs on the machine starting the local MCP server.
+Use frogConvert Essentials from compatible desktop AI clients to convert files, compress images and PDFs, and edit PDFs. The conversion engine runs on the machine starting the local MCP server.
 
 ## Downloads
 
@@ -22,7 +22,7 @@ This documentation page does **not** offer a download link to an unverified inst
 
 ## How installation will work
 
-A platform-specific ZIP contains the matching native MCP executable, plugin metadata and four skills. There is no repo clone, Bun, or npm installation on the receiving machine. Optional native conversion engines and Chromium-dependent formats are **not** guaranteed by the presence of the binary.
+A platform-specific ZIP contains the matching native MCP executable, plugin metadata and four skills. There is no repo clone, Bun, or npm installation on the receiving machine. Chromium browser-assisted conversion is **disabled in Essentials**. Native and WASM format support still depends on the packaged assets and installed engines; only tested routes should be advertised.
 
 ### Claude Code
 
@@ -51,11 +51,11 @@ OpenAI currently limits public distribution of local-MCP desktop plugins to appr
 | `edit-pdfs` | Merge, reorganize, extract and watermark PDFs |
 | `inspect-formats` | Discover actual local format support |
 
-The MCP server exposes eight tools; supported format routes can differ from the browser experience because browser-only conversions require an optional Chromium bridge.
+The MCP server exposes eight tools; supported format routes can differ from the browser experience because Essentials deliberately disables the Chromium bridge. The full browser app remains available at [frogconvert.xyz](https://frogconvert.xyz).
 
 ## Safety
 
-The MCP executable may read and write local files as directed by an agent. It is not a sandbox. `FROGCONVERT_SANDBOX_ROOT` is currently enforced lexically and does not block every symlink traversal. Avoid processing untrusted documents with the Chromium bridge while it uses `--no-sandbox`. Do not assume the model provider receives no file data: filenames, metadata, content and tool responses can be part of the AI conversation.
+The MCP executable may read and write local files as directed by an agent. It is not a sandbox. `FROGCONVERT_SANDBOX_ROOT` is currently enforced lexically and does not block every symlink traversal. Essentials disables Chromium; the separate full MCP runtime still uses an unsandboxed bridge when browser fallback is enabled. Do not assume the model provider receives no file data: filenames, metadata, content and tool responses can be part of the AI conversation.
 
 Keep original files. Review requested output paths and tools before authorizing writes. See [Security](../SECURITY.md) and [MCP/REST reference](INTEGRATIONS.md).
 

@@ -13,7 +13,7 @@ python3 -m unittest discover -s tests -p test_ai_plugins.py
 python3 scripts/build-ai-plugins.py --target linux-x64 --binary release/frogconvert-linux --check
 ```
 
-This is a platform-specific native package. Never advertise a ZIP for an OS/architecture until it passes its own clean-host test. All optional WASM/native formats and Chromium browser bridge behavior require separate parity testing.
+This is a platform-specific native package. Never advertise a ZIP for an OS/architecture until it passes its own clean-host test. The Essentials runtime disables Chromium fallback. Native and WASM conversions still require asset and dependency parity testing.
 
 ## Clients
 
