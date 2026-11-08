@@ -74,7 +74,7 @@ def smoke(binary):
             proc = subprocess.Popen(
                 [str(path), "mcp"], cwd=temp, stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE, stderr=log,
-                env={**os.environ, "FROGCONVERT_SANDBOX_ROOT": temp, "FROGCONVERT_DISABLE_BROWSER_BRIDGE": "1", "FROGCONVERT_DENY_OVERWRITE": "1"},
+                env={**os.environ, "FROGCONVERT_SANDBOX_ROOT": temp, "FROGCONVERT_DISABLE_BROWSER_BRIDGE": "1", "FROGCONVERT_DENY_OVERWRITE": "1", "FROGCONVERT_ESSENTIALS": "1"},
             )
             responses = queue.Queue()
             start_reader(proc.stdout, responses)

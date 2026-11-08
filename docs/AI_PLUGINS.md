@@ -22,7 +22,7 @@ This documentation page does **not** offer a download link to an unverified inst
 
 ## How installation will work
 
-A platform-specific ZIP contains the matching native MCP executable, plugin metadata and four skills. There is no repo clone, Bun, or npm installation on the receiving machine. Chromium browser-assisted conversion is **disabled in Essentials**. Native and WASM format support still depends on the packaged assets and installed engines; only tested routes should be advertised.
+A platform-specific ZIP contains the matching native MCP executable, plugin metadata and four skills. There is no repo clone, Bun, or npm installation on the receiving machine. Chromium browser-assisted conversion is **disabled in Essentials**. The first Essentials package initializes a deliberate subset of native JavaScript handlers (CSV/JSON and related formats). The full browser app has much wider coverage. Other format engines require packaging and parity tests before enabling.
 
 ### Claude Code
 
@@ -51,7 +51,7 @@ OpenAI currently limits public distribution of local-MCP desktop plugins to appr
 | `edit-pdfs` | Merge, reorganize, extract and watermark PDFs |
 | `inspect-formats` | Discover actual local format support |
 
-The MCP server exposes eight tools; supported format routes can differ from the browser experience because Essentials deliberately disables the Chromium bridge. The full browser app remains available at [frogconvert.xyz](https://frogconvert.xyz).
+The MCP server exposes eight tools, but some will report unsupported operations in this Essentials preview. Initial validated workflows focus on PDF editing and CSV/JSON conversion. Essentials disables the Chromium bridge. The full browser app remains available at [frogconvert.xyz](https://frogconvert.xyz).
 
 ## Safety
 

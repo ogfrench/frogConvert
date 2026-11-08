@@ -8,7 +8,8 @@
       "cwd": "${CLAUDE_PLUGIN_ROOT}",
       "env": {
         "FROGCONVERT_DISABLE_BROWSER_BRIDGE": "1",
-        "FROGCONVERT_DENY_OVERWRITE": "1"
+        "FROGCONVERT_DENY_OVERWRITE": "1",
+        "FROGCONVERT_ESSENTIALS": "1"
       }
     }
   }

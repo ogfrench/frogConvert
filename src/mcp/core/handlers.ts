@@ -117,16 +117,19 @@ export const loadMcpHandlers = async (): Promise<{ ready: FormatHandler[]; all: 
     try { handlers.push(new fenToJsonHandler()); } catch (e) { console.error("[MCP] Failed to load fenToJson:", e); }
     try { handlers.push(new harHandler()); } catch (e) { console.error("[MCP] Failed to load har:", e); }
 
-    // Initialize all handlers in parallel, Pandoc WASM is 55 MB and takes 30s–3min
-    // to compile; sequential init blocks everything behind the slowest handler.
-    await Promise.all(handlers.map(h =>
+    // Essentials has no bundled Chromium or native/WASM asset directory.
+    // Do not eagerly initialize engines that cannot load from the compiled binary.
+    const essentials = process.env.FROGCONVERT_ESSENTIALS === "1";
+    const essentialsNames = new Set(["tojson", "fromjson", "spreadsheet", "jszip", "textEncoding", "json5", "toon"]);
+    const activeHandlers = essentials ? handlers.filter(h => essentialsNames.has(h.name)) : handlers;
+    await Promise.all(activeHandlers.map(h =>
         h.init
             ? h.init().catch(err => console.error(`[MCP] Failed to init handler ${h.name}:`, err))
             : Promise.resolve()
     ));
 
     return {
-        ready: handlers.filter(h => h.ready),
-        all: handlers,
+        ready: activeHandlers.filter(h => h.ready),
+        all: activeHandlers,
     };
 };

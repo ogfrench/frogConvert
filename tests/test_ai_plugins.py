@@ -39,6 +39,7 @@ class PluginPackagingTest(unittest.TestCase):
                 self.assertEqual(mcp["args"], ["mcp"])
                 self.assertEqual(mcp["env"]["FROGCONVERT_DISABLE_BROWSER_BRIDGE"], "1")
                 self.assertEqual(mcp["env"]["FROGCONVERT_DENY_OVERWRITE"], "1")
+                self.assertEqual(mcp["env"]["FROGCONVERT_ESSENTIALS"], "1")
                 self.assertEqual(mcp["command"], (
                     "${CLAUDE_PLUGIN_ROOT}" if client == "claude" else "${PLUGIN_ROOT}"
                 ) + "/bin/" + expected_name)
