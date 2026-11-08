@@ -219,6 +219,21 @@ describe("browser Office worker recovery", () => {
       expect(healthy.real).toHaveBeenCalledOnce();
     });
 
+    it("says so while the engine starts, and again when a silent worker is replaced", async () => {
+      const silent = silentWorker();
+      const healthy = converter(async () => ({ data: output }));
+      office.open.mockResolvedValueOnce(silent).mockResolvedValueOnce(healthy);
+      const instance = await handler();
+      vi.useFakeTimers();
+      const details: string[] = [];
+      const pending = instance.doConvert(small(), XLSX, PDF, undefined, p => { if (p.detail) details.push(p.detail); });
+      await vi.advanceTimersByTimeAsync(6_000);
+      await pending;
+      expect(details).toContain("Starting the Office engine...");
+      expect(details).toContain("The Office engine did not answer. Starting it again...");
+      expect(details.indexOf("Starting the Office engine...")).toBeLessThan(details.indexOf("The Office engine did not answer. Starting it again..."));
+    });
+
     it("keeps a worker that answers the warm-up with an error: it is alive", async () => {
       const engine = converter(async () => ({ data: output }));
       engine.convert.mockImplementationOnce(async () => { throw new Error("no text filter"); });

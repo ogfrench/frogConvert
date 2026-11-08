@@ -15,8 +15,8 @@ import { BaseHandler } from "../core/FormatHandler/BaseHandler.ts";
  * CSV is the first sheet, since CSV holds one table. JSON is one object per
  * row of the first sheet, keyed by its header row, matching csv -> json.
  *
- * The other direction, CSV or a JSON array to XLSX, writes one sheet. Nothing
- * else in the app wrote XLSX, so csv -> xlsx had no route at all.
+ * The other direction, CSV or a JSON array to XLSX, writes one sheet. The TMX
+ * handler wrote XLSX already, but only from TMX, so csv -> xlsx had no route.
  */
 export default class SpreadsheetHandler extends BaseHandler {
   public name = "spreadsheet";
@@ -33,6 +33,7 @@ export default class SpreadsheetHandler extends BaseHandler {
       const sheet = this.#readSheet(file, inputFormat);
       let bytes: Uint8Array;
       if (outputFormat.internal === "xlsx") {
+        if (inputFormat.internal !== "xlsx") fitColumns(sheet);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, sheet, "Sheet1");
         bytes = new Uint8Array(XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer);
@@ -48,15 +49,67 @@ export default class SpreadsheetHandler extends BaseHandler {
 
   #readSheet(file: FileData, inputFormat: FileFormat): XLSX.WorkSheet {
     if (inputFormat.internal === "json") return jsonToSheet(file);
-    // raw: CSV cells stay text. Without it "007" becomes 7, long IDs lose digits,
-    // and "=HYPERLINK(...)" is stored as a live formula in the XLSX.
-    const workbook = inputFormat.internal === "csv"
-      ? XLSX.read(new TextDecoder().decode(file.bytes), { type: "string", raw: true })
-      : XLSX.read(file.bytes, { type: "array" });
+    if (inputFormat.internal === "csv") return csvToSheet(file);
+    const workbook = XLSX.read(file.bytes, { type: "array" });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     if (!sheet) throw new Error("No worksheet found in this spreadsheet.");
     return sheet;
   }
+}
+
+/** Size each column to its longest cell (capped), so a name is not cut off by the number beside it. */
+function fitColumns(sheet: XLSX.WorkSheet): void {
+  if (!sheet["!ref"]) return;
+  const range = XLSX.utils.decode_range(sheet["!ref"]);
+  const widths: { wch: number }[] = [];
+  for (let col = range.s.c; col <= range.e.c; col++) {
+    let longest = 4;
+    for (let row = range.s.r; row <= range.e.r; row++) {
+      const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
+      if (!cell) continue;
+      const text = cell.w ?? String(cell.v ?? "");
+      longest = Math.max(longest, ...text.split("\n").map((line: string) => line.length));
+    }
+    widths.push({ wch: Math.min(longest + 2, 60) });
+  }
+  sheet["!cols"] = widths;
+}
+
+/** UTF-8 when the bytes are valid UTF-8, else Windows-1252: what Excel writes for CSV in Western Europe. */
+function decodeCsv(bytes: Uint8Array): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
+}
+
+/** Plain decimals that survive being a number: no leading zero, at most 15 digits, no exponent. */
+const SAFE_NUMBER = /^-?(?:0|[1-9]\d*)(?:\.(\d+))?$/;
+
+/**
+ * Read cells as text first (raw: true): without it "007" becomes 7, long IDs
+ * lose digits, "1E3" becomes 1000, and "=HYPERLINK(...)" is stored as a live
+ * formula. Then turn back only what is safely a number, so amounts stay
+ * numbers (SUM, sorting and charts work) and codes, ZIPs and IDs stay text.
+ * Decimals keep their written places ("3.50" stays 3.50).
+ */
+function csvToSheet(file: FileData): XLSX.WorkSheet {
+  const workbook = XLSX.read(decodeCsv(file.bytes), { type: "string", raw: true });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  if (!sheet) throw new Error("This CSV file has no rows.");
+  for (const [address, cell] of Object.entries(sheet)) {
+    if (address.startsWith("!") || cell.t !== "s" || typeof cell.v !== "string") continue;
+    const match = SAFE_NUMBER.exec(cell.v);
+    if (!match || cell.v.replace(/\D/g, "").length > 15) continue;
+    const value = Number(cell.v);
+    if (Object.is(value, -0)) continue;
+    cell.t = "n";
+    cell.v = value;
+    delete cell.w;
+    if (match[1]) cell.z = "0." + "0".repeat(match[1].length);
+  }
+  return sheet;
 }
 
 /**

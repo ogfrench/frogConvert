@@ -9,7 +9,7 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.4.8
+## What's new in 3.4.9
 
 **Safer local MCP output handling and preparatory AI plugin distribution.**
 
@@ -17,7 +17,7 @@ The MCP file-output path checks now reject dangling symlinks escaping a configur
 
 **Availability:** AI plugin ZIPs are **preview candidates, not released public integrations**. Real Windows/macOS host installation, safety review, format coverage and ChatGPT host approval remain required. The GitHub desktop installers and the AI plugin preview artifacts are different distributions.
 
-Everything in [3.4.7](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.7) is included.
+Everything in [3.4.8](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.8) is included.
 
 Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 

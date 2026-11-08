@@ -10,7 +10,7 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
-## [3.4.8] - 2026-11-08
+## [3.4.9] - 2026-11-08
 
 ### Added
 - Prepare separate Claude and ChatGPT **preview** plugin manifests, skills and per-platform local executable packaging for the existing MCP conversion/PDF tools (#123). These previews are not public supported downloads until host approval and acceptance.
@@ -24,10 +24,23 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 ### Changed
 - Explain Claude Code and ChatGPT Desktop host limitations, first-use checks, binary packaging, output permissions and the release gates for AI plugin candidates (#123).
 
+## [3.4.8] - 2026-11-08
+
+### Fixed
+- CSV to XLSX keeps plain numbers as numbers, with their written decimals (`3.50` stays 3.50), so sums, sorting and charts work. 3.4.7 stored every CSV cell as text. Codes, ZIPs and IDs that a number would change (leading zeros, more than 15 digits, exponents) still stay text.
+- CSV files saved by Excel in Western Europe (Windows-1252) keep their accents instead of turning into replacement characters. UTF-8, with or without a BOM, is read as before.
+- A document, picture or song converted to XLSX or TMX through other formats now says the result is not a table of the file, as the app already does for other lossy routes.
+- The browser Office engine shows "Starting the Office engine..." while it starts, and again if a silent worker is replaced, instead of showing no sign of life.
+
+### Changed
+- `bun run build` sets Node's heap itself (4 GB). It aborted with an out-of-memory error at Node's default on a machine with little memory, which also affected the Docker build.
+- Adding a handler without choosing its place in the route order now fails the test suite, instead of silently ranking it last.
+- The Office engine browser test now also runs when the route override, handler order, format cache or route finder change, the files that decide whether Word, PowerPoint and Excel reach the engine.
+
 ## [3.4.7] - 2026-11-07
 
 ### Added
-- CSV to XLSX and JSON to XLSX (a list of objects or of rows). Nothing wrote XLSX before, so these conversions had no route. CSV cells stay text (leading zeros, long IDs and "=" values are kept as written), JSON nested inside a row is written as its JSON text, and a list that mixes objects and arrays is refused with a message that says what to change, which the MCP server and REST API now show instead of the generic failure text.
+- CSV to XLSX and JSON to XLSX (a list of objects or of rows). CSV had no route to XLSX before; the TMX handler wrote XLSX only from TMX. CSV cells stay text (leading zeros, long IDs and "=" values are kept as written), JSON nested inside a row is written as its JSON text, and a list that mixes objects and arrays is refused with a message that says what to change, which the MCP server and REST API now show instead of the generic failure text.
 
 ### Fixed
 - The MCP server and local REST API create the folder for `outputFilePath` and `outputDir` when it does not exist. Previously the conversion succeeded, then the write failed and was reported as "Something went wrong while converting" (HTTP 400 on REST).
