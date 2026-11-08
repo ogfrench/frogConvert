@@ -30,7 +30,7 @@ desc: Claude and ChatGPT desktop integrations
 <section aria-labelledby="ai-platforms">
   <div class="ai-section-heading">
     <div><p class="ai-overline">01 / Choose your workspace</p><h2 id="ai-platforms">Two clients. One conversion engine.</h2></div>
-    <p>Both packages connect to the same eight-tool MCP server. Availability and installation methods differ by client.</p>
+    <p>Both draft packages target the same eight-tool MCP server. Installation, approval and actual tool availability must be verified separately for each client.</p>
   </div>
   <div class="ai-client-grid">
     <article class="ai-client ai-client-claude">
@@ -38,8 +38,8 @@ desc: Claude and ChatGPT desktop integrations
         <span class="ai-client-symbol" aria-hidden="true">C</span>
         <span class="ai-client-phase">Build validation</span>
       </div>
-      <h3>Claude</h3>
-      <p class="ai-client-description">For Claude Code first, with Cowork compatibility to be verified separately.</p>
+      <h3>Claude Code</h3>
+      <p class="ai-client-description">Recommended first validation target. Claude Cowork and Claude chat require independent import and tool-call checks.</p>
       <ul class="ai-client-specs">
         <li>Local MCP tools and reusable skills</li>
         <li>Platform-specific native executable</li>
@@ -55,7 +55,7 @@ desc: Claude and ChatGPT desktop integrations
         <span class="ai-client-symbol" aria-hidden="true">G</span>
         <span class="ai-client-phase">Platform approval pending</span>
       </div>
-      <h3>ChatGPT</h3>
+      <h3>ChatGPT Desktop</h3>
       <p class="ai-client-description">A desktop-only plugin candidate, contingent on supported local MCP installation.</p>
       <ul class="ai-client-specs">
         <li>Same conversion capabilities and skill names</li>
@@ -88,6 +88,7 @@ desc: Claude and ChatGPT desktop integrations
   <div class="ai-prompt-heading"><span>TRY A NATURAL-LANGUAGE REQUEST</span><span class="ai-prompt-dots" aria-hidden="true">···</span></div>
   <blockquote>“Merge these three PDFs in the order I gave them, and save the result as a new file.”</blockquote>
   <p>frogConvert's PDF tools receive the file paths, carry out the operation locally, and return the saved path or an explicit error. This is an example request, not a live demo.</p>
+  <p class="ai-under-cards"><strong>After installing a verified build, try:</strong> "List the conversion formats available on this computer"; "Convert this CSV to JSON and keep the original"; "Merge these PDFs, then extract pages 2 to 4 from the result." These are acceptance prompts, not proof that every route is packaged.</p>
 </section>
 
 <section aria-labelledby="ai-setup">
