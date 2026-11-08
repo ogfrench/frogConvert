@@ -1,0 +1,57 @@
+name: AI plugin packages
+
+on:
+  pull_request:
+    paths:
+      - 'integrations/ai-plugins/**'
+      - 'scripts/build-ai-plugins.py'
+      - 'scripts/smoke-ai-mcp.py'
+      - 'tests/test_ai_plugins.py'
+      - 'package.json'
+      - '.github/workflows/ai-plugins.yml'
+      - 'docs/AI_PLUGINS.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test plugin manifests, scripts, archives and checksums
+        run: python3 -m unittest discover -s tests -p test_ai_plugins.py
+
+  native-linux-probe:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install pinned Bun via npm
+        run: |
+          npm install -g bun@1.4.4
+          bun --version
+      - name: Install dependencies for native build
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Typecheck plugin integration
+        run: bun x tsc --noEmit
+      - name: Test output collision policy
+        run: bun x vitest run src/mcp/core/fileInput.overwrite.test.ts
+      - name: Compile native Linux MCP executable
+        run: bun run compile:linux
+      - name: Smoke-test MCP outside source repository
+        run: python3 scripts/smoke-ai-mcp.py release/frogconvert-linux
+      - name: Create native plugin archives
+        run: python3 scripts/build-ai-plugins.py --target linux-x64 --binary release/frogconvert-linux --check
+      - name: Upload validated Linux preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: frogconvert-ai-plugins-linux-preview
+          path: dist/ai-plugins/*
+          if-no-files-found: error

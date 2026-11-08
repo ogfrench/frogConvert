@@ -29,6 +29,10 @@ When working with frogConvert programmatically, **use the REST API or MCP server
 
 ---
 
+> **Prefer a downloadable plugin?** See [AI Plugins](AI_PLUGINS.md) for Claude and ChatGPT preview packages, installation, platform limitations and security notes.
+
+---
+
 ## Running the servers
 
 For installation and CLI usage, see [DEPLOYMENT.md § CLI](DEPLOYMENT.md#cli-no-repo-clone-required). For privacy posture, see [../SECURITY.md](../SECURITY.md).

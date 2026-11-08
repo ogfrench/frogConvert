@@ -1,0 +1,20 @@
+{
+  "name": "frogconvert",
+  "displayName": "frogConvert",
+  "version": "3.4.7",
+  "description": "Convert, compress and edit local files with frogConvert MCP.",
+  "author": {
+    "name": "frogConvert contributors",
+    "url": "https://github.com/ogfrench/frogConvert"
+  },
+  "homepage": "https://frogconvert.xyz",
+  "repository": "https://github.com/ogfrench/frogConvert",
+  "license": "GPL-3.0-or-later",
+  "keywords": [
+    "conversion",
+    "compression",
+    "pdf",
+    "local",
+    "mcp"
+  ]
+}

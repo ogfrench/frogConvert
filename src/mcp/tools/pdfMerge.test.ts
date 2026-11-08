@@ -1,4 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { PDFDocument } from 'pdf-lib';
 import { registerPdfMergeTool } from './pdfMerge.ts';
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -155,12 +158,19 @@ describe('registerPdfMergeTool', () => {
 });
 
 describe('pdf_merge and the sandbox root', () => {
+    let sandboxRoot: string;
     // SECURITY.md says FROGCONVERT_SANDBOX_ROOT "pins those paths to one root"
     // for "the REST API and MCP". It was true of the REST routes and of exactly
     // one MCP tool, so the claim did not hold for this one.
     beforeEach(() => {
         vi.mocked(writeFile).mockReset();
         delete process.env.FROGCONVERT_SANDBOX_ROOT;
+        sandboxRoot = mkdtempSync(join(tmpdir(), 'frogconvert-pdfmerge-'));
+    });
+
+    afterEach(() => {
+        delete process.env.FROGCONVERT_SANDBOX_ROOT;
+        rmSync(sandboxRoot, { recursive: true, force: true });
     });
 
     const mergeTo = async (outputFilePath: string) => {
@@ -174,7 +184,7 @@ describe('pdf_merge and the sandbox root', () => {
     };
 
     it('refuses a write outside the root, and writes nothing', async () => {
-        process.env.FROGCONVERT_SANDBOX_ROOT = '/srv/frog';
+        process.env.FROGCONVERT_SANDBOX_ROOT = sandboxRoot;
         const result = await mergeTo('/etc/cron.d/payload');
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/escapes FROGCONVERT_SANDBOX_ROOT/);
@@ -182,18 +192,18 @@ describe('pdf_merge and the sandbox root', () => {
     });
 
     it('refuses a traversal dressed up as a path inside the root', async () => {
-        process.env.FROGCONVERT_SANDBOX_ROOT = '/srv/frog';
-        const result = await mergeTo('/srv/frog/../../etc/cron.d/payload');
+        process.env.FROGCONVERT_SANDBOX_ROOT = sandboxRoot;
+        const result = await mergeTo(`${sandboxRoot}/../../etc/cron.d/payload`);
         expect(result.isError).toBe(true);
         expect(writeFile).not.toHaveBeenCalled();
     });
 
     it('allows a write inside the root', async () => {
-        process.env.FROGCONVERT_SANDBOX_ROOT = '/srv/frog';
-        const result = await mergeTo('/srv/frog/out/merged.pdf');
+        process.env.FROGCONVERT_SANDBOX_ROOT = sandboxRoot;
+        const result = await mergeTo(join(sandboxRoot, 'out', 'merged.pdf'));
         expect(result.isError).toBeFalsy();
         expect(writeFile).toHaveBeenCalledOnce();
-        expect(JSON.parse(result.content[0].text).savedTo).toEqual(['/srv/frog/out/merged.pdf']);
+        expect(JSON.parse(result.content[0].text).savedTo).toEqual([join(sandboxRoot, 'out', 'merged.pdf')]);
     });
 
     it('leaves any path alone when no root is configured', async () => {

@@ -10,6 +10,20 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.4.9] - 2026-11-08
+
+### Added
+- Prepare separate Claude and ChatGPT **preview** plugin manifests, skills and per-platform local executable packaging for the existing MCP conversion/PDF tools (#123). These previews are not public supported downloads until host approval and acceptance.
+
+### Security
+- Validate `FROGCONVERT_SANDBOX_ROOT` against existing symlink ancestors, including dangling symlinks, and reject paths that escape the configured root (#123). This is not an OS sandbox or protection against concurrent path replacement.
+
+### Fixed
+- Keep file writes compatible with the existing default two-argument call when no overwrite-protection flag is enabled; exercise PDF merge/extract against real temporary sandbox roots in tests (#123).
+
+### Changed
+- Explain Claude Code and ChatGPT Desktop host limitations, first-use checks, binary packaging, output permissions and the release gates for AI plugin candidates (#123).
+
 ## [3.4.8] - 2026-11-08
 
 ### Fixed

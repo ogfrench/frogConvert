@@ -1,0 +1,18 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "frogconvert": {
+      "type": "stdio",
+      "command": "${PLUGIN_ROOT}/bin/frogconvert",
+      "args": [
+        "mcp"
+      ],
+      "cwd": "${PLUGIN_ROOT}",
+      "env": {
+        "FROGCONVERT_DISABLE_BROWSER_BRIDGE": "1",
+        "FROGCONVERT_DENY_OVERWRITE": "1",
+        "FROGCONVERT_ESSENTIALS": "1"
+      }
+    }
+  }
+}

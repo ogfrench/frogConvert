@@ -3,7 +3,7 @@ import { loadEditablePdf } from './pdfSource.ts';
 import type { FileData } from '../core/FormatHandler/FormatHandler.ts';
 import type { CorePageEntry, CoreSourceFile } from './types.ts';
 import { checkpoint } from './cancellation.ts';
-import { timestampForFilename } from '../conversion/download.ts';
+import { timestampForFilename } from '../core/utils/timestampForFilename.ts';
 
 // Yield cadence for the page loop below - checked every Nth page so the yield
 // cost stays negligible on a small document (see src/tools/cancellation.ts).

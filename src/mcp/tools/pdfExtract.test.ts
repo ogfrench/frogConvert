@@ -1,4 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join, sep } from 'path';
 import { PDFDocument } from 'pdf-lib';
 import { registerPdfExtractTool } from './pdfExtract.ts';
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -166,9 +169,16 @@ describe('registerPdfExtractTool', () => {
 });
 
 describe('pdf_extract, outputDir and the names written into it', () => {
+    let sandboxRoot: string;
     beforeEach(() => {
         vi.mocked(writeFile).mockReset();
         delete process.env.FROGCONVERT_SANDBOX_ROOT;
+        sandboxRoot = mkdtempSync(join(tmpdir(), 'frogconvert-pdfextract-'));
+    });
+
+    afterEach(() => {
+        delete process.env.FROGCONVERT_SANDBOX_ROOT;
+        rmSync(sandboxRoot, { recursive: true, force: true });
     });
 
     const extractTo = async (args: Record<string, unknown>) => {
@@ -186,7 +196,7 @@ describe('pdf_extract, outputDir and the names written into it', () => {
     const written = () => vi.mocked(writeFile).mock.calls.map(c => String(c[0]));
 
     it('refuses an outputDir outside the sandbox root', async () => {
-        process.env.FROGCONVERT_SANDBOX_ROOT = '/srv/frog';
+        process.env.FROGCONVERT_SANDBOX_ROOT = sandboxRoot;
         const result = await extractTo({ outputDir: '/etc/cron.d' });
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/escapes FROGCONVERT_SANDBOX_ROOT/);
@@ -198,17 +208,17 @@ describe('pdf_extract, outputDir and the names written into it', () => {
         // the directory, because baseName is caller-supplied and is built into
         // every output name. `/srv/frog/out` is a perfectly legitimate
         // outputDir, so a sandbox check on it alone sees nothing wrong.
-        process.env.FROGCONVERT_SANDBOX_ROOT = '/srv/frog';
+        process.env.FROGCONVERT_SANDBOX_ROOT = sandboxRoot;
         const result = await extractTo({
-            outputDir: '/srv/frog/out',
+            outputDir: join(sandboxRoot, 'out'),
             baseName: '../../../etc/cron.d/payload',
         });
         expect(result.isError).toBeFalsy();
         for (const path of written()) {
-            expect(path.startsWith('/srv/frog/out/')).toBe(true);
+            expect(path.startsWith(join(sandboxRoot, 'out') + sep)).toBe(true);
             expect(path).not.toMatch(/etc\/cron\.d/);
         }
-        expect(written()).toEqual(['/srv/frog/out/payload_page_1.pdf']);
+        expect(written()).toEqual([join(sandboxRoot, 'out', 'payload_page_1.pdf')]);
     });
 
     it('strips a traversing baseName even with no sandbox configured', async () => {

@@ -3,7 +3,7 @@ import { loadEditablePdf } from './pdfSource.ts';
 import type { FileData } from '../core/FormatHandler/FormatHandler.ts';
 import type { CoreSourceFile } from './types.ts';
 import { checkpoint } from './cancellation.ts';
-import { timestampForFilename } from '../conversion/download.ts';
+import { timestampForFilename } from '../core/utils/timestampForFilename.ts';
 
 /**
  * Merge multiple PDFs into a single PDF, concatenating pages in array order.

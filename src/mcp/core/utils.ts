@@ -118,6 +118,19 @@ export async function findFirstPath(
     const sources = findFormatCandidates(handlers, inputMime, inputExtension, 'from');
     const targets = findFormatCandidates(handlers, outputMime, outputExtension, 'to');
 
+    // Essentials ships only verified single-handler native routes. The full
+    // route-search worker is unnecessary for these and can leave a compiled
+    // MCP process waiting for a browser-oriented worker response. Select an
+    // exact single-hop conversion instead and reject unsupported chains.
+    if (process.env.FROGCONVERT_ESSENTIALS === '1') {
+        for (const from of sources) {
+            for (const to of targets) {
+                if (from.handler === to.handler) return [from, to];
+            }
+        }
+        return null;
+    }
+
     let attempts = 0;
     for (const from of sources) {
         for (const to of targets) {

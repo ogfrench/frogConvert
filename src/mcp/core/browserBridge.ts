@@ -141,6 +141,9 @@ async function startStaticServer(): Promise<number> {
 }
 
 async function ensureInitialized(): Promise<void> {
+    if (process.env.FROGCONVERT_DISABLE_BROWSER_BRIDGE === "1") {
+        throw new Error("Browser-assisted conversion is disabled in frogConvert Essentials.");
+    }
     if (initPromise) return initPromise;
 
     // Register cleanup handlers once, only when the bridge is first used.
@@ -375,6 +378,7 @@ export async function compressViaBrowser(
  * already running before the first convert_file tool call arrives.
  */
 export function warmUpBridge(): void {
+    if (process.env.FROGCONVERT_DISABLE_BROWSER_BRIDGE === "1") return;
     ensureInitialized().catch(err => {
         process.stderr.write(`[bridge] warm-up failed: ${err?.message ?? err}\n`);
     });
