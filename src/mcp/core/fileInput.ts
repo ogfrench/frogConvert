@@ -1,5 +1,6 @@
 import { readFile, writeFile, mkdir } from "fs/promises";
-import { basename, dirname, resolve as resolvePath, relative as relativePath, isAbsolute } from "path";
+import { existsSync, realpathSync } from "fs";
+import { basename, dirname, resolve as resolvePath, relative as relativePath, isAbsolute, sep } from "path";
 import { z } from "zod";
 import type { CoreSourceFile } from "../../tools/types.ts";
 
@@ -48,31 +49,45 @@ function enforceSize(byteLength: number) {
  * When FROGCONVERT_SANDBOX_ROOT is unset the check is a no-op so existing
  * workflows (e.g. agents passing absolute paths outside cwd) keep working.
  */
+function isWithinRoot(root: string, candidate: string): boolean {
+    const rel = relativePath(root, candidate);
+    return rel === "" || (rel !== ".." && !rel.startsWith(".." + sep) && !isAbsolute(rel));
+}
+
 export function enforceSandboxedPath(inputPath: string): string {
     const root = process.env.FROGCONVERT_SANDBOX_ROOT;
     if (!root) return inputPath;
-    if (!isAbsolute(inputPath)) {
-        // Relative paths are resolved against the sandbox root itself.
-        const resolved = resolvePath(root, inputPath);
-        const rel = relativePath(root, resolved);
-        if (rel.startsWith("..") || isAbsolute(rel)) {
-            throw new ValidationError("Path escapes FROGCONVERT_SANDBOX_ROOT");
-        }
-        return resolved;
+
+    const lexicalRoot = resolvePath(root);
+    let realRoot: string;
+    try {
+        realRoot = realpathSync(lexicalRoot);
+    } catch {
+        throw new ValidationError("FROGCONVERT_SANDBOX_ROOT does not exist");
     }
-    const resolved = resolvePath(inputPath);
-    const rootResolved = resolvePath(root);
-    const rel = relativePath(rootResolved, resolved);
-    if (rel.startsWith("..") || isAbsolute(rel)) {
-        // ValidationError, matching the relative branch above. This threw a
-        // plain Error, so the two halves of one check reported differently: a
-        // relative escape came back as its own message, while an absolute one -
-        // the likelier of the two, since both surfaces document these fields as
-        // absolute - was normalised into the generic failure text with a
-        // support-contact line stapled on.
+    const requested = isAbsolute(inputPath)
+        ? resolvePath(inputPath)
+        : resolvePath(lexicalRoot, inputPath);
+
+    if (!isWithinRoot(lexicalRoot, requested)) {
         throw new ValidationError("Path escapes FROGCONVERT_SANDBOX_ROOT");
     }
-    return resolved;
+
+    // Validate the nearest existing ancestor, not only the lexical path:
+    // an existing symlinked directory or file must not cross the root.
+    // New output folders do not yet exist, so walk upward to the first one.
+    let existing = requested;
+    while (!existsSync(existing)) {
+        const parent = dirname(existing);
+        if (parent === existing) {
+            throw new ValidationError("Path escapes FROGCONVERT_SANDBOX_ROOT");
+        }
+        existing = parent;
+    }
+    if (!isWithinRoot(realRoot, realpathSync(existing))) {
+        throw new ValidationError("Path escapes FROGCONVERT_SANDBOX_ROOT through a symlink");
+    }
+    return requested;
 }
 
 /**
@@ -82,8 +97,12 @@ export function enforceSandboxedPath(inputPath: string): string {
  * conversion had already succeeded.
  */
 export async function writeOutput(path: string, bytes: Uint8Array): Promise<void> {
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, bytes, process.env.FROGCONVERT_DENY_OVERWRITE === "1" ? { flag: "wx" } : undefined);
+    const safePath = enforceSandboxedPath(path);
+    await mkdir(dirname(safePath), { recursive: true });
+    // Re-check after directory creation, which can expose an existing symlink
+    // parent that did not exist when the caller validated its output path.
+    enforceSandboxedPath(safePath);
+    await writeFile(safePath, bytes, process.env.FROGCONVERT_DENY_OVERWRITE === "1" ? { flag: "wx" } : undefined);
 }
 
 export async function resolveBytes(input: FileInputRef): Promise<{ bytes: Uint8Array; name: string }> {
