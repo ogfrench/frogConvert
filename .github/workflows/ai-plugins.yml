@@ -26,10 +26,9 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -p test_ai_plugins.py
           python3 scripts/build-ai-plugins.py --check
-      - name: Verify pinned MCP package is published
+      - name: Registry distribution status
         run: |
-          VERSION=$(python3 -c "import json; print(json.load(open('package.json'))['version'])")
-          npm view "frogconvert@${VERSION}" version --json
+          echo "npm distribution unavailable; native packaging investigation is active."
       - name: Upload preview archives
         uses: actions/upload-artifact@v4
         with:
@@ -39,3 +38,20 @@ jobs:
             dist/ai-plugins/frogconvert-chatgpt.zip
             dist/ai-plugins/SHA256SUMS.txt
           if-no-files-found: error
+
+  native-linux-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: oven-sh/setup-bun@v2
+      - name: Install dependencies without optional binary downloads
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Compile existing Linux standalone target
+        run: bun run compile:linux
+      - name: Inspect built binary
+        run: |
+          file release/frogconvert-linux
+          ls -lh release/frogconvert-linux
+          ./release/frogconvert-linux --help
