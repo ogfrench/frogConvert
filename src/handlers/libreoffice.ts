@@ -372,7 +372,7 @@ class libreofficeHandler implements FormatHandler {
   ): Promise<Uint8Array> {
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        return await this.#convertOnce(file, inputFormat);
+        return await this.#convertOnce(file, inputFormat, onProgress);
       } catch (err) {
         console.warn(`[LibreOffice] browser engine attempt ${attempt} failed for ${file.name}:`, err);
         if (err instanceof WasmOfficeStuckError) throw err;
@@ -482,10 +482,10 @@ class libreofficeHandler implements FormatHandler {
     return results;
   }
 
-  async #convertOnce(file: FileData, inputFormat: FileFormat): Promise<Uint8Array> {
+  async #convertOnce(file: FileData, inputFormat: FileFormat, onProgress?: (p: ProgressEvent) => void): Promise<Uint8Array> {
     if (this.#disposing) await this.#disposing;
     if (this.#unsafeEngine) throw this.#unsafeEngine;
-    this.#engine ??= this.#startEngine().catch(err => {
+    this.#engine ??= this.#startEngine(onProgress).catch(err => {
       this.#engine = null;
       throw err;
     });
@@ -516,8 +516,11 @@ class libreofficeHandler implements FormatHandler {
   }
 
   /** Open an engine and prove it answers before anyone's file is handed to it. */
-  async #startEngine(): Promise<OfficeConverter> {
+  async #startEngine(onProgress?: (p: ProgressEvent) => void): Promise<OfficeConverter> {
     for (let start = 1; ; start++) {
+      // Starting takes seconds, and a replaced worker takes them again: say so,
+      // or the screen shows no sign of life for up to a minute on a slow phone.
+      onProgress?.({ detail: start === 1 ? "Starting the Office engine..." : "The Office engine did not answer. Starting it again..." });
       const opening = performance.now();
       const engine = await openOfficeEngine();
       const began = performance.now();

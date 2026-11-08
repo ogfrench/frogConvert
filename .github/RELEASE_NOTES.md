@@ -9,13 +9,13 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.4.7
+## What's new in 3.4.8
 
-**Spreadsheets you can create, and output folders created for you.**
+**CSV to XLSX keeps your numbers numbers.**
 
-CSV and JSON now convert to XLSX, keeping CSV values exactly as written (ZIP codes with leading zeros, long IDs). The MCP server and REST API now create the destination folder when you save a result to a path that does not exist yet, instead of failing after the conversion finished. The documentation was also brought up to date with the 3.4 releases.
+Amounts, counts and other plain numbers in a CSV now arrive in the spreadsheet as numbers you can add up and sort, while ZIP codes with leading zeros and long IDs stay exactly as written. CSV files saved by Excel in Western Europe keep their accents. A file that is not a table (a picture, a song) converted to XLSX now says so. The Office engine shows when it is starting.
 
-Everything in [3.4.6](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.6) is here too.
+Everything in [3.4.7](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.7) is here too.
 
 Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 

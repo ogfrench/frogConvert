@@ -77,5 +77,58 @@ describe('spreadsheet', () => {
       { name: 'Ada', tags: '["x","y"]', meta: '{"n":1}' },
     ]);
   });
+
+  const sheetOf = async (csv: string | Uint8Array) => {
+    const bytes = typeof csv === 'string' ? new TextEncoder().encode(csv) : csv;
+    const [out] = await handler.doConvert([{ name: 'v.csv', bytes }], fmt('csv'), fmt('xlsx'));
+    const wb = XLSX.read(out.bytes, { type: 'array', cellStyles: true });
+    return wb.Sheets[wb.SheetNames[0]];
+  };
+
+  it('csv -> xlsx keeps amounts as numbers, with their written decimals, so SUM and sorting work', async () => {
+    const sheet = await sheetOf('item,price\nTea,3.50\nCoffee,19\nRefund,-2.25');
+    expect(sheet['B2']).toMatchObject({ t: 'n', v: 3.5, w: '3.50' });
+    expect(sheet['B3']).toMatchObject({ t: 'n', v: 19 });
+    expect(sheet['B4']).toMatchObject({ t: 'n', v: -2.25, w: '-2.25' });
+    expect(sheet['A2']).toMatchObject({ t: 's', v: 'Tea' });
+  });
+
+  it('csv -> xlsx leaves anything a number would change as text', async () => {
+    const sheet = await sheetOf('a\n007\n0123.5\n1E3\n1234567890123456\n-0\n"3,50"\n12 000\n+5');
+    for (const row of [2, 3, 4, 5, 6, 7, 8, 9]) expect(sheet['A' + row].t).toBe('s');
+    expect(sheet['A2'].v).toBe('007');
+    expect(sheet['A5'].v).toBe('1234567890123456');
+  });
+
+  it('csv -> xlsx still turns a 15-digit integer into a number and keeps "0" and "0.5"', async () => {
+    const sheet = await sheetOf('a\n123456789012345\n0\n0.5');
+    expect(sheet['A2']).toMatchObject({ t: 'n', v: 123456789012345 });
+    expect(sheet['A3']).toMatchObject({ t: 'n', v: 0 });
+    expect(sheet['A4']).toMatchObject({ t: 'n', v: 0.5 });
+  });
+
+  it('csv -> xlsx reads a Windows-1252 file (Excel in Western Europe) without losing accents', async () => {
+    const latin1 = new Uint8Array([...new TextEncoder().encode('nom\ncaf'), 0xe9, ...new TextEncoder().encode(' cr'), 0xe8, ...new TextEncoder().encode('me')]);
+    expect((await sheetOf(latin1))['A2'].v).toBe('café crème');
+  });
+
+  it('csv -> xlsx reads UTF-8 as UTF-8, with or without a BOM', async () => {
+    expect((await sheetOf('nom\ncafé'))['A2'].v).toBe('café');
+    const bom = new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode('nom\ncafé')]);
+    expect((await sheetOf(bom))['A2'].v).toBe('café');
+  });
+
+  it('csv -> xlsx sizes each column to its content, so a name is not cut off', async () => {
+    const sheet = await sheetOf('product,n\nCafé crème au lait,1\nTea,2');
+    const [first, second] = sheet['!cols']!;
+    expect(first.wch).toBeGreaterThanOrEqual('Café crème au lait'.length);
+    expect(second.wch).toBeLessThan(10);
+  });
+
+  it('json -> xlsx sizes columns too, and caps a very long cell', async () => {
+    const [out] = await handler.doConvert([{ name: 'w.json', bytes: new TextEncoder().encode(JSON.stringify([{ note: 'x'.repeat(500) }])) }], fmt('json'), fmt('xlsx'));
+    const wb = XLSX.read(out.bytes, { type: 'array', cellStyles: true });
+    expect(wb.Sheets[wb.SheetNames[0]]['!cols']![0].wch).toBe(60);
+  });
 });
 
