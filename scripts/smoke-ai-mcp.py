@@ -139,7 +139,7 @@ def smoke(binary):
                 assert any(f["extension"] == "csv" for f in catalog), "Missing CSV handler"
 
                 converted = str(Path(temp) / "rows.json")
-                csv_data = base64.b64encode(b"name,age\\nAda,42\\n").decode()
+                csv_data = base64.b64encode(b"name,age\nAda,42\n").decode()
                 result = request(proc, {
                     "jsonrpc": "2.0", "id": 6, "method": "tools/call",
                     "params": {
