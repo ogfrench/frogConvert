@@ -51,7 +51,7 @@ import jsonToCHandler from "../../handlers/jsonToC.ts";
 import exeToBatHandler from "../../handlers/exeToBat.ts";
 import comicsHandler from "../../handlers/comics.ts";
 import aperturePictureHandler from "../../handlers/aperturePicture.ts";
-import pdfparseHandler from "../../handlers/pdfparse.ts";
+
 import minecraftLangfileHandler from "../../handlers/minecraftLangfileHandler.ts";
 import celariaMapHandler from "../../handlers/celariaMap.ts";
 import chessjsHandler from "../../handlers/chessjs.ts";
@@ -102,7 +102,15 @@ export const loadMcpHandlers = async (): Promise<{ ready: FormatHandler[]; all: 
     try { handlers.push(new exeToBatHandler()); } catch (e) { console.error("[MCP] Failed to load exeToBat:", e); }
     try { handlers.push(new comicsHandler()); } catch (e) { console.error("[MCP] Failed to load comics:", e); }
     try { handlers.push(new aperturePictureHandler()); } catch (e) { console.error("[MCP] Failed to load aperturePicture:", e); }
-    try { handlers.push(new pdfparseHandler()); } catch (e) { console.error("[MCP] Failed to load pdfparse:", e); }
+    // pdf-parse imports pdf.js, which requires DOMMatrix at module load time.
+    // A statically imported handler crashes the entire MCP server on bare Bun
+    // and in compiled binaries before any tools can register.
+    try {
+        const { default: pdfparseHandler } = await import("../../handlers/pdfparse.ts");
+        handlers.push(new pdfparseHandler());
+    } catch (e) {
+        console.error("[MCP] PDF-to-text handler unavailable in this runtime:", e);
+    }
     try { handlers.push(new minecraftLangfileHandler()); } catch (e) { console.error("[MCP] Failed to load minecraftLangfile:", e); }
     try { handlers.push(new celariaMapHandler()); } catch (e) { console.error("[MCP] Failed to load celariaMap:", e); }
     try { handlers.push(new chessjsHandler()); } catch (e) { console.error("[MCP] Failed to load chessjs:", e); }
