@@ -105,11 +105,13 @@ export const loadMcpHandlers = async (): Promise<{ ready: FormatHandler[]; all: 
     // pdf-parse imports pdf.js, which requires DOMMatrix at module load time.
     // A statically imported handler crashes the entire MCP server on bare Bun
     // and in compiled binaries before any tools can register.
-    try {
-        const { default: pdfparseHandler } = await import("../../handlers/pdfparse.ts");
-        handlers.push(new pdfparseHandler());
-    } catch (e) {
-        console.error("[MCP] PDF-to-text handler unavailable in this runtime:", e);
+    if (process.env.FROGCONVERT_ESSENTIALS !== "1") {
+        try {
+            const { default: pdfparseHandler } = await import("../../handlers/pdfparse.ts");
+            handlers.push(new pdfparseHandler());
+        } catch (e) {
+            console.error("[MCP] PDF-to-text handler unavailable in this runtime:", e);
+        }
     }
     try { handlers.push(new minecraftLangfileHandler()); } catch (e) { console.error("[MCP] Failed to load minecraftLangfile:", e); }
     try { handlers.push(new celariaMapHandler()); } catch (e) { console.error("[MCP] Failed to load celariaMap:", e); }
