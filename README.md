@@ -20,7 +20,7 @@ frogConvert runs entirely in your browser. Convert between 70+ file formats, com
 - **Convert a file**: [docs/CONVERTER.md](docs/CONVERTER.md).
 - **Edit a PDF**: [docs/PDF_EDITOR.md](docs/PDF_EDITOR.md).
 - **Make a file smaller**: [docs/COMPRESS.md](docs/COMPRESS.md).
-- **Run the MCP server or REST API**: clone the repo, then `bun run mcp` or `bun run api`. See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
+- **AI plugins for Claude and ChatGPT**: preview packages and installation guidance in [docs/AI_PLUGINS.md](docs/AI_PLUGINS.md).\n- **Run the MCP server or REST API**: `bunx frogconvert mcp` or `bunx frogconvert api` (requires Bun, no clone). See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 - **Self-host, Docker, desktop builds**: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Recent changes
@@ -34,7 +34,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 | [docs/CONVERTER.md](docs/CONVERTER.md) | End-user guide: converting files |
 | [docs/PDF_EDITOR.md](docs/PDF_EDITOR.md) | End-user guide: editing PDFs |
 | [docs/COMPRESS.md](docs/COMPRESS.md) | End-user guide: compressing files |
-| [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | MCP and REST API reference |
+| [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | MCP and REST API reference |\n| [docs/AI_PLUGINS.md](docs/AI_PLUGINS.md) | Claude and ChatGPT plugin packages |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Self-host, Docker, desktop, CLI |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Internal design and subsystems |
 | [docs/HANDLERS.md](docs/HANDLERS.md) | Authoring a new format handler |

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "frogconvert": {
+      "command": "bunx",
+      "args": [
+        "frogconvert@3.4.7",
+        "mcp"
+      ]
+    }
+  }
+}

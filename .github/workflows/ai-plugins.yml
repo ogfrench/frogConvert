@@ -1,0 +1,37 @@
+name: AI plugin packages
+
+on:
+  pull_request:
+    paths:
+      - 'integrations/ai-plugins/**'
+      - 'scripts/build-ai-plugins.py'
+      - 'tests/test_ai_plugins.py'
+      - 'package.json'
+      - '.github/workflows/ai-plugins.yml'
+      - 'docs/AI_PLUGINS.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate and build deterministic ZIPs
+        run: |
+          python3 -m unittest discover -s tests -p test_ai_plugins.py
+          python3 scripts/build-ai-plugins.py --check
+      - name: Upload preview archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: frogconvert-ai-plugins-preview
+          path: |
+            dist/ai-plugins/frogconvert-claude.zip
+            dist/ai-plugins/frogconvert-chatgpt.zip
+            dist/ai-plugins/SHA256SUMS.txt
+          if-no-files-found: error
