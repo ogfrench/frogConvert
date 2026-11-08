@@ -81,6 +81,46 @@ ul.grid a{display:block;border:1px solid var(--line);border-radius:.45rem;paddin
 footer{border-top:1px solid var(--line);margin-top:3rem;padding:1.25rem;text-align:center;color:var(--muted);font-size:.85rem}
 .faq dt{font-weight:600;margin-top:1rem}
 .faq dd{margin:.3rem 0 0;color:var(--muted)}
+/* Dedicated AI plugin documentation composition, matching the SPA hierarchy. */
+.doc .ai-plugins{margin:1rem 0}
+.doc .ai-intro{background:var(--code);border:1px solid var(--line);border-radius:1rem;padding:clamp(1.35rem,4vw,2.6rem)}
+.doc .ai-intro-topline,.doc .ai-overline{font-size:.73rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:650}
+.doc .ai-intro-mark{display:inline-block;background:var(--accent);width:.55rem;height:.55rem;border-radius:50%;margin-right:.5rem}
+.doc .ai-intro-lead{font-weight:750;letter-spacing:-.04em;line-height:1.1;font-size:clamp(1.8rem,5vw,2.7rem);margin:.9rem 0 .6rem}
+.doc .ai-intro-copy{max-width:34rem;color:var(--muted)}
+.doc .ai-intro-rail{display:flex;flex-wrap:wrap;gap:.4rem 1rem;padding-top:1rem;border-top:1px solid var(--line);font-size:.78rem}
+.doc .ai-status{display:flex;gap:.7rem;align-items:flex-start;border:1px solid var(--line);padding:.9rem 1.1rem;border-radius:.7rem;margin:1rem 0 2.5rem;font-size:.85rem}
+.doc .ai-status-indicator{background:var(--muted);border-radius:50%;width:.5rem;height:.5rem;flex:0 0 auto;margin-top:.5rem}
+.doc .ai-status p,.doc .ai-section-heading>p,.doc .ai-client-description,.doc .ai-capability p,.doc .ai-safety-grid p,.doc .ai-endnote p{color:var(--muted)}
+.doc .ai-section-heading{margin:2.6rem 0 1.15rem}
+.doc .ai-section-heading h2{font-size:1.65rem;letter-spacing:-.025em;margin:.4rem 0 .55rem}
+.doc .ai-section-heading>p{font-size:.9rem}
+.doc .ai-client-grid,.doc .ai-capability-grid,.doc .ai-safety-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.85rem}
+.doc .ai-client{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:1rem;padding:1.3rem;background:var(--card)}
+.doc .ai-client-upper{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}
+.doc .ai-client-symbol{display:grid;place-items:center;background:var(--code);border:1px solid var(--line);border-radius:.65rem;width:2.55rem;height:2.55rem;font-weight:750;font-size:1.2rem}
+.doc .ai-client-phase{color:var(--muted);font-size:.72rem;text-align:right}
+.doc .ai-client h3{margin:.9rem 0 .25rem;font-size:1.35rem}
+.doc .ai-client-description{font-size:.87rem;line-height:1.5}
+.doc .ai-client-specs{list-style:none;padding:0;margin:.25rem 0 1.15rem}
+.doc .ai-client-specs li{margin:.5rem 0;font-size:.83rem}
+.doc .ai-client-specs li:before{content:"· ";color:var(--accent);font-weight:800}
+.doc .ai-client-footer{display:flex;align-items:center;flex-wrap:wrap;gap:.8rem;border-top:1px solid var(--line);padding-top:1rem;margin-top:auto}
+.doc .ai-client-action{background:var(--fg);color:var(--bg);border-radius:.55rem;padding:.6rem .9rem;text-decoration:none;font-size:.82rem;font-weight:650}
+.doc .ai-client-secondary,.doc .ai-under-cards{font-size:.8rem}
+.doc .ai-capability{display:flex;gap:.9rem;padding:1.05rem;border:1px solid var(--line);border-radius:.7rem}
+.doc .ai-capability-index{font:600 .72rem monospace;color:var(--muted)}
+.doc .ai-capability h3{margin:0 0 .3rem}
+.doc .ai-capability p{font-size:.83rem;line-height:1.55;margin:0}
+.doc .ai-prompt-showcase{background:var(--fg);color:var(--bg);padding:1.5rem;border-radius:1rem;margin:1.5rem 0 2rem}
+.doc .ai-prompt-heading{display:flex;justify-content:space-between;font-size:.7rem;letter-spacing:.08em;opacity:.7}
+.doc .ai-prompt-showcase blockquote{border:0;padding:0;margin:1rem 0;font-size:1.35rem;line-height:1.4}
+.doc .ai-prompt-showcase>p{font-size:.8rem;opacity:.75}
+.doc .ai-install-note,.doc .ai-endnote{background:var(--code);padding:1rem;border-left:3px solid var(--accent);border-radius:.35rem;margin:1rem 0}
+.doc .ai-safety-grid>div{border:1px solid var(--line);border-radius:.65rem;padding:1rem}
+.doc .ai-safety-grid p{font-size:.83rem;margin:.25rem 0 0}
+.doc .ai-endnote p{margin:.25rem 0 0}
+@media(max-width:650px){.doc .ai-client-grid,.doc .ai-capability-grid,.doc .ai-safety-grid{grid-template-columns:1fr}.doc .ai-intro{padding:1.35rem}}
 `.trim();
 
 export function shell(o: ShellOptions): string {
