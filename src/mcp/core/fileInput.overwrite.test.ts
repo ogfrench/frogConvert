@@ -32,6 +32,12 @@ describe("Essentials filesystem restrictions", () => {
         process.env.FROGCONVERT_SANDBOX_ROOT = root;
         try {
             await symlink(outside, join(root, "escape"));
+            const dangling = join(root, "dangling.pdf");
+            const escapedFile = join(outside, "missing.pdf");
+            await symlink(escapedFile, dangling);
+            expect(() => enforceSandboxedPath(dangling)).toThrow(/symlink/);
+            await expect(writeOutput(dangling, new Uint8Array([1]))).rejects.toThrow(/symlink/);
+            await expect(readFile(escapedFile)).rejects.toThrow();
             expect(() => enforceSandboxedPath(join(root, "escape", "file.pdf"))).toThrow(/symlink/);
             await expect(writeOutput(join(root, "escape", "file.pdf"), new Uint8Array([1]))).rejects.toThrow(/symlink/);
             expect(() => enforceSandboxedPath(join(dir, "outside", "file.pdf"))).toThrow(/escapes/);
