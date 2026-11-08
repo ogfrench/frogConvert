@@ -5,19 +5,25 @@
     ".claude/agents/cheap-reviewer.md",
     ".claude/skills/actions-cost",
     ".claude/skills/best-practices",
+    ".claude/skills/design-system-adapter",
     ".claude/skills/deslopify",
     ".claude/skills/frogify",
     ".claude/skills/humanizer",
     ".claude/skills/issue-management",
+    ".claude/skills/knowledge-base-builder",
     ".claude/skills/learning-loop",
     ".claude/skills/model-delegation",
     ".claude/skills/netlify-cost",
+    ".claude/skills/plugin-experience-design",
+    ".claude/skills/presentation-design",
+    ".claude/skills/presentation-story",
     ".claude/skills/session-continuity",
     ".claude/skills/token-efficiency",
-    ".claude/skills/visual-loop"
+    ".claude/skills/visual-loop",
+    ".claude/skills/visual-restraint"
   ],
-  "snapshot_sha256": "e6f62e2ed279181ea64bb924e743e65dc81b326149656d1a16749afa2d658788",
-  "source_revision": "ce953ed9107681eadb9ef797098d280f86f9e0ef",
+  "snapshot_sha256": "eeb0f8f82ce33a1afa23e31cbe39296912525de0d1e7d149cf8bb4aafc670919",
+  "source_revision": "23fcbe1d2f3b5e31c2a24cc33ef41e9022991ff5",
   "knowledge": {
     "stacks": [
       "any"

@@ -56,6 +56,16 @@ or anything already a practice.
 4. Set the learning to `status: practice` with the topic file in `promoted_to`.
 5. A learning that only holds in one repo goes to that repo's `CLAUDE.md` instead.
 
+## Evaluate and prune before promotion
+
+Before adding a new skill or subagent, record at least three representative cases:
+one that should trigger it, one that should not, and an ambiguous or regression
+case. Compare task completion and routing with the component disabled. A static
+schema check cannot prove model behavior. Store cases with the component or a
+shared evaluation set. Consolidate overlapping specialist prompts into skills
+or tools when the results hold; retain a subagent for measured isolation,
+independent review or parallel execution. Retire unused pieces on evidence.
+
 ## Promote
 
 Use the ladder in the repo's `CLAUDE.md`, and pick the lightest form that works:

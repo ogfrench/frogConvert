@@ -6,15 +6,16 @@ description: >-
 
 # Netlify bills by plan, so find the plan first
 
-Two pricing models exist, and the same site costs different things on each. Prices below
-were read on 2026-10-18 from Netlify's docs; check them before quoting.
+Two pricing models exist, and the same site costs different things on each. Rates below
+were rechecked on 2026-10-28 against Netlify's docs; verify the plan and rates before quoting.
 
 - **Legacy plans** (accounts made before 2025-09-04): Pro includes 25,000 build minutes, 1 TB
   bandwidth and 2 million edge function runs a month, with overage per block.
 - **Credit plans** (newer accounts, or one that switched; switching is permanent): Pro is
-  $20 for 3,000 credits. A production deploy is 15 credits, a Deploy Preview is free, build
-  minutes are not metered, bandwidth is 20 credits a GB, and 10,000 requests are 2 credits,
-  edge function runs included. At zero credits every site on the team goes down.
+  $20 starting at 3,000 credits. A production deploy is 15 credits and previews are free;
+  bandwidth is 20 credits per GB, 10,000 requests are 2 credits, compute is 10 credits per
+  GB-hour, and AI inference is 180 credits per $1 of model usage. These are separate meters.
+  At zero credits the team's sites are paused.
 
 The team's Plan details page says which one. Ask the owner, and say which you assumed.
 
@@ -23,8 +24,9 @@ The team's Plan details page says which one. Ask the owner, and say which you as
 1. **Builds:** deploys a week x 4.3 x minutes a deploy. Production deploys are merges to the
    default branch; previews are pushes to open pull requests. Count them from the Git host,
    since the read-only API has no deploy list; read the minutes from a few deploys.
-2. **Credits (credit plan):** production deploys x 15 + GB x 20 + requests / 10,000 x 2. For
-   a site with many merges a day, deploys are nearly all of it.
+2. **Credits (credit plan):** production deploys x 15 + GB bandwidth x 20 + requests /
+   10,000 x 2 + compute GB-hours x 10 + AI inference USD x 180, plus any other metered
+   products in use. Do not assume deploys dominate without inspecting the actual breakdown.
 3. **Edge runs and bandwidth:** from the observability tools (below). A new edge function
    path multiplies runs by every request it matches; a new image is paid for on every view.
 4. **Say the number** against the allowance before merging.
@@ -57,3 +59,8 @@ an updater. `get-deploy` gives `deploy_time` in seconds, `context` and the commi
 are in a commit's check runs. Observability `get-topk` (`edge_functions`, `urls`, sort by
 `EdgeFunctionInvocations` or `Bandwidth`) and `get-timeseries` take millisecond times; Pro
 keeps 7 days. The plan type, billed spend and deploy counts are not in these tools.
+Use team billing for compute, AI inference, credits, add-ons and plan details.
+
+Rate sources (recheck when estimating):
+https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/how-credits-work/
+https://www.netlify.com/pricing/

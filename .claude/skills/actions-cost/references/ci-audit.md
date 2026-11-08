@@ -22,7 +22,7 @@ For each workflow record:
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Example lint | PR and default-branch push | validate | Ubuntu | 1 | 6 | 30 + 8 merges | yes |
 
-**Formula:** sum over runner jobs of `ceil(elapsed_minutes) × unit_rate`, subject to
+**Formula (assumes per-job rounding up; confirm on the usage report):** sum over runner jobs of `ceil(elapsed_minutes) × unit_rate`, subject to
 the account's included usage and the runner's eligibility. Multiple jobs in one
 workflow are summed. An estimate of saving from removing a duplicate push:
 `merges/month × sum(ceil(minutes/job) × rate)` if every merge used to trigger it.
