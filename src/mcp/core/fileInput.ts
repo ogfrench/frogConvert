@@ -102,7 +102,11 @@ export async function writeOutput(path: string, bytes: Uint8Array): Promise<void
     // Re-check after directory creation, which can expose an existing symlink
     // parent that did not exist when the caller validated its output path.
     enforceSandboxedPath(safePath);
-    await writeFile(safePath, bytes, process.env.FROGCONVERT_DENY_OVERWRITE === "1" ? { flag: "wx" } : undefined);
+    if (process.env.FROGCONVERT_DENY_OVERWRITE === "1") {
+        await writeFile(safePath, bytes, { flag: "wx" });
+    } else {
+        await writeFile(safePath, bytes);
+    }
 }
 
 export async function resolveBytes(input: FileInputRef): Promise<{ bytes: Uint8Array; name: string }> {
