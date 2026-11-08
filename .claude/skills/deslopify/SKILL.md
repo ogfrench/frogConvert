@@ -1,16 +1,6 @@
 ---
 name: deslopify
-description: >-
-  Detect and remove AI writing tells in marketing, brand, deck, landing-page,
-  and UI copy. Use when reviewing or auditing copy for "AI vibe", checking
-  whether text reads as machine-written, killing the "not X, it's Y" flip, or
-  cleaning up brand/marketing/pitch copy. Produces a catalog of anti-patterns
-  plus a line-by-line review with verdicts and fixes. Complements humanizer:
-  humanizer rewrites prose at length; this one audits copy and flags structural
-  tells like repeated antithesis, then fixes surgically. Runs as the cleanup pass
-  after frogify. Triggers: "AI anti-patterns", "does this sound AI", "review my
-  copy", "remove AI tells", "copy review", "deslopify this", "deslop this",
-  "/deslopify".
+description: Audit marketing, deck and UI copy for AI-style repetition, hype and unsupported claims. Use for deslopify, AI-vibe and copy review requests.
 ---
 
 # deslopify — AI copy anti-patterns

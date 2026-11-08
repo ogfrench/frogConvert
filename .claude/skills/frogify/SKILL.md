@@ -1,15 +1,6 @@
 ---
 name: frogify
-description: >-
-  Rewrite copy in frog's voice (frog.co, the design and innovation arm of
-  Capgemini Invent): reinvention-minded, provocative but warm, explicit not
-  implicit, human plus business outcome. Two registers — marketing (emotion-led)
-  and editorial (rigor-led). Use when copy needs frog's tone, when someone says
-  "frogify this", "make it sound like frog", "frog voice", "frogdesign tone", or
-  wants brand/marketing/deck or article/thought-leadership copy with frog's
-  confident, human, future-facing edge. Produces a frogified rewrite plus the
-  moves used. Pair with deslopify afterward so the result has frog personality
-  and zero AI tells. Triggers: "frogify", "frog voice", "make it frog", "/frogify".
+description: Rewrite marketing, slide and editorial copy in frog's brand voice. Use for explicit frogify requests, not generic copy or visual design.
 ---
 
 # frogify

@@ -1,0 +1,63 @@
+---
+name: plugin-experience-design
+description: >-
+  Design, audit and align installable AI plugin experiences across products.
+  Use for plugin landing pages, downloadable packages, marketplace listings,
+  Claude Code/Cowork, ChatGPT or Copilot onboarding, host compatibility,
+  Full/Essentials editions, installation UX and release-readiness reviews.
+---
+
+# Design an AI plugin experience
+
+Treat a plugin as a **task that works on a particular host**, not merely a ZIP or a description. Keep the product's identity and technical architecture. Standardize how people understand, install, verify, use and update it, without imposing identical visual branding or unsupported capabilities.
+
+## Work from the actual product
+
+1. Read the repo's design tokens, existing plugin/skill/MCP manifests, packaging scripts, installation page, tests, release process and open PRs. Avoid duplicating or replacing the established system.
+2. Write a **capability/host matrix** before changing copy. For each host and edition record: what the user can do, required local/remote dependencies, where data travels, supported OS/architecture, available artifact, verification evidence and outstanding gate. Distinguish task guidance, bundled skills, local MCP, hosted MCP and a real installable package.
+3. Identify the *primary successful task* and preferred supported installation path. Keep secondary platforms available without presenting speculative parity. Only promise no-clone installation when **all required runtime and data dependencies** ship. A manifest alone is not an installer.
+4. Apply the shared experience contract below. Reuse product components, design tokens and language instead of creating a second mini-design-system. When two products share a distribution hub, place unrelated products in a separate, clearly labeled companion area rather than burying one inside the other's package.
+5. Implement the smallest coherent change. Preserve stable skill IDs, MCP tool names, URLs and install paths unless migration is independently approved; test old configurations if changed.
+6. Verify by actual installation and representative tasks, then inspect screenshots of the implemented page at phone and desktop widths. Use the existing visual-loop skill for visual changes. Distinguish verified, untested and blocked items in PR handover.
+
+## Shared experience contract
+
+Use this flexible sequence:
+
+| Question | Design responsibility |
+| --- | --- |
+| What is this for? | Outcome-led name and one-sentence promise; avoid vague "AI-powered" claims |
+| Where can I use it? | Visible supported platform choices, with **tested**, **preview**, or **not supported** state per host; never conflate Claude Code, Claude chat/Cowork, ChatGPT and Copilot |
+| Which edition? | Full vs Essentials only when their install, source coverage or capabilities differ materially; concise comparison and recommended use case |
+| What does it really do? | Three to five concrete tasks, tool-backed vs instruction-only distinctions, known limitations |
+| How do I get started? | One prominent verified CTA for the recommended host, prerequisites, installation, permissions, authentication and a concrete first-run check |
+| What should I try? | At least three truthful task prompts, including one ordinary edit or follow-up; don't imply a successful run from an illustrative prompt |
+| Can I trust it? | File/data location, model-provider processing, filesystem/network access, provenance, version/checksum/update path, and troubleshooting |
+
+Use platform switching only for real supported experiences. If a package is still in development, show a **View draft / Build status** link, not an inert Download button. If a feature is impossible in a host, state the limitation where the user would expect to use it.
+
+## Visual coherence without homogenization
+
+- Reuse the existing product's typography, spacing, surfaces, focus states and responsive breakpoints. Align semantic structure, interaction behavior, installation terminology and evidence standards across the family; do not make every page look like a skin of the same template.
+- Keep one product-owned entry point, the primary task, preferred host and one primary action visually clear. Prefer an existing docs or installation route to a new portal or navigation item. Advanced details remain accessible without competing with the installation path.
+- Cards, tabs and code snippets should work with keyboard, narrow screens and copy actions where available. Match labels between navigation, destination headings and real package names.
+- Make empty, pending, error and unavailable states honest. Never invent ratings, host badges, live URLs, package binaries, test results or successful screenshots.
+- Compare real renders, not Figma-only claims; fix clipping, height imbalance, overflow, hover/focus and contrast issues before calling the visual pass done.
+
+## Evidence and release gates
+
+See [acceptance checklist](references/acceptance.md) when publishing, changing supported clients or claiming a ready-to-install download. Link actual evidence in the PR.
+
+Check official host capabilities close to release. Claude Code plugins, Claude chat/Cowork uploads, ChatGPT local/remote integrations and Microsoft Copilot agents have different packaging and authorization models. Never infer portability from a shared name or `SKILL.md` file.
+
+## Useful deliverable
+
+Return the updated implementation or draft PR, plus a compact matrix: host and edition, task promise, artifact, status, blocker, proof and next test. Separate **implemented**, **verified** and **released**. Follow the user's merge or release instruction exactly; do not publish a private corpus or install runtime dependencies without approval.
+
+### Sources to verify, not compatibility guarantees
+
+- Claude plugin architecture: https://code.claude.com/docs/en/plugins
+- Claude skills and loading: https://code.claude.com/docs/en/skills
+- Claude skill best practices: https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices
+- Claude plugin evaluation: https://code.claude.com/docs/en/plugin-evals
+- Microsoft 365 Copilot extensibility: https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/plugins-overview

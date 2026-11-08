@@ -8,18 +8,19 @@ description: >-
 
 # Visual loop
 
-**The rule:** nobody picks a design from a description. Render the options on the real
-thing, look at every image yourself first, then show them. Build only what was picked,
-and look again at the build.
+For a broad or high-stakes review, read `references/inspection-rubric.md` and ground each finding in an actual render or a clearly identified structural limitation. Apply project brand rules first. Keep routine fixes lightweight; don't turn the rubric into a mandatory design ceremony.
 
-## 1. Options on the real thing, not mockups
+**The rule:** judge real rendered output, not a description. When the user asks to compare directions, render options on the real thing, inspect them first, and show them for a choice. When the user asks to fix or build, implement the authorized change without an extra approval gate. Inspect the actual build in either case.
+
+## 1. When options are needed, show them on the real thing
 
 - Inject each option into the real built page or artifact: a stylesheet and, where
   needed, a few lines of script scoped by an attribute (`html[data-opt="b"] ...`). The
   user judges the actual content, fonts, data and neighbors, not a drawing of them.
 - Use the real words. A footer judged on placeholder text fails once the real line
   arrives. When the user says what the content usually is, rebuild the options with it.
-- Three to five options that differ in kind, plus "Now" as the first, for reference.
+- Usually two or three options that differ in kind, plus "Now" for reference.
+  Add more only when the decision genuinely benefits from wider exploration.
 
 ## 2. Sheets people can read
 
@@ -56,9 +57,9 @@ Keep the next round small and different in kind. When every option in a round is
 rejected, look for the premise they share (a framed photo beside the title, say): options
 that share a premise are one option. Name it, and vary that.
 
-## 6. Build the pick, then look again
+## 6. Implement, then look again
 
-- Build the chosen option in the real code, on a branch.
+- Implement the requested fix or the selected option in real code, on a branch.
 - Shoot the real build on every state from step 2 and read it. The mock and the build
   differ more often than expected.
 - Show the user the build, then open the PR. Record what was rejected and why where the
