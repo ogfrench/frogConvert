@@ -9,13 +9,15 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.4.7
+## What's new in 3.4.8
 
-**Spreadsheets you can create, and output folders created for you.**
+**Safer local MCP output handling and preparatory AI plugin distribution.**
 
-CSV and JSON now convert to XLSX, keeping CSV values exactly as written (ZIP codes with leading zeros, long IDs). The MCP server and REST API now create the destination folder when you save a result to a path that does not exist yet, instead of failing after the conversion finished. The documentation was also brought up to date with the 3.4 releases.
+The MCP file-output path checks now reject dangling symlinks escaping a configured sandbox root. PDF merge and extract regressions use real temporary sandbox directories. The new AI plugin packaging workflow prepares Claude and ChatGPT local preview bundles with checksum and Linux protocol checks.
 
-Everything in [3.4.6](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.6) is here too.
+**Availability:** AI plugin ZIPs are **preview candidates, not released public integrations**. Real Windows/macOS host installation, safety review, format coverage and ChatGPT host approval remain required. The GitHub desktop installers and the AI plugin preview artifacts are different distributions.
+
+Everything in [3.4.7](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.7) is included.
 
 Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
