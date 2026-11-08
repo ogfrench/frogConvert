@@ -20,7 +20,8 @@ frogConvert runs entirely in your browser. Convert between 70+ file formats, com
 - **Convert a file**: [docs/CONVERTER.md](docs/CONVERTER.md).
 - **Edit a PDF**: [docs/PDF_EDITOR.md](docs/PDF_EDITOR.md).
 - **Make a file smaller**: [docs/COMPRESS.md](docs/COMPRESS.md).
-- **AI plugins for Claude and ChatGPT**: preview packages and installation guidance in [docs/AI_PLUGINS.md](docs/AI_PLUGINS.md).\n- **Run the MCP server or REST API**: `bunx frogconvert mcp` or `bunx frogconvert api` (requires Bun, no clone). See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
+- **AI plugins for Claude and ChatGPT**: preview packages and installation guidance in [docs/AI_PLUGINS.md](docs/AI_PLUGINS.md).
+- **Run the MCP server or REST API**: `bunx frogconvert mcp` or `bunx frogconvert api` (requires Bun, no clone). See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 - **Self-host, Docker, desktop builds**: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Recent changes
