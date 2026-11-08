@@ -115,9 +115,10 @@ export async function writeOutput(path: string, bytes: Uint8Array): Promise<void
     // Re-check after directory creation, which can expose an existing symlink
     // parent that did not exist when the caller validated its output path.
     enforceSandboxedPath(safePath);
-    // O_NOFOLLOW prevents a final-component symlink swap between validation and open
+    // With sandboxing enabled, O_NOFOLLOW rejects a final-component symlink swap
     // on POSIX. Parent-directory races still require filesystem/OS isolation.
-    const noFollow = process.platform === "win32" ? 0 : (constants.O_NOFOLLOW ?? 0);
+    const noFollow = process.env.FROGCONVERT_SANDBOX_ROOT && process.platform !== "win32"
+        ? (constants.O_NOFOLLOW ?? 0) : 0;
     const flags = constants.O_WRONLY | constants.O_CREAT | noFollow |
         (process.env.FROGCONVERT_DENY_OVERWRITE === "1" ? constants.O_EXCL : constants.O_TRUNC);
     const handle = await open(safePath, flags, 0o600);
@@ -131,7 +132,8 @@ export async function writeOutput(path: string, bytes: Uint8Array): Promise<void
 export async function resolveBytes(input: FileInputRef): Promise<{ bytes: Uint8Array; name: string }> {
     if (input.filePath) {
         const safePath = enforceSandboxedPath(input.filePath);
-        const noFollow = process.platform === "win32" ? 0 : (constants.O_NOFOLLOW ?? 0);
+        const noFollow = process.env.FROGCONVERT_SANDBOX_ROOT && process.platform !== "win32"
+        ? (constants.O_NOFOLLOW ?? 0) : 0;
         const handle = await open(safePath, constants.O_RDONLY | noFollow);
         try {
             enforceSize((await handle.stat()).size);
