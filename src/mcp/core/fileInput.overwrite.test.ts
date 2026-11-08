@@ -2,9 +2,27 @@ import { describe, expect, it } from "vitest";
 import { mkdtemp, readFile, rm, symlink } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
-import { enforceSandboxedPath, writeOutput } from "./fileInput.ts";
+import { enforceSandboxedPath, resolveBytes, writeOutput } from "./fileInput.ts";
 
 describe("Essentials filesystem restrictions", () => {
+    it("rejects invalid upload limits and enforces limits before file reads", async () => {
+        const dir = await mkdtemp(join(tmpdir(), "frogconvert-input-limit-"));
+        const source = join(dir, "input.bin");
+        const previous = process.env.MAX_UPLOAD_MB;
+        try {
+            await import("fs/promises").then(fs => fs.writeFile(source, new Uint8Array(1024)));
+            process.env.MAX_UPLOAD_MB = "not-a-number";
+            await expect(resolveBytes({ filePath: source })).rejects.toThrow(/Invalid MAX_UPLOAD_MB/);
+            process.env.MAX_UPLOAD_MB = "0.0001";
+            await expect(resolveBytes({ filePath: source })).rejects.toThrow(/File too large/);
+            await expect(resolveBytes({ fileName: "large.bin", base64Bytes: Buffer.alloc(1024).toString("base64") })).rejects.toThrow(/File too large/);
+        } finally {
+            if (previous === undefined) delete process.env.MAX_UPLOAD_MB;
+            else process.env.MAX_UPLOAD_MB = previous;
+            await rm(dir, { recursive: true, force: true });
+        }
+    });
+
     it("does not overwrite existing outputs", async () => {
         const dir = await mkdtemp(join(tmpdir(), "frogconvert-no-overwrite-"));
         const path = join(dir, "output.pdf");

@@ -1,5 +1,5 @@
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { lstatSync, realpathSync } from "fs";
+import { open, mkdir } from "fs/promises";
+import { constants, lstatSync, realpathSync } from "fs";
 import { basename, dirname, resolve as resolvePath, relative as relativePath, isAbsolute, sep } from "path";
 import { z } from "zod";
 import type { CoreSourceFile } from "../../tools/types.ts";
@@ -32,6 +32,7 @@ export class ValidationError extends Error {
 
 function enforceSize(byteLength: number) {
     const maxMb = Number(process.env.MAX_UPLOAD_MB ?? 4096);
+    if (!Number.isFinite(maxMb) || maxMb < 0) throw new ValidationError("Invalid MAX_UPLOAD_MB configuration");
     if (byteLength > maxMb * 1024 * 1024) {
         throw new ValidationError(`File too large (max ${maxMb} MB)`);
     }
@@ -114,20 +115,35 @@ export async function writeOutput(path: string, bytes: Uint8Array): Promise<void
     // Re-check after directory creation, which can expose an existing symlink
     // parent that did not exist when the caller validated its output path.
     enforceSandboxedPath(safePath);
-    if (process.env.FROGCONVERT_DENY_OVERWRITE === "1") {
-        await writeFile(safePath, bytes, { flag: "wx" });
-    } else {
-        await writeFile(safePath, bytes);
+    // With sandboxing enabled, O_NOFOLLOW rejects a final-component symlink swap
+    // on POSIX. Parent-directory races still require filesystem/OS isolation.
+    const noFollow = process.env.FROGCONVERT_SANDBOX_ROOT && process.platform !== "win32"
+        ? (constants.O_NOFOLLOW ?? 0) : 0;
+    const flags = constants.O_WRONLY | constants.O_CREAT | noFollow |
+        (process.env.FROGCONVERT_DENY_OVERWRITE === "1" ? constants.O_EXCL : constants.O_TRUNC);
+    const handle = await open(safePath, flags, 0o600);
+    try {
+        await handle.writeFile(bytes);
+    } finally {
+        await handle.close();
     }
 }
 
 export async function resolveBytes(input: FileInputRef): Promise<{ bytes: Uint8Array; name: string }> {
     if (input.filePath) {
         const safePath = enforceSandboxedPath(input.filePath);
-        const buf = await readFile(safePath);
-        enforceSize(buf.byteLength);
-        const bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
-        return { bytes, name: input.fileName ?? basename(safePath) };
+        const noFollow = process.env.FROGCONVERT_SANDBOX_ROOT && process.platform !== "win32"
+        ? (constants.O_NOFOLLOW ?? 0) : 0;
+        const handle = await open(safePath, constants.O_RDONLY | noFollow);
+        try {
+            enforceSize((await handle.stat()).size);
+            const buf = await handle.readFile();
+            enforceSize(buf.byteLength);
+            const bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+            return { bytes, name: input.fileName ?? basename(safePath) };
+        } finally {
+            await handle.close();
+        }
     }
     if (!input.base64Bytes) throw new ValidationError("Input must have filePath or base64Bytes");
     if (!input.fileName) throw new ValidationError("fileName required when using base64Bytes");
@@ -139,6 +155,7 @@ export async function resolveBytes(input: FileInputRef): Promise<{ bytes: Uint8A
     const padding = cleaned.endsWith("==") ? 2 : cleaned.endsWith("=") ? 1 : 0;
     enforceSize(Math.floor((cleaned.length * 3) / 4) - padding);
     const buf = Buffer.from(cleaned, "base64");
+    enforceSize(buf.byteLength);
     const bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
     return { bytes, name: input.fileName };
 }

@@ -10,6 +10,7 @@ import { handleConvert } from './routes/convert.ts';
 import { handleCompress } from './routes/compress.ts';
 import { handlePdfMerge, handlePdfOrganize, handlePdfExtract, handlePdfWatermark } from './routes/pdf.ts';
 import { warmUpBridge } from '../mcp/core/browserBridge.ts';
+import { localRequestAllowed } from './localRequest.ts';
 
 async function main() {
     const { ready: handlers, all: allHandlers } = await loadMcpHandlers();
@@ -34,12 +35,8 @@ async function main() {
             // header doesn't look like a legitimate local caller. `null` Origin
             // covers MCP / direct curl invocations which omit it entirely.
             const origin = req.headers.get("origin");
-            const host   = req.headers.get("host") ?? "";
-            const originOk = origin === null
-                || origin === "null"
-                || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(origin);
-            const hostOk = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host);
-            if (!originOk || !hostOk) {
+            const host = req.headers.get("host") ?? "";
+            if (!localRequestAllowed(origin, host, req.headers.get("sec-fetch-site"))) {
                 return Response.json(
                     { error: "Forbidden: cross-origin request rejected" },
                     { status: 403 }

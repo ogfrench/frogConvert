@@ -9,15 +9,15 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.4.9
+## What's new in 3.4.10
 
-**Safer local MCP output handling and preparatory AI plugin distribution.**
+**Tighter local API and MCP file boundaries.**
 
-The MCP file-output path checks now reject dangling symlinks escaping a configured sandbox root. PDF merge and extract regressions use real temporary sandbox directories. The new AI plugin packaging workflow prepares Claude and ChatGPT local preview bundles with checksum and Linux protocol checks.
+The local REST API now refuses `Origin: null` (sandboxed iframes and `file://` pages) and cross-site or same-site browser requests, and accepts a browser Origin only when it is the API's own. CLI and MCP calls without an Origin work as before. With `FROGCONVERT_SANDBOX_ROOT` set, MCP reads and writes refuse a final-path symlink on macOS and Linux, and file size is checked before a file is loaded into memory. An invalid `MAX_UPLOAD_MB` is now an error instead of silently removing the limit.
 
-**Availability:** AI plugin ZIPs are **preview candidates, not released public integrations**. Real Windows/macOS host installation, safety review, format coverage and ChatGPT host approval remain required. The GitHub desktop installers and the AI plugin preview artifacts are different distributions.
+**Limits:** this is not an OS sandbox. Parent-directory races and Windows reparse points are not covered. AI plugin ZIPs remain **preview candidates, not released public integrations**.
 
-Everything in [3.4.8](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.8) is included.
+Everything in [3.4.9](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.9) is included.
 
 Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
