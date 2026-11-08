@@ -10,6 +10,14 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Security
+- The local REST API now requires an exact local Host, refuses `Origin: null` (sandboxed iframes, `file://` pages) and cross-site or same-site Fetch Metadata, and accepts a browser Origin only when it matches the API's own origin. CLI and MCP calls without an Origin still work (#125).
+- With `FROGCONVERT_SANDBOX_ROOT` set, MCP file reads and writes open with `O_NOFOLLOW` on POSIX, so a final-path symlink swapped in after the containment check is refused. Parent-directory races and Windows reparse points are not covered (#125).
+- File size is checked against `MAX_UPLOAD_MB` before a file is read into memory, and an invalid `MAX_UPLOAD_MB` is now an error instead of silently disabling the limit (#125).
+
+### Fixed
+- The dev server's `/api` proxy now passes same-origin page requests as the API's own origin. Without it, the new origin check refused every POST from `bun run dev` (LibreOffice and HTML-to-PDF conversion), because the proxy rewrote Host but not Origin (#125).
+
 ## [3.4.9] - 2026-11-08
 
 ### Added

@@ -342,6 +342,18 @@ export default defineConfig({
         target: 'http://127.0.0.1:3000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
+        // changeOrigin rewrites Host but not Origin, so a POST from this page
+        // reached the API as Origin localhost:5173 / Host 127.0.0.1:3000 and
+        // src/api/localRequest.ts refused it. Speak for the page only when the
+        // browser itself says the call is same-origin (pages cannot forge
+        // Sec-Fetch-Site); anything else is forwarded as is and still refused.
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            if (req.headers['sec-fetch-site'] === 'same-origin') {
+              proxyReq.setHeader('origin', 'http://127.0.0.1:3000');
+            }
+          });
+        },
       }
     }
   },
