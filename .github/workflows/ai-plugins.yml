@@ -26,6 +26,10 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -p test_ai_plugins.py
           python3 scripts/build-ai-plugins.py --check
+      - name: Verify pinned MCP package is published
+        run: |
+          VERSION=$(python3 -c "import json; print(json.load(open('package.json'))['version'])")
+          npm view "frogconvert@${VERSION}" version --json
       - name: Upload preview archives
         uses: actions/upload-artifact@v4
         with:
