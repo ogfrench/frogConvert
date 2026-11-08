@@ -74,7 +74,7 @@ def smoke(binary):
             proc = subprocess.Popen(
                 [str(path), "mcp"], cwd=temp, stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE, stderr=log,
-                env={**os.environ, "FROGCONVERT_SANDBOX_ROOT": temp},
+                env={**os.environ, "FROGCONVERT_SANDBOX_ROOT": temp, "FROGCONVERT_DISABLE_BROWSER_BRIDGE": "1", "FROGCONVERT_DENY_OVERWRITE": "1"},
             )
             responses = queue.Queue()
             start_reader(proc.stdout, responses)
@@ -113,7 +113,51 @@ def smoke(binary):
                 }, responses, 3, timeout=150)
                 assert not merged["result"].get("isError"), merged
                 assert Path(output).exists() and Path(output).read_bytes().startswith(b"%PDF"), merged
-                print("Clean-folder native MCP handshake, 8 tools, and PDF merge succeeded")
+                previous_bytes = Path(output).read_bytes()
+                attempted_overwrite = request(proc, {
+                    "jsonrpc": "2.0", "id": 4, "method": "tools/call",
+                    "params": {
+                        "name": "pdf_merge",
+                        "arguments": {
+                            "inputs": [
+                                {"base64Bytes": pdf, "fileName": "first.pdf"},
+                                {"base64Bytes": pdf, "fileName": "second.pdf"}
+                            ],
+                            "outputFilePath": output
+                        }
+                    }
+                }, responses, 4, timeout=90)
+                assert attempted_overwrite["result"].get("isError"), attempted_overwrite
+                assert Path(output).read_bytes() == previous_bytes, "Existing output overwritten"
+
+                formats = request(proc, {
+                    "jsonrpc": "2.0", "id": 5, "method": "tools/call",
+                    "params": {"name": "list_formats", "arguments": {}}
+                }, responses, 5, timeout=240)
+                assert not formats["result"].get("isError"), formats
+                catalog = json.loads(formats["result"]["content"][0]["text"])
+                assert any(f["extension"] == "csv" for f in catalog), "Missing CSV handler"
+
+                converted = str(Path(temp) / "rows.json")
+                csv_data = base64.b64encode(b"name,age\\nAda,42\\n").decode()
+                result = request(proc, {
+                    "jsonrpc": "2.0", "id": 6, "method": "tools/call",
+                    "params": {
+                        "name": "convert_file",
+                        "arguments": {
+                            "base64Bytes": csv_data,
+                            "fileName": "rows.csv",
+                            "inputMime": "text/csv",
+                            "inputExtension": "csv",
+                            "outputMime": "application/json",
+                            "outputExtension": "json",
+                            "outputFilePath": converted
+                        }
+                    }
+                }, responses, 6, timeout=120)
+                assert not result["result"].get("isError"), result
+                assert "Ada" in Path(converted).read_text(), "CSV to JSON conversion did not run"
+                print("Native MCP: 8 tools, PDF merge, no-overwrite, format listing and CSV to JSON passed")
             except Exception as exc:
                 failed = exc
             finally:
