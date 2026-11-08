@@ -5,6 +5,7 @@ on:
     paths:
       - 'integrations/ai-plugins/**'
       - 'scripts/build-ai-plugins.py'
+      - 'scripts/smoke-ai-mcp.py'
       - 'tests/test_ai_plugins.py'
       - 'package.json'
       - '.github/workflows/ai-plugins.yml'
@@ -54,4 +55,4 @@ jobs:
         run: |
           file release/frogconvert-linux
           ls -lh release/frogconvert-linux
-          ./release/frogconvert-linux --help
+          python3 scripts/smoke-ai-mcp.py release/frogconvert-linux
