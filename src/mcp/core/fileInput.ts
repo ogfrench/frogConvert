@@ -1,5 +1,5 @@
 import { readFile, writeFile, mkdir } from "fs/promises";
-import { existsSync, realpathSync } from "fs";
+import { lstatSync, realpathSync } from "fs";
 import { basename, dirname, resolve as resolvePath, relative as relativePath, isAbsolute, sep } from "path";
 import { z } from "zod";
 import type { CoreSourceFile } from "../../tools/types.ts";
@@ -77,14 +77,26 @@ export function enforceSandboxedPath(inputPath: string): string {
     // an existing symlinked directory or file must not cross the root.
     // New output folders do not yet exist, so walk upward to the first one.
     let existing = requested;
-    while (!existsSync(existing)) {
-        const parent = dirname(existing);
-        if (parent === existing) {
-            throw new ValidationError("Path escapes FROGCONVERT_SANDBOX_ROOT");
+    while (true) {
+        try {
+            lstatSync(existing);
+            break;
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+            const parent = dirname(existing);
+            if (parent === existing) {
+                throw new ValidationError("Path escapes FROGCONVERT_SANDBOX_ROOT");
+            }
+            existing = parent;
         }
-        existing = parent;
     }
-    if (!isWithinRoot(realRoot, realpathSync(existing))) {
+    let realExisting: string;
+    try {
+        realExisting = realpathSync(existing);
+    } catch {
+        throw new ValidationError("Path escapes FROGCONVERT_SANDBOX_ROOT through a symlink");
+    }
+    if (!isWithinRoot(realRoot, realExisting)) {
         throw new ValidationError("Path escapes FROGCONVERT_SANDBOX_ROOT through a symlink");
     }
     return requested;
