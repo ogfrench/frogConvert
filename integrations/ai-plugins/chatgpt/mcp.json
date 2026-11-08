@@ -3,9 +3,8 @@
   "mcpServers": {
     "frogconvert": {
       "type": "stdio",
-      "command": "bunx",
+      "command": "${PLUGIN_ROOT}/bin/frogconvert",
       "args": [
-        "frogconvert@3.4.7",
         "mcp"
       ],
       "cwd": "${PLUGIN_ROOT}"

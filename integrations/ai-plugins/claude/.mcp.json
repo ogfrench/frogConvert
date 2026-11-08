@@ -1,11 +1,11 @@
 {
   "mcpServers": {
     "frogconvert": {
-      "command": "bunx",
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/frogconvert",
       "args": [
-        "frogconvert@3.4.7",
         "mcp"
-      ]
+      ],
+      "cwd": "${CLAUDE_PLUGIN_ROOT}"
     }
   }
 }

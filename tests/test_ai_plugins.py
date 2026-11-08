@@ -1,46 +1,62 @@
+import hashlib
 import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from zipfile import ZipFile
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
 import importlib.util
 
+ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("build_ai_plugins", ROOT / "scripts/build-ai-plugins.py")
 builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)
 
 
 class PluginPackagingTest(unittest.TestCase):
-    def test_manifests_and_skills(self):
-        version = json.loads((ROOT / "package.json").read_text())["version"]
-        for platform in ("claude", "chatgpt"):
-            files = builder.plugin_files(platform, version)
-            self.assertEqual(len([x for x in files if x.endswith("/SKILL.md")]), 4)
-            manifest_key = ".claude-plugin/plugin.json" if platform == "claude" else "plugin.json"
-            mcp_key = ".mcp.json" if platform == "claude" else "mcp.json"
-            manifest = json.loads(files[manifest_key])
-            mcp = json.loads(files[mcp_key])
-            self.assertEqual(manifest["version"], version)
-            self.assertEqual(mcp["mcpServers"]["frogconvert"]["args"], [f"frogconvert@{version}", "mcp"])
-            if platform == "chatgpt":
-                self.assertEqual(mcp["mcpServers"]["frogconvert"]["type"], "stdio")
-                self.assertEqual(manifest["extensions"]["com.openai"]["requires_local_executor"], True)
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name)
+        self.binary = self.path / "fake-bin"
+        self.binary.write_bytes(b"binary-fixture" * 200)
 
-    def test_archives_are_reproducible_and_contained(self):
-        with tempfile.TemporaryDirectory() as left, tempfile.TemporaryDirectory() as right:
-            builder.build(Path(left))
-            builder.build(Path(right))
-            for platform in ("claude", "chatgpt"):
-                filename = f"frogconvert-{platform}.zip"
-                self.assertEqual((Path(left) / filename).read_bytes(), (Path(right) / filename).read_bytes())
-                with ZipFile(Path(left) / filename) as zipfile:
-                    paths = zipfile.namelist()
-                    self.assertTrue(paths)
-                    self.assertTrue(all(x.startswith("frogconvert/") and ".." not in Path(x).parts for x in paths))
+    def test_required_native_binary(self):
+        with self.assertRaises(ValueError):
+            builder.plugin_files("claude", "3.4.7", "linux-x64", self.path / "missing")
+        with self.assertRaises(ValueError):
+            builder.plugin_files("claude", "3.4.7", "linux-x64", self.path / "empty")
+
+    def test_both_clients_and_targets(self):
+        version = json.loads((ROOT / "package.json").read_text())["version"]
+        for target in builder.TARGETS:
+            for client in builder.CLIENTS:
+                files = builder.plugin_files(client, version, target, self.binary)
+                mcp_path = ".mcp.json" if client == "claude" else "mcp.json"
+                manifest_path = ".claude-plugin/plugin.json" if client == "claude" else "plugin.json"
+                mcp = json.loads(files[mcp_path])["mcpServers"]["frogconvert"]
+                expected_name = "frogconvert.exe" if target.startswith("windows") else "frogconvert"
+                self.assertEqual(mcp["args"], ["mcp"])
+                self.assertEqual(mcp["command"], (
+                    "${CLAUDE_PLUGIN_ROOT}" if client == "claude" else "${PLUGIN_ROOT}"
+                ) + "/bin/" + expected_name)
+                self.assertEqual(files["bin/" + expected_name], self.binary.read_bytes())
+                self.assertEqual(json.loads(files[manifest_path])["version"], version)
+                self.assertEqual(len([x for x in files if x.endswith("/SKILL.md")]), 4)
+
+    def test_zip_contains_executable_and_valid_checksums(self):
+        first = builder.build(self.path / "a", "linux-x64", self.binary)
+        second = builder.build(self.path / "b", "linux-x64", self.binary)
+        self.assertEqual(sorted(x.name for x in first.iterdir()), sorted(x.name for x in second.iterdir()))
+        for p in first.iterdir():
+            self.assertEqual(p.read_bytes(), (second / p.name).read_bytes())
+        sums = (first / "SHA256SUMS.txt").read_text()
+        for archive in first.glob("*.zip"):
+            self.assertIn(hashlib.sha256(archive.read_bytes()).hexdigest() + "  " + archive.name, sums)
+            with ZipFile(archive) as z:
+                binary_info = z.getinfo("frogconvert/bin/frogconvert")
+                self.assertEqual((binary_info.external_attr >> 16) & 0o777, 0o755)
+                self.assertEqual(z.read(binary_info.filename), self.binary.read_bytes())
 
 
 if __name__ == "__main__":

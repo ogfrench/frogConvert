@@ -1,54 +1,29 @@
-# frogConvert AI plugins
+# frogConvert desktop AI plugins
 
-This directory contains two platform-specific plugin packages and shared skills.
-The existing frogConvert MCP server remains the only implementation of file conversion, compression and PDF operations.
+This directory contains official-format Claude and ChatGPT plugin manifests plus four shared skill definitions. Both use the existing eight-tool MCP server.
 
-| Package | Manifest | Intended client |
-| --- | --- | --- |
-| Claude | `claude/.claude-plugin/plugin.json` and `claude/.mcp.json` | Claude Code (and compatible desktop plugin hosts) |
-| ChatGPT | `chatgpt/plugin.json` and `chatgpt/mcp.json` | ChatGPT Desktop with local MCP support |
+## Distribution
 
-## Build preview ZIPs
+The initial Bun-based proposal was rejected: `frogconvert@3.4.7` is not available on npm (confirmed by CI E404). A manifest-only ZIP that cannot start its MCP server is not a functioning plugin.
+
+The new packaging workflow requires a compiled native executable and smoke-tests the MCP protocol plus a PDF merge from an empty working directory before uploading a ZIP. The ZIP includes the binary at `bin/frogconvert` (`bin/frogconvert.exe` on Windows), plugin manifests, skills, installation notes and SHA-256 checksums.
 
 ```sh
-python3 scripts/build-ai-plugins.py --check
 python3 -m unittest discover -s tests -p test_ai_plugins.py
+python3 scripts/build-ai-plugins.py --target linux-x64 --binary release/frogconvert-linux --check
 ```
 
-Produces `dist/ai-plugins/frogconvert-claude.zip` and
-`dist/ai-plugins/frogconvert-chatgpt.zip`. Each has a single
-`frogconvert/` root, the relevant manifest/MCP configuration and the same four skills.
-The versions of both plugin manifests and MCP launch commands are synchronized
-to the repository `package.json` at build time.
+This is a platform-specific native package. Never advertise a ZIP for an OS/architecture until it passes its own clean-host test. All optional WASM/native formats and Chromium browser bridge behavior require separate parity testing.
 
-### What is included
+## Clients
 
-This first package is a **Bun-based preview**, not a standalone binary.
-The MCP configuration invokes `bunx frogconvert@<version> mcp` on the user's
-machine. Bun must be installed and in PATH. The npm package must have that
-exact version available, and initial startup needs network access to download
-dependencies if uncached. Conversions run locally once started, except any
-network activity of third-party runtimes or the AI client's own file handling.
-It is important not to describe this as a zero-dependency or offline installer.
+- Claude: `claude/.claude-plugin/plugin.json`, `claude/.mcp.json`.
+- ChatGPT: portable `chatgpt/plugin.json`, `chatgpt/mcp.json`.
 
-The package does **not** ship with Chromium, LibreOffice or other optional
-native executables. Format parity and no-sandbox browser bridge hardening
-remain separate release gates.
+Both package the same skills in `shared/skills/`, and both spawn a plugin-local MCP executable. ChatGPT desktop-only public submissions require explicit OpenAI approval.
 
-ChatGPT local MCP publication is currently subject to OpenAI's desktop-only
-submission restrictions and partner approval. Do not publish or advertise the
-ChatGPT package as generally installable without confirming access and real
-desktop smoke tests.
+## Privacy
 
-## Installation and risk boundaries
+The local MCP server has filesystem read/write access on the host. Local processing does not mean the AI model sees no user content. Current sandbox-root enforcement is lexical and not symlink-safe; it must be hardened before a general public release.
 
-See [AI plugin docs](../../docs/AI_PLUGINS.md). The MCP server reads/writes
-local paths given by the agent. Where suitable, restrict access using
-`FROGCONVERT_SANDBOX_ROOT`, and approve each invocation. The current path
-containment check uses lexical resolution, not filesystem realpath checks;
-symlink bypasses must be addressed before claiming a security sandbox.
-
-Do not merge or publish these draft packages until the CI artifact checks and
-clean-host workflow tests have passed. Versioned GitHub Releases should
-publish ZIPs and SHA-256 checksums, but this branch does not automatically
-publish a release.
+See [the public AI Plugins draft docs](../../docs/AI_PLUGINS.md) and [Security](../../SECURITY.md). Do not merge this PR until runtime, security and clean-machine checks are complete.

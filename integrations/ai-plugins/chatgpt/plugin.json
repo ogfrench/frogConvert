@@ -19,11 +19,10 @@
   ],
   "extensions": {
     "com.openai": {
-      "requires_local_executor": true,
       "interface": {
         "displayName": "frogConvert",
         "shortDescription": "Convert, compress and edit local files",
-        "longDescription": "Local file conversion, compression and PDF editing using the frogConvert MCP server. Requires ChatGPT Desktop and Bun.",
+        "longDescription": "Local file conversion, compression and PDF editing using a bundled frogConvert MCP executable. Compatible desktop platform required.",
         "developerName": "frogConvert contributors",
         "websiteURL": "https://frogconvert.xyz",
         "defaultPrompt": [
