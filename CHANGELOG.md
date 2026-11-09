@@ -10,6 +10,18 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.4.11] - 2026-11-09
+
+### Improved
+- Native Claude and ChatGPT plugin previews now run cross-platform MCP smoke and package checks on Linux, Windows x64, macOS x64 and macOS arm64 (#128). Both clients continue to use the existing eight-tool local MCP server.
+- Add the original software license, upstream GPLv2 notice and copyright attribution to native plugin archives, with regression tests to prevent omitted legal notices (#128).
+- Align the ChatGPT source manifest version with the application release, and correct AI plugin documentation and website installation status (#128).
+
+### Availability
+- The ChatGPT package is registered as a **private personal candidate**. This does not mean it is installed or permitted to execute on a ChatGPT desktop host. No public ChatGPT plugin download is released; OpenAI local MCP allowlisting, real host acceptance, clean-machine testing, and remaining filesystem threat review are still required.
+- These changes do not modify the main web converter's runtime or promise support for browser-only conversion engines from the native Essentials package.
+
+
 ## [3.4.10] - 2026-11-08
 
 ### Security
