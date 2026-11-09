@@ -33,3 +33,15 @@ Complete and verify the existing native frogConvert ChatGPT package without chan
 - Real ChatGPT desktop import, permission policy and tool calls on an eligible account.
 - Independent review and exact-head CI.
 - Public publication approval is a separate gate.
+
+## Implementation update 2026-11-09
+- Updated source ChatGPT manifest version to match `package.json` v3.4.10, and added a regression test in `tests/test_ai_plugins.py`.
+- Corrected the existing website `docs/AI_PLUGINS.md` status: PR #123 and #125 have merged, but ChatGPT downloads remain unapproved and untested in a real host.
+- Corrected `integrations/ai-plugins/README.md` security claims to distinguish POSIX leaf protection from unresolved parent-directory races/Windows reparse behavior.
+- Extended `.github/workflows/ai-plugins.yml` with Windows x64, macOS arm64 and macOS x64 native build, clean-folder MCP protocol tests, package checksums and per-platform preview artifact uploads. The existing Linux probe remains.
+- Verified GitHub runner labels: `windows-latest`, `macos-15` (arm64), `macos-15-intel` (x64). Bun is pinned at 1.4.4. CI will determine whether these builds succeed.
+- Confirmed `docs/AI_PLUGINS.md` is routed by the static docs generator to `/docs/ai_plugins/`; the branch has not been deployed.
+
+## Current decision and blocker
+- Do not publish artifact download links or call it ChatGPT-compatible until OpenAI desktop-only execution is approved and actual host import/tool calls work.
+- CI native probes are not the same as clean-machine acceptance or host approval.
