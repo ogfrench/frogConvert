@@ -23,14 +23,14 @@ desc: Claude and ChatGPT desktop integrations
   <div class="ai-status-indicator" aria-hidden="true"></div>
   <div>
     <strong>Engineering preview, not yet a public download.</strong>
-    <p>The installers are in a <a href="https://github.com/ogfrench/frogConvert/pull/123">draft pull request</a>. Download links will appear here only after clean-machine installation and real conversion tests pass.</p>
+    <p>The source implementation was merged in <a href="https://github.com/ogfrench/frogConvert/pull/123">PR #123</a> and hardened in <a href="https://github.com/ogfrench/frogConvert/pull/125">PR #125</a>. These are still unapproved plugin previews, not supported ChatGPT downloads. Download links will appear only after real-host installation, security and conversion tests pass.</p>
   </div>
 </div>
 
 <section aria-labelledby="ai-platforms">
   <div class="ai-section-heading">
     <div><p class="ai-overline">01 / Choose your workspace</p><h2 id="ai-platforms">Two clients. One conversion engine.</h2></div>
-    <p>Both draft packages target the same eight-tool MCP server. Installation, approval and actual tool availability must be verified separately for each client.</p>
+    <p>Both preview packages target the same eight-tool MCP server. Installation, approval and actual tool availability must be verified separately for each client.</p>
   </div>
   <div class="ai-client-grid">
     <article class="ai-client ai-client-claude">
@@ -53,17 +53,17 @@ desc: Claude and ChatGPT desktop integrations
     <article class="ai-client ai-client-chatgpt">
       <div class="ai-client-upper">
         <span class="ai-client-symbol" aria-hidden="true">G</span>
-        <span class="ai-client-phase">Platform approval pending</span>
+        <span class="ai-client-phase">Unverified ChatGPT desktop preview</span>
       </div>
       <h3>ChatGPT Desktop</h3>
-      <p class="ai-client-description">A desktop-only plugin candidate, contingent on supported local MCP installation.</p>
+      <p class="ai-client-description">A packaged local MCP candidate. The ChatGPT desktop client must support and approve this local executable before it can be installed.</p>
       <ul class="ai-client-specs">
         <li>Same conversion capabilities and skill names</li>
         <li>Native MCP process on your own computer</li>
         <li>Public distribution subject to OpenAI approval</li>
       </ul>
       <div class="ai-client-footer">
-        <a class="ai-client-action" href="https://github.com/ogfrench/frogConvert/pull/123">View plugin preview <span aria-hidden="true">↗</span></a>
+        <a class="ai-client-action" href="https://github.com/ogfrench/frogConvert/pull/123">View merged source <span aria-hidden="true">↗</span></a>
         <a class="ai-client-secondary" href="#install-chatgpt">Installation details</a>
       </div>
     </article>
@@ -115,7 +115,7 @@ The package includes `.claude-plugin/plugin.json`, `.mcp.json`, `skills/` and `b
 ### ChatGPT Desktop
 
 <div id="install-chatgpt" class="ai-install-note">
-<strong>Developer preview only.</strong> The ChatGPT ZIP uses portable `plugin.json` and `mcp.json` manifests, with a plugin-local executable. It is intended for supported desktop environments that can launch local stdio MCP servers.
+<strong>Not yet available to install.</strong> The ChatGPT package uses portable <code>plugin.json</code> and <code>mcp.json</code> manifests with a bundled local executable. Source code and build checks exist, but a successful ChatGPT desktop import and real tool calls have not been demonstrated. Do not treat the source ZIP or GitHub Actions preview as an approved installer.
 </div>
 
 OpenAI restricts public distribution of desktop-only plugins with local MCP to approved partners. The package is **not generally installable yet**. Do not assume ChatGPT web or mobile can execute local binaries. See <a href="https://developers.openai.com/plugins/deploy/desktop-only">OpenAI's desktop-only plugin requirements</a>.
@@ -133,7 +133,7 @@ Read the <a href="INTEGRATIONS.md">MCP and REST reference</a> and <a href="../SE
 
 ### What needs to pass before release?
 
-The release gate covers real conversions, packaging of native/WASM assets, Windows and macOS cold installs, client-specific plugin loading, security hardening and reproducible archives. The packaging workflow will not upload an installation preview unless its clean-folder runtime test passes. Check the <a href="https://github.com/ogfrench/frogConvert/pull/123">draft PR</a> for current validation results.
+The release gate covers real conversions, packaging of native/WASM assets, Windows and macOS cold installs, client-specific plugin loading, security hardening and reproducible archives. The packaging workflow will not upload an installation preview unless its clean-folder runtime test passes. Check the <a href="https://github.com/ogfrench/frogConvert/actions/workflows/ai-plugins.yml">AI plugin packaging workflow</a> and <a href="https://github.com/ogfrench/frogConvert/pull/123">merged implementation</a> for engineering evidence. Neither is proof of ChatGPT host approval.
 
 <div class="ai-endnote">
   <strong>Need a format outside Essentials?</strong>

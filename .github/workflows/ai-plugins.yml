@@ -55,3 +55,53 @@ jobs:
           name: frogconvert-ai-plugins-linux-preview
           path: dist/ai-plugins/*
           if-no-files-found: error
+
+  native-cross-platform-probe:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: windows-x64
+            compile: compile:win
+            binary: release/frogconvert-win.exe
+          - os: macos-15
+            target: macos-arm64
+            compile: compile:mac
+            binary: release/frogconvert-mac-arm64
+          - os: macos-15-intel
+            target: macos-x64
+            compile: compile:mac:x64
+            binary: release/frogconvert-mac-x64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned Bun
+        run: |
+          npm install -g bun@1.4.4
+          bun --version
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Typecheck plugin integration
+        run: bun x tsc --noEmit
+      - name: Compile native MCP executable
+        run: bun run "${{ matrix.compile }}"
+      - name: Smoke-test native MCP outside source checkout
+        run: python scripts/smoke-ai-mcp.py "${{ matrix.binary }}"
+      - name: Create and verify native preview archives
+        run: python scripts/build-ai-plugins.py --target "${{ matrix.target }}" --binary "${{ matrix.binary }}" --check
+      - name: Upload validated preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: frogconvert-ai-plugins-${{ matrix.target }}-preview
+          path: dist/ai-plugins/*
+          if-no-files-found: error

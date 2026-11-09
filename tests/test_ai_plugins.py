@@ -21,6 +21,13 @@ class PluginPackagingTest(unittest.TestCase):
         self.binary = self.path / "fake-bin"
         self.binary.write_bytes(b"binary-fixture" * 200)
 
+    def test_source_chatgpt_manifest_matches_engine(self):
+        manifest = json.loads((ROOT / "integrations/ai-plugins/chatgpt/plugin.json").read_text())
+        engine = json.loads((ROOT / "package.json").read_text())
+        self.assertEqual(manifest["version"], engine["version"])
+        self.assertEqual(manifest["name"], "frogconvert")
+        self.assertEqual(manifest["extensions"]["com.openai"]["interface"]["displayName"], "frogConvert")
+
     def test_required_native_binary(self):
         with self.assertRaises(ValueError):
             builder.plugin_files("claude", "3.4.7", "linux-x64", self.path / "missing")
@@ -44,6 +51,8 @@ class PluginPackagingTest(unittest.TestCase):
                     "${CLAUDE_PLUGIN_ROOT}" if client == "claude" else "${PLUGIN_ROOT}"
                 ) + "/bin/" + expected_name)
                 self.assertEqual(files["bin/" + expected_name], self.binary.read_bytes())
+                for notice in ("LICENSE", "LICENSE.upstream-GPLv2", "COPYRIGHT"):
+                    self.assertEqual(files[notice], (ROOT / notice).read_bytes())
                 self.assertEqual(json.loads(files[manifest_path])["version"], version)
                 self.assertEqual(len([x for x in files if x.endswith("/SKILL.md")]), 4)
 
