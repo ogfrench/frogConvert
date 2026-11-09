@@ -41,6 +41,8 @@ def plugin_files(client, version, target, binary):
     server["args"] = ["mcp"]
     files[mcp_name] = (json.dumps(mcp, indent=2) + "\n").encode()
     files["bin/" + binary_name] = binary.read_bytes()
+    for name in ("LICENSE", "LICENSE.upstream-GPLv2", "COPYRIGHT"):
+        files[name] = (ROOT / name).read_bytes()
 
     for path in SKILLS.rglob("SKILL.md"):
         files["skills/" + path.relative_to(SKILLS).as_posix()] = path.read_bytes()
