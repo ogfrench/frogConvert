@@ -61,3 +61,14 @@ Complete and verify the existing native frogConvert ChatGPT package without chan
 - Site deployment preview #128 was ready; source docs are now in master, but site visual acceptance is separate.
 - Release bump candidate: #130 to product `v3.4.11`, both source plugin manifests synchronized. Registered personal plugin must not be called v3.4.11 until a newly built accepted archive updates that release.
 - External blocker: OpenAI partner approval for local stdio execution. Additional blockers: clean-machine client imports, filesystem parent-directory race / Windows reparse review, real conversion parity. No public plugin downloads.
+
+
+## 2026-11-09: v3.5.0 superseding release request
+
+- User requested frogConvert v3.5 instead of v3.4.11. Verified GitHub Release `v3.4.11` already published at https://github.com/ogfrench/frogConvert/releases/tag/v3.4.11 (2026-11-09 11:08:19 UTC). Do **not** move or delete the existing tag or misrepresent historical release provenance.
+- Created branch `release/v3.5.0-chatgpt` on `master`, preparing a new semantic minor release `v3.5.0`.
+- Updated `package.json`, Claude + ChatGPT source manifests, `CHANGELOG.md`, `.github/RELEASE_NOTES.md`, and release preflight regression test; verify exact-head CI before merge.
+- The ChatGPT personal plugin is currently registered at v3.4.11. Do not call it v3.5.0 until a new native archive is compiled, verified, and installed via the plugin update action.
+- OpenAI desktop local MCP requires partner allowlisting. Existing plugin registration is not host installation. See https://developers.openai.com/plugins/deploy/desktop-only.
+- Required follow-up to publish a GitHub Release: existing `electron.yml` expects a `workflow_dispatch` input `tag=v3.5.0` on `master`. Its preflight verifies matching package, changelog, release notes and successful `master` push CI. Do not bypass the established release workflow by inventing a tag.
+- Existing unresolved real-host and filesystem acceptance remain tracked in https://github.com/ogfrench/frogConvert/issues/131.

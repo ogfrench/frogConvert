@@ -10,6 +10,18 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-11-09
+
+### Release alignment
+- Establish a version-aligned 3.5.0 baseline for the frogConvert web application and separate Claude and ChatGPT native plugin previews. The previews reuse the eight-tool local MCP executor and the four shared skills; no new hosted conversion service or file upload path is introduced.
+- Continue the cross-platform native package checks, reproducible ZIP and checksum verification, embedded license notices and no-overwrite defaults introduced in 3.4.9-3.4.11.
+- Guard Electron release-note version consistency in tests so a version bump cannot pass preview packaging but fail its release preflight on stale notes.
+
+### Availability
+- Claude and ChatGPT native packages are engineering candidates. ChatGPT desktop-only local MCP execution still requires OpenAI partner eligibility and successful clean-host security/functional acceptance. Private plugin registration is not installation or a public release.
+- v3.4.11 remains an immutable, published historical release. This is a new version, not a moved or renamed tag.
+
+
 ## [3.4.11] - 2026-11-09
 
 ### Improved
