@@ -29,6 +29,7 @@
     "build": "bun x tsc && NODE_OPTIONS=--max-old-space-size=4096 bun x vite build",
     "test": "bun x vitest run",
     "test:watch": "bun x vitest",
+    "verify:pdf-merge": "bun x vitest run src/tools/pdfMerge.test.ts src/mcp/tools/pdfMerge.test.ts src/api/routes/pdf.route.test.ts",
     "test:corpus": "FROG_CORPUS=1 bun x vitest run test/e2e/corpus-*.test.ts",
     "test:shell": "FROG_E2E_SHELL=1 bun x vitest run test/e2e/stale-shell-recovery.test.ts",
     "test:matrix": "FROG_E2E_MATRIX=1 bun x vitest run test/e2e/convert-matrix.test.ts",

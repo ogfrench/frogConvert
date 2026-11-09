@@ -18,6 +18,13 @@ async function makePdf(pageCount: number): Promise<Uint8Array> {
   return new Uint8Array(await doc.save());
 }
 
+/** A PDF whose page i is widths[i] points wide, so page order can be read back. */
+async function makePdfWithWidths(widths: number[]): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  for (const width of widths) doc.addPage([width, 200]);
+  return new Uint8Array(await doc.save());
+}
+
 function sf(id: number, name: string, bytes: Uint8Array, pageCount: number): SourceFile {
   return { id, name, size: bytes.length, bytes, pageCount, firstPageThumb: null };
 }
@@ -46,11 +53,11 @@ describe('pdfMerge', () => {
   });
 
   it('preserves page order across files', async () => {
-    const a = await makePdf(2);
-    const b = await makePdf(3);
+    const a = await makePdfWithWidths([100, 110]);
+    const b = await makePdfWithWidths([120, 130, 140]);
     const result = await merge([sf(0, 'a.pdf', a, 2), sf(1, 'b.pdf', b, 3)]);
     const out = await PDFDocument.load(result.bytes);
-    expect(out.getPageCount()).toBe(5);
+    expect(out.getPages().map((page) => page.getWidth())).toEqual([100, 110, 120, 130, 140]);
   });
 
   it('handles a single file (degenerate case)', async () => {
