@@ -1,7 +1,7 @@
 {
   "name": "frogconvert",
   "displayName": "frogConvert",
-  "version": "3.4.7",
+  "version": "3.4.11",
   "description": "Convert, compress and edit local files with frogConvert MCP.",
   "author": {
     "name": "frogConvert contributors",
