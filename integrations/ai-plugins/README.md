@@ -26,4 +26,4 @@ Both package the same skills in `shared/skills/`, and both spawn a plugin-local 
 
 The local MCP server has filesystem read/write access on the host. Local processing does not mean the AI model sees no user content. Sandbox-root enforcement rejects known path escapes and uses POSIX no-follow for leaf files; parent-directory races and Windows reparse-point behavior remain unresolved, so it is not an OS security sandbox.
 
-See the [AI Plugins documentation](../../docs/AI_PLUGINS.md) and [Security](../../SECURITY.md). These previews remain unreleased until runtime, security, platform and ChatGPT host checks pass. The original packaging work was merged in #123; keep this acceptance PR unmerged until its review gates are satisfied.
+See the [AI Plugins documentation](../../docs/AI_PLUGINS.md) and [Security](../../SECURITY.md). These previews remain unreleased until runtime, security, platform and ChatGPT host checks pass. The packaging work was merged in #123 and cross-platform preview CI in #128. The public install and download gates remain open until clean-host and ChatGPT approval pass.
