@@ -52,3 +52,12 @@ Complete and verify the existing native frogConvert ChatGPT package without chan
 - Adversarial distribution finding: native archive builder had omitted `LICENSE`, `LICENSE.upstream-GPLv2` and `COPYRIGHT`. Added the existing notices to both Claude and ChatGPT package archives and test assertions. Full source/license obligations still require distribution review.
 - These follow-up changes have a later SHA than the successful run. Require exact-head CI again.
 - Current browser/MCP privacy and filesystem limitations remain disclosed in SECURITY and website docs.
+
+## 2026-11-09 implementation closure and release candidate
+
+- PR #128 merged as `38523ab73c03296d0e8b07e9bf62910caade63eb` after exact-head general CI and four native platform packaging probes passed.
+- Personal ChatGPT plugin `plugins_6af18b88d14881919c25b384c9c16952` registered privately as Windows x64 version `3.4.10`. Import accepted; host install suggestion rejected as ineligible. No real file conversion in ChatGPT was demonstrated.
+- Platform evidence: AI plugin packages #42589484996 passed (Linux x64, Windows x64, macOS ARM64/x64), general CI #42589485037 passed.
+- Site deployment preview #128 was ready; source docs are now in master, but site visual acceptance is separate.
+- Release bump candidate: #130 to product `v3.4.11`, both source plugin manifests synchronized. Registered personal plugin must not be called v3.4.11 until a newly built accepted archive updates that release.
+- External blocker: OpenAI partner approval for local stdio execution. Additional blockers: clean-machine client imports, filesystem parent-directory race / Windows reparse review, real conversion parity. No public plugin downloads.

@@ -9,17 +9,15 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.4.10
+## What's new in 3.4.11
 
-**Tighter local API and MCP file boundaries.**
+**Cross-platform native plugin preview quality and clearer installation status.**
 
-The local REST API now refuses `Origin: null` (sandboxed iframes and `file://` pages) and cross-site or same-site browser requests, and accepts a browser Origin only when it is the API's own. CLI and MCP calls without an Origin work as before. With `FROGCONVERT_SANDBOX_ROOT` set, MCP reads and writes refuse a final-path symlink on macOS and Linux, and file size is checked before a file is loaded into memory. An invalid `MAX_UPLOAD_MB` is now an error instead of silently removing the limit.
+The local-first AI plugin packages now have native MCP smoke and packaging checks on Linux x64, Windows x64, macOS Intel and macOS Apple Silicon. The archive builder includes the project's GPL license, upstream GPLv2 license and copyright notices; regression checks cover both source plugin versions and the shipped notices.
 
-**Limits:** this is not an OS sandbox. Parent-directory races and Windows reparse points are not covered. AI plugin ZIPs remain **preview candidates, not released public integrations**.
+The **ChatGPT desktop package remains an engineering candidate, not a supported installation or public download**. OpenAI approval is still required for local MCP execution, and clean-host installation, full native/WASM conversion coverage, and remaining filesystem race and Windows reparse-point risks still require acceptance. This release does not change the main browser converter's processing architecture or expose an upload service.
 
-Everything in [3.4.9](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.9) is included.
-
-Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
+Previous release: [v3.4.10](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.10). Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
 ---
 
