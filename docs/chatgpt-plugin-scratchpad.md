@@ -45,3 +45,10 @@ Complete and verify the existing native frogConvert ChatGPT package without chan
 ## Current decision and blocker
 - Do not publish artifact download links or call it ChatGPT-compatible until OpenAI desktop-only execution is approved and actual host import/tool calls work.
 - CI native probes are not the same as clean-machine acceptance or host approval.
+
+## Cross-platform review and CI evidence
+- PR: https://github.com/ogfrench/frogConvert/pull/128 (draft; do not merge).
+- Native packaging run #42588648098 passed all five jobs on commit `18a8c66e56129e126f6dc708e73dd56b85bb6573`: manifest validation, Linux, Windows x64, macOS arm64, macOS x64. Four per-platform preview artifacts generated. This is not clean-machine installation or ChatGPT host approval.
+- Adversarial distribution finding: native archive builder had omitted `LICENSE`, `LICENSE.upstream-GPLv2` and `COPYRIGHT`. Added the existing notices to both Claude and ChatGPT package archives and test assertions. Full source/license obligations still require distribution review.
+- These follow-up changes have a later SHA than the successful run. Require exact-head CI again.
+- Current browser/MCP privacy and filesystem limitations remain disclosed in SECURITY and website docs.
