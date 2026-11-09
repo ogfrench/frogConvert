@@ -21,6 +21,13 @@ class PluginPackagingTest(unittest.TestCase):
         self.binary = self.path / "fake-bin"
         self.binary.write_bytes(b"binary-fixture" * 200)
 
+    def test_source_chatgpt_manifest_matches_engine(self):
+        manifest = json.loads((ROOT / "integrations/ai-plugins/chatgpt/plugin.json").read_text())
+        engine = json.loads((ROOT / "package.json").read_text())
+        self.assertEqual(manifest["version"], engine["version"])
+        self.assertEqual(manifest["name"], "frogconvert")
+        self.assertEqual(manifest["extensions"]["com.openai"]["interface"]["displayName"], "frogConvert")
+
     def test_required_native_binary(self):
         with self.assertRaises(ValueError):
             builder.plugin_files("claude", "3.4.7", "linux-x64", self.path / "missing")
