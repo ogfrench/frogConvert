@@ -35,7 +35,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 | [docs/CONVERTER.md](docs/CONVERTER.md) | End-user guide: converting files |
 | [docs/PDF_EDITOR.md](docs/PDF_EDITOR.md) | End-user guide: editing PDFs |
 | [docs/COMPRESS.md](docs/COMPRESS.md) | End-user guide: compressing files |
-| [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | MCP and REST API reference |\n| [docs/AI_PLUGINS.md](docs/AI_PLUGINS.md) | Claude and ChatGPT plugin packages |
+| [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | MCP and REST API reference |
+| [docs/AI_PLUGINS.md](docs/AI_PLUGINS.md) | Claude and ChatGPT plugin packages |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Self-host, Docker, desktop, CLI |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Internal design and subsystems |
 | [docs/HANDLERS.md](docs/HANDLERS.md) | Authoring a new format handler |
@@ -46,6 +47,10 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 | [COPYRIGHT](COPYRIGHT) | Copyright, attribution, and the GPLv3 election |
 | [SUBMODULES.md](SUBMODULES.md) | Vendored submodules, pinned revisions, review dates |
 | [docs/ADDING_A_MODE.md](docs/ADDING_A_MODE.md) | Playbook for shipping a new top-level surface |
+
+## Working with coding agents
+
+[AGENTS.md](AGENTS.md) is the shared, tool-agnostic guide for AI coding assistants and human contributors. The [Claude and ChatGPT plugins](docs/AI_PLUGINS.md) are separate end-user packaging from the [local MCP server and REST API](docs/INTEGRATIONS.md); installing a skill or plugin does not itself grant file-system access or start a conversion service. Follow the repository's tests and [contribution workflow](docs/CONTRIBUTING.md) for any implementation change.
 
 ## Feedback and contributions
 
