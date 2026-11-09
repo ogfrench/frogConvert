@@ -9,15 +9,15 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
-## What's new in 3.4.11
+## What's new in 3.5.0
 
-**Cross-platform native plugin preview quality and clearer installation status.**
+**Version-aligned 3.5 baseline for native AI plugin candidates.**
 
 The local-first AI plugin packages now have native MCP smoke and packaging checks on Linux x64, Windows x64, macOS Intel and macOS Apple Silicon. The archive builder includes the project's GPL license, upstream GPLv2 license and copyright notices; regression checks cover both source plugin versions and the shipped notices.
 
 The **ChatGPT desktop package remains an engineering candidate, not a supported installation or public download**. OpenAI approval is still required for local MCP execution, and clean-host installation, full native/WASM conversion coverage, and remaining filesystem race and Windows reparse-point risks still require acceptance. This release does not change the main browser converter's processing architecture or expose an upload service.
 
-Previous release: [v3.4.10](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.10). Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
+Previous release: [v3.4.11](https://github.com/ogfrench/frogConvert/releases/tag/v3.4.11). Full history in [CHANGELOG.md](https://github.com/ogfrench/frogConvert/blob/master/CHANGELOG.md).
 
 ---
 
