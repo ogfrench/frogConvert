@@ -19,8 +19,8 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Test plugin manifests, scripts, archives and checksums
@@ -30,7 +30,7 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Install pinned Bun via npm
@@ -50,7 +50,7 @@ jobs:
       - name: Create native plugin archives
         run: python3 scripts/build-ai-plugins.py --target linux-x64 --binary release/frogconvert-linux --check
       - name: Upload validated Linux preview
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frogconvert-ai-plugins-linux-preview
           path: dist/ai-plugins/*
@@ -79,10 +79,10 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install pinned Bun
@@ -100,7 +100,7 @@ jobs:
       - name: Create and verify native preview archives
         run: python scripts/build-ai-plugins.py --target "${{ matrix.target }}" --binary "${{ matrix.binary }}" --check
       - name: Upload validated preview
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frogconvert-ai-plugins-${{ matrix.target }}-preview
           path: dist/ai-plugins/*
