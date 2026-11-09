@@ -27,6 +27,8 @@ class PluginPackagingTest(unittest.TestCase):
         self.assertEqual(manifest["version"], engine["version"])
         self.assertEqual(manifest["name"], "frogconvert")
         self.assertEqual(manifest["extensions"]["com.openai"]["interface"]["displayName"], "frogConvert")
+        claude = json.loads((ROOT / "integrations/ai-plugins/claude/.claude-plugin/plugin.json").read_text())
+        self.assertEqual(claude["version"], engine["version"])
 
     def test_required_native_binary(self):
         with self.assertRaises(ValueError):
