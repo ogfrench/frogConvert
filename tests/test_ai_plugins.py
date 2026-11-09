@@ -71,6 +71,8 @@ class PluginPackagingTest(unittest.TestCase):
                 binary_info = z.getinfo("frogconvert/bin/frogconvert")
                 self.assertEqual((binary_info.external_attr >> 16) & 0o777, 0o755)
                 self.assertEqual(z.read(binary_info.filename), self.binary.read_bytes())
+                for notice in ("LICENSE", "LICENSE.upstream-GPLv2", "COPYRIGHT"):
+                    self.assertEqual(z.read("frogconvert/" + notice), (ROOT / notice).read_bytes())
 
 
 if __name__ == "__main__":
