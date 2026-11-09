@@ -30,9 +30,10 @@ class PluginPackagingTest(unittest.TestCase):
         claude = json.loads((ROOT / "integrations/ai-plugins/claude/.claude-plugin/plugin.json").read_text())
         self.assertEqual(claude["version"], engine["version"])
         release_notes = (ROOT / ".github/RELEASE_NOTES.md").read_text()
-        self.assertIn(f"## What\u0027s new in {engine[\u0027version\u0027]}", release_notes)
+        version = engine["version"]
+        self.assertIn("## What\u0027s new in " + version, release_notes)
         changelog = (ROOT / "CHANGELOG.md").read_text()
-        self.assertIn(f"## [{engine[\u0027version\u0027]}]", changelog)
+        self.assertIn(f"## [{version}]", changelog)
 
     def test_required_native_binary(self):
         with self.assertRaises(ValueError):
