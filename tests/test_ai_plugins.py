@@ -51,6 +51,8 @@ class PluginPackagingTest(unittest.TestCase):
                     "${CLAUDE_PLUGIN_ROOT}" if client == "claude" else "${PLUGIN_ROOT}"
                 ) + "/bin/" + expected_name)
                 self.assertEqual(files["bin/" + expected_name], self.binary.read_bytes())
+                for notice in ("LICENSE", "LICENSE.upstream-GPLv2", "COPYRIGHT"):
+                    self.assertEqual(files[notice], (ROOT / notice).read_bytes())
                 self.assertEqual(json.loads(files[manifest_path])["version"], version)
                 self.assertEqual(len([x for x in files if x.endswith("/SKILL.md")]), 4)
 
