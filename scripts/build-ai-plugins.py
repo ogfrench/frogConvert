@@ -84,13 +84,15 @@ def plugin_files(client, version, target, binary):
 
 def build(output, target, binary):
     version = json.loads((ROOT / "package.json").read_text())["version"]
+    # Validate both clients before creating any archive, including empty ZIP files.
+    packages = {client: plugin_files(client, version, target, binary) for client in CLIENTS}
     output.mkdir(parents=True, exist_ok=True)
     checksums = []
     for client in CLIENTS:
         filename = f"frogconvert-{client}-{target}-v{version}.zip"
         archive = output / filename
         with ZipFile(archive, "w", ZIP_DEFLATED, compresslevel=6) as z:
-            for name, data in sorted(plugin_files(client, version, target, binary).items()):
+            for name, data in sorted(packages[client].items()):
                 info = ZipInfo("frogconvert/" + name, date_time=(2026, 1, 1, 0, 0, 0))
                 info.create_system = 3
                 is_exe = name.startswith("bin/")
