@@ -35,6 +35,15 @@ class PluginPackagingTest(unittest.TestCase):
         self.assertIn("SHA256SUMS-AI-PLUGINS.txt", workflow)
         self.assertIn("files: installers/*", workflow)
 
+    def test_published_release_and_tag_integrity_guard(self):
+        workflow = (ROOT / ".github/workflows/electron.yml").read_text()
+        self.assertIn("Manual release must run from master", workflow)
+        self.assertIn('refs/tags/$TAG^{commit}', workflow)
+        self.assertIn("Existing tag points at another commit", workflow)
+        self.assertIn("Published $TAG is immutable", workflow)
+        self.assertIn("Published release cannot be rewritten", workflow)
+        self.assertIn('echo "draft=true" >> "$GITHUB_OUTPUT"', workflow)
+
     def test_source_chatgpt_manifest_matches_engine(self):
         manifest = json.loads((ROOT / "integrations/ai-plugins/chatgpt/plugin.json").read_text())
         engine = json.loads((ROOT / "package.json").read_text())

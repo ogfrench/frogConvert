@@ -144,6 +144,14 @@ The website footer now reads `designed by François` with a monochrome FPE
 signature directly after the name, approximately 11 px high in the footer's
 own ink. It has no separate link, color treatment or tracking.
 
+### Immutable release identity
+
+The tag must resolve to the same reviewed source commit used by the release
+workflow. A published GitHub release cannot be overwritten, even by a job
+rerun; failed unpublished drafts may be rebuilt in place. To correct published
+binaries, make a new version and release. Check both plugin and desktop
+checksums independently.
+
 ### What needs to pass before release?
 
 The release gate covers real conversions, packaging of native/WASM assets, Windows and macOS cold installs, client-specific plugin loading, security hardening and reproducible archives. The packaging workflow will not upload an installation preview unless its clean-folder runtime test passes. Check the <a href="https://github.com/ogfrench/frogConvert/actions/workflows/ai-plugins.yml">AI plugin packaging workflow</a> and <a href="https://github.com/ogfrench/frogConvert/pull/123">merged implementation</a> for engineering evidence. Neither is proof of ChatGPT host approval.
