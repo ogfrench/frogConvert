@@ -124,6 +124,18 @@ class PluginPackagingTest(unittest.TestCase):
         with patch.object(builder, "SKILLS", skills), self.assertRaisesRegex(ValueError, "Symlinked shared skill"):
             builder.plugin_files("chatgpt", version, "linux-x64", self.binary)
 
+    def test_rejects_chatgpt_symlink_before_writing_any_archive(self):
+        secret = self.path / "unintended-chatgpt-content"
+        secret.write_text("private fixture")
+        source = self.path / "source"
+        shutil.copytree(builder.SOURCE, source)
+        (source / "chatgpt" / "unexpected.txt").symlink_to(secret)
+        output = self.path / "packages"
+
+        with patch.object(builder, "SOURCE", source), self.assertRaisesRegex(ValueError, "Symlinked plugin source"):
+            builder.build(output, "linux-x64", self.binary)
+        self.assertFalse(list(output.glob("*.zip")))
+
     def test_zip_contains_executable_and_valid_checksums(self):
         first = builder.build(self.path / "a", "linux-x64", self.binary)
         second = builder.build(self.path / "b", "linux-x64", self.binary)
