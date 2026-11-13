@@ -1,0 +1,38 @@
+{
+  "interface": {
+    "displayName": "frogConvert",
+    "shortDescription": "Convert and compress files",
+    "longDescription": "Convert, compress and edit local files using the bundled frogConvert MCP executor on compatible desktop hosts. This is a preview; real-host ChatGPT execution and platform approval have not been established.",
+    "developerName": "frogConvert contributors",
+    "websiteURL": "https://frogconvert.xyz",
+    "defaultPrompt": [
+      "Convert these images to PNG using frogConvert.",
+      "Compress these PDF files using frogConvert."
+    ],
+    "category": "Productivity",
+    "logo": "./assets/frogconvert-icon.png",
+    "composerIcon": "./assets/frogconvert-icon.png",
+    "capabilities": [
+      "Interactive"
+    ]
+  },
+  "name": "frogconvert",
+  "version": "3.5.1",
+  "description": "Convert, compress and edit local files with frogConvert MCP.",
+  "author": {
+    "name": "frogConvert contributors",
+    "url": "https://github.com/ogfrench/frogConvert"
+  },
+  "homepage": "https://frogconvert.xyz",
+  "repository": "https://github.com/ogfrench/frogConvert",
+  "keywords": [
+    "conversion",
+    "compression",
+    "pdf",
+    "local",
+    "mcp"
+  ],
+  "license": "GPL-3.0-or-later",
+  "skills": "./skills",
+  "mcpServers": "./mcp.json"
+}
