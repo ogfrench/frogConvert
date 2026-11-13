@@ -24,6 +24,21 @@ frogConvert runs entirely in your browser. Convert between 70+ file formats, com
 - **Run the MCP server or REST API**: `bunx frogconvert mcp` or `bunx frogconvert api` (requires Bun, no clone). See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 - **Self-host, Docker, desktop builds**: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
+## Version 3.5.1 release candidate
+
+[PR #135](https://github.com/ogfrench/frogConvert/pull/135) prepares the
+Claude/ChatGPT plugin archives for release with four native platform targets,
+archive digest checks and source-linked metadata. The website and CLI share the
+3.5.1 application version. See [AI plugin installation and limitations](docs/AI_PLUGINS.md)
+and the guarded release workflow before distributing any executable.
+A passing package build does not prove a supported ChatGPT local executor or
+installation on a specific host.
+
+The shared website footer uses a tiny FPE attribution symbol next to François,
+monochrome and inheriting the footer text ink. Its shape comes from the canonical
+`ogfrench/fpe-design-system/assets/brand/fpe-mark.svg` file; the frogConvert
+product mark is unchanged.
+
 ## Recent changes
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
