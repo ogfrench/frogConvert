@@ -108,7 +108,8 @@ def main():
     parser.add_argument("--out", type=Path, default=ROOT / "dist" / "ai-plugins")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    binary = args.binary.resolve()
+    # Keep the user-supplied path intact so the symlink guard can inspect it.
+    binary = args.binary.absolute()
     build(args.out, args.target, binary)
     if args.check:
         with tempfile.TemporaryDirectory() as tmp:
