@@ -55,11 +55,18 @@ jobs:
             echo "::error::Tag event does not match the selected release"; exit 1
           fi
           # A manual dispatch may create a new tag; existing tags must resolve to this exact commit.
-          git fetch -q --no-tags origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || true
-          tag_sha=$(git rev-parse -q --verify "refs/tags/$TAG^{commit}" 2>/dev/null || true)
-          [ -z "$tag_sha" ] || [ "$tag_sha" = "$(git rev-parse HEAD)" ] || {
-            echo "::error::Existing tag points at another commit"; exit 1;
-          }
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            git fetch -q --no-tags origin "refs/tags/$TAG:refs/tags/$TAG"
+            tag_sha=$(git rev-parse --verify "refs/tags/$TAG^{commit}")
+            [ "$tag_sha" = "$(git rev-parse HEAD)" ] || {
+              echo "::error::Existing tag points at another commit"; exit 1;
+            }
+          else
+            result=$?
+            [ "$result" -eq 2 ] || {
+              echo "::error::Failed to verify remote tag; refusing release"; exit 1;
+            }
+          fi
           state=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || echo none)
           [ "$state" != "false" ] || {
             echo "::error::Published $TAG is immutable; never overwrite public release assets"; exit 1;

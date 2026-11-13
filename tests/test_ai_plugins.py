@@ -40,6 +40,8 @@ class PluginPackagingTest(unittest.TestCase):
         self.assertIn("Manual release must run from master", workflow)
         self.assertIn('refs/tags/$TAG^{commit}', workflow)
         self.assertIn("Existing tag points at another commit", workflow)
+        self.assertIn("git ls-remote --exit-code --tags", workflow)
+        self.assertIn("Failed to verify remote tag; refusing release", workflow)
         self.assertIn("Published $TAG is immutable", workflow)
         self.assertIn("Published release cannot be rewritten", workflow)
         self.assertIn('echo "draft=true" >> "$GITHUB_OUTPUT"', workflow)
