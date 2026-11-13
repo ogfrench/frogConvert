@@ -9,6 +9,14 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
+## What's new in 3.5.1
+
+The existing native Claude/ChatGPT packaging safety fixes now ship with frogConvert's established 512px application icon, matched listing/composer branding, consistent plugin metadata and a canonical compatibility manifest. No additional file privileges or hosted conversion service are introduced.
+
+These packages remain engineering candidates until real-host acceptance and relevant platform approval. GitHub release publication is not implied by this source candidate.
+
+---
+
 ## What's new in 3.5.0
 
 **Version-aligned 3.5 baseline for native AI plugin candidates.**
