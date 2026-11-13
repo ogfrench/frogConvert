@@ -28,7 +28,7 @@ def plugin_files(client, version, target, binary):
         if path.is_file():
             name = path.relative_to(SOURCE / client).as_posix()
             data = path.read_bytes()
-            if name in ("plugin.json", ".claude-plugin/plugin.json"):
+            if name in ("plugin.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json"):
                 manifest = json.loads(data)
                 manifest["version"] = version
                 data = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()
@@ -50,6 +50,14 @@ def plugin_files(client, version, target, binary):
         if notice.is_symlink() or not notice.is_file():
             raise ValueError(f"Plugin legal notice must be a regular file: {name}")
         files[name] = notice.read_bytes()
+
+    icon = ROOT / "public/icon-512.png"
+    if icon.is_symlink() or not icon.is_file():
+        raise ValueError("App icon must be a regular file (no symlinks)")
+    data = icon.read_bytes()
+    if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise ValueError("App icon must be a valid PNG")
+    files["assets/frogconvert-icon.png"] = data
 
     for path in SKILLS.rglob("*"):
         if path.is_symlink():
