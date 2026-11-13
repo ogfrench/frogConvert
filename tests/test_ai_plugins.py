@@ -7,6 +7,7 @@ from pathlib import Path
 from zipfile import ZipFile
 import importlib.util
 import shutil
+import subprocess
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -81,6 +82,29 @@ class PluginPackagingTest(unittest.TestCase):
         linked.symlink_to(external)
         with self.assertRaisesRegex(ValueError, "symlink"):
             builder.plugin_files("claude", "3.5.0", "linux-x64", linked)
+
+    def test_cli_rejects_symlinked_native_binary(self):
+        external = self.path / "outside-binary"
+        external.write_bytes(b"unintended-local-content" * 100)
+        linked = self.path / "linked-executable-cli"
+        linked.symlink_to(external)
+        output = self.path / "cli-output"
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/build-ai-plugins.py"),
+                "--target", "linux-x64",
+                "--binary", str(linked),
+                "--out", str(output),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("symlink", result.stderr)
+        self.assertFalse(list(output.glob("*.zip")))
 
     def test_rejects_symlinked_plugin_content_and_shared_skill(self):
         version = json.loads((ROOT / "package.json").read_text())["version"]
