@@ -63,6 +63,15 @@ class PluginPackagingTest(unittest.TestCase):
                 for notice in ("LICENSE", "LICENSE.upstream-GPLv2", "COPYRIGHT"):
                     self.assertEqual(files[notice], (ROOT / notice).read_bytes())
                 self.assertEqual(json.loads(files[manifest_path])["version"], version)
+                self.assertEqual(files["assets/frogconvert-icon.png"], (ROOT / "public/icon-512.png").read_bytes())
+                if client == "chatgpt":
+                    ui = json.loads(files["plugin.json"])["extensions"]["com.openai"]["interface"]
+                    self.assertEqual(ui["logo"], "./assets/frogconvert-icon.png")
+                    self.assertEqual(ui["composerIcon"], ui["logo"])
+                    self.assertLessEqual(len(ui["shortDescription"]), 30)
+                    compat = json.loads(files[".codex-plugin/plugin.json"])
+                    self.assertEqual(compat["version"], version)
+                    self.assertEqual(compat["interface"]["logo"], ui["logo"])
                 self.assertEqual(len([x for x in files if x.endswith("/SKILL.md")]), 4)
 
     def test_rejects_symlinked_native_binary(self):
