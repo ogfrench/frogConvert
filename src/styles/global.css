@@ -378,7 +378,7 @@ summary {
 .footer-signature {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   white-space: nowrap;
 }
 
