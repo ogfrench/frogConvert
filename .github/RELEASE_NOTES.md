@@ -13,7 +13,7 @@ automatically, so do not paste one here.
 
 The existing native Claude/ChatGPT packaging safety fixes now ship with frogConvert's established 512px application icon, matched listing/composer branding, consistent plugin metadata and a canonical compatibility manifest. No additional file privileges or hosted conversion service are introduced.
 
-These packages remain engineering candidates until real-host acceptance and relevant platform approval. GitHub release publication is not implied by this source candidate.
+The release workflow now builds native Claude and ChatGPT plugin ZIPs on Linux x64, Windows x64 and macOS (ARM64/x64), checks archive digests, and attaches the platform-specific candidates alongside desktop installers. Native MCP smoke tests do not establish that ChatGPT Desktop accepts local executors; install and host approval remain independent.
 
 ---
 

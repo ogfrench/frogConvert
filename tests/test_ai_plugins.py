@@ -24,6 +24,17 @@ class PluginPackagingTest(unittest.TestCase):
         self.binary = self.path / "fake-bin"
         self.binary.write_bytes(b"binary-fixture" * 200)
 
+    def test_release_pipeline_includes_four_architectures_and_both_clients(self):
+        workflow = (ROOT / ".github/workflows/electron.yml").read_text()
+        self.assertIn("build-ai-plugins:", workflow)
+        self.assertIn("needs: [preflight, build-electron, build-ai-plugins]", workflow)
+        for target in ("linux-x64", "windows-x64", "macos-arm64", "macos-x64"):
+            self.assertIn("target: " + target, workflow)
+        self.assertIn("for client in claude chatgpt", workflow)
+        self.assertIn("sha256sum -c SHA256SUMS.txt", workflow)
+        self.assertIn("SHA256SUMS-AI-PLUGINS.txt", workflow)
+        self.assertIn("files: installers/*", workflow)
+
     def test_source_chatgpt_manifest_matches_engine(self):
         manifest = json.loads((ROOT / "integrations/ai-plugins/chatgpt/plugin.json").read_text())
         engine = json.loads((ROOT / "package.json").read_text())

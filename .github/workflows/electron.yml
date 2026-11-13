@@ -128,13 +128,66 @@ jobs:
             release/*.deb
           retention-days: 7
 
+  # Compile each native MCP binary from the accepted release commit. PR previews are
+  # not release artifacts and must not be silently republished.
+  build-ai-plugins:
+    needs: [preflight]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: linux-x64
+            compile: compile:linux
+            binary: release/frogconvert-linux
+          - os: windows-2025
+            target: windows-x64
+            compile: compile:win
+            binary: release/frogconvert-win.exe
+          - os: macos-15
+            target: macos-arm64
+            compile: compile:mac
+            binary: release/frogconvert-mac-arm64
+          - os: macos-15-intel
+            target: macos-x64
+            compile: compile:mac:x64
+            binary: release/frogconvert-mac-x64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Regression and native MCP packaging
+        run: |
+          python -m unittest discover -s tests -p test_ai_plugins.py
+          bun run "${{ matrix.compile }}"
+          python scripts/smoke-ai-mcp.py "${{ matrix.binary }}"
+          python scripts/build-ai-plugins.py --target "${{ matrix.target }}" --binary "${{ matrix.binary }}" --check
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: frogconvert-ai-release-${{ matrix.target }}
+          path: dist/ai-plugins/*
+          if-no-files-found: error
+          retention-days: 7
+
   # Publishes once every platform has built. The legs used to publish the
   # release themselves, so it went live and became "Latest" with only the
   # first platform's file attached: v3.2.0 was up with Linux alone for over
   # three minutes before macOS and Windows arrived. One job also means one
   # copy of the generated notes, which the per-leg version had to work around.
   release:
-    needs: [preflight, build-electron]
+    needs: [preflight, build-electron, build-ai-plugins]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -150,6 +203,27 @@ jobs:
           pattern: convert-desktop-*
           path: installers
           merge-multiple: true
+
+      - name: Download exact-commit native plugin archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: frogconvert-ai-release-*
+          path: plugin-builds
+
+      - name: Verify every target, archive and checksum
+        run: |
+          version=$(node -p "require('./package.json').version")
+          for target in linux-x64 windows-x64 macos-arm64 macos-x64; do
+            dir="plugin-builds/frogconvert-ai-release-$target"
+            [ -s "$dir/SHA256SUMS.txt" ] || { echo "::error::Missing checksums for $target"; exit 1; }
+            (cd "$dir" && sha256sum -c SHA256SUMS.txt)
+            for client in claude chatgpt; do
+              package="$dir/frogconvert-$client-$target-v$version.zip"
+              [ -s "$package" ] || { echo "::error::Missing $client $target plugin"; exit 1; }
+              cp "$package" installers/
+            done
+          done
+          (cd installers && sha256sum frogconvert-claude-*-v*.zip frogconvert-chatgpt-*-v*.zip > SHA256SUMS-AI-PLUGINS.txt)
 
       - name: One installer per platform
         run: |
