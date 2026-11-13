@@ -18,7 +18,7 @@ describe("shared footer FPE attribution", () => {
   });
 
   it("keeps the icon adjacent to the name, 11 px tall, without pink branding", () => {
-    expect(css).toMatch(/\.footer-signature\s*\{[^}]*gap:\s*3px/);
+    expect(css).toMatch(/\.footer-signature\s*\{[^}]*gap:\s*4px/);
     expect(css).toMatch(/\.footer-fpe-mark\s*\{[^}]*height:\s*11px/);
     expect(css).toMatch(/\.footer-fpe-mark\s*\{[^}]*color:\s*inherit/);
   });
