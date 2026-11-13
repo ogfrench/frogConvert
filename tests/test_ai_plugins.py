@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 from zipfile import ZipFile
 import importlib.util
+import shutil
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("build_ai_plugins", ROOT / "scripts/build-ai-plugins.py")
@@ -62,6 +64,32 @@ class PluginPackagingTest(unittest.TestCase):
                     self.assertEqual(files[notice], (ROOT / notice).read_bytes())
                 self.assertEqual(json.loads(files[manifest_path])["version"], version)
                 self.assertEqual(len([x for x in files if x.endswith("/SKILL.md")]), 4)
+
+    def test_rejects_symlinked_native_binary(self):
+        external = self.path / "external-binary"
+        external.write_bytes(b"secret-fixture" * 200)
+        linked = self.path / "linked-executable"
+        linked.symlink_to(external)
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            builder.plugin_files("claude", "3.5.0", "linux-x64", linked)
+
+    def test_rejects_symlinked_plugin_content_and_shared_skill(self):
+        version = json.loads((ROOT / "package.json").read_text())["version"]
+        secret = self.path / "not-for-distribution.txt"
+        secret.write_text("private local content")
+        source = self.path / "source"
+        shutil.copytree(builder.SOURCE, source)
+        (source / "claude" / "unexpected.txt").symlink_to(secret)
+        with patch.object(builder, "SOURCE", source), self.assertRaisesRegex(ValueError, "Symlinked plugin source"):
+            builder.plugin_files("claude", version, "linux-x64", self.binary)
+
+        skills = self.path / "skills"
+        shutil.copytree(builder.SKILLS, skills)
+        original = skills / "convert-files" / "SKILL.md"
+        original.unlink()
+        original.symlink_to(secret)
+        with patch.object(builder, "SKILLS", skills), self.assertRaisesRegex(ValueError, "Symlinked shared skill"):
+            builder.plugin_files("chatgpt", version, "linux-x64", self.binary)
 
     def test_zip_contains_executable_and_valid_checksums(self):
         first = builder.build(self.path / "a", "linux-x64", self.binary)
