@@ -85,6 +85,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Test plugin packaging with native Windows text encoding
+        if: matrix.target == 'windows-x64'
+        run: python -m unittest discover -s tests -p test_ai_plugins.py
       - name: Install pinned Bun
         run: |
           npm install -g bun@1.4.4

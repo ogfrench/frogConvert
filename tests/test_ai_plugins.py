@@ -25,7 +25,7 @@ class PluginPackagingTest(unittest.TestCase):
         self.binary.write_bytes(b"binary-fixture" * 200)
 
     def test_release_pipeline_includes_four_architectures_and_both_clients(self):
-        workflow = (ROOT / ".github/workflows/electron.yml").read_text()
+        workflow = (ROOT / ".github/workflows/electron.yml").read_text(encoding="utf-8")
         self.assertIn("build-ai-plugins:", workflow)
         self.assertIn("  build-electron:\\n    needs: [preflight]".replace("\\n", "\n"), workflow)
         self.assertIn("cancel-in-progress: false", workflow)
@@ -38,7 +38,7 @@ class PluginPackagingTest(unittest.TestCase):
         self.assertIn("files: installers/*", workflow)
 
     def test_published_release_and_tag_integrity_guard(self):
-        workflow = (ROOT / ".github/workflows/electron.yml").read_text()
+        workflow = (ROOT / ".github/workflows/electron.yml").read_text(encoding="utf-8")
         self.assertIn("Manual release must run from master", workflow)
         self.assertIn('refs/tags/$TAG^{commit}', workflow)
         self.assertIn("Existing tag points at another commit", workflow)
@@ -49,17 +49,17 @@ class PluginPackagingTest(unittest.TestCase):
         self.assertIn('echo "draft=true" >> "$GITHUB_OUTPUT"', workflow)
 
     def test_source_chatgpt_manifest_matches_engine(self):
-        manifest = json.loads((ROOT / "integrations/ai-plugins/chatgpt/plugin.json").read_text())
-        engine = json.loads((ROOT / "package.json").read_text())
+        manifest = json.loads((ROOT / "integrations/ai-plugins/chatgpt/plugin.json").read_text(encoding="utf-8"))
+        engine = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["version"], engine["version"])
         self.assertEqual(manifest["name"], "frogconvert")
         self.assertEqual(manifest["extensions"]["com.openai"]["interface"]["displayName"], "frogConvert")
-        claude = json.loads((ROOT / "integrations/ai-plugins/claude/.claude-plugin/plugin.json").read_text())
+        claude = json.loads((ROOT / "integrations/ai-plugins/claude/.claude-plugin/plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(claude["version"], engine["version"])
-        release_notes = (ROOT / ".github/RELEASE_NOTES.md").read_text()
+        release_notes = (ROOT / ".github/RELEASE_NOTES.md").read_text(encoding="utf-8")
         version = engine["version"]
         self.assertIn("## What\u0027s new in " + version, release_notes)
-        changelog = (ROOT / "CHANGELOG.md").read_text()
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
         self.assertIn(f"## [{version}]", changelog)
 
     def test_required_native_binary(self):
@@ -69,7 +69,7 @@ class PluginPackagingTest(unittest.TestCase):
             builder.plugin_files("claude", "3.4.7", "linux-x64", self.path / "empty")
 
     def test_both_clients_and_targets(self):
-        version = json.loads((ROOT / "package.json").read_text())["version"]
+        version = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
         for target in builder.TARGETS:
             for client in builder.CLIENTS:
                 files = builder.plugin_files(client, version, target, self.binary)
@@ -131,7 +131,7 @@ class PluginPackagingTest(unittest.TestCase):
         self.assertFalse(list(output.glob("*.zip")))
 
     def test_rejects_symlinked_plugin_content_and_shared_skill(self):
-        version = json.loads((ROOT / "package.json").read_text())["version"]
+        version = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
         secret = self.path / "not-for-distribution.txt"
         secret.write_text("private local content")
         source = self.path / "source"
@@ -166,7 +166,7 @@ class PluginPackagingTest(unittest.TestCase):
         self.assertEqual(sorted(x.name for x in first.iterdir()), sorted(x.name for x in second.iterdir()))
         for p in first.iterdir():
             self.assertEqual(p.read_bytes(), (second / p.name).read_bytes())
-        sums = (first / "SHA256SUMS.txt").read_text()
+        sums = (first / "SHA256SUMS.txt").read_text(encoding="utf-8")
         for archive in first.glob("*.zip"):
             self.assertIn(hashlib.sha256(archive.read_bytes()).hexdigest() + "  " + archive.name, sums)
             with ZipFile(archive) as z:
