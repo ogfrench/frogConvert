@@ -128,3 +128,11 @@ These are not suggestions. PRs that violate them will be rejected.
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - self-host, Docker, desktop, CLI.
 - [SECURITY.md](SECURITY.md) - privacy posture and limits.
 - [CHANGELOG.md](CHANGELOG.md) - release history.
+
+## DUNE code-first Product Passport loop
+
+Use the [full DUNE engineering handbook](https://github.com/ogfrench/agentic-coding-setup/blob/main/docs/dune.md) and [Agentic Workflow plugin](https://github.com/ogfrench/agentic-coding-setup/tree/main/plugins/agent-workflow) as shared engineering guidance, not as a substitute for this repository's instructions or permissions.
+
+For substantive changes: read [the existing Product Passport](docs/product-passport/README.md); verify its paths against source and tests; change the canonical owner; cover the meaningful negative case; use the project's native checks; and reconcile the passport with exact-head proof (or state `map unchanged` and why). The PR is the live checklist. Never equate static path validation, a build, host installation, deployment and end-to-end proof.
+
+**Local boundary:** Preserve the separate conversion graph, PDF Workspace, and compression engine. Use Bun's established test command rather than bare `bun test`; exercise affected browser, MCP and REST paths where relevant. Existing security, privacy, CI, approval and release requirements remain in force. This adoption is documentation-only; no DUNE validator is installed by the plugin link.
