@@ -27,6 +27,8 @@ class PluginPackagingTest(unittest.TestCase):
     def test_release_pipeline_includes_four_architectures_and_both_clients(self):
         workflow = (ROOT / ".github/workflows/electron.yml").read_text()
         self.assertIn("build-ai-plugins:", workflow)
+        self.assertIn("  build-electron:\\n    needs: [preflight]".replace("\\n", "\n"), workflow)
+        self.assertIn("cancel-in-progress: false", workflow)
         self.assertIn("needs: [preflight, build-electron, build-ai-plugins]", workflow)
         for target in ("linux-x64", "windows-x64", "macos-arm64", "macos-x64"):
             self.assertIn("target: " + target, workflow)
