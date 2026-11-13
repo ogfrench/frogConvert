@@ -17,10 +17,14 @@ TARGETS = ("linux-x64", "windows-x64", "macos-arm64", "macos-x64")
 def plugin_files(client, version, target, binary):
     if client not in CLIENTS or target not in TARGETS:
         raise ValueError("Unknown client or target")
-    if not binary.is_file() or binary.stat().st_size < 1024:
-        raise ValueError("A compiled native executable is required")
+    if binary.is_symlink() or not binary.is_file() or binary.stat().st_size < 1024:
+        raise ValueError("A regular compiled native executable is required (no symlinks)")
+    if (SOURCE / client).is_symlink() or SKILLS.is_symlink():
+        raise ValueError("Plugin source directories must not be symlinks")
     files = {}
     for path in (SOURCE / client).rglob("*"):
+        if path.is_symlink():
+            raise ValueError(f"Symlinked plugin source must not be packaged: {path}")
         if path.is_file():
             name = path.relative_to(SOURCE / client).as_posix()
             data = path.read_bytes()
@@ -42,8 +46,14 @@ def plugin_files(client, version, target, binary):
     files[mcp_name] = (json.dumps(mcp, indent=2) + "\n").encode()
     files["bin/" + binary_name] = binary.read_bytes()
     for name in ("LICENSE", "LICENSE.upstream-GPLv2", "COPYRIGHT"):
-        files[name] = (ROOT / name).read_bytes()
+        notice = ROOT / name
+        if notice.is_symlink() or not notice.is_file():
+            raise ValueError(f"Plugin legal notice must be a regular file: {name}")
+        files[name] = notice.read_bytes()
 
+    for path in SKILLS.rglob("*"):
+        if path.is_symlink():
+            raise ValueError(f"Symlinked shared skill must not be packaged: {path}")
     for path in SKILLS.rglob("SKILL.md"):
         files["skills/" + path.relative_to(SKILLS).as_posix()] = path.read_bytes()
 
