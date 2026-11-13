@@ -6,6 +6,9 @@ import unittest
 from pathlib import Path
 from zipfile import ZipFile
 import importlib.util
+import shutil
+import subprocess
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("build_ai_plugins", ROOT / "scripts/build-ai-plugins.py")
@@ -20,6 +23,30 @@ class PluginPackagingTest(unittest.TestCase):
         self.path = Path(self.temp.name)
         self.binary = self.path / "fake-bin"
         self.binary.write_bytes(b"binary-fixture" * 200)
+
+    def test_release_pipeline_includes_four_architectures_and_both_clients(self):
+        workflow = (ROOT / ".github/workflows/electron.yml").read_text()
+        self.assertIn("build-ai-plugins:", workflow)
+        self.assertIn("  build-electron:\\n    needs: [preflight]".replace("\\n", "\n"), workflow)
+        self.assertIn("cancel-in-progress: false", workflow)
+        self.assertIn("needs: [preflight, build-electron, build-ai-plugins]", workflow)
+        for target in ("linux-x64", "windows-x64", "macos-arm64", "macos-x64"):
+            self.assertIn("target: " + target, workflow)
+        self.assertIn("for client in claude chatgpt", workflow)
+        self.assertIn("sha256sum -c SHA256SUMS.txt", workflow)
+        self.assertIn("SHA256SUMS-AI-PLUGINS.txt", workflow)
+        self.assertIn("files: installers/*", workflow)
+
+    def test_published_release_and_tag_integrity_guard(self):
+        workflow = (ROOT / ".github/workflows/electron.yml").read_text()
+        self.assertIn("Manual release must run from master", workflow)
+        self.assertIn('refs/tags/$TAG^{commit}', workflow)
+        self.assertIn("Existing tag points at another commit", workflow)
+        self.assertIn("git ls-remote --exit-code --tags", workflow)
+        self.assertIn("Failed to verify remote tag; refusing release", workflow)
+        self.assertIn("Published $TAG is immutable", workflow)
+        self.assertIn("Published release cannot be rewritten", workflow)
+        self.assertIn('echo "draft=true" >> "$GITHUB_OUTPUT"', workflow)
 
     def test_source_chatgpt_manifest_matches_engine(self):
         manifest = json.loads((ROOT / "integrations/ai-plugins/chatgpt/plugin.json").read_text())
@@ -61,7 +88,77 @@ class PluginPackagingTest(unittest.TestCase):
                 for notice in ("LICENSE", "LICENSE.upstream-GPLv2", "COPYRIGHT"):
                     self.assertEqual(files[notice], (ROOT / notice).read_bytes())
                 self.assertEqual(json.loads(files[manifest_path])["version"], version)
+                self.assertEqual(files["assets/frogconvert-icon.png"], (ROOT / "public/icon-512.png").read_bytes())
+                if client == "chatgpt":
+                    ui = json.loads(files["plugin.json"])["extensions"]["com.openai"]["interface"]
+                    self.assertEqual(ui["logo"], "./assets/frogconvert-icon.png")
+                    self.assertEqual(ui["composerIcon"], ui["logo"])
+                    self.assertLessEqual(len(ui["shortDescription"]), 30)
+                    compat = json.loads(files[".codex-plugin/plugin.json"])
+                    self.assertEqual(compat["version"], version)
+                    self.assertEqual(compat["interface"]["logo"], ui["logo"])
                 self.assertEqual(len([x for x in files if x.endswith("/SKILL.md")]), 4)
+
+    def test_rejects_symlinked_native_binary(self):
+        external = self.path / "external-binary"
+        external.write_bytes(b"secret-fixture" * 200)
+        linked = self.path / "linked-executable"
+        linked.symlink_to(external)
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            builder.plugin_files("claude", "3.5.0", "linux-x64", linked)
+
+    def test_cli_rejects_symlinked_native_binary(self):
+        external = self.path / "outside-binary"
+        external.write_bytes(b"unintended-local-content" * 100)
+        linked = self.path / "linked-executable-cli"
+        linked.symlink_to(external)
+        output = self.path / "cli-output"
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/build-ai-plugins.py"),
+                "--target", "linux-x64",
+                "--binary", str(linked),
+                "--out", str(output),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("symlink", result.stderr)
+        self.assertFalse(list(output.glob("*.zip")))
+
+    def test_rejects_symlinked_plugin_content_and_shared_skill(self):
+        version = json.loads((ROOT / "package.json").read_text())["version"]
+        secret = self.path / "not-for-distribution.txt"
+        secret.write_text("private local content")
+        source = self.path / "source"
+        shutil.copytree(builder.SOURCE, source)
+        (source / "claude" / "unexpected.txt").symlink_to(secret)
+        with patch.object(builder, "SOURCE", source), self.assertRaisesRegex(ValueError, "Symlinked plugin source"):
+            builder.plugin_files("claude", version, "linux-x64", self.binary)
+
+        skills = self.path / "skills"
+        shutil.copytree(builder.SKILLS, skills)
+        original = skills / "convert-files" / "SKILL.md"
+        original.unlink()
+        original.symlink_to(secret)
+        with patch.object(builder, "SKILLS", skills), self.assertRaisesRegex(ValueError, "Symlinked shared skill"):
+            builder.plugin_files("chatgpt", version, "linux-x64", self.binary)
+
+    def test_rejects_chatgpt_symlink_before_writing_any_archive(self):
+        secret = self.path / "unintended-chatgpt-content"
+        secret.write_text("private fixture")
+        source = self.path / "source"
+        shutil.copytree(builder.SOURCE, source)
+        (source / "chatgpt" / "unexpected.txt").symlink_to(secret)
+        output = self.path / "packages"
+
+        with patch.object(builder, "SOURCE", source), self.assertRaisesRegex(ValueError, "Symlinked plugin source"):
+            builder.build(output, "linux-x64", self.binary)
+        self.assertFalse(list(output.glob("*.zip")))
 
     def test_zip_contains_executable_and_valid_checksums(self):
         first = builder.build(self.path / "a", "linux-x64", self.binary)

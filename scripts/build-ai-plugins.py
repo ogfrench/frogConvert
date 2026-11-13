@@ -17,14 +17,18 @@ TARGETS = ("linux-x64", "windows-x64", "macos-arm64", "macos-x64")
 def plugin_files(client, version, target, binary):
     if client not in CLIENTS or target not in TARGETS:
         raise ValueError("Unknown client or target")
-    if not binary.is_file() or binary.stat().st_size < 1024:
-        raise ValueError("A compiled native executable is required")
+    if binary.is_symlink() or not binary.is_file() or binary.stat().st_size < 1024:
+        raise ValueError("A regular compiled native executable is required (no symlinks)")
+    if (SOURCE / client).is_symlink() or SKILLS.is_symlink():
+        raise ValueError("Plugin source directories must not be symlinks")
     files = {}
     for path in (SOURCE / client).rglob("*"):
+        if path.is_symlink():
+            raise ValueError(f"Symlinked plugin source must not be packaged: {path}")
         if path.is_file():
             name = path.relative_to(SOURCE / client).as_posix()
             data = path.read_bytes()
-            if name in ("plugin.json", ".claude-plugin/plugin.json"):
+            if name in ("plugin.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json"):
                 manifest = json.loads(data)
                 manifest["version"] = version
                 data = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()
@@ -42,8 +46,22 @@ def plugin_files(client, version, target, binary):
     files[mcp_name] = (json.dumps(mcp, indent=2) + "\n").encode()
     files["bin/" + binary_name] = binary.read_bytes()
     for name in ("LICENSE", "LICENSE.upstream-GPLv2", "COPYRIGHT"):
-        files[name] = (ROOT / name).read_bytes()
+        notice = ROOT / name
+        if notice.is_symlink() or not notice.is_file():
+            raise ValueError(f"Plugin legal notice must be a regular file: {name}")
+        files[name] = notice.read_bytes()
 
+    icon = ROOT / "public/icon-512.png"
+    if icon.is_symlink() or not icon.is_file():
+        raise ValueError("App icon must be a regular file (no symlinks)")
+    data = icon.read_bytes()
+    if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise ValueError("App icon must be a valid PNG")
+    files["assets/frogconvert-icon.png"] = data
+
+    for path in SKILLS.rglob("*"):
+        if path.is_symlink():
+            raise ValueError(f"Symlinked shared skill must not be packaged: {path}")
     for path in SKILLS.rglob("SKILL.md"):
         files["skills/" + path.relative_to(SKILLS).as_posix()] = path.read_bytes()
 
@@ -66,13 +84,15 @@ def plugin_files(client, version, target, binary):
 
 def build(output, target, binary):
     version = json.loads((ROOT / "package.json").read_text())["version"]
+    # Validate both clients before creating any archive, including empty ZIP files.
+    packages = {client: plugin_files(client, version, target, binary) for client in CLIENTS}
     output.mkdir(parents=True, exist_ok=True)
     checksums = []
     for client in CLIENTS:
         filename = f"frogconvert-{client}-{target}-v{version}.zip"
         archive = output / filename
         with ZipFile(archive, "w", ZIP_DEFLATED, compresslevel=6) as z:
-            for name, data in sorted(plugin_files(client, version, target, binary).items()):
+            for name, data in sorted(packages[client].items()):
                 info = ZipInfo("frogconvert/" + name, date_time=(2026, 1, 1, 0, 0, 0))
                 info.create_system = 3
                 is_exe = name.startswith("bin/")
@@ -90,7 +110,8 @@ def main():
     parser.add_argument("--out", type=Path, default=ROOT / "dist" / "ai-plugins")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    binary = args.binary.resolve()
+    # Keep the user-supplied path intact so the symlink guard can inspect it.
+    binary = args.binary.absolute()
     build(args.out, args.target, binary)
     if args.check:
         with tempfile.TemporaryDirectory() as tmp:

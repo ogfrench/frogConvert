@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "frogconvert",
-  "version": "3.5.0",
+  "version": "3.5.1",
   "description": "Convert, compress and edit local files with frogConvert MCP.",
   "author": {
     "name": "frogConvert contributors",
@@ -21,14 +21,17 @@
     "com.openai": {
       "interface": {
         "displayName": "frogConvert",
-        "shortDescription": "Convert, compress and edit local files",
-        "longDescription": "Local file conversion, compression and PDF editing using a bundled frogConvert MCP executable. Compatible desktop platform required.",
+        "shortDescription": "Convert and compress files",
+        "longDescription": "Convert, compress and edit local files using the bundled frogConvert MCP executor on compatible desktop hosts. This is a preview; real-host ChatGPT execution and platform approval have not been established.",
         "developerName": "frogConvert contributors",
         "websiteURL": "https://frogconvert.xyz",
         "defaultPrompt": [
           "Convert these images to PNG using frogConvert.",
           "Compress these PDF files using frogConvert."
-        ]
+        ],
+        "category": "Productivity",
+        "logo": "./assets/frogconvert-icon.png",
+        "composerIcon": "./assets/frogconvert-icon.png"
       }
     }
   }

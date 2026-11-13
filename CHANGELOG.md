@@ -10,6 +10,15 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Simplified the shared footer credit to “designed by François” and added a small FPE monogram in the same text color.
+
+## [3.5.1] - pending release
+
+### Plugin packaging and identity
+- Extend draft PR #135's symlink packaging protections and retain the existing native MCP contract; add the official application icon to both Claude and ChatGPT packages.
+- Align user-facing listing metadata, source/compatibility manifest versions and reproducible package validation.
+- Real-host approval, clean-install checks and release publication remain open gates.
+
 ## [3.5.0] - 2026-11-09
 
 ### Release alignment

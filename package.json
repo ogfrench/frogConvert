@@ -3,7 +3,7 @@
   "productName": "frogConvert",
   "author": "ogfrench",
   "description": "Truly universal browser-based file converter, compressor and PDF editor",
-  "version": "3.5.0",
+  "version": "3.5.1",
   "license": "GPL-3.0-or-later",
   "homepage": "https://frogconvert.xyz",
   "repository": "https://github.com/ogfrench/frogConvert",
@@ -165,4 +165,3 @@
     "yaml": "^2.9.1"
   }
 }
-

@@ -9,6 +9,14 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
+## What's new in 3.5.1
+
+The existing native Claude/ChatGPT packaging safety fixes now ship with frogConvert's established 512px application icon, matched listing/composer branding, consistent plugin metadata and a canonical compatibility manifest. No additional file privileges or hosted conversion service are introduced.
+
+The release workflow now builds native Claude and ChatGPT plugin ZIPs on Linux x64, Windows x64 and macOS (ARM64/x64), checks archive digests, and attaches the platform-specific candidates alongside desktop installers. Native MCP smoke tests do not establish that ChatGPT Desktop accepts local executors; install and host approval remain independent.
+
+---
+
 ## What's new in 3.5.0
 
 **Version-aligned 3.5 baseline for native AI plugin candidates.**

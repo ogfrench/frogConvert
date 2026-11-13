@@ -13,6 +13,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: frogconvert-release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 env:
   # Pinned, so a Bun release cannot change what a release build is made with.
   # Keep in step with ci.yml.
@@ -37,6 +41,7 @@ jobs:
       - name: Tag, version and notes agree
         env:
           TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           version=$(node -p "require('./package.json').version")
           if [ "$TAG" != "v$version" ]; then
@@ -47,6 +52,30 @@ jobs:
             || { echo "::error::.github/RELEASE_NOTES.md has no \"## What's new in $version\" section."; exit 1; }
           grep -q "^## \[$version\]" CHANGELOG.md \
             || { echo "::error::CHANGELOG.md has no [$version] section."; exit 1; }
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "$GITHUB_REF" != "refs/heads/master" ]; then
+            echo "::error::Manual release must run from master"; exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF" != "refs/tags/$TAG" ]; then
+            echo "::error::Tag event does not match the selected release"; exit 1
+          fi
+          # A manual dispatch may create a new tag; existing tags must resolve to this exact commit.
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            git fetch -q --no-tags origin "refs/tags/$TAG:refs/tags/$TAG"
+            tag_sha=$(git rev-parse --verify "refs/tags/$TAG^{commit}")
+            [ "$tag_sha" = "$(git rev-parse HEAD)" ] || {
+              echo "::error::Existing tag points at another commit"; exit 1;
+            }
+          else
+            result=$?
+            [ "$result" -eq 2 ] || {
+              echo "::error::Failed to verify remote tag; refusing release"; exit 1;
+            }
+          fi
+          state=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || echo none)
+          [ "$state" != "false" ] || {
+            echo "::error::Published $TAG is immutable; never overwrite public release assets"; exit 1;
+          }
+
 
       - name: CI passed on this commit
         env:
@@ -70,6 +99,7 @@ jobs:
           exit 1
 
   build-electron:
+    needs: [preflight]
     runs-on: ${{ matrix.os }}
 
     env:
@@ -128,13 +158,66 @@ jobs:
             release/*.deb
           retention-days: 7
 
+  # Compile each native MCP binary from the accepted release commit. PR previews are
+  # not release artifacts and must not be silently republished.
+  build-ai-plugins:
+    needs: [preflight]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: linux-x64
+            compile: compile:linux
+            binary: release/frogconvert-linux
+          - os: windows-2025
+            target: windows-x64
+            compile: compile:win
+            binary: release/frogconvert-win.exe
+          - os: macos-15
+            target: macos-arm64
+            compile: compile:mac
+            binary: release/frogconvert-mac-arm64
+          - os: macos-15-intel
+            target: macos-x64
+            compile: compile:mac:x64
+            binary: release/frogconvert-mac-x64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Regression and native MCP packaging
+        run: |
+          python -m unittest discover -s tests -p test_ai_plugins.py
+          bun run "${{ matrix.compile }}"
+          python scripts/smoke-ai-mcp.py "${{ matrix.binary }}"
+          python scripts/build-ai-plugins.py --target "${{ matrix.target }}" --binary "${{ matrix.binary }}" --check
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: frogconvert-ai-release-${{ matrix.target }}
+          path: dist/ai-plugins/*
+          if-no-files-found: error
+          retention-days: 7
+
   # Publishes once every platform has built. The legs used to publish the
   # release themselves, so it went live and became "Latest" with only the
   # first platform's file attached: v3.2.0 was up with Linux alone for over
   # three minutes before macOS and Windows arrived. One job also means one
   # copy of the generated notes, which the per-leg version had to work around.
   release:
-    needs: [preflight, build-electron]
+    needs: [preflight, build-electron, build-ai-plugins]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -150,6 +233,27 @@ jobs:
           pattern: convert-desktop-*
           path: installers
           merge-multiple: true
+
+      - name: Download exact-commit native plugin archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: frogconvert-ai-release-*
+          path: plugin-builds
+
+      - name: Verify every target, archive and checksum
+        run: |
+          version=$(node -p "require('./package.json').version")
+          for target in linux-x64 windows-x64 macos-arm64 macos-x64; do
+            dir="plugin-builds/frogconvert-ai-release-$target"
+            [ -s "$dir/SHA256SUMS.txt" ] || { echo "::error::Missing checksums for $target"; exit 1; }
+            (cd "$dir" && sha256sum -c SHA256SUMS.txt)
+            for client in claude chatgpt; do
+              package="$dir/frogconvert-$client-$target-v$version.zip"
+              [ -s "$package" ] || { echo "::error::Missing $client $target plugin"; exit 1; }
+              cp "$package" installers/
+            done
+          done
+          (cd installers && sha256sum frogconvert-claude-*-v*.zip frogconvert-chatgpt-*-v*.zip > SHA256SUMS-AI-PLUGINS.txt)
 
       - name: One installer per platform
         run: |
@@ -168,7 +272,8 @@ jobs:
         run: |
           state=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || echo none)
           echo "Existing release for $TAG: $state"
-          if [ "$state" = "false" ]; then echo "draft=false" >> "$GITHUB_OUTPUT"; else echo "draft=true" >> "$GITHUB_OUTPUT"; fi
+          if [ "$state" = "false" ]; then echo "::error::Published release cannot be rewritten"; exit 1; fi
+          echo "draft=true" >> "$GITHUB_OUTPUT"
 
       # Created as a draft with every file attached, then published in one
       # step, so nobody sees a half-uploaded release.
@@ -183,8 +288,7 @@ jobs:
           body_path: .github/RELEASE_NOTES.md
           generate_release_notes: true
           draft: ${{ steps.existing.outputs.draft }}
-          # A re-run on the same tag replaces stale binaries instead of adding
-          # duplicates side by side.
+          # Only an unpublished draft may be rebuilt in place. A published release is immutable.
           overwrite_files: true
 
       - name: Publish and mark as latest
