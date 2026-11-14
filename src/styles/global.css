@@ -377,15 +377,15 @@ summary {
 
 .footer-signature {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 3px;
   white-space: nowrap;
 }
 
 .footer-fpe-mark {
   display: block;
-  width: 13px;
-  height: 11px;
+  width: auto;
+  height: 9px;
   flex: none;
   color: inherit;
 }

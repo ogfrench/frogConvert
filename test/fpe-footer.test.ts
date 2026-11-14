@@ -17,9 +17,10 @@ describe("shared footer FPE attribution", () => {
     expect(source).toContain('aria-hidden="true"');
   });
 
-  it("keeps the icon adjacent to the name, 11 px tall, without pink branding", () => {
+  it("keeps the icon adjacent to the name, 9 px tall, baseline-aligned", () => {
+    expect(css).toMatch(/\.footer-signature\s*\{[^}]*align-items:\s*baseline/);
     expect(css).toMatch(/\.footer-signature\s*\{[^}]*gap:\s*3px/);
-    expect(css).toMatch(/\.footer-fpe-mark\s*\{[^}]*height:\s*11px/);
+    expect(css).toMatch(/\.footer-fpe-mark\s*\{[^}]*height:\s*9px/);
     expect(css).toMatch(/\.footer-fpe-mark\s*\{[^}]*color:\s*inherit/);
   });
 });
