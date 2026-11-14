@@ -10,6 +10,8 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Pinned `actions/setup-python` in the Electron release workflow to a commit SHA (v5.6.0), as the other actions there are.
+
 - Simplified the shared footer credit to “designed by François” and added a small FPE monogram in the same text color.
 
 ## [3.5.1] - pending release
