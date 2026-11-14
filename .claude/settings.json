@@ -3,9 +3,9 @@
     "ogfrench": {
       "source": {
         "source": "github",
-        "repo": "ogfrench/claude-code-setup"
+        "repo": "ogfrench/agentic-coding-setup"
       },
-      "autoUpdate": true
+      "autoUpdate": false
     }
   },
   "enabledPlugins": {

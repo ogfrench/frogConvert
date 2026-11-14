@@ -1,15 +1,12 @@
 ---
 name: plugin-experience-design
 description: >-
-  Design, audit and align installable AI plugin experiences across products.
-  Use for plugin landing pages, downloadable packages, marketplace listings,
-  Claude Code/Cowork, ChatGPT or Copilot onboarding, host compatibility,
-  Full/Essentials editions, installation UX and release-readiness reviews.
+  Design and validate AI plugin downloads, installation and onboarding for Claude Code/Cowork, ChatGPT and Copilot. Use for host support, editions and release readiness.
 ---
 
 # Design an AI plugin experience
 
-Treat a plugin as a **task that works on a particular host**, not merely a ZIP or a description. Keep the product's identity and technical architecture. Standardize how people understand, install, verify, use and update it, without imposing identical visual branding or unsupported capabilities.
+Treat a plugin as a **task that works on a specific host**, not just a ZIP. Keep the product identity and architecture; standardize task, installation and verification without imposing identical branding.
 
 ## Work from the actual product
 
@@ -19,6 +16,10 @@ Treat a plugin as a **task that works on a particular host**, not merely a ZIP o
 4. Apply the shared experience contract below. Reuse product components, design tokens and language instead of creating a second mini-design-system. When two products share a distribution hub, place unrelated products in a separate, clearly labeled companion area rather than burying one inside the other's package.
 5. Implement the smallest coherent change. Preserve stable skill IDs, MCP tool names, URLs and install paths unless migration is independently approved; test old configurations if changed.
 6. Verify by actual installation and representative tasks, then inspect screenshots of the implemented page at phone and desktop widths. Use the existing visual-loop skill for visual changes. Distinguish verified, untested and blocked items in PR handover.
+
+## Portable capability and source discipline
+
+Use canonical source, accessible data and real host tools separately. An installed plugin is not tool permission. If absent tools or unavailable runtime block a file or render, continue useful work without claiming an artifact; ask only for the missing source. Route specialist skills selectively, including a negative unrelated-task case. See [cross-host standards](../../../../docs/host-capability-standards.md).
 
 ## Shared experience contract
 
@@ -38,13 +39,19 @@ Use platform switching only for real supported experiences. If a package is stil
 
 ## Visual coherence without homogenization
 
-- Reuse the existing product's typography, spacing, surfaces, focus states and responsive breakpoints. Align semantic structure, interaction behavior, installation terminology and evidence standards across the family; do not make every page look like a skin of the same template.
-- Keep one product-owned entry point, the primary task, preferred host and one primary action visually clear. Prefer an existing docs or installation route to a new portal or navigation item. Advanced details remain accessible without competing with the installation path.
-- Cards, tabs and code snippets should work with keyboard, narrow screens and copy actions where available. Match labels between navigation, destination headings and real package names.
+- Reuse existing tokens, focus states and breakpoints. Align terminology and interaction semantics, not visual branding.
+- Keep one clear product entry point, primary task and action. Prefer existing routes over new portals.
+- Test keyboard, mobile and copy controls. Match actual package names and destinations.
 - Make empty, pending, error and unavailable states honest. Never invent ratings, host badges, live URLs, package binaries, test results or successful screenshots.
 - Compare real renders, not Figma-only claims; fix clipping, height imbalance, overflow, hover/focus and contrast issues before calling the visual pass done.
 
 ## Evidence and release gates
+
+Match canonical distributable skills against the *actual generated archive*,
+including references, licenses, byte identity, version, source SHA and checksums.
+A source directory or a passing unit test does not certify the published ZIP.
+Enforce positive, negative and ambiguous routing tests, while keeping clean-host
+installation and actual first-task acceptance as distinct evidence.
 
 See [acceptance checklist](references/acceptance.md) when publishing, changing supported clients or claiming a ready-to-install download. Link actual evidence in the PR.
 
@@ -54,10 +61,4 @@ Check official host capabilities close to release. Claude Code plugins, Claude c
 
 Return the updated implementation or draft PR, plus a compact matrix: host and edition, task promise, artifact, status, blocker, proof and next test. Separate **implemented**, **verified** and **released**. Follow the user's merge or release instruction exactly; do not publish a private corpus or install runtime dependencies without approval.
 
-### Sources to verify, not compatibility guarantees
-
-- Claude plugin architecture: https://code.claude.com/docs/en/plugins
-- Claude skills and loading: https://code.claude.com/docs/en/skills
-- Claude skill best practices: https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices
-- Claude plugin evaluation: https://code.claude.com/docs/en/plugin-evals
-- Microsoft 365 Copilot extensibility: https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/plugins-overview
+Official host references and acceptance checks are in [the checklist](references/acceptance.md).

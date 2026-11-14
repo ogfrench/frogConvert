@@ -4,12 +4,27 @@ Choose only checks that apply to the product and host. Record **actual evidence*
 
 ## Capability and packaging
 
+For the same user task, distinguish (1) source/brief accessible, (2) required runtime tool connected, (3) artifact actually produced, (4) result inspected and (5) installed distribution tested. If canonical source is missing, test the honest fallback rather than a purported equivalent. Pair a positive task with a missing-source and unrelated-task negative case; record the exact source SHA, host, tool permissions and observed output.
+
+
+
 - The product promise maps to demonstrably present skill files or MCP tools.
 - Stable names, manifest schema and configuration validate in the intended client.
 - The package includes everything required for its supported mode; a ZIP with missing binaries, assets, models or indexes is not a working install.
 - Artifact is versioned, reproducible and tied to commit SHA. Checksum and dependency/runtime provenance are recorded.
 - A clean machine or clean folder can install without private repo access when "no clone" is promised.
 - A static snapshot identifies what content and update date it includes. Local lexical lookup must not be called live vector or comprehensive semantic retrieval.
+
+## Package integrity contract
+
+- Declare distributable skills, linked references and licenses; explicitly list
+  source-only developer tools. Do not infer shipping from the source tree.
+- Inspect the actual built ZIP and require all expected source-identical files,
+  trustworthy provenance and no unexpected executables or symlinks.
+- Verify the downloadable release asset's hash, URI and version against the
+  recorded immutable release, not just a locally built candidate.
+- Separately test skill routing, clean host loading, permission refusals and
+  representative tasks. Missing or stale proof is a release blocker, not green.
 
 ## Cross-host acceptance
 
@@ -51,3 +66,13 @@ Release blockers:
 ```
 
 Never check a box based solely on a passing static test or another host's result.
+
+## Official host references (verify again before each host claim)
+
+These are documentation links, **not evidence of support, successful installation, or file access**. Validate the target host's current feature/permission model against the actual installed package and observed tasks.
+
+- [Claude Code plugins](https://code.claude.com/docs/en/plugins)
+- [Claude skills](https://code.claude.com/docs/en/skills)
+- [Claude skill authoring guidance](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
+- [Claude plugin evaluations](https://code.claude.com/docs/en/plugin-evals)
+- [Microsoft 365 Copilot extensibility](https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/plugins-overview)

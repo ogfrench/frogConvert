@@ -12,7 +12,7 @@ description: >-
 learning (raw) -> practice (curated) -> promoted (skill, agent, hook, command, plugin...) -> retired
 ```
 
-The record lives in `ogfrench/claude-code-setup`: raw notes in `learnings/`, curated
+The record lives in `ogfrench/agentic-coding-setup`: raw notes in `learnings/`, curated
 practices in the `best-practices` skill, and the promotion ladder in that repo's
 `CLAUDE.md`. **That repo is public, and this is a hard rule:** no client names or real
 brands, nothing from a private repo (not even its name), no employer-confidential work, no
@@ -35,8 +35,8 @@ or anything already a practice.
    - If the lesson cannot be told without a client, a private repo or a person, it is
      private. Write it to the user's private notes repo if one is attached to the session
      (same template), else to the current repo's `CLAUDE.md` if it only holds there, else
-     ask the user. It never goes to `claude-code-setup` until it is rewritten without names.
-   - If `claude-code-setup` is cloned or can be attached to the session, run
+     ask the user. It never goes to `agentic-coding-setup` until it is rewritten without names.
+   - If `agentic-coding-setup` is cloned or can be attached to the session, run
      `git config core.hooksPath .githooks` in it, add `learnings/YYYY-MM-DD-slug.md`,
      run `node --test` and `node scripts/check-public.mjs`, commit on a branch and open a
      pull request titled "Learning: <the lesson>". Never push to `main`.
