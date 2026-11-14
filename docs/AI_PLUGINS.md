@@ -141,7 +141,7 @@ that does not support a local executable connector. Host checks remain required
 before offering a public download.
 
 The website footer now reads `designed by François` with a monochrome FPE
-signature directly after the name, approximately 11 px high in the footer's
+signature directly after the name, 9 px high and baseline-aligned in the footer's
 own ink. It has no separate link, color treatment or tracking.
 
 ### Immutable release identity
