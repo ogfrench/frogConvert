@@ -20,19 +20,22 @@ frogConvert runs entirely in your browser. Convert between 70+ file formats, com
 - **Convert a file**: [docs/CONVERTER.md](docs/CONVERTER.md).
 - **Edit a PDF**: [docs/PDF_EDITOR.md](docs/PDF_EDITOR.md).
 - **Make a file smaller**: [docs/COMPRESS.md](docs/COMPRESS.md).
-- **AI plugins for Claude and ChatGPT**: preview packages and installation guidance in [docs/AI_PLUGINS.md](docs/AI_PLUGINS.md).
+- **AI plugins for Claude and ChatGPT**: released archives, installation candidates and host limitations in [docs/AI_PLUGINS.md](docs/AI_PLUGINS.md).
 - **Run the MCP server or REST API**: `bunx frogconvert mcp` or `bunx frogconvert api` (requires Bun, no clone). See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 - **Self-host, Docker, desktop builds**: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-## Version 3.5.1 release candidate
+## Published v3.5.1 and host acceptance
 
-[PR #135](https://github.com/ogfrench/frogConvert/pull/135) prepares the
-Claude/ChatGPT plugin archives for release with four native platform targets,
-archive digest checks and source-linked metadata. The website and CLI share the
-3.5.1 application version. See [AI plugin installation and limitations](docs/AI_PLUGINS.md)
-and the guarded release workflow before distributing any executable.
-A passing package build does not prove a supported ChatGPT local executor or
-installation on a specific host.
+[GitHub v3.5.1](https://github.com/ogfrench/frogConvert/releases/tag/v3.5.1)
+was published on 13 November 2026 following merged
+[PR #135](https://github.com/ogfrench/frogConvert/pull/135). Its artifacts include
+Claude and ChatGPT platform-specific native ZIPs for Linux x64, Windows x64,
+macOS ARM64 and macOS x64, desktop app packages, and an AI-plugin SHA-256
+checksums file. Published binaries and package checks do **not** establish
+ChatGPT approval, a successful client import, local MCP tool execution, or
+the file-conversion behavior of a particular installed host. See
+[AI plugin installation and limitations](docs/AI_PLUGINS.md) and
+[release/verification policy](docs/DEPLOYMENT.md) before using the binaries.
 
 The shared website footer uses a tiny FPE attribution symbol next to François,
 monochrome and inheriting the footer text ink. Its shape comes from the canonical
@@ -65,7 +68,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 ## Working with coding agents
 
-[AGENTS.md](AGENTS.md) is the shared, tool-agnostic guide for AI coding assistants and human contributors. The [Claude and ChatGPT plugins](docs/AI_PLUGINS.md) are separate end-user packaging from the [local MCP server and REST API](docs/INTEGRATIONS.md); installing a skill or plugin does not itself grant file-system access or start a conversion service. Follow the repository's tests and [contribution workflow](docs/CONTRIBUTING.md) for any implementation change.
+[AGENTS.md](AGENTS.md) is the shared, tool-agnostic guide for AI coding assistants and human contributors. The [Product Passport](docs/product-passport/README.md) maps actual conversion, PDF and compression ownership to source paths and tests; validate those pointers before changing code. The [Claude and ChatGPT plugins](docs/AI_PLUGINS.md) are separate end-user packaging from the [local MCP server and REST API](docs/INTEGRATIONS.md); installing a skill or plugin does not itself grant file-system access or start a conversion service. Follow the repository's tests and [contribution workflow](docs/CONTRIBUTING.md) for any implementation change.
 
 ## Feedback and contributions
 
