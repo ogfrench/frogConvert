@@ -1,9 +1,8 @@
 ---
 name: visual-loop
 description: >-
-  Show design options rendered on the real thing, read every screenshot before the
-  user sees it, and loop until they pick. Use for visual changes, and when the user asks
-  for options, says a design looks wrong, or wants to check something.
+  Inspect real rendered UI, compare design options and catch visual defects.
+  Use for screenshots, redesigns and visual reviews.
 ---
 
 # Visual loop
@@ -11,6 +10,12 @@ description: >-
 For a broad or high-stakes review, read `references/inspection-rubric.md` and ground each finding in an actual render or a clearly identified structural limitation. Apply project brand rules first. Keep routine fixes lightweight; don't turn the rubric into a mandatory design ceremony.
 
 **The rule:** judge real rendered output, not a description. When the user asks to compare directions, render options on the real thing, inspect them first, and show them for a choice. When the user asks to fix or build, implement the authorized change without an extra approval gate. Inspect the actual build in either case.
+
+## Visual restraint and editorial quality
+
+When reviewing slides, interfaces or visual communication, evaluate purpose and comprehension before surface polish. Repeated badges, three-card layouts, gradients, decorative labels or generic claims are questions to investigate, not automatic bans. Preserve useful brand identity, comparison structures and information density; do not use aesthetic heuristics as an AI detector.
+
+Check the most consequential defects first: misleading charts, unsourced claims, inaccessible or clipped text, irrelevant imagery and unsupported precision. Inspect an actual render whenever possible, identify specific changes, and inspect the corrected output again. For an expanded critique, consult `references/visual-restraint.md` selectively alongside `references/inspection-rubric.md`. This remains part of the existing visual QA loop, not a separate mandatory gate.
 
 ## 1. When options are needed, show them on the real thing
 

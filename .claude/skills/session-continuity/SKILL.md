@@ -1,8 +1,8 @@
 ---
 name: session-continuity
 description: >-
-  Keep long work alive across compactions and new sessions: state in durable
-  places, the work checked against the plan, open points raised.
+  Preserve PR checklists and evidence through compactions and multi-agent handoffs.
+  Use for session continuity, progress checkpoints and handover.
 ---
 
 # Session continuity
@@ -19,16 +19,44 @@ Put each kind of state in the one place built for it, at the moment it changes:
 | State | Durable home |
 | --- | --- |
 | The plan for the current step | a plan file, one per step |
-| What is done, what is next, what waits on whom | a tracker issue with checkboxes |
+| What is done, what is next, what waits on whom | the live PR description checklist; an issue or plan file before a PR exists |
 | A decision and its reason | the project's decision log, with the user's words and the date |
 | A rule that keeps holding | the project's `CLAUDE.md` |
 | What changed | the changelog and the commit messages |
 | Work in progress | a commit on a pushed branch, not a dirty tree |
 | Where things are | worktree paths, branches, how to run the checks: `CLAUDE.md` or the tracker |
 
-Tick the tracker when a PR merges or a question is answered, not at the end of the day. A
-tracker one step behind is the one the next summary trusts. Before starting work, read the
-open issues; when work closes or changes one, update it in the same step.
+When a PR exists, keep its description authoritative for the current work. An issue tracks
+broader scope and follow-ups, not a competing copy of the PR's status. Update the checklist
+as steps finish, fail, or change; do not defer updates until the end of a session.
+
+## PR-first execution checklist
+
+1. Before changing a repository, list the outcomes and proof as checkboxes.
+   Use a durable issue or plan until a PR opens; then keep the PR description
+   authoritative. Replace template placeholders with specific tasks.
+2. Check an item only when evidence proves its acceptance criterion. Record
+   the command, result, runtime and revision. Failed, blocked or unrun checks
+   remain open; a commit or CI status alone may not prove actual behavior.
+3. After meaningful steps and context changes, re-read the branch, PR head,
+   checks and review threads; update the checklist. Reopen verification made
+   stale by later edits.
+4. Before handover, record exact head, completed work, testing, deployment,
+   unresolved reviews, risks, decisions, owner and next step in the PR.
+5. Before review or merge, reconcile every required gate; defer only explicitly
+   to a linked owning issue, never silently discard an open release blocker.
+
+Use [before/after proof](references/before-after-proof.md) to preserve the
+baseline, working scratchpad, comparable results and exact revision across
+interruptions.
+
+See [PR progress and handover](references/pr-progress.md) for examples and
+multi-agent edits. A checklist never grants merge or deploy authority.
+
+## Coordinate with Delivery Loop
+
+Use `delivery-loop` for active implementation and CI repair. This skill owns
+durable PR progress, review checkpoints and precise handovers.
 
 ## Record the user's words
 

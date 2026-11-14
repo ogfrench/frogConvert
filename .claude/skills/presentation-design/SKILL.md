@@ -7,6 +7,12 @@ description: Create or revise finished presentation slides, decks, charts and vi
 
 Design for the message, audience and delivery context. Use an existing brand system or template when supplied; otherwise develop a coherent visual direction without presenting it as an official brand. Templates are resources, not creative limits.
 
+## Specialist authoring precedence
+
+If the user explicitly names a presentation product or provides its complete starter (for example frogViz), its actual template/build/export workflow is the implementation authority. Discover that product's real tools and template before building. This brand-neutral skill can contribute editorial and visual judgment, but it must not silently replace the specialist pipeline with a generic PowerPoint generator, fresh HTML/CSS imitation, or merely similar colors. Preserve the specialist's own fonts, assets, layout hooks and navigation when the source template is available.
+
+If the specialist is unavailable, disclose the missing capability and deliver only what can be verified (for example, a sourced slide narrative), rather than calling a generic export a branded deck. If the user explicitly switches to independent authoring, label the result accordingly. Verify the HTML and each exported format separately and never claim a specialist's renderer ran unless it actually did.
+
 ## Make the presentation
 
 **When asked to create slides, create them.** Use the brief and existing source material, make reasonable assumptions and produce files with available tools. Do not require a story interview, multiple creative directions, outline sign-off or slide-by-slide approval. Ask only about a genuinely essential constraint. If the request is to brainstorm or critique rather than make a deck, respond to that request instead.

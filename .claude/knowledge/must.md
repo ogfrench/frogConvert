@@ -1,4 +1,4 @@
-Must rules from claude-code-setup. One line each; the rest is in .claude/knowledge/bundle.md,
+Must rules from agentic-coding-setup. One line each; the rest is in .claude/knowledge/bundle.md,
 and each card in .claude/knowledge/practices/<id>.md says why.
 - claim-shared-work-atomically: Claim shared work in one step.
 - credential-is-not-authorization: A valid credential is not authorization.
