@@ -21,11 +21,9 @@ The `package.json` script `verify:pdf-merge` is the source-backed entry point fo
 bun run verify:pdf-merge
 ```
 
-When the real optional corpus is present, `bun run test:corpus` adds actual file-content and page-order acceptance. A skipped test or unavailable corpus is not a pass. The focused command cannot prove a real browser UI experience, complete security boundary, or packaged-host install. Use the existing UI/host tests when those surfaces change.
+PDF merge tests must assert the order of distinct pages across files, not just the page count: planted ordering defects previously passed count-only assertions. When the real optional corpus is present, `bun run test:corpus` adds actual file-content and page-order acceptance. A skipped test or unavailable corpus is not a pass. The focused command cannot prove a real browser UI experience, complete security boundary, or packaged-host install. Use the existing UI/host tests when those surfaces change.
 
 PDF merge operates on PDF structure, not the format conversion graph. Follow code boundaries, inspect produced PDF bytes, retain originals, and verify failure conditions. Existing `AGENTS.md`, security tests, and release gates still apply.
-
-Progress and outstanding checks are recorded in [SCRATCHPAD.md](SCRATCHPAD.md).
 
 ---
 
