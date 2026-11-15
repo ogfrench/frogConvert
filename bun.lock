@@ -13,7 +13,7 @@
         "@ffmpeg/util": "^0.12.2",
         "@flo-audio/reflo": "^0.1.2",
         "@fontsource-variable/inter": "^5.3.0",
-        "@imagemagick/magick-wasm": "^0.0.46",
+        "@imagemagick/magick-wasm": "^0.0.45",
         "@jspawn/ghostscript-wasm": "^0.0.2",
         "@modelcontextprotocol/sdk": "^1.32.2",
         "@sqlite.org/sqlite-wasm": "^3.51.2-build6",
@@ -422,7 +422,7 @@
 
     "@iconify/utils": ["@iconify/utils@3.1.0", "", { "dependencies": { "@antfu/install-pkg": "^1.1.0", "@iconify/types": "^2.0.0", "mlly": "^1.8.0" } }, "sha512-Zlzem1ZXhI1iHeeERabLNzBHdOa4VhQbqAcOQaMKuTuyZCpwKbC2R4Dd0Zo3g9EAc+Y4fiarO8HIHRAth7+skw=="],
 
-    "@imagemagick/magick-wasm": ["@imagemagick/magick-wasm@0.0.46", "", {}, "sha512-0HKJmmqUTFwXm6Z/1lGtOx7JE/FpZiJg8sXBnAho1NgzunEOkgUILU7rskUnYbtdG/hJiFe9viVatWuWDZ9S0g=="],
+    "@imagemagick/magick-wasm": ["@imagemagick/magick-wasm@0.0.45", "", {}, "sha512-ef8FHka4xLWo5/tGTV6P45bPjTvnKZz/oHN6sCDTbY8zaCdM2MeaoQHLsy9IHuiVHQhomG3TQ6ErgTnEDyuzvw=="],
 
     "@isaacs/cliui": ["@isaacs/cliui@9.0.0", "", {}, "sha512-AokJm4tuBHillT+FpMtxQ60n8ObyXBatq7jD2/JA9dxbDDokKQm8KMht5ibGzLVU9IJDIKK4TPKgMHEYMn3lMg=="],
 
