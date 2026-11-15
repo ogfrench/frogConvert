@@ -10,11 +10,18 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
-- Pinned `actions/setup-python` in the Electron release workflow to a commit SHA (v5.6.0), as the other actions there are.
+## [3.5.2] - 2026-11-15
 
-- Simplified the shared footer credit to “designed by François” and added a small FPE monogram in the same text color.
+### Security
+- Upgraded `@toon-format/toon` from 2.1.0 to 2.3.1 and added a regression test for prototype-like keys in `.toon` input (#145).
+- Set `isEvalSupported: false` in the PDF canvas fallback used when Ghostscript is unavailable, with a regression assertion (#145). This does not close the separate PDF.js viewer scripting advisory.
+- Repaired the Bun audit command to `bun audit --audit-level=high` (#145). This repairs the command; it does not resolve every existing audit finding.
 
-## [3.5.1] - pending release
+### Website and CI
+- The FPE credit is 9px and baseline-aligned, and the shared footer reads "designed by François" with a small FPE monogram (#141).
+- Pinned `actions/setup-python` in the Electron release workflow to a commit SHA, v5.6.0 (#140).
+
+## [3.5.1] - 2026-11-13
 
 ### Plugin packaging and identity
 - Extend draft PR #135's symlink packaging protections and retain the existing native MCP contract; add the official application icon to both Claude and ChatGPT packages.
