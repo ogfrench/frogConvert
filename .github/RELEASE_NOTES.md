@@ -9,6 +9,18 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
+## What's new in 3.5.3
+
+A compatibility and dependency maintenance release after v3.5.2. No new hosted conversion service or additional local file privileges.
+
+- TypeScript 7.0.2 with narrow source compatibility fixes for legacy handler types and DOM APIs (#117).
+- Routine Bun dependency refresh, keeping ImageMagick WASM at 0.0.45 because 0.0.46 failed the Aseprite converter regression (#150).
+- GitHub Actions updates and synced Claude development guidance (#136, #148).
+
+Main-branch CI is green. Desktop platform installers, actual Claude/ChatGPT host execution and the separate PDF.js viewer scripting advisory remain distinct release/acceptance obligations. This release does not claim to fix or verify them.
+
+---
+
 ## What's new in 3.5.2
 
 Security patches for the TOON decoder and the PDF fallback path, a repaired audit command, and the footer and CI fixes shipped since 3.5.1.
