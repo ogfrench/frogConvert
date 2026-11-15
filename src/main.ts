@@ -377,7 +377,7 @@ function setModeMenuOpen(open: boolean) {
 
 modeToggleBtn.addEventListener("click", (e) => {
   e.stopPropagation();
-  setModeMenuOpen(modeMenu.hidden);
+  setModeMenuOpen(Boolean(modeMenu.hidden));
 });
 
 modeMenu.addEventListener("click", (e) => {
@@ -603,7 +603,7 @@ function chooseQuality(next: string) {
 
 qualityToggle.addEventListener("click", (e) => {
   e.stopPropagation();
-  setQualityMenuOpen(qualityMenu.hidden);
+  setQualityMenuOpen(Boolean(qualityMenu.hidden));
 });
 
 qualityMenu.addEventListener("click", (e) => {

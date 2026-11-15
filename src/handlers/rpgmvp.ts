@@ -3,6 +3,9 @@ import CommonFormats from "../core/CommonFormats/CommonFormats.ts";
 import { Decrypter } from "./rpgmvp-decrypter/scripts/Decrypter.js";
 import { RPGFile } from "./rpgmvp-decrypter/scripts/RPGFile.js";
 
+const RPGFileConstructor = RPGFile as unknown as new(file: File, blobUrl: string | null) => { content: ArrayBuffer };
+type RPGFileInstance = InstanceType<typeof RPGFileConstructor>;
+
 class rpgmvpHandler implements FormatHandler {
 
     public name: string = "rpgmvp";
@@ -46,9 +49,9 @@ class rpgmvpHandler implements FormatHandler {
             const encryption_key = Decrypter.getKeyFromPNG(16, as_buffer);
             const decrypter = new Decrypter(encryption_key);
 
-            const rpgFile = new RPGFile(new File([as_buffer], inputFile.name), null);
+            const rpgFile = new RPGFileConstructor(new File([as_buffer], inputFile.name), null);
             await new Promise<void>((resolve, reject) => {
-                decrypter.decryptFile(rpgFile, (decrypted: RPGFile, e: Error) => {
+                decrypter.decryptFile(rpgFile, (decrypted: RPGFileInstance, e: Error) => {
                     if (e) { reject(e); return; }
                     const bytes = new Uint8Array(decrypted.content);
                     const name = inputFile.name.split(".").slice(0, -1).join(".") + "." + outputFormat.extension;
