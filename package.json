@@ -53,7 +53,7 @@
     "compile:mac": "bun build --compile --target=bun-darwin-arm64 bin/frogconvert.ts --outfile=release/frogconvert-mac-arm64",
     "compile:mac:x64": "bun build --compile --target=bun-darwin-x64 bin/frogconvert.ts --outfile=release/frogconvert-mac-x64",
     "compile:linux": "bun build --compile --target=bun-linux-x64 bin/frogconvert.ts --outfile=release/frogconvert-linux",
-    "audit": "bun audit --level high",
+    "audit": "bun audit --audit-level=high",
     "prepare": "husky"
   },
   "build": {
@@ -121,7 +121,7 @@
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@sqlite.org/sqlite-wasm": "^3.51.2-build6",
     "@stringsync/vexml": "^0.1.8",
-    "@toon-format/toon": "^2.1.0",
+    "@toon-format/toon": "^2.3.1",
     "@xmldom/xmldom": "^0.9.12",
     "bson": "^7.3.3",
     "celaria-formats": "^1.0.2",
