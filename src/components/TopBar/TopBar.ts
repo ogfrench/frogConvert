@@ -95,7 +95,7 @@ export function initModeToggle(onModeChanged: () => void) {
       choose(formatMode.value === "core" ? "plus" : formatMode.value === "plus" ? "all" : "core");
       return;
     }
-    setMenuOpen(menu.hidden);
+    setMenuOpen(Boolean(menu.hidden));
   });
 
   menu?.addEventListener("click", (e) => {

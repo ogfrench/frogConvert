@@ -34,7 +34,6 @@
      * import the TS file instead. We define a custom path to steer it
      * away from the TS file.
      */
-    "baseUrl": ".",
     "paths": {
       "qoi-fu": [
         "./src/handlers/qoi-fu-lib/QOI.ts"
