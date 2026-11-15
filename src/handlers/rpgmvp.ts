@@ -6,6 +6,13 @@ import { RPGFile } from "./rpgmvp-decrypter/scripts/RPGFile.js";
 const RPGFileConstructor = RPGFile as unknown as new(file: File, blobUrl: string | null) => { content: ArrayBuffer };
 type RPGFileInstance = InstanceType<typeof RPGFileConstructor>;
 
+const DecrypterConstructor = Decrypter as unknown as {
+    new(key: string | null): {
+        decryptFile(file: RPGFileInstance, callback: (decrypted: RPGFileInstance, error: Error | null) => void): void;
+    };
+    getKeyFromPNG(headerLength: number, fileContent: ArrayBuffer): string | null;
+};
+
 class rpgmvpHandler implements FormatHandler {
 
     public name: string = "rpgmvp";
@@ -46,12 +53,12 @@ class rpgmvpHandler implements FormatHandler {
         for (const inputFile of inputFiles) {
             const as_buffer = inputFile.bytes.slice().buffer;
 
-            const encryption_key = Decrypter.getKeyFromPNG(16, as_buffer);
-            const decrypter = new Decrypter(encryption_key);
+            const encryption_key = DecrypterConstructor.getKeyFromPNG(16, as_buffer);
+            const decrypter = new DecrypterConstructor(encryption_key);
 
             const rpgFile = new RPGFileConstructor(new File([as_buffer], inputFile.name), null);
             await new Promise<void>((resolve, reject) => {
-                decrypter.decryptFile(rpgFile, (decrypted: RPGFileInstance, e: Error) => {
+                decrypter.decryptFile(rpgFile, (decrypted: RPGFileInstance, e: Error | null) => {
                     if (e) { reject(e); return; }
                     const bytes = new Uint8Array(decrypted.content);
                     const name = inputFile.name.split(".").slice(0, -1).join(".") + "." + outputFormat.extension;
