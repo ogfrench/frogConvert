@@ -9,6 +9,19 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
+## What's new in 3.5.2
+
+Security patches for the TOON decoder and the PDF fallback path, a repaired audit command, and the footer and CI fixes shipped since 3.5.1.
+
+- The `.toon` decoder now uses `@toon-format/toon` 2.3.1, with a regression test for prototype-like keys.
+- When Ghostscript is unavailable, PDF canvas rendering no longer evaluates scripts (`isEvalSupported: false`).
+- The Bun audit script runs as `bun audit --audit-level=high`.
+- The FPE credit in the footer is 9px and baseline-aligned.
+
+Not changed by this release: the separate PDF.js viewer scripting advisory, the live Content-Security-Policy headers, and real-host installation of the Claude and ChatGPT plugins. Those remain open items.
+
+---
+
 ## What's new in 3.5.1
 
 The existing native Claude/ChatGPT packaging safety fixes now ship with frogConvert's established 512px application icon, matched listing/composer branding, consistent plugin metadata and a canonical compatibility manifest. No additional file privileges or hosted conversion service are introduced.
