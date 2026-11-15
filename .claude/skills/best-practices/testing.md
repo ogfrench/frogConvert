@@ -19,7 +19,10 @@
   value. A flaky test is a race in the test or the app until shown otherwise.
   *(2026-10-11-wait-for-state-not-time)*
 - **Check what is on the port before trusting a run.** Another session's stack answers
-  just as well, and then its code is what got tested.
+  just as well, and then its code is what got tested. After a server-side edit, identify the
+  process serving the port and check whether it reloads. Restart a non-reloading process
+  before trusting browser or end-to-end results.
+  *(2026-10-18-restart-servers-that-do-not-reload)*
 - **Headless Chrome matches hover: none; key touch fallbacks on pointer: coarse.** It also
   matches pointer: none and never pointer: coarse. Check matchMedia in the test browser
   before trusting a capture. *(2026-10-16-headless-chrome-matches-hover-none)*

@@ -12,6 +12,11 @@
   job near a minute. Fails fast, no log: billing.
   *(2026-10-17-estimate-runner-minutes-before-merging-a-trigger)*
   *(2026-10-19-run-the-slow-ci-job-once-per-pr)* *(2026-10-25-one-release-pr-one-e2e-run)*
+- **Kill a known PID, not a full-command-line pattern.** A `pkill -f` pattern can also
+  match the shell running it, preventing the next command from starting. Save the PID at
+  launch and stop that PID, or use the task harness's stop command. If matching is
+  unavoidable, inspect the matches before killing.
+  *(2026-10-18-pkill-f-matches-its-own-shell)*
 - **Merge commits on shared branches; never rewrite someone else's history.**
 - **Checks missing from a PR usually mean a merge conflict.** Look at the mergeable state
   first; merge the base in and push. *(2026-10-11-conflicted-pr-runs-no-workflows)*
