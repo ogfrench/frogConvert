@@ -10,6 +10,19 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.5.3] - 2026-11-15
+
+### Compatibility and dependencies
+- Upgraded the TypeScript toolchain from 5.9.3 to 7.0.2, with targeted compatibility fixes to legacy handlers and DOM typings (#117). No new converter API was introduced.
+- Refreshed the routine Bun dependency group (#150), retaining `@imagemagick/magick-wasm` 0.0.45 after 0.0.46 broke the Aseprite conversion regression.
+- Updated GitHub Actions dependencies in CI and Electron packaging (#136).
+
+### Developer setup
+- Synced approved shared Claude Code guidance (#148), and simplified the Product Passport while keeping PDF failure-path evidence (#149).
+
+### Release limits
+- Main-branch CI and Docker publishing passed after the merges; desktop installer, native plugin hosts, and the separate PDF.js viewer scripting advisory are not thereby accepted or closed.
+
 ## [3.5.2] - 2026-11-15
 
 ### Security
