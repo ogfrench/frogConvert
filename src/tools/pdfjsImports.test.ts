@@ -14,6 +14,11 @@ function sourceFiles(dir: string): string[] {
 }
 
 describe('pdfjs-dist imports', () => {
+  it('disables eval in the canvas-compression PDF.js fallback', () => {
+    const source = readFileSync(resolve(__dirname, '../handlers/pdfCanvasCompress.ts'), 'utf8');
+    expect(source).toMatch(/getDocument\\(\\{\\s*data:\\s*file\\.bytes\\.slice\\(\\),\\s*isEvalSupported:\\s*false\\s*\\}\\)/);
+  });
+
   it('every import uses the legacy build', () => {
     const offenders: string[] = [];
     for (const file of sourceFiles(resolve(__dirname, '..'))) {

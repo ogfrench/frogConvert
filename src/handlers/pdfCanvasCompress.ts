@@ -133,7 +133,7 @@ class PdfCanvasCompressHandler implements FormatHandler {
     ): Promise<Uint8Array> {
         let doc;
         try {
-            doc = await pdfjsLib.getDocument({ data: file.bytes.slice() }).promise;
+            doc = await pdfjsLib.getDocument({ data: file.bytes.slice(), isEvalSupported: false }).promise;
         } catch (e) {
             rethrowIfPasswordProtected(e, file.name);
             throw new Error(`Couldn't read ${file.name}.`);
