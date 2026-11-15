@@ -86,6 +86,7 @@ class pdftoimgHandler implements FormatHandler {
         pdf = await pdfjsLib.getDocument({
           data: inputFile.bytes.slice(),
           isEvalSupported: false,
+        enableScripting: false,
           isOffscreenCanvasSupported: false,
         }).promise;
       } catch (e) {

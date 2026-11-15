@@ -14,6 +14,21 @@ function sourceFiles(dir: string): string[] {
 }
 
 describe('pdfjs-dist imports', () => {
+  it('disables PDF document scripting at every getDocument call site', () => {
+    const offenders: string[] = [];
+    let checked = 0;
+    for (const file of sourceFiles(resolve(__dirname, '..'))) {
+      const text = readFileSync(file, 'utf8');
+      if (!text.includes('pdfjs-dist/legacy/build/pdf.mjs')) continue;
+      for (const match of text.matchAll(/getDocument\s*\(\s*\{([\s\S]*?)\}\s*\)/g)) {
+        checked++;
+        if (!/enableScripting\s*:\s*false/.test(match[1])) offenders.push(file);
+      }
+    }
+    expect(checked).toBeGreaterThanOrEqual(5);
+    expect(offenders).toEqual([]);
+  });
+
   it('every import uses the legacy build', () => {
     const offenders: string[] = [];
     for (const file of sourceFiles(resolve(__dirname, '..'))) {
