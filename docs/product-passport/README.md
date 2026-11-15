@@ -25,7 +25,7 @@ When the real optional corpus is present, `bun run test:corpus` adds actual file
 
 PDF merge operates on PDF structure, not the format conversion graph. Follow code boundaries, inspect produced PDF bytes, retain originals, and verify failure conditions. Existing `AGENTS.md`, security tests, and release gates still apply.
 
-Progress and outstanding checks are recorded in [SCRATCHPAD.md](SCRATCHPAD.md).
+
 
 ---
 
