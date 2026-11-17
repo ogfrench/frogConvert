@@ -11,7 +11,7 @@ desc: Claude and ChatGPT desktop integrations
 <section class="ai-intro" aria-label="Plugin overview">
   <div class="ai-intro-topline"><span class="ai-intro-mark" aria-hidden="true"></span> Local-first file tools for AI</div>
   <p class="ai-intro-lead">From a prompt to the finished file.</p>
-  <p class="ai-intro-copy">Convert data, organize PDFs, and work with local files directly from Claude or ChatGPT. No repository clone, account, or hosted conversion service is planned for the desktop plugin.</p>
+  <p class="ai-intro-copy">Native desktop builds provide local file tools where the host supports MCP execution. A separate Claude workspace ZIP installs the same guidance skills, without a bundled executable or conversion service.</p>
   <div class="ai-intro-rail" aria-label="Plugin characteristics">
     <span>Native desktop runtime</span>
     <span>Shared conversion engine</span>
@@ -23,14 +23,14 @@ desc: Claude and ChatGPT desktop integrations
   <div class="ai-status-indicator" aria-hidden="true"></div>
   <div>
     <strong>GitHub archives published; real-client acceptance pending.</strong>
-    <p>The source implementation in <a href="https://github.com/ogfrench/frogConvert/pull/123">PR #123</a> and <a href="https://github.com/ogfrench/frogConvert/pull/125">PR #125</a> was packaged in <a href="https://github.com/ogfrench/frogConvert/releases/tag/v3.5.1">GitHub v3.5.1</a>, with native Claude/ChatGPT ZIPs and checksums. Downloadable archives are not evidence of approved ChatGPT installation or working local MCP tools.</p>
+    <p>The v3.5.4 release adds a portable Claude workspace ZIP alongside native Claude and ChatGPT builds. Workspace skills do not execute conversions by themselves; native builds still require supported local hosts and real-client verification. See <a href="https://github.com/ogfrench/frogConvert/releases">GitHub releases</a> for downloadable assets.</p>
   </div>
 </div>
 
 <section aria-labelledby="ai-platforms">
   <div class="ai-section-heading">
     <div><p class="ai-overline">01 / Choose your workspace</p><h2 id="ai-platforms">Two clients. One conversion engine.</h2></div>
-    <p>Both published package variants target the same eight-tool MCP server. Installation, approval and actual tool availability must be verified separately for each client.</p>
+    <p>Choose the Claude workspace skills ZIP for web/Cowork upload, or a native platform ZIP for local MCP in Claude Code. ChatGPT native ZIPs remain unverified local desktop candidates.</p>
   </div>
   <div class="ai-client-grid">
     <article class="ai-client ai-client-claude">
@@ -39,7 +39,7 @@ desc: Claude and ChatGPT desktop integrations
         <span class="ai-client-phase">Build validation</span>
       </div>
       <h3>Claude Code</h3>
-      <p class="ai-client-description">Recommended first validation target. Claude Cowork and Claude chat require independent import and tool-call checks.</p>
+      <p class="ai-client-description">Native local MCP on a compatible host. Claude workspace upload requires the separate skills-only ZIP described below.</p>
       <ul class="ai-client-specs">
         <li>Local MCP tools and reusable skills</li>
         <li>Platform-specific native executable</li>
@@ -103,19 +103,23 @@ desc: Claude and ChatGPT desktop integrations
 ### Claude Code
 
 <div id="install-claude" class="ai-install-note">
-<strong>Installation candidate.</strong> After a platform-specific build passes its clean-install checks, extract the Claude ZIP and point Claude Code to that folder:
+<strong>Native Claude Code installation candidate.</strong> Download the platform-specific `frogconvert-claude-<platform>-v3.5.4.zip`, extract it and point Claude Code at the contained `frogconvert` directory:
 </div>
 
 ```sh
 claude --plugin-dir /absolute/path/to/frogconvert
 ```
 
-The package includes `.claude-plugin/plugin.json`, `.mcp.json`, `skills/` and `bin/frogconvert` (or `frogconvert.exe` on Windows). Confirm the server and eight tools in `/mcp`. Claude Cowork is a separate validation target. Unverified archives are not supported installers.
+The native ZIP includes `.claude-plugin/plugin.json`, `.mcp.json`, `skills/` and `bin/frogconvert` (or `frogconvert.exe` on Windows). Confirm tool discovery and real conversions in `/mcp`. **Do not upload the native ZIP to the Claude web/Cowork plugin uploader.**
+
+### Claude workspace upload (web and Cowork)
+
+Select **`frogconvert-claude-workspace-v3.5.4.zip`** in Claude's **Upload a plugin** dialog. It has `.claude-plugin/plugin.json` at the archive root and the four `skills/` definitions. It does **not** contain `bin/`, a local MCP executable or `.mcp.json`. Uploading it installs workflow guidance only; file conversion requires an independently supported MCP connection. No conversion capability is claimed for Claude chat from this package alone. Verify acceptance in the actual Claude uploader.
 
 ### ChatGPT Desktop
 
 <div id="install-chatgpt" class="ai-install-note">
-<strong>Archive published; ChatGPT host execution unverified.</strong> The ChatGPT package uses portable <code>plugin.json</code> and <code>mcp.json</code> manifests with a bundled local executable. GitHub v3.5.1 has a native ZIP, but successful ChatGPT desktop import and real tool calls have not been demonstrated. Do not treat an archive or Actions build as an approved installer.
+<strong>Archive published; ChatGPT host execution unverified.</strong> The ChatGPT native packages retain <code>plugin.json</code>, <code>mcp.json</code> and a platform-specific executable. A new release or green CI does not establish ChatGPT desktop import, authorization or functional local MCP tool calls. Do not upload the Claude workspace ZIP as a ChatGPT native installer.
 </div>
 
 OpenAI restricts public distribution of desktop-only plugins with local MCP to approved partners. The package is **not generally installable yet**. Do not assume ChatGPT web or mobile can execute local binaries. See <a href="https://developers.openai.com/plugins/deploy/desktop-only">OpenAI's desktop-only plugin requirements</a>.
@@ -133,7 +137,7 @@ Read the <a href="INTEGRATIONS.md">MCP and REST reference</a> and <a href="../SE
 
 ### Published artifacts and attribution
 
-[GitHub v3.5.1](https://github.com/ogfrench/frogConvert/releases/tag/v3.5.1) contains Claude and ChatGPT native archives for Linux x64, Windows x64, macOS ARM64 and macOS x64, with an AI-plugin SHA-256 checksums file. Packaging in [PR #135](https://github.com/ogfrench/frogConvert/pull/135) is merged. These are downloadable binary candidates, not proof of host approval or tool-call execution; verify checksums and the actual client's behavior separately.
+The [v3.5.4 release](https://github.com/ogfrench/frogConvert/releases/tag/v3.5.4) is configured to publish one cross-platform Claude workspace skills ZIP plus eight native Claude/ChatGPT archives (Linux x64, Windows x64, macOS ARM64 and macOS x64), with SHA-256 checksums. Downloadable binary candidates do not prove host approval or working tool calls. Verify the release exists and checksums match before installing.
 
 The website footer now reads `designed by François` with a monochrome FPE
 signature directly after the name, 9 px high and baseline-aligned in the footer's
