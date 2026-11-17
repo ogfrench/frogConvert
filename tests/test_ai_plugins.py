@@ -35,7 +35,16 @@ class PluginPackagingTest(unittest.TestCase):
         self.assertIn("for client in claude chatgpt", workflow)
         self.assertIn("sha256sum -c SHA256SUMS.txt", workflow)
         self.assertIn("SHA256SUMS-AI-PLUGINS.txt", workflow)
+        self.assertIn("frogconvert-claude-workspace-v$version.zip", workflow)
         self.assertIn("files: installers/*", workflow)
+
+    def test_expensive_native_preview_is_manual_only(self):
+        workflow = (ROOT / ".github/workflows/ai-plugins.yml").read_text(encoding="utf-8")
+        for job in ("native-linux-probe", "native-cross-platform-probe"):
+            self.assertIn(
+                f"  {job}:\\n    if: github.event_name == 'workflow_dispatch'".replace("\\n", "\n"),
+                workflow,
+            )
 
     def test_published_release_and_tag_integrity_guard(self):
         workflow = (ROOT / ".github/workflows/electron.yml").read_text(encoding="utf-8")
@@ -170,11 +179,22 @@ class PluginPackagingTest(unittest.TestCase):
         for archive in first.glob("*.zip"):
             self.assertIn(hashlib.sha256(archive.read_bytes()).hexdigest() + "  " + archive.name, sums)
             with ZipFile(archive) as z:
-                binary_info = z.getinfo("frogconvert/bin/frogconvert")
-                self.assertEqual((binary_info.external_attr >> 16) & 0o777, 0o755)
-                self.assertEqual(z.read(binary_info.filename), self.binary.read_bytes())
-                for notice in ("LICENSE", "LICENSE.upstream-GPLv2", "COPYRIGHT"):
-                    self.assertEqual(z.read("frogconvert/" + notice), (ROOT / notice).read_bytes())
+                names = z.namelist()
+                if "claude-workspace" in archive.name:
+                    manifest = json.loads(z.read(".claude-plugin/plugin.json"))
+                    self.assertEqual(manifest["name"], "frogconvert")
+                    self.assertEqual(manifest["version"], json.loads((ROOT / "package.json").read_text())["version"])
+                    self.assertEqual(len([n for n in names if n.startswith("skills/") and n.endswith("/SKILL.md")]), 4)
+                    self.assertNotIn(".mcp.json", names)
+                    self.assertFalse(any(n.startswith("bin/") or n.endswith(".exe") for n in names))
+                    self.assertFalse(any(n.startswith("frogconvert/") for n in names))
+                    self.assertIn(b"no local executable", z.read("INSTALL.md"))
+                else:
+                    binary_info = z.getinfo("frogconvert/bin/frogconvert")
+                    self.assertEqual((binary_info.external_attr >> 16) & 0o777, 0o755)
+                    self.assertEqual(z.read(binary_info.filename), self.binary.read_bytes())
+                    for notice in ("LICENSE", "LICENSE.upstream-GPLv2", "COPYRIGHT"):
+                        self.assertEqual(z.read("frogconvert/" + notice), (ROOT / notice).read_bytes())
 
 
 if __name__ == "__main__":
