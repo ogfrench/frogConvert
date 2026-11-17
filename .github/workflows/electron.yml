@@ -253,6 +253,9 @@ jobs:
               cp "$package" installers/
             done
           done
+          workspace="plugin-builds/frogconvert-ai-release-linux-x64/frogconvert-claude-workspace-v$version.zip"
+          [ -s "$workspace" ] || { echo "::error::Missing Claude workspace ZIP"; exit 1; }
+          cp "$workspace" installers/
           (cd installers && sha256sum frogconvert-claude-*-v*.zip frogconvert-chatgpt-*-v*.zip > SHA256SUMS-AI-PLUGINS.txt)
 
       - name: One installer per platform

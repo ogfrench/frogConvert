@@ -27,6 +27,7 @@ jobs:
         run: python3 -m unittest discover -s tests -p test_ai_plugins.py
 
   native-linux-probe:
+    if: github.event_name == 'workflow_dispatch'
     needs: validate
     runs-on: ubuntu-latest
     steps:
@@ -57,6 +58,7 @@ jobs:
           if-no-files-found: error
 
   native-cross-platform-probe:
+    if: github.event_name == 'workflow_dispatch'
     needs: validate
     strategy:
       fail-fast: false

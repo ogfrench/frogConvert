@@ -10,6 +10,19 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.5.4] - 2026-11-17
+
+### Plugin installation
+- Add a portable Claude workspace upload ZIP with a root `.claude-plugin/plugin.json` and the four shared skills, but no native binary or unusable local MCP configuration.
+- Keep the existing Windows, macOS and Linux native Claude and ChatGPT ZIPs for locally supported hosts; do not present these binaries as Claude web-upload packages.
+- Include the workspace artifact in release checksums and add packaging regression tests for the distinct upload and native contracts.
+
+### Build cost
+- PR packaging checks are Python-only; optional native preview probes require manual dispatch. Release builds retain their full native and desktop matrices.
+
+### Limits
+- Workspace skills do not grant file access or run conversion without a separately configured MCP connection. Native binaries still require real-host acceptance; ChatGPT desktop support remains unverified.
+
 ## [3.5.3] - 2026-11-15
 
 ### Compatibility and dependencies

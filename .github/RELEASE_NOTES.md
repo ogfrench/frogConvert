@@ -9,6 +9,18 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
+## What's new in 3.5.4
+
+A Claude workspace-upload packaging fix, without changes to the conversion engine.
+
+- **New:** `frogconvert-claude-workspace-v3.5.4.zip` contains a root Claude plugin manifest and four portable skills, with no bundled executable or unusable local MCP configuration. It can guide workflows but cannot itself convert files.
+- **Unchanged native capability:** Windows, macOS Intel/Apple Silicon and Linux Claude Code and ChatGPT binary ZIPs are still built and checksum-verified as separate local-host candidates.
+- **Cheaper CI:** packaging PRs run fast Python archive checks; full native platform probes remain available manually and still run for publication in the release workflow.
+
+Actual Claude workspace upload must still be tested in the UI. ChatGPT desktop local-MCP permission, local security, and full host acceptance remain open. Do not mistake a valid ZIP or MCP smoke test for an approved installation.
+
+---
+
 ## What's new in 3.5.3
 
 A compatibility and dependency maintenance release after v3.5.2. No new hosted conversion service or additional local file privileges.
