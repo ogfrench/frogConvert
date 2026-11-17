@@ -24,16 +24,18 @@ frogConvert runs entirely in your browser. Convert between 70+ file formats, com
 - **Run the MCP server or REST API**: `bunx frogconvert mcp` or `bunx frogconvert api` (requires Bun, no clone). See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 - **Self-host, Docker, desktop builds**: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-## Published v3.5.1 and host acceptance
+## Releases and host acceptance
 
-[GitHub v3.5.1](https://github.com/ogfrench/frogConvert/releases/tag/v3.5.1)
-was published on 13 November 2026 following merged
-[PR #135](https://github.com/ogfrench/frogConvert/pull/135). Its artifacts include
-Claude and ChatGPT platform-specific native ZIPs for Linux x64, Windows x64,
-macOS ARM64 and macOS x64, desktop app packages, and an AI-plugin SHA-256
-checksums file. Published binaries and package checks do **not** establish
-ChatGPT approval, a successful client import, local MCP tool execution, or
-the file-conversion behavior of a particular installed host. See
+The [latest GitHub release](https://github.com/ogfrench/frogConvert/releases/latest)
+lists current desktop installers and platform-specific Claude and ChatGPT ZIP
+candidates. Native plugin packaging was introduced in v3.5.1; v3.5.3
+(15 November 2026) additionally includes TypeScript and dependency
+maintenance. Consult the release notes for the exact version, supported
+platforms and unchanged security/host limitations.
+
+Publishing archives and passing package checks do **not** establish approved
+ChatGPT installation, a successful client import, local MCP tool execution,
+or conversion behavior in a particular installed host. See
 [AI plugin installation and limitations](docs/AI_PLUGINS.md) and
 [release/verification policy](docs/DEPLOYMENT.md) before using the binaries.
 
