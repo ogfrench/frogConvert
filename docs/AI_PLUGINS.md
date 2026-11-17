@@ -23,7 +23,7 @@ desc: Claude and ChatGPT desktop integrations
   <div class="ai-status-indicator" aria-hidden="true"></div>
   <div>
     <strong>GitHub archives published; real-client acceptance pending.</strong>
-    <p>The source implementation in <a href="https://github.com/ogfrench/frogConvert/pull/123">PR #123</a> and <a href="https://github.com/ogfrench/frogConvert/pull/125">PR #125</a> was packaged in <a href="https://github.com/ogfrench/frogConvert/releases/tag/v3.5.1">GitHub v3.5.1</a>, with native Claude/ChatGPT ZIPs and checksums. Downloadable archives are not evidence of approved ChatGPT installation or working local MCP tools.</p>
+    <p>Native Claude/ChatGPT ZIPs and checksums first shipped in <a href="https://github.com/ogfrench/frogConvert/releases/tag/v3.5.1">v3.5.1</a>. Use the <a href="https://github.com/ogfrench/frogConvert/releases/latest">latest release</a> for current versioned archives and compatibility notes. Downloadable archives do not prove approved ChatGPT installation or working local MCP tools.</p>
   </div>
 </div>
 
