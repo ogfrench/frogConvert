@@ -310,12 +310,12 @@ jobs:
           echo "  equivalence : OK (code identical to official $VERSION)"
           echo "=================================================="
 
-  # Releases a version bump once master CI is green. A push whose package.json
-  # version already has a tag does nothing, so this fires once per version,
-  # not on every push. electron.yml's preflight re-checks the tag, the notes
-  # and this CI run before anything is published.
+  # Optional automatic releases: only dispatch when the repository variable
+  # FROGCONVERT_AUTO_RELEASE is explicitly 'on'. Otherwise, after master CI is
+  # green, the owner can manually dispatch electron.yml from master with a tag.
+  # electron.yml independently checks that tag, release notes, and exact CI run.
   release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && vars.FROGCONVERT_AUTO_RELEASE == 'on'
     needs: [build, verify, nginx, xlsx-provenance]
     runs-on: ubuntu-24.04
     permissions:
