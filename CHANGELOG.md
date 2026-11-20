@@ -10,6 +10,18 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.5.5] - 2026-11-20
+
+### Website
+- Add a subtle frogQuiz link alongside the existing frogConvert footer documentation link (#156).
+- Open the sister-tool footer link in a new tab using `target="_blank"` and `rel="noopener noreferrer"` (#157).
+
+### Documentation
+- Point the README and AI plugin guide to the current GitHub release without rolling back the v3.5.4 Claude workspace-vs-native packaging guidance (#156; supersedes obsolete draft #154).
+
+### Scope
+- No conversion handlers, MCP execution, API behavior, dependencies, or data formats changed in the two post-v3.5.4 merges. Desktop and AI plugin release artifacts require their normal build and checksum checks; real-client acceptance remains separate.
+
 ## [3.5.4] - 2026-11-17
 
 ### Plugin installation

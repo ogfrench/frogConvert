@@ -9,6 +9,18 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
+## What's new in 3.5.5
+
+A small footer-navigation and release-documentation patch. The conversion engine and MCP runtime are unchanged.
+
+- **Cross-link:** frogConvert now links to frogQuiz from its existing footer, styled like the neighboring docs link (#156).
+- **Navigation:** the external frogQuiz link opens in a new tab with `noopener noreferrer`, while internal docs navigation stays in the same tab (#157).
+- **Documentation:** README and AI plugin guidance now direct readers to the latest GitHub release, preserving the v3.5.4 distinctions between portable Claude workspace skills and native local MCP executables (#156).
+
+Claude workspace import, local-host ChatGPT support, and real-client MCP execution are not established by a published ZIP or passing CI. Installers and native plugin packages require the release workflow's own verification.
+
+---
+
 ## What's new in 3.5.4
 
 A Claude workspace-upload packaging fix, without changes to the conversion engine.
