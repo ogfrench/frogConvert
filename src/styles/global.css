@@ -390,7 +390,7 @@ summary {
   color: inherit;
 }
 
-#footer-docs-link {
+.footer-text a {
   color: inherit;
   font-weight: inherit;
   text-decoration: underline;
@@ -399,7 +399,7 @@ summary {
   transition: color var(--transition-fast), text-decoration-color var(--transition-fast);
 }
 
-#footer-docs-link:hover {
+.footer-text a:hover {
   color: var(--foreground);
   text-decoration-color: var(--foreground);
 }
