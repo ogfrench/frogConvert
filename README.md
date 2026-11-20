@@ -28,7 +28,7 @@ frogConvert runs entirely in your browser. Convert between 70+ file formats, com
 
 v3.5.4 adds a **Claude workspace upload** archive, `frogconvert-claude-workspace-v3.5.4.zip`, with a root manifest and four skills. It has no bundled executable or local MCP server, so installing it is not itself a working converter. For actual local MCP tools in Claude Code, use the OS-specific `frogconvert-claude-<platform>-v3.5.4.zip`. The corresponding ChatGPT desktop native ZIPs are experimental and require host support and approval.
 
-The [GitHub releases](https://github.com/ogfrench/frogConvert/releases) contain platform-specific native candidates and checksum files. A released ZIP or passing native smoke test does **not** establish Claude workspace import, ChatGPT approval, working local MCP tool calls or complete conversion behavior. See [AI plugin installation and limitations](docs/AI_PLUGINS.md) and [release/verification policy](docs/DEPLOYMENT.md).
+The [latest GitHub release](https://github.com/ogfrench/frogConvert/releases/latest) lists platform-specific native candidates and checksum files. A released ZIP or passing native smoke test does **not** establish Claude workspace import, ChatGPT approval, working local MCP tool calls or complete conversion behavior. See [AI plugin installation and limitations](docs/AI_PLUGINS.md) and [release/verification policy](docs/DEPLOYMENT.md).
 
 The shared website footer uses a tiny FPE attribution symbol next to François,
 monochrome and inheriting the footer text ink. Its shape comes from the canonical

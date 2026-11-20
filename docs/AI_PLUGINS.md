@@ -23,7 +23,7 @@ desc: Claude and ChatGPT desktop integrations
   <div class="ai-status-indicator" aria-hidden="true"></div>
   <div>
     <strong>GitHub archives published; real-client acceptance pending.</strong>
-    <p>The v3.5.4 release adds a portable Claude workspace ZIP alongside native Claude and ChatGPT builds. Workspace skills do not execute conversions by themselves; native builds still require supported local hosts and real-client verification. See <a href="https://github.com/ogfrench/frogConvert/releases">GitHub releases</a> for downloadable assets.</p>
+    <p>The v3.5.4 release adds a portable Claude workspace ZIP alongside native Claude and ChatGPT builds. Workspace skills do not execute conversions by themselves; native builds still require supported local hosts and real-client verification. See the <a href="https://github.com/ogfrench/frogConvert/releases/latest">latest GitHub release</a> for downloadable assets.</p>
   </div>
 </div>
 
