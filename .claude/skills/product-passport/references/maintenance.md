@@ -1,6 +1,6 @@
 # Maintenance and architecture gardening
 
-Do not rewrite a product because its folders differ from a preferred framework. Preserve the existing stack and authoritative documentation. Dune-inspired principles are one paved path per responsibility, explicit ownership, visible process boundaries, and prevention of recurring workarounds.
+Do not rewrite a product because its folders differ from a preferred framework. Preserve the existing stack; verify documentation against code and observed behavior. Dune-inspired principles are one paved path per responsibility, explicit ownership, visible process boundaries, and prevention of recurring workarounds.
 
 ## Correction ladder
 
@@ -10,7 +10,7 @@ Do not rewrite a product because its folders differ from a preferred framework. 
 4. Update the product-owned feature map, and only then teach a reusable pattern through the existing learning loop.
 5. Check the new rule against a legitimate contrasting case, so it does not reward overbroad lint or boilerplate.
 
-Avoid comments that defend short-term solutions or explain away forbidden imports. Preserve mandatory notices and directives. Do not delete established code or introduce broad style bans in a behavior-verification PR.
+Default to no explanatory comments. Remove redundant comments in code you touch; keep mandatory notices, tool directives and rare indispensable constraint explanations. Do not delete working code solely to satisfy style.
 
 ## Routine
 

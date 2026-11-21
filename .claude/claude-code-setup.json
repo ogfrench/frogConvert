@@ -21,14 +21,19 @@
     ".claude/skills/presentation-design",
     ".claude/skills/presentation-story",
     ".claude/skills/product-passport",
+    ".claude/skills/release-readiness",
     ".claude/skills/security-review",
     ".claude/skills/session-continuity",
     ".claude/skills/test-strategy",
     ".claude/skills/token-efficiency",
     ".claude/skills/visual-loop"
   ],
-  "snapshot_sha256": "84006af2f3f1e6f873b388a2781ab588e761e920e137386fd06212216f9cbc8b",
-  "source_revision": "e43ce9f9ced884018e65f9f669200df6351e7cc8",
+  "snapshot_sha256": "9b1f370c8a302d6d3c2d71144667a82f44ca4bf56906fea3c2ce9693e87e87f1",
+  "maintainer_contract_sha256": "c1164c3b16f93e93d27d0f827c95304d1f8044ba173de8a7eb4dfabba2a2313f",
+  "maintainer_entrypoints": [
+    "AGENTS.md"
+  ],
+  "source_revision": "30c67a29cd8d896209f69b237a2e2f52568b47d2",
   "knowledge": {
     "stacks": [
       "any"

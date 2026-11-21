@@ -30,6 +30,24 @@ for every domain. Merge specialists that share data, chain frequently, or
 repeat context. The main agent should usually call a retained specialist as
 a tool and inspect its result, rather than handing over the conversation.
 
+## Risk-gated adversarial review
+
+The main agent remains **executive** and owns framing, implementation, the PR,
+verification and decisions. Routine changes do not need a committee. Material
+uncertainty may warrant one independent critic; high-consequence cross-boundary
+work may need two or three read-only critics with different concerns, before
+expensive design commitments and before merge. Escalate for risk, not file count.
+
+A **judge** is optional for conflicting or numerous findings. It deduplicates,
+checks evidence and preserves credible dissent; it cannot waive gates, approve
+releases or vote away a reproduced defect. The executive must reconcile each
+material finding, explain rejections and verify corrections. Agreement among
+agents is not proof.
+
+Only when escalation is justified, load the
+[risk-gated review protocol](references/risk-gated-review.md). Do not introduce
+a permanent orchestration tier or pretend the host can spawn agents.
+
 ## Compare before adding or folding an agent
 
 1. Write end-to-end cases **before** changing architecture: ordinary requests,
@@ -57,6 +75,14 @@ a tool and inspect its result, rather than handing over the conversation.
   proves the same findings emerge without it.
 - Parallel writes need separate worktrees, ports and state. Shared databases,
   rate limits and watched browser stacks run serially.
+- Before parallel implementation, classify tasks by shared behavior, contracts and
+  invariants, not only file overlap. For independent, dependent and conflicting work,
+  use the [conflict-aware parallelism protocol](references/conflict-aware-parallelism.md).
+  Successful isolated branches are not proof of a compatible integrated product.
+- For source-derived work, partition writable outputs, not source access;
+  workers may share read-only canonical inputs. The main agent runs shared
+  generation and acceptance checks. Workers flag source omissions or
+  conflicts rather than silently repairing them.
 - An agent report is a claim. Re-check its findings, diff and test evidence
   in the main loop before merging or reporting success.
 
