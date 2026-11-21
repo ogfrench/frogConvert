@@ -82,4 +82,4 @@ jobs:
           done < <(git diff --cached --name-only)
           git diff --cached --check
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'chore: sync Agentic Workflow managed copies'
-          git push origin "HEAD:$GITHUB_REF_NAME"
+          git push origin "HEAD:chore/agentic-workflow-2026-12-1-sync"
