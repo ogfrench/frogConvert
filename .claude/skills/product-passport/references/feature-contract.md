@@ -26,12 +26,14 @@ A first-pass inventory from project documentation is allowed only when labeled `
 - **Owner:** Owning UI/module/service and the canonical implementation path.
 - **Boundaries:** State, transport, persistence, process, and allowed dependencies.
 - **Preconditions:** Inputs, access, runtime requirements, and isolation.
-- **Success:** Observable, nontrivial assertions.
-- **Failure/recovery:** Important error, empty, permission, or cancellation paths.
+- **Success:** Observable, nontrivial assertions for the complete journey, including discovery, detail understanding, preview, action, and meaningful output where applicable.
+- **Failure/recovery:** Important error, empty, permission, loading/fallback, or cancellation paths.
 - **Verify:** Existing tests and exact runnable task steps.
 - **Evidence:** Required output artifacts, source revision, and environment.
 - **Known limitations:** Untested hosts or unproven behavior.
 ```
+
+For UI catalogs and other multi-surface products, use [experience-journey.md](experience-journey.md) to distinguish list thumbnails from detail-page previews, reveal misleading taxonomy/copy, and require artifact-specific proof. Do not prescribe live previews for static products or create duplicate UI solely to satisfy a checklist.
 
 An entry must be checked against the current source and lead an unfamiliar agent to the correct implementation and a runnable check in minutes. Avoid fixed folder names for UI/client/host: a web app, CLI, research index, and desktop application own behavior differently. Keep both native and plugin/MCP entry points when they materially differ.
 

@@ -22,6 +22,13 @@ issue from it.
 
 ## Capture, from any repo
 
+**Promotion bias:** when a recurring error can be prevented by repairing code, a regression, or a reliable guard, do that before writing more guidance. Prefer adapting a canonical skill or existing rule over creating another document. A user-specified code-style default may be recorded as policy without inventing empirical defect evidence.
+
+**Abstract before promoting:** name the invariant across source,
+transformation and output, not the one artifact or tool. Extend an existing
+owning skill and its regressions when possible. Add a specialist only when
+repeated distinct tasks and routing evaluations justify it.
+
 **Worth a learning:** something cost real time; a review or a test found a class of bug,
 not just a bug; a tool behaved unlike its docs; the user corrected the approach; a guess
 turned out wrong. **Not worth one:** a fact about one repo (that goes in its `CLAUDE.md`),

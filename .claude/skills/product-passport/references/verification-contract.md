@@ -14,7 +14,7 @@ Never lower a tier because a diff is small. Authentication, secrets, financial o
 2. Inspect existing harnesses and choose the least intrusive tool that can prove the behavior. A browser/CLI action must operate on a real executable artifact, not a mockup. Recorded outputs belong to this execution.
 3. Prevent mutations of production accounts, production databases, live user files, or confidential corpora during default verification. Use disposable services, generated fixtures, and least privilege. Never run destructive test scripts before checking targets.
 4. Test intended success and at least one meaningful failure or regression path where risk warrants it. Assert result semantics, not only exit status or HTTP status.
-5. Review the captured artifact itself: visual images and motion for UI, file structure and content for conversion, persisted state for interactive systems, provenance for research, and installed-host tool availability for plugins.
+5. Review the captured artifact itself: visual images and motion for UI, file structure and content for conversion, persisted state for interactive systems, provenance for research, and installed-host tool availability for plugins. A gallery thumbnail does not prove a working detail preview; opening a real preview does not prove its primary user action or exported result. For visual journeys compare representative desktop/mobile and any product-relevant variants, and record loading, empty, access-denied and reduced-motion behavior when applicable.
 6. Record the same commit and environment across test results; never combine results from different revisions into one green verdict.
 
 ## Outcomes
