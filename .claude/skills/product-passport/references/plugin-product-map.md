@@ -20,8 +20,8 @@ flowchart TB
 
 | Package | Purpose and ownership | Source | Host boundary |
 | --- | --- | --- | --- |
-| `agentic-workflow` (Claude Code edition) | 23 engineering, presentation, design, writing, testing and security skills; optional Claude-specific agent, hooks and sync | `plugins/agent-workflow/` | Claude Code; installation and sync explicit |
-| `agentic-workflow` (ChatGPT edition) | The same 23 canonical skills adapted for ChatGPT, plus four portable review skills | `portable/agentic-workflow/`; `scripts/package_agentic_workflow_chatgpt.py` | Private, skills-only ChatGPT edition; tools are host-provided |
+| `agentic-workflow` (Claude Code edition) | 24 engineering, presentation, design, writing, testing and security skills; optional Claude-specific agent, hooks and sync | `plugins/agent-workflow/` | Claude Code; installation and sync explicit |
+| `agentic-workflow` (ChatGPT edition) | The same 24 canonical skills adapted for ChatGPT, plus four portable review skills | `portable/agentic-workflow/`; `scripts/package_agentic_workflow_chatgpt.py` | Private, skills-only ChatGPT edition; tools are host-provided |
 | `chatgpt-workflow-lite` | Historical four-skill compatibility package, deprecated for new ChatGPT users | `portable/ogfrench-workflow/` | Legacy version frozen; no coordinated release claim |
 | `21st` | Pinned external UI tooling | `.claude-plugin/marketplace.json` | External dependency with its own behavior and version |
 
@@ -37,6 +37,8 @@ For the coordinated workflow editions only, the release identifier is `YYYY.MM.N
 | UI comparison or actual visual correctness | `visual-loop` | `diagram-craft` for relationship figures | Adding a second visual-QA process |
 | PR delivery and verification | `delivery-loop` | `session-continuity`, `release-handover` (ChatGPT) | Independent invented agents/trackers |
 | Unit, integration, E2E and test selection | `test-strategy` | `actions-cost` for CI cost, `product-passport` for journeys | Running every suite or skipping critical journeys |
+| Shared-state, live collaboration, offline editing and multi-user correctness | `test-strategy` with `multi-user-correctness` reference | `security-review` for trust boundaries, `product-passport` for invariants | Choosing CRDTs or last-writer-wins before modeling operations |
+| Parallel coding agents and semantic integration conflicts | `model-delegation` with conflict-aware protocol | `delivery-loop` for final-head integration | Treating different files or successful branches as independent behavior |
 | Auth, secrets, filesystem and untrusted data | `security-review` | `test-strategy` for negative cases | Treating authentication as authorization |
 | Plugin installation or cross-host release | `plugin-experience-design` | `setup-audit` (ChatGPT) | Assuming installed means connected |
 | Research indexing or MCP/retrieval design | `knowledge-base-builder` | `best-practices` | Publishing product-private corpus |
@@ -45,7 +47,7 @@ For the coordinated workflow editions only, the release identifier is `YYYY.MM.N
 | Cost reduction | `actions-cost` / `netlify-cost` | `token-efficiency` | Optimizing away required verification |
 | Communications, decks, brand writing | `presentation-story` / `presentation-design` / `frogify` | `diagram-craft` for diagram assets | Implying generic workflow owns specialist product content |
 
-The three presentation and design skills are canonical in both full workflow editions. `visual-loop` also owns visual restraint. Named presentation products such as frogViz keep authority over actual generation and export. The remaining portable ChatGPT skills are `adversarial-review`, `implementation-proof`, `release-handover` and `setup-audit`. They are not part of the Claude workflow's canonical 23-skill set. `model-delegation` chooses how much agent/tool assistance is warranted, not a mandatory dispatcher.
+The three presentation and design skills are canonical in both full workflow editions. `visual-loop` also owns visual restraint. Named presentation products such as frogViz keep authority over actual generation and export. The remaining portable ChatGPT skills are `adversarial-review`, `implementation-proof`, `release-handover` and `setup-audit`. They are not part of the Claude workflow's canonical 24-skill set. `model-delegation` chooses how much agent/tool assistance is warranted, not a mandatory dispatcher.
 
 ## 4. Capability and release lifecycle
 
@@ -60,6 +62,7 @@ flowchart LR
 
 - `plugins/agent-workflow/skills/` is the **canonical shared source**, including the three writing skills. No separately packaged writing plugin is needed. ChatGPT packaging copies approved Markdown and adds host capability guidance. No hooks, MCP servers or local executables are smuggled into that edition.
 - Repo-level `setup-user.sh`, `sync-to-repos.sh`, `project/settings.json` and marketplace configuration are Claude-specific. They do not update an already installed ChatGPT plugin.
+- Optional repository sync also installs the canonical `project/maintainer-contract.md` into the marked sections of `AGENTS.md` and `CLAUDE.md`. `lib/apply.mjs` preserves local instructions; `lib/sync-status.mjs` checks the managed block without treating unrelated local edits as drift. ChatGPT account installation alone cannot modify repository files.
 - The release number is synchronized across `plugins/agent-workflow/.claude-plugin/plugin.json` and `portable/agentic-workflow/plugin.json`. A build/test gate rejects drift; independent plugin families retain independent versions.
 - An actual release requires separate GitHub source acceptance, artifact provenance, installed-host acceptance and rollback record.
 - Session-continuity owns the durable scratchpad and before/after proof. Delivery-loop owns production readiness and PR completion; test-strategy chooses sufficient verification. Skills grant no permissions, account data or background execution.

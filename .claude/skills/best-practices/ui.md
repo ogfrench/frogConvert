@@ -13,6 +13,10 @@
 - **One shape, one border, one focus ring for every text field, whatever draws it.**
   Corners vary by tier (controls tighter than cards), never by library.
   *(2026-10-11-third-party-editor-overrides)*
+- **Scope a host page's element selectors so they never reach the content it embeds.** A
+  bare `section{padding}` in the host hit an embedded slide's own section and broke it only
+  on the host page. Guard with `:where(:not(.root x))` and measure embedded content on the
+  host. *(2026-11-15-scope-host-page-css-away-from-embedded-content)*
 - **Theme with tokens, never hardcoded black or white.** Check both themes and a phone
   width before calling a screen done.
 - **Count WebGL contexts on a page of canvases; past about sixteen, the oldest are lost.**

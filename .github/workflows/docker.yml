@@ -4,6 +4,13 @@ on:
   push:
     branches: ["master"]
     tags: ["*"]
+    # Maintenance-only changes must not rebuild/publish the live GHCR latest image.
+    # Tag pushes remain explicit release events (GitHub does not path-filter tags).
+    paths-ignore:
+      - ".claude/**"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - ".github/workflows/docker.yml"
 
 permissions:
   contents: read

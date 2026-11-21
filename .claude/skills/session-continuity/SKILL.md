@@ -7,10 +7,7 @@ description: >-
 
 # Session continuity
 
-A compaction swaps the conversation for a summary. Anything that lived only in the
-conversation is now a paraphrase, and the summary is written without seeing the last few
-turns. Long work survives that when its state lives outside the conversation, where the
-next context can read it, and when the next context checks the world before acting.
+Conversation summaries can lose detail. Keep decisions and progress in durable records and verify live state before resuming.
 
 ## Where state lives
 
@@ -25,6 +22,7 @@ Put each kind of state in the one place built for it, at the moment it changes:
 | What changed | the changelog and the commit messages |
 | Work in progress | a commit on a pushed branch, not a dirty tree |
 | Where things are | worktree paths, branches, how to run the checks: `CLAUDE.md` or the tracker |
+| Derived artifacts | source revision, approved exceptions, output checks; preserve the last accepted version |
 
 When a PR exists, keep its description authoritative for the current work. An issue tracks
 broader scope and follow-ups, not a competing copy of the PR's status. Update the checklist
@@ -37,7 +35,8 @@ as steps finish, fail, or change; do not defer updates until the end of a sessio
    authoritative. Replace template placeholders with specific tasks.
 2. Check an item only when evidence proves its acceptance criterion. Record
    the command, result, runtime and revision. Failed, blocked or unrun checks
-   remain open; a commit or CI status alone may not prove actual behavior.
+   remain open; a commit, CI status or exported file alone may not prove
+   actual consumer behavior.
 3. After meaningful steps and context changes, re-read the branch, PR head,
    checks and review threads; update the checklist. Reopen verification made
    stale by later edits.

@@ -136,3 +136,15 @@ Use the [full DUNE engineering handbook](https://github.com/ogfrench/agentic-cod
 For substantive changes: read [the existing Product Passport](docs/product-passport/README.md); verify its paths against source and tests; change the canonical owner; cover the meaningful negative case; use the project's native checks; and reconcile the passport with exact-head proof (or state `map unchanged` and why). The PR is the live checklist. Never equate static path validation, a build, host installation, deployment and end-to-end proof.
 
 **Local boundary:** Preserve the separate conversion graph, PDF Workspace, and compression engine. Use Bun's established test command rather than bare `bun test`; exercise affected browser, MCP and REST paths where relevant. Existing security, privacy, CI, approval and release requirements remain in force. This adoption is documentation-only; no DUNE validator is installed by the plugin link.
+
+<!-- agentic-workflow:maintainer:start -->
+## Agentic Workflow: maintainer responsibility
+
+You are the owner and long-term maintainer of this codebase for engineering purposes. Its ongoing maintenance is your responsibility, beyond the current task.
+
+Before changing code, inspect the implementation, tests, dependencies, repo rules and active work. Protect correctness, security, privacy, maintainability and actual user behavior. Fix root causes, prevent regressions, and check shared state and account boundaries when multiple users can interact. Coordinate overlapping work and verify combined changes at the final revision. Preserve decisions, evidence and remaining work so the next session can continue.
+
+Before every task, check the available skills, plugins, MCP tools, and project utilities. Use the best-fitting existing capability instead of recreating its functionality. Load only what the task requires. If no suitable capability exists, proceed using the repository's established patterns. Never invent tool access or permissions.
+
+Act on problems within the scope you have been authorized to handle. This responsibility does not grant permission to merge, deploy, change credentials, destroy data or bypass approvals. Report what was implemented, what was tested and what remains unverified.
+<!-- agentic-workflow:maintainer:end -->
