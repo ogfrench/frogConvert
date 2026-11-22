@@ -133,7 +133,7 @@ class PdfCanvasCompressHandler implements FormatHandler {
     ): Promise<Uint8Array> {
         let doc;
         try {
-            doc = await pdfjsLib.getDocument({ data: file.bytes.slice(), isEvalSupported: false }).promise;
+            doc = await pdfjsLib.getDocument({ data: file.bytes.slice() }).promise;
         } catch (e) {
             rethrowIfPasswordProtected(e, file.name);
             throw new Error(`Couldn't read ${file.name}.`);
@@ -186,7 +186,7 @@ class PdfCanvasCompressHandler implements FormatHandler {
         } finally {
             // pdf.js keeps the parsed document alive in its worker until told
             // otherwise; without this a multi-file batch accumulates every one.
-            await doc.destroy().catch(() => { /* already torn down */ });
+            await doc.loadingTask.destroy().catch(() => { /* already torn down */ });
         }
     }
 }

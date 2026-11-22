@@ -9,6 +9,20 @@ with the version being tagged; the generated PR list is appended below it
 automatically, so do not paste one here.
 -->
 
+## What's new in 3.5.6
+
+Dependency maintenance and critical-advisory remediation, with no new conversion features.
+
+- **Runtime security:** pin transitive `proxy-addr` to 2.0.8 and `hono` to 4.13.20 to replace vulnerable versions inherited through the MCP SDK/Express dependency tree.
+- **Build security:** pin transitive `tar` to 7.5.23 and add a critical-severity Bun audit check in CI.
+- **Dependencies:** update `vite-plugin-pwa` to 2.0.0 and `fake-indexeddb` to 6.2.8.
+- **PDF security:** upgrade `pdfjs-dist` to patched 6.2.108 (GHSA-hq66-cqwq-w95j), with PDF.js v6 document cleanup changes. The PDF Editor and desktop rendering paths require regression testing.
+- **Conversion fidelity:** retain `@imagemagick/magick-wasm` 0.0.45; 0.0.46 demonstrably fails Aseprite header validation in the conversion matrix.
+
+**Remaining limits:** unrelated high/moderate/low dependency warnings are not claimed fixed. No broad claim of vulnerability-free dependencies is made. A green CI run and PDF/browser/desktop compatibility checks are required before publication; real desktop/host acceptance remains separate.
+
+---
+
 ## What's new in 3.5.5
 
 A small footer-navigation and release-documentation patch. The conversion engine and MCP runtime are unchanged.

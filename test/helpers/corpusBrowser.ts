@@ -430,6 +430,6 @@ export async function pdfPageTexts(bytes: Uint8Array | Buffer): Promise<string[]
             .map((it: { str?: string }) => it.str ?? "")
             .join(" ").replace(/\s+/g, " ").trim());
     }
-    await doc.destroy();
+    await doc.loadingTask.destroy();
     return out;
 }

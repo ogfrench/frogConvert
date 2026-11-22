@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import JSZip from "jszip";
+import { PDFDocument } from "pdf-lib";
 import {
     distBuilt, serveDist, launchBrowser, newTrackedPage, takeModalDownload,
     waitForRegistry, sleep, inspectPdf, type DistServer,
@@ -27,6 +28,7 @@ import {
 const RES = path.resolve(__dirname, "../resources");
 const requested = process.env.FROG_E2E_MATRIX === "1";
 const TMP = path.join(os.tmpdir(), "frog-convert-matrix");
+const PDFJS_SMOKE = path.join(TMP, "pdfjs-v6-smoke.pdf");
 
 type Outcome = {
     files: { name: string; size: number }[]; dir: string; modal: string; preflight: string | null;
@@ -43,6 +45,10 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
     beforeAll(async () => {
         server = await serveDist();
         browser = await launchBrowser();
+        const pdf = await PDFDocument.create();
+        pdf.addPage([320, 240]).drawText('frogConvert PDF.js upgrade smoke', { x: 20, y: 120, size: 16 });
+        fs.mkdirSync(TMP, { recursive: true });
+        fs.writeFileSync(PDFJS_SMOKE, await pdf.save());
     }, 120_000);
 
     afterAll(async () => {
@@ -156,6 +162,58 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
             await page.close();
         }
     }, 120_000);
+
+    it("pdf.js 6: pdf -> text extracts text through the real browser", async () => {
+        const o = await convert(PDFJS_SMOKE, "text");
+        expect(read(o).toString("utf8")).toContain("frogConvert PDF.js upgrade smoke");
+        expect(o.external).toEqual([]);
+    }, 300_000);
+
+    it("pdf.js 6: pdf -> png renders a valid image in the browser", async () => {
+        const o = await convert(PDFJS_SMOKE, "png");
+        const png = read(o);
+        expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+        const UPNG = (await import("upng-js")).default;
+        const decoded = UPNG.decode(png);
+        expect(decoded.width).toBeGreaterThan(100);
+        expect(decoded.height).toBeGreaterThan(100);
+        const pixels = new Uint8Array(UPNG.toRGBA8(decoded)[0]);
+        let nonWhitePixels = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+            if (pixels[i] < 240 || pixels[i + 1] < 240 || pixels[i + 2] < 240) nonWhitePixels++;
+        }
+        expect(nonWhitePixels, "PDF page rendered blank instead of containing the sample text").toBeGreaterThan(20);
+        expect(o.external).toEqual([]);
+    }, 300_000);
+
+    it("pdf.js 6: PDF Editor loads and renders real page thumbnails", async () => {
+        const dir = path.join(TMP, "pdf-editor-smoke");
+        const { page, violations } = await newTrackedPage(browser, dir);
+        const external: string[] = [];
+        page.on("request", request => {
+            const url = request.url();
+            if (!url.startsWith(server.base) && !/^(data|blob|about):/.test(url)) external.push(url);
+        });
+        try {
+            await page.goto(`${server.base}/pdf`, { waitUntil: "networkidle2" });
+            const input = await page.waitForSelector("#workspace-file-input", { timeout: 30_000 });
+            await input!.uploadFile(PDFJS_SMOKE);
+            await page.waitForFunction(() => {
+                const img = document.querySelector<HTMLImageElement>(".ws-file-thumb img");
+                return !!img && img.complete && img.naturalWidth > 100 && img.src.startsWith("data:image/png;");
+            }, { timeout: 90_000 });
+
+            await page.click("#pdf-tab-organize");
+            await page.waitForFunction(() => {
+                const img = document.querySelector<HTMLImageElement>(".ws-page-thumb img");
+                return !!img && img.complete && img.naturalWidth > 50 && img.src.startsWith("data:image/png;");
+            }, { timeout: 90_000 });
+            expect(await violations()).toEqual([]);
+            expect(external).toEqual([]);
+        } finally {
+            await page.close();
+        }
+    }, 300_000);
 
     it("pdf -> pptx gives one slide per page, and says the slides are pictures", async () => {
         const o = await convert(path.join(RES, "deck-4pages.pdf"), "pptx");

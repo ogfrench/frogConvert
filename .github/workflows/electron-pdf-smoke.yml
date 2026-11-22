@@ -1,0 +1,41 @@
+name: Electron PDF.js smoke
+
+on:
+  pull_request:
+    paths:
+      - "src/handlers/pdftoimg.ts"
+      - "src/handlers/pdftotxt.ts"
+      - "src/handlers/pdfCanvasCompress.ts"
+      - "src/tools/pdfThumbnails.ts"
+      - "src/core/compression/inputQuality.ts"
+      - "test/e2e/electron-app.test.ts"
+      - ".github/workflows/electron-pdf-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  electron-pdf:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.4"
+      - name: Install dependencies and Electron runtime
+        run: |
+          bun install --frozen-lockfile
+          node node_modules/electron/install.js
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb
+          test -x node_modules/electron/dist/electron
+          command -v xvfb-run
+      - name: Exercise PDF thumbnail rendering inside Electron
+        env:
+          FROG_REQUIRE_ELECTRON: "1"
+        run: bun x vitest run test/e2e/electron-app.test.ts -t "renders real PDF.js 6 thumbnails"

@@ -46,7 +46,6 @@ class pdftotxtHandler implements FormatHandler {
         // and a failure here should leave the original intact to fall back on.
         // The other three getDocument sites in this codebase already do this.
         data: inputFile.bytes.slice(),
-        isEvalSupported: false,
       });
       let pdfDocument;
       try {
@@ -72,7 +71,7 @@ class pdftotxtHandler implements FormatHandler {
           }
         }
       } finally {
-        await pdfDocument.destroy();
+        await loadingTask.destroy();
       }
 
       const bytes = new TextEncoder().encode(pageTexts.join("\n") + "\n");

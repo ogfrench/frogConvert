@@ -50,6 +50,9 @@ jobs:
       - name: Install dependencies
         run: bun i --frozen-lockfile
 
+      - name: Audit critical dependency advisories
+        run: bun audit --audit-level=critical
+
       - name: Build
         run: |
           export VITE_COMMIT_SHA=${{ github.sha }}
