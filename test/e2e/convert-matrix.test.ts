@@ -171,8 +171,48 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
 
     it("pdf.js 6: pdf -> png renders a valid image in the browser", async () => {
         const o = await convert(PDFJS_SMOKE, "png");
-        expect(read(o).subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+        const png = read(o);
+        expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+        const UPNG = (await import("upng-js")).default;
+        const decoded = UPNG.decode(png);
+        expect(decoded.width).toBeGreaterThan(100);
+        expect(decoded.height).toBeGreaterThan(100);
+        const pixels = new Uint8Array(UPNG.toRGBA8(decoded)[0]);
+        let nonWhitePixels = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+            if (pixels[i] < 240 || pixels[i + 1] < 240 || pixels[i + 2] < 240) nonWhitePixels++;
+        }
+        expect(nonWhitePixels, "PDF page rendered blank instead of containing the sample text").toBeGreaterThan(20);
         expect(o.external).toEqual([]);
+    }, 300_000);
+
+    it("pdf.js 6: PDF Editor loads and renders real page thumbnails", async () => {
+        const dir = path.join(TMP, "pdf-editor-smoke");
+        const { page, violations } = await newTrackedPage(browser, dir);
+        const external: string[] = [];
+        page.on("request", request => {
+            const url = request.url();
+            if (!url.startsWith(server.base) && !/^(data|blob|about):/.test(url)) external.push(url);
+        });
+        try {
+            await page.goto(`${server.base}/pdf`, { waitUntil: "networkidle2" });
+            const input = await page.waitForSelector("#workspace-file-input", { timeout: 30_000 });
+            await input!.uploadFile(PDFJS_SMOKE);
+            await page.waitForFunction(() => {
+                const img = document.querySelector<HTMLImageElement>(".ws-file-thumb img");
+                return !!img && img.complete && img.naturalWidth > 100 && img.src.startsWith("data:image/png;");
+            }, { timeout: 90_000 });
+
+            await page.click("#pdf-tab-organize");
+            await page.waitForFunction(() => {
+                const img = document.querySelector<HTMLImageElement>(".ws-page-thumb img");
+                return !!img && img.complete && img.naturalWidth > 50 && img.src.startsWith("data:image/png;");
+            }, { timeout: 90_000 });
+            expect(await violations()).toEqual([]);
+            expect(external).toEqual([]);
+        } finally {
+            await page.close();
+        }
     }, 300_000);
 
     it("pdf -> pptx gives one slide per page, and says the slides are pictures", async () => {
