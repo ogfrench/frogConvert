@@ -227,6 +227,22 @@ describe.skipIf(!canRun)(`Electron desktop app [${WHY}]`, () => {
 
         fs.rmSync(jpeg, { force: true });
     }, 600_000);
+    it("renders real PDF.js 6 thumbnails in the packaged Electron shell", async () => {
+        await open("pdf");
+        const input = await page.waitForSelector("#workspace-file-input", { timeout: 30_000 });
+        await input!.uploadFile(path.join(ROOT, "test/resources/deck-4pages.pdf"));
+        await page.waitForFunction(() => {
+            const img = document.querySelector<HTMLImageElement>(".ws-file-thumb img");
+            return !!img && img.complete && img.naturalWidth > 50 && img.src.startsWith("data:image/png;");
+        }, { timeout: 90_000 });
+
+        await page.click("#pdf-tab-organize");
+        await page.waitForFunction(() => {
+            const img = document.querySelector<HTMLImageElement>(".ws-page-thumb img");
+            return !!img && img.complete && img.naturalWidth > 50 && img.src.startsWith("data:image/png;");
+        }, { timeout: 90_000 });
+    }, 300_000);
+
     it("converts Office files through an installed LibreOffice", async () => {
         // The desktop app answers app://-/api/health and /api/convert itself
         // (src/electron-office.cjs), which turns on the libreoffice handler's
