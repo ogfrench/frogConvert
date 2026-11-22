@@ -36,4 +36,6 @@ jobs:
           test -x node_modules/electron/dist/electron
           command -v xvfb-run
       - name: Exercise PDF thumbnail rendering inside Electron
+        env:
+          FROG_REQUIRE_ELECTRON: "1"
         run: bun x vitest run test/e2e/electron-app.test.ts -t "renders real PDF.js 6 thumbnails"

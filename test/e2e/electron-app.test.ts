@@ -43,6 +43,11 @@ const WHY = canRun ? "runs here"
     : !hasElectron ? "electron binary not installed (run `npm rebuild electron`)"
     : "xvfb-run not on PATH";
 
+// A CI job that explicitly requires Electron must fail instead of passing with skipped tests.
+if (process.env.FROG_REQUIRE_ELECTRON === "1" && !canRun) {
+    throw new Error(`Electron smoke prerequisites missing: ${WHY}`);
+}
+
 describe.skipIf(!canRun)(`Electron desktop app [${WHY}]`, () => {
     let proc: ChildProcess;
     let browser: Browser;
