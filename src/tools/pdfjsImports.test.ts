@@ -14,9 +14,9 @@ function sourceFiles(dir: string): string[] {
 }
 
 describe('pdfjs-dist imports', () => {
-  it('disables eval in the canvas-compression PDF.js fallback', () => {
-    const source = readFileSync(resolve(__dirname, '../handlers/pdfCanvasCompress.ts'), 'utf8');
-    expect(source).toContain('pdfjsLib.getDocument({ data: file.bytes.slice(), isEvalSupported: false })');
+  it('pins PDF.js to the first patched release for GHSA-hq66-cqwq-w95j', () => {
+    const pkg = JSON.parse(readFileSync(resolve(__dirname, '../../package.json'), 'utf8'));
+    expect(pkg.dependencies['pdfjs-dist']).toBe('6.2.108');
   });
 
   it('every import uses the legacy build', () => {

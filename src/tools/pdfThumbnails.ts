@@ -52,7 +52,6 @@ async function withQueuedPage<T>(
     } else {
       pdf = await lib.getDocument({
         data: pdfBytes.slice(),
-        isEvalSupported: false,
         isOffscreenCanvasSupported: false,
       }).promise;
       docCache.set(pdfBytes, pdf);
