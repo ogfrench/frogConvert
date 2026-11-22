@@ -10,6 +10,17 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [3.5.6] - 2026-11-22
+
+### Security
+- Pin transitive `proxy-addr` 2.0.8 and `tar` 7.5.23 to address the two critical advisories identified in the November audit; pin `hono` 4.13.20 for its reported CORS and later fixes.
+- Block newly introduced critical-severity dependency advisories in CI with `bun audit --audit-level=critical`. The high-severity and lower audit backlog is not claimed resolved.
+
+### Dependencies and compatibility
+- Upgrade `vite-plugin-pwa` to 2.0.0 and `fake-indexeddb` to 6.2.8 from Dependabot #153 and the safe part of #152.
+- Keep `@imagemagick/magick-wasm` at 0.0.45: its 0.0.46 release fails the Aseprite round-trip test in #152's CI.
+- Defer the `pdfjs-dist` 5.x to 6.x migration and its advisory until PDF conversion, thumbnails, legacy-build browser support, and desktop regressions are validated. This release does not claim to remediate that alert.
+
 ## [3.5.5] - 2026-11-20
 
 ### Website
