@@ -16,11 +16,15 @@ import { describe, it, expect, vi } from "vitest";
  * Worse, the detached buffer *was the file*, so the compression that followed
  * would have been handed an empty document.
  */
+const { destroyLoadingTask } = vi.hoisted(() => ({
+  destroyLoadingTask: vi.fn(() => Promise.resolve()),
+}));
+
 vi.mock("pdfjs-dist/legacy/build/pdf.mjs", () => ({
   getDocument: ({ data }: { data: Uint8Array }) => {
     // Exactly what pdf.js does: take the buffer away from the caller.
     structuredClone(data, { transfer: [data.buffer] });
-    return { promise: Promise.resolve({ numPages: 59 }), destroy: () => Promise.resolve() };
+    return { promise: Promise.resolve({ numPages: 59 }), destroy: destroyLoadingTask };
   },
 }));
 
@@ -35,6 +39,12 @@ function pdfWithoutTrailerCount(totalBytes: number): Uint8Array {
 }
 
 describe("probePdf via the pdf.js fallback", () => {
+  it("tears down the PDF.js v6 loading task after reading", async () => {
+    destroyLoadingTask.mockClear();
+    await probePdf(pdfWithoutTrailerCount(6_027_691));
+    expect(destroyLoadingTask).toHaveBeenCalledOnce();
+  });
+
   it("does not hand the caller's buffer to pdf.js", async () => {
     const bytes = pdfWithoutTrailerCount(6_027_691);
     await probePdf(bytes);
