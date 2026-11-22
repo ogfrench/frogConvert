@@ -200,13 +200,14 @@ async function readPdfPageCountViaPdfjs(u8: Uint8Array): Promise<number | null> 
     // compression, which would go on to hand Ghostscript an empty document.
     // The copy costs one memcpy on a path that only runs when the cheap
     // trailer scan has already failed.
-    const doc = await pdfjs.getDocument({
+    const loadingTask = pdfjs.getDocument({
       data: u8.slice(),
       disableFontFace: true,
       isEvalSupported: false,
-    }).promise;
+    });
+    const doc = await loadingTask.promise;
     const pages = doc.numPages;
-    await doc.destroy?.();
+    await loadingTask.destroy();
     return pages > 0 ? pages : null;
   } catch {
     return null;

@@ -20,7 +20,7 @@ vi.mock("pdfjs-dist/legacy/build/pdf.mjs", () => ({
   getDocument: ({ data }: { data: Uint8Array }) => {
     // Exactly what pdf.js does: take the buffer away from the caller.
     structuredClone(data, { transfer: [data.buffer] });
-    return { promise: Promise.resolve({ numPages: 59, destroy: () => Promise.resolve() }) };
+    return { promise: Promise.resolve({ numPages: 59 }), destroy: () => Promise.resolve() };
   },
 }));
 

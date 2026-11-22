@@ -164,7 +164,7 @@ class pdftoimgHandler implements FormatHandler {
           });
         }
       } finally {
-        await pdf.destroy();
+        await pdf.loadingTask.destroy();
       }
     }
 

@@ -19,7 +19,7 @@ All notable changes to frogConvert. Loosely follows [Keep a Changelog](https://k
 ### Dependencies and compatibility
 - Upgrade `vite-plugin-pwa` to 2.0.0 and `fake-indexeddb` to 6.2.8 from Dependabot #153 and the safe part of #152.
 - Keep `@imagemagick/magick-wasm` at 0.0.45: its 0.0.46 release fails the Aseprite round-trip test in #152's CI.
-- Defer the `pdfjs-dist` 5.x to 6.x migration and its advisory until PDF conversion, thumbnails, legacy-build browser support, and desktop regressions are validated. This release does not claim to remediate that alert.
+- Upgrade `pdfjs-dist` to 6.2.108 to address GHSA-hq66-cqwq-w95j, migrating PDF document teardown to the loading-task API. Browser, PDF Editor, and desktop compatibility remain explicit release gates.
 
 ## [3.5.5] - 2026-11-20
 

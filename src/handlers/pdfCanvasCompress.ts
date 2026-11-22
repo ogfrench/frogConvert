@@ -186,7 +186,7 @@ class PdfCanvasCompressHandler implements FormatHandler {
         } finally {
             // pdf.js keeps the parsed document alive in its worker until told
             // otherwise; without this a multi-file batch accumulates every one.
-            await doc.destroy().catch(() => { /* already torn down */ });
+            await doc.loadingTask.destroy().catch(() => { /* already torn down */ });
         }
     }
 }

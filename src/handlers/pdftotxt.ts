@@ -72,7 +72,7 @@ class pdftotxtHandler implements FormatHandler {
           }
         }
       } finally {
-        await pdfDocument.destroy();
+        await loadingTask.destroy();
       }
 
       const bytes = new TextEncoder().encode(pageTexts.join("\n") + "\n");

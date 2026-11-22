@@ -64,7 +64,7 @@ async function withQueuedPage<T>(
         // killed it. Unhandled, that reached the app-wide recovery popup: an
         // eviction the app does not even need to succeed, reported to the user
         // as "frogConvert hit an error".
-        docCache.get(oldestKey)?.destroy().catch(() => { /* already torn down */ });
+        docCache.get(oldestKey)?.loadingTask.destroy().catch(() => { /* already torn down */ });
         docCache.delete(oldestKey);
       }
     }
@@ -137,7 +137,7 @@ export function clearThumbnailCache() {
   for (const pdf of docCache.values()) {
     // Same reason as the eviction above: a rejected teardown is not worth an
     // error popup over a cache we are throwing away regardless.
-    pdf.destroy().catch(() => { /* already torn down */ });
+    pdf.loadingTask.destroy().catch(() => { /* already torn down */ });
   }
   docCache.clear();
   if (sharedCanvas) {
