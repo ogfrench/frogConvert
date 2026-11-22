@@ -8,6 +8,11 @@
   "homepage": "https://frogconvert.xyz",
   "repository": "https://github.com/ogfrench/frogConvert",
   "type": "module",
+  "overrides": {
+    "proxy-addr": "2.0.8",
+    "tar": "7.5.23",
+    "hono": "4.13.20"
+  },
   "main": "src/electron.cjs",
   "bin": {
     "frogconvert": "bin/frogconvert.ts"

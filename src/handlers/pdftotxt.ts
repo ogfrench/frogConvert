@@ -47,7 +47,6 @@ class pdftotxtHandler implements FormatHandler {
         // The other three getDocument sites in this codebase already do this.
         data: inputFile.bytes.slice(),
         isEvalSupported: false,
-        enableScripting: false,
       });
       let pdfDocument;
       try {

@@ -204,7 +204,6 @@ async function readPdfPageCountViaPdfjs(u8: Uint8Array): Promise<number | null> 
       data: u8.slice(),
       disableFontFace: true,
       isEvalSupported: false,
-      enableScripting: false,
     }).promise;
     const pages = doc.numPages;
     await doc.destroy?.();

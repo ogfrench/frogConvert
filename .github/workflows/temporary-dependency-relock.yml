@@ -1,0 +1,32 @@
+name: Temporary dependency lock refresh
+
+on:
+  push:
+    branches: ["fix/consolidate-dependencies-security-2026-11-22"]
+    paths:
+      - package.json
+      - .github/workflows/temporary-dependency-relock.yml
+
+permissions:
+  contents: write
+
+jobs:
+  relock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.4"
+      - name: Refresh lockfile
+        run: bun install --ignore-scripts
+      - name: Commit refreshed lockfile and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bun.lock
+          git rm .github/workflows/temporary-dependency-relock.yml
+          git diff --cached --check
+          git commit -m "build: regenerate Bun lockfile with security overrides"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

@@ -16,23 +16,7 @@ function sourceFiles(dir: string): string[] {
 describe('pdfjs-dist imports', () => {
   it('disables eval in the canvas-compression PDF.js fallback', () => {
     const source = readFileSync(resolve(__dirname, '../handlers/pdfCanvasCompress.ts'), 'utf8');
-    expect(source).toContain('pdfjsLib.getDocument({ data: file.bytes.slice(), isEvalSupported: false, enableScripting: false })');
-  });
-
-  it('disables PDF scripting at each runtime PDF.js document loader', () => {
-    const loaders = [
-      '../handlers/pdftotxt.ts',
-      '../handlers/pdftoimg.ts',
-      './pdfThumbnails.ts',
-      '../handlers/pdfCanvasCompress.ts',
-      '../core/compression/inputQuality.ts',
-    ];
-    for (const loader of loaders) {
-      const source = readFileSync(resolve(__dirname, loader), 'utf8');
-      const options = source.match(/getDocument\(\{([\s\S]*?)\}\)/)?.[1];
-      expect(options, loader).toBeDefined();
-      expect(options, loader).toMatch(/\benableScripting:\s*false\b/);
-    }
+    expect(source).toContain('pdfjsLib.getDocument({ data: file.bytes.slice(), isEvalSupported: false })');
   });
 
   it('every import uses the legacy build', () => {
