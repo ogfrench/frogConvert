@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import JSZip from "jszip";
+import { PDFDocument } from "pdf-lib";
 import {
     distBuilt, serveDist, launchBrowser, newTrackedPage, takeModalDownload,
     waitForRegistry, sleep, inspectPdf, type DistServer,
@@ -27,6 +28,7 @@ import {
 const RES = path.resolve(__dirname, "../resources");
 const requested = process.env.FROG_E2E_MATRIX === "1";
 const TMP = path.join(os.tmpdir(), "frog-convert-matrix");
+const PDFJS_SMOKE = path.join(TMP, "pdfjs-v6-smoke.pdf");
 
 type Outcome = {
     files: { name: string; size: number }[]; dir: string; modal: string; preflight: string | null;
@@ -43,6 +45,10 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
     beforeAll(async () => {
         server = await serveDist();
         browser = await launchBrowser();
+        const pdf = await PDFDocument.create();
+        pdf.addPage([320, 240]).drawText('frogConvert PDF.js upgrade smoke', { x: 20, y: 120, size: 16 });
+        fs.mkdirSync(TMP, { recursive: true });
+        fs.writeFileSync(PDFJS_SMOKE, await pdf.save());
     }, 120_000);
 
     afterAll(async () => {
@@ -156,6 +162,18 @@ describe.skipIf(!requested || !distBuilt())("Converter matrix (opt-in: FROG_E2E_
             await page.close();
         }
     }, 120_000);
+
+    it("pdf.js 6: pdf -> text extracts text through the real browser", async () => {
+        const o = await convert(PDFJS_SMOKE, "text");
+        expect(read(o).toString("utf8")).toContain("frogConvert PDF.js upgrade smoke");
+        expect(o.external).toEqual([]);
+    }, 300_000);
+
+    it("pdf.js 6: pdf -> png renders a valid image in the browser", async () => {
+        const o = await convert(PDFJS_SMOKE, "png");
+        expect(read(o).subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+        expect(o.external).toEqual([]);
+    }, 300_000);
 
     it("pdf -> pptx gives one slide per page, and says the slides are pictures", async () => {
         const o = await convert(path.join(RES, "deck-4pages.pdf"), "pptx");
