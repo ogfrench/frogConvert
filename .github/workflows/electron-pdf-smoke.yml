@@ -30,7 +30,7 @@ jobs:
       - name: Install dependencies and Electron runtime
         run: |
           bun install --frozen-lockfile
-          npm rebuild electron
+          node node_modules/electron/install.js
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb
           test -x node_modules/electron/dist/electron
